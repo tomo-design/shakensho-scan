@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#16191D">
+<title>車検証スキャン整備サポート</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="lamp"></div>
+  <div>
+    <h1>車検証スキャン 整備サポート</h1>
+    <div class="sub">SHAKENSHO QR SCANNER v1.0</div>
+  </div>
+</header>
+
+<!-- ============ VIEW: SCAN ============ -->
+<div id="view-scan" class="view active">
+
+  <div id="scanWrap">
+    <div id="camPlaceholder">下の「ライブスキャン」を押すとカメラが起動します。<br>車検証のQRコード（複数ある場合は順番に）を枠内に収めてください。</div>
+    <video id="video" class="hidden" playsinline muted></video>
+    <div id="scanOverlay" class="hidden"><div class="reticle"><b></b></div></div>
+    <div id="scanStatus" class="hidden"><span>QRを探しています…</span><span id="qrCount">0 件読取</span></div>
+  </div>
+
+  <div class="btnRow">
+    <button class="btn btn-amber" id="btnStart">📷 ライブスキャン</button>
+    <button class="btn btn-ghost hidden" id="btnStop">■ 停止して解析</button>
+  </div>
+  <div class="btnRow">
+    <button class="btn btn-ghost" id="btnOcr">🔍 OCRで読み取り（QRが読めない時・券面を撮影）</button>
+    <input type="file" id="ocrIn" accept="image/*" capture="environment" class="hidden">
+  </div>
+  <div id="ocrBox" class="hidden">
+    <img id="ocrPreview" alt="OCR対象画像">
+    <div id="ocrStatus"></div>
+  </div>
+
+  <!-- manual fallback -->
+  <section>
+    <h2><span class="tag cy">MANUAL</span>型式を直接入力（QRが読めない時）</h2>
+    <div class="sec-body">
+      <div class="inputRow">
+        <input type="text" id="manualType" class="uc" placeholder="例: 2PG-FW74HZ / VY12">
+        <button class="btn btn-amber" id="btnManual">検索</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- result -->
+  <div id="result" class="hidden">
+    <div class="plate">
+      <div class="ttl">VEHICLE IDENTIFICATION</div>
+      <dl>
+        <dt>型式</dt><dd id="rType">—</dd>
+        <dt>車台番号</dt><dd id="rVin" class="small">—</dd>
+        <dt>登録番号</dt><dd id="rPlate" class="small">—</dd>
+        <dt>初度登録</dt><dd id="rFirstReg" class="small">—</dd>
+        <dt>有効期限</dt><dd id="rExpiry" class="small">—</dd>
+        <dt>指定-類別</dt><dd id="rKata" class="small">—</dd>
+      </dl>
+      <div class="match" id="rMatch"></div>
+    </div>
+
+    <section id="secFault" class="hidden">
+      <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
+      <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
+    </section>
+
+    <section id="secSpec" class="hidden">
+      <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
+      <div class="sec-body">
+        <dl class="specs" id="specList"></dl>
+        <div class="hint" style="margin:10px 0 0">※ 参考値です。年式・エンジン型式で異なるため、必ず整備書・メーカー資料で確認してください。DB編集タブで自社の確定値に書き換えできます。</div>
+      </div>
+    </section>
+
+    <section id="secNotes" class="hidden">
+      <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
+      <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
+    </section>
+
+    <section>
+      <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
+      <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
+      <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
+      <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
+    </section>
+
+    <section id="secRaw">
+      <h2><span class="tag cy">RAW</span>QRから読み取った全フィールド</h2>
+      <div class="sec-body">
+        <div class="hint">自動判定が間違っている場合は、正しい値のチップをタップ →「型式」or「車台番号」に割り当てできます。</div>
+        <div class="chips" id="rawChips"></div>
+      </div>
+    </section>
+  </div>
+
+  <p class="note">※ 故障・点検データは「DB編集」タブで自社ノウハウを追加・編集できます。リコールの有無は必ず公式リンク先で車台番号により確認してください。所有者の個人情報は本ツールでは読取・保存しません。</p>
+</div>
+
+<!-- ============ VIEW: DIAG ============ -->
+<div id="view-diag" class="view">
+
+  <section style="margin-top:14px">
+    <h2><span class="tag al">DTC</span>ダイアグコード検索</h2>
+    <div class="sec-body">
+      <div class="hint">診断機の画面を撮影するか、スクリーンショットを下の入力欄に<b>貼り付け(ペースト)</b>してください。コードを直接入力してもOK（例: P0401 P2002）。</div>
+      <div class="btnRow" style="margin-top:0">
+        <button class="btn btn-ghost" id="btnDiagOcr">📷 診断機画面を撮影してコード読取</button>
+        <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
+      </div>
+      <div id="diagOcrStatus" class="hint hidden" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag cy">INPUT</span>コード / お客様の問診内容</h2>
+    <div class="sec-body">
+      <textarea id="diagText" placeholder="例1: P0401 P2453&#10;例2: 朝一番の始動時に白煙が出て、加速しない。警告灯も点いた。&#10;（診断機画面のスクショをここに貼り付けるとOCRでコード抽出します）"></textarea>
+      <div class="btnRow">
+        <button class="btn btn-amber" id="btnDiagRun">🔎 解析する</button>
+        <button class="btn btn-ghost" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
+      </div>
+      <div class="hint" id="diagVehicleHint" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <div id="diagResults"></div>
+
+  <p class="note">※ 原因候補は一般的な傾向に基づく参考情報です。最終判断は実測・実点検で行ってください。P1xxx等のメーカー固有コードはFAINESまたはメーカー資料で確認を。</p>
+</div>
+
+<!-- ============ VIEW: HISTORY ============ -->
+<div id="view-history" class="view">
+  <section style="margin-top:14px">
+    <h2><span class="tag cy">LOG</span>スキャン履歴</h2>
+    <div id="histList"></div>
+  </section>
+  <p class="note">履歴には型式・車台番号・日時のみ保存されます（この端末内のみ）。</p>
+</div>
+
+<!-- ============ VIEW: DB EDIT ============ -->
+<div id="view-db" class="view">
+  <div class="btnRow" style="margin-top:14px">
+    <button class="btn btn-amber" id="btnDbAdd">＋ 車種を追加</button>
+  </div>
+  <div class="btnRow">
+    <button class="btn btn-ghost btn-sm" id="btnDbExport">⬇ JSONエクスポート</button>
+    <button class="btn btn-ghost btn-sm" id="btnDbImport">⬆ JSONインポート</button>
+    <input type="file" id="dbImportIn" accept="application/json,.json" class="hidden">
+  </div>
+
+  <section id="dbFormSec" class="hidden">
+    <h2><span class="tag">EDIT</span><span id="dbFormTitle">車種を追加</span></h2>
+    <div class="sec-body">
+      <label class="fld">車種名（例: いすゞ ギガ）</label>
+      <input type="text" id="dbfName">
+      <label class="fld">型式マッチ正規表現（例: ^(CYL|CXZ)）</label>
+      <input type="text" id="dbfMatch" class="uc" placeholder="^(CYL|CXZ)">
+      <label class="fld">メーカー（リコールリンク用）</label>
+      <select id="dbfMaker" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--txt);font-size:16px;padding:13px 12px;font-family:inherit">
+        <option value="isuzu">いすゞ</option><option value="hino">日野</option>
+        <option value="fuso">三菱ふそう</option><option value="ud">UDトラックス</option>
+        <option value="nissan">日産</option><option value="toyota">トヨタ</option>
+        <option value="honda">ホンダ</option><option value="mazda">マツダ</option>
+        <option value="suzuki">スズキ</option><option value="daihatsu">ダイハツ</option>
+        <option value="subaru">スバル</option><option value="other">その他</option>
+      </select>
+      <label class="fld">定番故障・持病（1行に1件）</label>
+      <textarea id="dbfFaults"></textarea>
+      <label class="fld">メンテナンス諸元（1行に1件、「項目: 値」形式）</label>
+      <textarea id="dbfSpecs" placeholder="エンジンオイル量: 約13L（フィルタ交換時）&#10;ホイールナット締付: 550-600N·m（ISO・要確認）"></textarea>
+      <label class="fld">メモ（任意）</label>
+      <textarea id="dbfNotes" style="min-height:56px"></textarea>
+
+      <label class="fld">📷 写真から読み取り（整備書・諸元表・コーションプレート等）</label>
+      <div class="btnRow" style="margin-top:0">
+        <button class="btn btn-ghost" id="btnDbOcr" type="button">📷 撮影してOCR読み取り</button>
+        <input type="file" id="dbOcrIn" accept="image/*" capture="environment" class="hidden">
+      </div>
+      <div id="dbOcrStatus" class="hint hidden" style="margin-top:8px"></div>
+      <div id="dbOcrResult" class="hidden">
+        <label class="fld">読み取り結果（不要な行を消してから反映してください）</label>
+        <textarea id="dbOcrText" style="min-height:120px"></textarea>
+        <div class="btnRow" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" id="btnDbOcrToSpecs" type="button">→ 諸元に追記</button>
+          <button class="btn btn-ghost btn-sm" id="btnDbOcrToFaults" type="button">→ 持病に追記</button>
+          <button class="btn btn-ghost btn-sm" id="btnDbOcrToNotes" type="button">→ メモに追記</button>
+        </div>
+      </div>
+      <div class="btnRow">
+        <button class="btn btn-amber" id="btnDbSave">保存</button>
+        <button class="btn btn-ghost" id="btnDbCancel">キャンセル</button>
+      </div>
+    </div>
+  </section>
+
+  <section style="margin-top:14px">
+    <h2><span class="tag cy">DB</span>登録車種一覧</h2>
+    <div id="dbList"></div>
+  </section>
+  <p class="note">「内蔵」は db/vehicles.json の初期データ、「カスタム」はこの端末で追加・編集したデータ（localStorage保存）です。同じ車種名のカスタムが内蔵より優先されます。ノウハウのバックアップにはエクスポートを使ってください。</p>
+</div>
+
+<!-- ============ VIEW: SETTINGS ============ -->
+<div id="view-settings" class="view">
+  <section style="margin-top:14px">
+    <h2><span class="tag cy">OCR</span>OCRについて</h2>
+    <div class="sec-body">
+      <p class="hint">OCRは端末内で動くTesseract（完全無料）を使用します。初回利用時のみ認識モデルのダウンロードに通信が必要で、以降はオフラインでも動作します。<br><br>読み取りのコツ: 明るい場所で、読みたい文字部分が画面いっぱいに大きく写るよう近づいて、ピントが合ってから撮影してください。</p>
+    </div>
+  </section>
+  <section>
+    <h2><span class="tag al">DATA</span>データ管理</h2>
+    <div class="sec-body">
+      <div class="btnRow" style="margin-top:0">
+        <button class="btn btn-alert btn-sm" id="btnClearHist">履歴を全削除</button>
+        <button class="btn btn-alert btn-sm" id="btnClearCustom">カスタムDBを全削除</button>
+      </div>
+    </div>
+  </section>
+  <p class="note" id="verNote">バージョン情報を取得中…</p>
+</div>
+
+<!-- assign bar -->
+<div id="assignBar" class="hidden">
+  <span>「<b id="abVal"></b>」を割り当て:</span>
+  <button class="ab-k" data-assign="type">型式</button>
+  <button class="ab-k" data-assign="vin">車台番号</button>
+  <button class="ab-c" id="abClose">×</button>
+</div>
+
+<!-- bottom nav -->
+<nav id="tabs">
+  <button data-view="scan" class="active"><span class="ico">📷</span>スキャン</button>
+  <button data-view="diag"><span class="ico">🩺</span>診断</button>
+  <button data-view="history"><span class="ico">🕓</span>履歴</button>
+  <button data-view="db"><span class="ico">🔧</span>DB編集</button>
+  <button data-view="settings"><span class="ico">⚙️</span>設定</button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>
