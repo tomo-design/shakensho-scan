@@ -37,25 +37,34 @@
     <button class="btn btn-amber" id="btnStart">📷 ライブスキャン</button>
     <button class="btn btn-ghost hidden" id="btnStop">■ 停止して解析</button>
   </div>
-  <div class="btnRow">
-    <button class="btn btn-ghost" id="btnOcr">🔍 OCRで読み取り（QRが読めない時・券面を撮影）</button>
-    <input type="file" id="ocrIn" accept="image/*" capture="environment" class="hidden">
-  </div>
-  <div id="ocrBox" class="hidden">
-    <img id="ocrPreview" alt="OCR対象画像">
-    <div id="ocrStatus"></div>
+  <!-- フォールバック(普段は控えめなリンクのみ) -->
+  <div class="linkrow" id="fallbackLinks">
+    <button class="textlink" id="lnkShowOcr" type="button">QRが読めない場合はこちら（券面を撮影して読み取り）</button>
+    <button class="textlink" id="lnkShowManual" type="button">型式が分かっている → 直接入力する</button>
   </div>
 
-  <!-- manual fallback -->
-  <section>
-    <h2><span class="tag cy">MANUAL</span>型式を直接入力（QRが読めない時）</h2>
-    <div class="sec-body">
-      <div class="inputRow">
-        <input type="text" id="manualType" class="uc" placeholder="例: 2PG-FW74HZ / VY12">
-        <button class="btn btn-amber" id="btnManual">検索</button>
-      </div>
+  <div id="ocrArea" class="hidden">
+    <div class="btnRow">
+      <button class="btn btn-ghost" id="btnOcr">🔍 券面を撮影して読み取り（OCR）</button>
+      <input type="file" id="ocrIn" accept="image/*" capture="environment" class="hidden">
     </div>
-  </section>
+    <div id="ocrBox" class="hidden">
+      <img id="ocrPreview" alt="OCR対象画像">
+      <div id="ocrStatus"></div>
+    </div>
+  </div>
+
+  <div id="manualArea" class="hidden">
+    <section>
+      <h2><span class="tag cy">MANUAL</span>型式を直接入力</h2>
+      <div class="sec-body">
+        <div class="inputRow">
+          <input type="text" id="manualType" class="uc" placeholder="例: 2PG-FW74HZ / VY12">
+          <button class="btn btn-amber" id="btnManual">検索</button>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <!-- result -->
   <div id="result" class="hidden">
@@ -72,6 +81,21 @@
       <div class="match" id="rMatch"></div>
     </div>
 
+    <!-- 認識後の行き先選択 -->
+    <div id="choicePanel">
+      <div class="choice-q">この車両で何をしますか？</div>
+      <div class="btnRow" style="margin-top:10px">
+        <button class="btn btn-amber btn-big" id="btnGoMaint">🔧 メンテナンスデータを見る<small>オイル量・トルク・定番故障・リコール</small></button>
+      </div>
+      <div class="btnRow">
+        <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
+      </div>
+      <div class="linkrow">
+        <button class="textlink" id="lnkFixRead" type="button">読み取り結果が違う？ → 手動で修正する</button>
+      </div>
+    </div>
+
+    <div id="maintArea" class="hidden">
     <section id="secFault" class="hidden">
       <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
       <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
@@ -97,7 +121,12 @@
       <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
     </section>
 
-    <section id="secRaw">
+    <div class="btnRow">
+      <button class="btn btn-ghost" id="btnMaintToDiag">🩺 この車両で故障診断をする</button>
+    </div>
+    </div><!-- /maintArea -->
+
+    <section id="secRaw" class="hidden">
       <h2><span class="tag cy">RAW</span>QRから読み取った全フィールド</h2>
       <div class="sec-body">
         <div class="hint">自動判定が間違っている場合は、正しい値のチップをタップ →「型式」or「車台番号」に割り当てできます。</div>

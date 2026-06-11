@@ -301,10 +301,33 @@ function extractFromOcrText(text) {
    ========================================================= */
 let current = { type: null, vin: null, plate: null, raw: [] };
 
+/* フォールバック手段の表示切替 (普段はリンクのみ) */
+$("lnkShowOcr").addEventListener("click", () => { toggle("ocrArea", true); toggle("manualArea", false); $("ocrArea").scrollIntoView({ behavior: "smooth" }); });
+$("lnkShowManual").addEventListener("click", () => { toggle("manualArea", true); toggle("ocrArea", false); $("manualType").focus(); });
+
+/* 認識後の行き先選択 */
+$("btnGoMaint").addEventListener("click", () => {
+  toggle("choicePanel", false); toggle("maintArea", true);
+  $("maintArea").scrollIntoView({ behavior: "smooth" });
+});
+$("btnGoDiag").addEventListener("click", () => {
+  switchView("diag");
+  $("diagText").focus();
+});
+$("btnMaintToDiag").addEventListener("click", () => { switchView("diag"); $("diagText").focus(); });
+$("lnkFixRead").addEventListener("click", () => {
+  toggle("secRaw", true);
+  $("secRaw").scrollIntoView({ behavior: "smooth" });
+});
+
 function showResult(d, opt = {}) {
   current = d;
   switchView("scan");
   toggle("result", true);
+  // 毎回まず「何をしますか？」の選択に戻す
+  toggle("choicePanel", true); toggle("maintArea", false); toggle("secRaw", false);
+  // フォールバックUIは畳む
+  toggle("ocrArea", false); toggle("manualArea", false);
   setText("rType", d.type || "未検出（下のRAWから割り当て可）");
   setText("rVin", d.vin || "未検出");
   setText("rPlate", d.plate || "—");
@@ -350,15 +373,13 @@ function showResult(d, opt = {}) {
   else lm.classList.add("hidden");
   $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || "") + " リコール 改善対策");
 
-  // RAWチップ
+  // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
   const wrap = $("rawChips"); wrap.innerHTML = "";
-  if (d.raw && d.raw.length) {
-    d.raw.forEach(f => {
-      const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
-      c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
-    });
-    toggle("secRaw", true);
-  } else toggle("secRaw", false);
+  (d.raw || []).forEach(f => {
+    const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
+    c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
+  });
+  toggle("lnkFixRead", !!(d.raw && d.raw.length));
 
   if (opt.fromScan && (d.type || d.vin)) addHistory(d);
   $("result").scrollIntoView({ behavior: "smooth" });
