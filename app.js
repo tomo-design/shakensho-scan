@@ -401,13 +401,15 @@ $("abClose").addEventListener("click", hideAssign);
 /* メンテナンス諸元 [{k,v}] を表形式で表示 */
 function renderSpecs(specs) {
   const dl = $("specList"); dl.innerHTML = "";
-  if (!specs.length) { toggle("secSpec", false); return; }
+  toggle("specAiBox", false); $("specAiBox").innerHTML = ""; // 車両が変わったらAI結果をリセット
   specs.forEach(s => {
     const dt = document.createElement("dt"); dt.textContent = s.k;
     const dd = document.createElement("dd"); dd.textContent = s.v;
     dl.append(dt, dd);
   });
-  toggle("secSpec", true);
+  toggle("specList", specs.length > 0);
+  // 内蔵データが無くても、型式が分かればAIで調べられるようにセクションは出す
+  toggle("secSpec", specs.length > 0 || !!current.type);
 }
 
 function fillList(id, arr, chk) {
@@ -727,6 +729,7 @@ function runDiag() {
   const symptoms = matchSymptoms(text);
   const vf = matchVehicleFaults(text, dtcs);
   renderDiagResults(dtcs, symptoms, vf, text);
+  runDiagAI(text); // 解析と同時にAI思考を自動実行
 }
 function updateDiagVehicleHint() {
   $("diagVehicleHint").textContent = current.type
@@ -963,21 +966,30 @@ function renderAiAnswer(container, text) {
   }
 }
 
-$("btnDiagAI").addEventListener("click", async () => {
-  const text = $("diagText").value.trim();
-  if (!text) { alert("コードまたは症状を入力してから「AIに相談」を押してください。"); return; }
+/* 「解析する」から自動実行されるAI診断 (キー未設定なら案内カードのみ) */
+let diagAiBusy = false;
+async function runDiagAI(text) {
+  const box = $("diagResults");
   if (!localStorage.getItem(LS.gemini)) {
-    alert("AI相談には無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
-    switchView("settings");
+    const { sec, body } = diagSection("", "AI", "AI診断を使うには");
+    const p = document.createElement("div");
+    p.className = "hint";
+    p.textContent = "無料のGemini APIキーを設定すると、ここにAIの診断見解も表示されます(クレジットカード不要)。";
+    const go = document.createElement("button");
+    go.type = "button"; go.className = "btn btn-ghost btn-sm"; go.style.marginTop = "8px";
+    go.textContent = "⚙ 設定画面でキーを取得・保存する";
+    go.addEventListener("click", () => switchView("settings"));
+    body.append(p, go);
+    box.prepend(sec);
     return;
   }
-  const box = $("diagResults");
+  if (diagAiBusy) return;
+  diagAiBusy = true;
   const { sec, body } = diagSection("", "AI", "AIの見解" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
   const p = document.createElement("div");
-  p.className = "ai-answer"; p.textContent = "🤖 AIが考えています…";
+  p.className = "ai-answer"; p.textContent = "🤖 AIが考えています…(数秒〜十数秒)";
   body.appendChild(p);
   box.prepend(sec);
-  const btn = $("btnDiagAI"); btn.disabled = true;
   try {
     const r = await geminiAsk(buildDiagPrompt(text));
     renderAiAnswer(p, r.text);
@@ -988,6 +1000,48 @@ $("btnDiagAI").addEventListener("click", async () => {
     body.appendChild(note);
   } catch (e) {
     p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+  } finally {
+    diagAiBusy = false;
+  }
+}
+
+/* メンテナンス諸元のAI調査 */
+function buildSpecPrompt() {
+  const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
+  const v = code ? findVehicle(code) : null;
+  return [
+    "あなたは日本の自動車整備士向けの諸元データアドバイザーです。",
+    "次の車両の整備に必要なメンテナンス諸元を答えてください。確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を明記すること。",
+    "Markdown記号(**、#、表)は使わず、次の形式で:",
+    "■メンテナンス諸元",
+    "1. エンジンオイル量: 値（フィルタ交換時/エンジン型式別）",
+    "2. 推奨オイル粘度: 値",
+    "3. オイル交換目安: 値",
+    "4. クーラント量: 値",
+    "5. ホイールナット締付トルク: 値",
+    "6. ATF/CVT/ミッションオイル: 値",
+    "7. その他この車種の整備で重要な諸元があれば追加",
+    "■補足",
+    "整備時の注意点があれば1〜2行で。",
+    "",
+    "■対象車両: 型式 " + (current.type || "不明") + (v ? "（" + v.name + "）" : "")
+  ].join("\n");
+}
+$("btnSpecAI").addEventListener("click", async () => {
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
+    switchView("settings");
+    return;
+  }
+  const box = $("specAiBox");
+  toggle("specAiBox", true);
+  box.textContent = "🤖 AIが諸元を調べています…(数秒〜十数秒)";
+  const btn = $("btnSpecAI"); btn.disabled = true;
+  try {
+    const r = await geminiAsk(buildSpecPrompt());
+    renderAiAnswer(box, r.text);
+  } catch (e) {
+    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     btn.disabled = false;
   }

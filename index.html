@@ -105,7 +105,11 @@
       <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
       <div class="sec-body">
         <dl class="specs" id="specList"></dl>
-        <div class="hint" style="margin:10px 0 0">※ 参考値です。年式・エンジン型式で異なるため、必ず整備書・メーカー資料で確認してください。DB編集タブで自社の確定値に書き換えできます。</div>
+        <div class="btnRow">
+          <button class="btn btn-ghost" id="btnSpecAI">🤖 この型式の諸元をAIで詳しく調べる</button>
+        </div>
+        <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
+        <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため、必ず整備書・メーカー資料で確認してください。DB編集タブで自社の確定値に書き換えできます。</div>
       </div>
     </section>
 
@@ -158,11 +162,8 @@
     <div class="sec-body">
       <textarea id="diagText" placeholder="例1: P0401 P2453&#10;例2: 朝一番の始動時に白煙が出て、加速しない。警告灯も点いた。&#10;（診断機画面のスクショをここに貼り付けるとOCRでコード抽出します）"></textarea>
       <div class="btnRow">
-        <button class="btn btn-amber" id="btnDiagRun">🔎 解析する</button>
+        <button class="btn btn-amber" id="btnDiagRun">🔎 解析する（AI思考＋内蔵DB）</button>
         <button class="btn btn-ghost" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
-      </div>
-      <div class="btnRow">
-        <button class="btn btn-ghost" id="btnDiagAI">🤖 AIに相談する（無料のGeminiキー設定時）</button>
       </div>
       <div class="hint" id="diagVehicleHint" style="margin-top:8px"></div>
     </div>
