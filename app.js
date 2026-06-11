@@ -819,6 +819,9 @@ async function geminiAsk(prompt) {
   let lastErr = null;
   for (const model of GEMINI_MODELS) {
     try {
+      const genCfg = { temperature: 0.3, maxOutputTokens: 8192 };
+      // 2.5系は内部思考が出力トークンを消費して本文が途切れるため思考を抑制
+      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: 0 };
       const res = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
         {
@@ -826,7 +829,7 @@ async function geminiAsk(prompt) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+            generationConfig: genCfg
           })
         });
       if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
@@ -834,9 +837,10 @@ async function geminiAsk(prompt) {
       if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
       if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
       const j = await res.json();
-      const text = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      const cand = j.candidates?.[0];
+      const text = cand?.content?.parts?.map(p => p.text || "").join("") || "";
       if (!text) throw new Error("AIから回答が得られませんでした");
-      return text;
+      return { text, truncated: cand?.finishReason === "MAX_TOKENS" };
     } catch (e) {
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
@@ -848,8 +852,16 @@ async function geminiAsk(prompt) {
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
-    "以下の情報から、原因の可能性が高い順に最大5つ挙げ、それぞれ「切り分け方法(使用工具・測定値の目安付き)」を簡潔に示してください。",
-    "最後に「最初にやるべき1手」を1行で示してください。前置きや免責は不要。日本語で、現場で読みやすい箇条書きで。"
+    "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+    "",
+    "■原因候補（可能性が高い順）",
+    "1. 原因名（一言で）",
+    "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
+    "2. （同様に最大5つまで）",
+    "",
+    "■最初の1手",
+    "現場で最初にやるべきことを1〜2文で。",
+    ""
   ];
   if (current.type) {
     const code = current.type.includes("-") ? current.type.split("-")[1] : current.type;
@@ -864,6 +876,54 @@ function buildDiagPrompt(text) {
   }
   lines.push("■症状・問診内容: " + text);
   return lines.join("\n");
+}
+
+/* AI回答テキストを構造化して見やすく描画 */
+function renderAiAnswer(container, text) {
+  container.innerHTML = "";
+  // Markdown記号の残骸を除去
+  const clean = text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "").replace(/^\s*[\*\-]\s+/gm, "・");
+  const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean);
+  let list = null;
+  const flushList = () => { list = null; };
+  for (const line of lines) {
+    // 見出し (■〜 / 【〜】)
+    const h = line.match(/^[■【]\s*(.+?)[】]?$/);
+    if (h) {
+      flushList();
+      const el = document.createElement("div");
+      el.className = "ai-h"; el.textContent = h[1];
+      container.appendChild(el);
+      continue;
+    }
+    // 番号付き項目 → バッジ付きリスト
+    const n = line.match(/^(\d+)[.)、]\s*(.+)$/);
+    if (n) {
+      if (!list) { list = document.createElement("ol"); list.className = "guide-steps ai-list"; container.appendChild(list); }
+      const li = document.createElement("li");
+      const div = document.createElement("div");
+      const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
+      div.appendChild(t);
+      li.appendChild(div);
+      list.appendChild(li);
+      continue;
+    }
+    // 「切り分け:」行 → 直前の項目にぶら下げてハイライト
+    const k = line.match(/^[・]?\s*(切り分け|確認|点検方法)\s*[:：]\s*(.+)$/);
+    if (k && list && list.lastElementChild) {
+      const d = document.createElement("div");
+      d.className = "ai-check";
+      const label = document.createElement("span"); label.className = "ai-check-label"; label.textContent = "切り分け ";
+      d.append(label, k[2]);
+      list.lastElementChild.firstElementChild.appendChild(d);
+      continue;
+    }
+    // 箇条書き・通常文
+    flushList();
+    const p = document.createElement("div");
+    p.className = "ai-p"; p.textContent = line;
+    container.appendChild(p);
+  }
 }
 
 $("btnDiagAI").addEventListener("click", async () => {
@@ -882,11 +942,12 @@ $("btnDiagAI").addEventListener("click", async () => {
   box.prepend(sec);
   const btn = $("btnDiagAI"); btn.disabled = true;
   try {
-    const answer = await geminiAsk(buildDiagPrompt(text));
-    p.textContent = answer;
+    const r = await geminiAsk(buildDiagPrompt(text));
+    renderAiAnswer(p, r.text);
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
-    note.textContent = "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
+    note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
+      + "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
   } catch (e) {
     p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
