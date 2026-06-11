@@ -7,7 +7,7 @@
    ========================================================= */
 
 const APP_VER = "1.0.0";
-const LS = { hist: "ss_history", custom: "ss_customdb" };
+const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey" };
 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => $(id).classList.toggle("hidden", !show);
@@ -796,6 +796,105 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
   box.scrollIntoView({ behavior: "smooth" });
 }
 
+/* =========================================================
+   AI相談 (Gemini API 無料枠 / 任意設定)
+   ========================================================= */
+const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+function renderGeminiStat() {
+  const has = !!localStorage.getItem(LS.gemini);
+  $("geminiStat").textContent = has
+    ? "✓ 設定済み — 診断タブで「🤖 AIに相談」が使えます。空欄で保存すると解除。"
+    : "未設定 — キーはこの端末のみに保存され、Google以外には送信されません。";
+}
+$("btnGeminiSave").addEventListener("click", () => {
+  const v = $("geminiKey").value.trim();
+  if (v) localStorage.setItem(LS.gemini, v); else localStorage.removeItem(LS.gemini);
+  $("geminiKey").value = "";
+  renderGeminiStat();
+});
+
+async function geminiAsk(prompt) {
+  const key = localStorage.getItem(LS.gemini);
+  let lastErr = null;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+          })
+        });
+      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 429) throw new Error("無料枠の利用上限に達しました。少し待ってから再試行してください。");
+      if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+      if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
+      const j = await res.json();
+      const text = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      if (!text) throw new Error("AIから回答が得られませんでした");
+      return text;
+    } catch (e) {
+      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
+}
+
+function buildDiagPrompt(text) {
+  const lines = [
+    "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
+    "以下の情報から、原因の可能性が高い順に最大5つ挙げ、それぞれ「切り分け方法(使用工具・測定値の目安付き)」を簡潔に示してください。",
+    "最後に「最初にやるべき1手」を1行で示してください。前置きや免責は不要。日本語で、現場で読みやすい箇条書きで。"
+  ];
+  if (current.type) {
+    const code = current.type.includes("-") ? current.type.split("-")[1] : current.type;
+    const v = findVehicle(code);
+    lines.push("\n■車両: 型式 " + current.type + (v ? "（" + v.name + "）" : ""));
+    if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
+  }
+  const dtcs = extractDTCs(text);
+  if (dtcs.length) {
+    const named = dtcs.map(c => { const d = lookupDTC(c); return c + (d.exact ? "（" + d.name + "）" : ""); });
+    lines.push("■診断機のDTC: " + named.join(", "));
+  }
+  lines.push("■症状・問診内容: " + text);
+  return lines.join("\n");
+}
+
+$("btnDiagAI").addEventListener("click", async () => {
+  const text = $("diagText").value.trim();
+  if (!text) { alert("コードまたは症状を入力してから「AIに相談」を押してください。"); return; }
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("AI相談には無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
+    switchView("settings");
+    return;
+  }
+  const box = $("diagResults");
+  const { sec, body } = diagSection("", "AI", "AIの見解");
+  const p = document.createElement("div");
+  p.className = "ai-answer"; p.textContent = "🤖 AIが考えています…";
+  body.appendChild(p);
+  box.prepend(sec);
+  const btn = $("btnDiagAI"); btn.disabled = true;
+  try {
+    const answer = await geminiAsk(buildDiagPrompt(text));
+    p.textContent = answer;
+    const note = document.createElement("div");
+    note.className = "hint"; note.style.marginTop = "10px";
+    note.textContent = "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
+    body.appendChild(note);
+  } catch (e) {
+    p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 /* ---- 診断機画面のOCR読み取り（撮影 / 画像ペースト） ---- */
 const diagOcrIn = $("diagOcrIn");
 $("btnDiagOcr").addEventListener("click", () => diagOcrIn.click());
@@ -855,6 +954,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();
   renderDBList();
+  renderGeminiStat();
   setText("verNote", "車検証スキャン整備サポート v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
