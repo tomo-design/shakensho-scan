@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v6";
+const CACHE = "shaken-scan-v8";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const PRECACHE = [
   "./db/vehicles.json",
   "./db/dtc.json",
   "./db/symptoms.json",
+  "./db/guides.json",
   "./manifest.json",
   "./icons/icon.svg",
   "./icons/icon-maskable.svg",
@@ -21,7 +22,8 @@ const PRECACHE = [
 self.addEventListener("install", e => {
   e.waitUntil(
     caches.open(CACHE)
-      .then(c => Promise.allSettled(PRECACHE.map(u => c.add(u))))
+      // cache:"reload" でHTTPキャッシュをバイパスし、新バージョンは必ずネットワークから取得
+      .then(c => Promise.allSettled(PRECACHE.map(u => c.add(new Request(u, { cache: "reload" })))))
       .then(() => self.skipWaiting())
   );
 });

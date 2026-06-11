@@ -607,10 +607,51 @@ $("btnClearCustom").addEventListener("click", () => {
    ========================================================= */
 let DTC_DB = { codes: [], fallback: [] };
 let SYMPTOM_DB = [];
+let GUIDE_DB = [];
 
 async function loadDiagDB() {
   try { DTC_DB = await (await fetch("db/dtc.json")).json(); } catch (e) {}
   try { SYMPTOM_DB = (await (await fetch("db/symptoms.json")).json()).symptoms || []; } catch (e) {}
+  try { GUIDE_DB = (await (await fetch("db/guides.json")).json()).guides || []; } catch (e) {}
+}
+
+/* DTCコード/症状に対応する点検手引書を探す */
+function findGuidesForCode(code) {
+  return GUIDE_DB.filter(g => (g.codes || []).some(p => code.startsWith(p)));
+}
+function findGuidesForSymptom(s) {
+  const hay = s.name + " " + (s.kw || []).join(" ");
+  return GUIDE_DB.filter(g => (g.kw || []).some(k => hay.includes(k)));
+}
+
+/* 手引書を折りたたみ(details)で生成 */
+function guideDetails(g) {
+  const det = document.createElement("details"); det.className = "guide";
+  const sum = document.createElement("summary");
+  sum.textContent = "📖 点検手引書: " + g.title;
+  det.appendChild(sum);
+  const body = document.createElement("div"); body.className = "guide-body";
+
+  const addPart = (label, el) => {
+    const h = document.createElement("div"); h.className = "guide-h"; h.textContent = label;
+    body.append(h, el);
+  };
+  if ((g.tools || []).length) {
+    const p = document.createElement("div"); p.className = "guide-tools"; p.textContent = g.tools.join(" / ");
+    addPart("準備する物", p);
+  }
+  if ((g.steps || []).length) {
+    const ol = document.createElement("ol"); ol.className = "guide-steps";
+    g.steps.forEach(s => { const li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+    addPart("点検手順（この順序で）", ol);
+  }
+  if ((g.judge || []).length) addPart("判定の目安", ulFlat(g.judge, true));
+  if ((g.cautions || []).length) {
+    const ul = ulFlat(g.cautions, false); ul.classList.add("guide-caution");
+    addPart("⚠ 注意", ul);
+  }
+  det.appendChild(body);
+  return det;
 }
 
 /* テキストからDTCコードを抽出 (P0401, P0401-00, ｐ０４０１ 等に対応) */
@@ -719,6 +760,7 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
       const h = document.createElement("div"); h.className = "hint"; h.style.marginTop = "10px"; h.textContent = "確認手順:";
       body.append(h, ulFlat(d.checks, true));
     }
+    findGuidesForCode(code).forEach(g => body.appendChild(guideDetails(g)));
     sec.appendChild(searchLink(typeQ + code + " 原因 修理", "「" + (typeQ ? current.type + "＋" : "") + code + "」で事例検索"));
     box.appendChild(sec);
   }
@@ -734,6 +776,7 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
       const h = document.createElement("div"); h.className = "hint"; h.style.marginTop = "10px"; h.textContent = "切り分け・確認:";
       body.append(h, ulFlat(s.checks, true));
     }
+    findGuidesForSymptom(s).forEach(g => body.appendChild(guideDetails(g)));
     if (current.type) sec.appendChild(searchLink(current.type + " " + s.hits[0] + " 原因", "「" + current.type + "＋" + s.hits[0] + "」で事例検索"));
     box.appendChild(sec);
   }
