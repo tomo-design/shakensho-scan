@@ -365,13 +365,15 @@ function showResult(d, opt = {}) {
     renderSpecs([]);
   }
 
-  // リコールリンク
-  $("lnkMlit").href = MLIT_RECALL;
+  // リコール: 車種を特定できた(=メーカーの検索先を案内できる)場合のみ表示
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
-  const lm = $("lnkMaker");
-  if (mk) { lm.classList.remove("hidden"); lm.firstChild.textContent = mk.label; lm.href = mk.url; }
-  else lm.classList.add("hidden");
-  $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || "") + " リコール 改善対策");
+  toggle("secRecall", !!mk);
+  if (mk) {
+    $("lnkMlit").href = MLIT_RECALL;
+    const lm = $("lnkMaker");
+    lm.firstChild.textContent = mk.label; lm.href = mk.url;
+    $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || "") + " リコール 改善対策");
+  }
 
   // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
   const wrap = $("rawChips"); wrap.innerHTML = "";

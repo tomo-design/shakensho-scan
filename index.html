@@ -106,7 +106,7 @@
       <div class="sec-body">
         <dl class="specs" id="specList"></dl>
         <div class="btnRow">
-          <button class="btn btn-ghost" id="btnSpecAI">🤖 この型式の諸元をAIで詳しく調べる</button>
+          <button class="btn btn-ghost" id="btnSpecAI">🤖 AIで調べる</button>
         </div>
         <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
         <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため、必ず整備書・メーカー資料で確認してください。DB編集タブで自社の確定値に書き換えできます。</div>
@@ -118,7 +118,7 @@
       <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
     </section>
 
-    <section>
+    <section id="secRecall" class="hidden">
       <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
       <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
       <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
