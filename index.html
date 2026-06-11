@@ -228,6 +228,12 @@
         <button class="btn btn-amber" id="btnGeminiSave">保存</button>
       </div>
       <div id="geminiStat" class="hint" style="margin-top:8px"></div>
+      <label class="fld" style="margin-top:14px">回答の品質モード</label>
+      <div class="btnRow" style="margin-top:0">
+        <button class="btn btn-ghost mode-btn" id="modeFlash" data-mode="flash">標準（Flash＋思考）<small style="display:block;font-weight:400;font-size:11px;color:var(--dim)">速い・無料枠の回数多め</small></button>
+        <button class="btn btn-ghost mode-btn" id="modePro" data-mode="pro">高精度（Pro＋深い思考）<small style="display:block;font-weight:400;font-size:11px;color:var(--dim)">最高精度・1日の回数少なめ</small></button>
+      </div>
+      <div class="hint" style="margin-top:8px">どちらもAIが回答前に内部で「思考」してから答えます。高精度モードは複雑な複合症状向け。無料枠の上限に達した場合は自動で標準モデルに切り替えて再試行します。</div>
     </div>
   </section>
   <section>

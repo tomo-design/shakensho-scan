@@ -107,6 +107,11 @@ textarea{min-height:84px;resize:vertical;line-height:1.6}
 label.fld{display:block;font-size:12px;color:var(--dim);font-weight:700;margin:14px 0 6px}
 label.fld:first-child{margin-top:0}
 
+/* AIモード選択 */
+.mode-btn{font-size:13px;line-height:1.5;padding:12px 8px}
+.mode-btn.mode-active{background:var(--amber);color:#1a1200;border-color:var(--amber)}
+.mode-btn.mode-active small{color:#5c4400!important}
+
 /* AI回答 */
 .ai-answer{font-size:14px;line-height:1.8;word-break:break-word}
 .ai-h{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--amber);margin:14px 0 6px;padding-bottom:6px;border-bottom:1px dashed var(--line)}

@@ -7,7 +7,7 @@
    ========================================================= */
 
 const APP_VER = "1.0.0";
-const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey" };
+const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", aimode: "ss_aimode" };
 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => $(id).classList.toggle("hidden", !show);
@@ -799,7 +799,20 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
 /* =========================================================
    AI相談 (Gemini API 無料枠 / 任意設定)
    ========================================================= */
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+/* モード別モデル候補 (上から順に試行。無料枠上限・未提供時は次へフォールバック) */
+const GEMINI_MODELS = {
+  flash: ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
+  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+};
+function getAiMode() { return localStorage.getItem(LS.aimode) === "pro" ? "pro" : "flash"; }
+function renderAiMode() {
+  const mode = getAiMode();
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("mode-active", b.dataset.mode === mode));
+}
+document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", () => {
+  localStorage.setItem(LS.aimode, b.dataset.mode);
+  renderAiMode();
+}));
 
 function renderGeminiStat() {
   const has = !!localStorage.getItem(LS.gemini);
@@ -817,11 +830,12 @@ $("btnGeminiSave").addEventListener("click", () => {
 async function geminiAsk(prompt) {
   const key = localStorage.getItem(LS.gemini);
   let lastErr = null;
-  for (const model of GEMINI_MODELS) {
+  for (const model of GEMINI_MODELS[getAiMode()]) {
     try {
-      const genCfg = { temperature: 0.3, maxOutputTokens: 8192 };
-      // 2.5系は内部思考が出力トークンを消費して本文が途切れるため思考を抑制
-      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: 0 };
+      // 思考トークンと本文が両方収まるよう上限は大きめに確保
+      const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+      // 2.5系: 思考モードを有効化(-1=タスクに応じてAIが思考量を自動調整)。精度優先
+      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
       const res = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
         {
@@ -833,14 +847,15 @@ async function geminiAsk(prompt) {
           })
         });
       if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 429) throw new Error("無料枠の利用上限に達しました。少し待ってから再試行してください。");
+      if (res.status === 429) { lastErr = new Error("無料枠の利用上限に達しました。少し待ってから再試行してください。"); continue; } // 下位モデルで再試行
       if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
       if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
       const j = await res.json();
       const cand = j.candidates?.[0];
-      const text = cand?.content?.parts?.map(p => p.text || "").join("") || "";
+      // 思考パート(thought:true)を除いた本文のみ結合
+      const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
       if (!text) throw new Error("AIから回答が得られませんでした");
-      return { text, truncated: cand?.finishReason === "MAX_TOKENS" };
+      return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
     } catch (e) {
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
@@ -852,6 +867,7 @@ async function geminiAsk(prompt) {
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
+    "回答前に十分に考えてから答えること。正確性を最優先し、確信が持てない内容には「（要確認）」を付け、推測と確定的な事実を混同しないこと。一般論より、提示された車種・エンジンに固有の既知事例を優先すること。",
     "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
     "",
     "■原因候補（可能性が高い順）",
@@ -935,7 +951,7 @@ $("btnDiagAI").addEventListener("click", async () => {
     return;
   }
   const box = $("diagResults");
-  const { sec, body } = diagSection("", "AI", "AIの見解");
+  const { sec, body } = diagSection("", "AI", "AIの見解" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
   const p = document.createElement("div");
   p.className = "ai-answer"; p.textContent = "🤖 AIが考えています…";
   body.appendChild(p);
@@ -1016,6 +1032,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderHistory();
   renderDBList();
   renderGeminiStat();
+  renderAiMode();
   setText("verNote", "車検証スキャン整備サポート v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
