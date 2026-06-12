@@ -145,7 +145,11 @@
 <!-- ============ VIEW: DIAG ============ -->
 <div id="view-diag" class="view">
 
-  <section style="margin-top:14px">
+  <div class="linkrow" style="margin-top:8px">
+    <button class="textlink" id="lnkDiagBack" type="button">← 車両画面に戻る</button>
+  </div>
+
+  <section style="margin-top:6px">
     <h2><span class="tag al">DTC</span>ダイアグコード検索</h2>
     <div class="sec-body">
       <div class="hint">診断機の画面を撮影するか、スクリーンショットを下の入力欄に<b>貼り付け(ペースト)</b>してください。コードを直接入力してもOK（例: P0401 P2002）。</div>
@@ -295,7 +299,6 @@
 <!-- bottom nav -->
 <nav id="tabs">
   <button data-view="scan" class="active"><span class="ico">📷</span>スキャン</button>
-  <button data-view="diag"><span class="ico">🩺</span>診断</button>
   <button data-view="history"><span class="ico">🕓</span>履歴</button>
   <button data-view="db"><span class="ico">🔧</span>DB編集</button>
   <button data-view="settings"><span class="ico">⚙️</span>設定</button>

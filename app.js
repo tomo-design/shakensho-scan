@@ -315,6 +315,7 @@ $("btnGoDiag").addEventListener("click", () => {
   $("diagText").focus();
 });
 $("btnMaintToDiag").addEventListener("click", () => { switchView("diag"); $("diagText").focus(); });
+$("lnkDiagBack").addEventListener("click", () => switchView("scan"));
 $("lnkFixRead").addEventListener("click", () => {
   toggle("secRaw", true);
   $("secRaw").scrollIntoView({ behavior: "smooth" });
