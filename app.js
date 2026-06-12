@@ -1158,7 +1158,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderDBList();
   renderGeminiStat();
   renderAiMode();
-  setText("verNote", "車検証スキャン整備サポート v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
+  setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }

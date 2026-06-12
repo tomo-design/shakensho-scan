@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#16191D">
-<title>車検証スキャン整備サポート</title>
+<title>メカノAI - 車両整備サポート</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -18,8 +18,8 @@
 <header>
   <div class="lamp"></div>
   <div>
-    <h1>車検証スキャン 整備サポート</h1>
-    <div class="sub">SHAKENSHO QR SCANNER v1.0</div>
+    <h1>メカノAI</h1>
+    <div class="sub">MECHANO-AI</div>
   </div>
 </header>
 
@@ -27,20 +27,20 @@
 <div id="view-scan" class="view active">
 
   <div id="scanWrap">
-    <div id="camPlaceholder">下の「ライブスキャン」を押すとカメラが起動します。<br>車検証のQRコード（複数ある場合は順番に）を枠内に収めてください。</div>
+    <div id="camPlaceholder">車検証のQRコードをスキャンします</div>
     <video id="video" class="hidden" playsinline muted></video>
     <div id="scanOverlay" class="hidden"><div class="reticle"><b></b></div></div>
     <div id="scanStatus" class="hidden"><span>QRを探しています…</span><span id="qrCount">0 件読取</span></div>
   </div>
 
   <div class="btnRow">
-    <button class="btn btn-amber" id="btnStart">📷 ライブスキャン</button>
+    <button class="btn btn-amber btn-big" id="btnStart">📷 スキャン開始</button>
     <button class="btn btn-ghost hidden" id="btnStop">■ 停止して解析</button>
   </div>
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
-    <button class="textlink" id="lnkShowOcr" type="button">QRが読めない場合はこちら（券面を撮影して読み取り）</button>
-    <button class="textlink" id="lnkShowManual" type="button">型式が分かっている → 直接入力する</button>
+    <button class="textlink" id="lnkShowOcr" type="button">QRが読めない → 券面を撮影</button>
+    <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
   </div>
 
   <div id="ocrArea" class="hidden">
@@ -139,7 +139,7 @@
     </section>
   </div>
 
-  <p class="note">※ 故障・点検データは「DB編集」タブで自社ノウハウを追加・編集できます。リコールの有無は必ず公式リンク先で車台番号により確認してください。所有者の個人情報は本ツールでは読取・保存しません。</p>
+  <p class="note">※ 所有者の個人情報は読取・保存しません。</p>
 </div>
 
 <!-- ============ VIEW: DIAG ============ -->
@@ -152,7 +152,6 @@
   <section style="margin-top:6px">
     <h2><span class="tag al">DTC</span>ダイアグコード検索</h2>
     <div class="sec-body">
-      <div class="hint">診断機の画面を撮影するか、スクリーンショットを下の入力欄に<b>貼り付け(ペースト)</b>してください。コードを直接入力してもOK（例: P0401 P2002）。</div>
       <div class="btnRow" style="margin-top:0">
         <button class="btn btn-ghost" id="btnDiagOcr">📷 診断機画面を撮影してコード読取</button>
         <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
@@ -164,7 +163,7 @@
   <section>
     <h2><span class="tag cy">INPUT</span>コード / お客様の問診内容</h2>
     <div class="sec-body">
-      <textarea id="diagText" placeholder="例1: P0401 P2453&#10;例2: 朝一番の始動時に白煙が出て、加速しない。警告灯も点いた。&#10;（診断機画面のスクショをここに貼り付けるとOCRでコード抽出します）"></textarea>
+      <textarea id="diagText" placeholder="コード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。診断機画面のスクショ貼り付けもOK"></textarea>
       <div class="btnRow">
         <button class="btn btn-amber" id="btnDiagRun">🔎 解析する（AI思考＋内蔵DB）</button>
         <button class="btn btn-ghost" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
@@ -175,7 +174,7 @@
 
   <div id="diagResults"></div>
 
-  <p class="note">※ 原因候補は一般的な傾向に基づく参考情報です。最終判断は実測・実点検で行ってください。P1xxx等のメーカー固有コードはFAINESまたはメーカー資料で確認を。</p>
+  <p class="note">※ 原因候補は参考情報です。最終判断は実測・実点検で。</p>
 </div>
 
 <!-- ============ VIEW: HISTORY ============ -->

@@ -70,7 +70,7 @@ button{font-family:inherit;border:0;cursor:pointer}
 /* sections */
 section{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 section>h2{padding:12px 14px;font-size:13px;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
-section>h2 .tag{font-size:9px;font-family:'Chakra Petch';letter-spacing:.2em;color:var(--bg);background:var(--amber);border-radius:4px;padding:2px 6px}
+section>h2 .tag{display:none}
 section>h2 .tag.cy{background:var(--cyan)}
 section>h2 .tag.al{background:var(--alert);color:#fff}
 section>h2 .tag.gr{background:var(--ok);color:#06210f}
