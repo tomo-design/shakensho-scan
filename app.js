@@ -349,8 +349,41 @@ function extractFromOcrText(text) {
 let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
-$("lnkShowOcr").addEventListener("click", () => { toggle("ocrArea", true); toggle("manualArea", false); $("ocrArea").scrollIntoView({ behavior: "smooth" }); });
-$("lnkShowManual").addEventListener("click", () => { toggle("manualArea", true); toggle("ocrArea", false); $("manualType").focus(); });
+function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
+$("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("ocrArea", true); $("ocrArea").scrollIntoView({ behavior: "smooth" }); });
+$("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("manualArea", true); $("manualType").focus(); });
+$("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("plateArea", true); $("plateSearch").focus(); renderPlateSearch(); });
+
+/* ナンバー検索 (使用者名でも引ける・部分一致) */
+function renderPlateSearch() {
+  const q = normPlate($("plateSearch").value);
+  const qRaw = $("plateSearch").value.trim();
+  const box = $("plateResults"); box.innerHTML = "";
+  const hist = getHistory().filter(h => h.plate || h.name);
+  if (!hist.length) { box.innerHTML = '<div class="empty">保存済みの車両がまだありません。<br>スキャンするとナンバーが自動保存されます。</div>'; return; }
+  const matches = (q || qRaw)
+    ? hist.filter(h => (h.plate && normPlate(h.plate).includes(q)) || (h.name && qRaw && h.name.includes(qRaw)))
+    : hist.slice(0, 10);
+  if (!matches.length) { box.innerHTML = '<div class="empty">一致する車両がありません。</div>'; return; }
+  matches.slice(0, 20).forEach(h => {
+    const div = document.createElement("div"); div.className = "histItem";
+    const main = document.createElement("div"); main.className = "hMain";
+    main.innerHTML = '<div class="hType">' + esc(h.plate || "ナンバー未登録") + (h.name ? ' <span style="font-weight:400">／ ' + esc(h.name) + '</span>' : '') + '</div>' +
+      '<div class="hSub">' + esc(h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + '</div>';
+    main.addEventListener("click", () => { foldEntryAreas(); showResult(histToResult(h), { fromScan: false }); });
+    div.appendChild(main); box.appendChild(div);
+  });
+}
+$("plateSearch").addEventListener("input", renderPlateSearch);
+
+/* 使用者名の登録 */
+$("lnkEditUser").addEventListener("click", () => {
+  const cur = (findHistEntry(getHistory(), current) || {}).name || "";
+  const name = prompt("使用者名を入力してください（空欄で削除）", cur);
+  if (name === null) return;
+  saveUserName(name.trim());
+  setText("rUser", name.trim() || "—");
+});
 
 /* 認識後の行き先選択 */
 $("btnGoMaint").addEventListener("click", () => {
@@ -375,7 +408,10 @@ function showResult(d, opt = {}) {
   // 毎回まず「何をしますか？」の選択に戻す
   toggle("choicePanel", true); toggle("maintArea", false); toggle("secRaw", false);
   // フォールバックUIは畳む
-  toggle("ocrArea", false); toggle("manualArea", false);
+  foldEntryAreas();
+  // 保存済みの使用者名を表示
+  const histEntry = findHistEntry(getHistory(), d);
+  setText("rUser", (histEntry && histEntry.name) || "—");
   setText("rType", d.type || "未検出（下のRAWから割り当て可）");
   setText("rVin", d.vin || "未検出");
   setText("rPlate", d.plate || "—");
@@ -473,18 +509,59 @@ function fillList(id, arr, chk) {
 function getHistory() {
   try { return JSON.parse(localStorage.getItem(LS.hist)) || []; } catch (e) { return []; }
 }
+/* ナンバー比較用の正規化 (空白・記号除去、全角英数→半角) */
+function normPlate(s) {
+  if (!s) return "";
+  return String(s)
+    .replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s\-・･.．]/g, "")
+    .toUpperCase();
+}
+/* 同一車両の既存履歴を探す (車台番号優先、なければナンバー) */
+function findHistEntry(hist, d) {
+  return hist.find(h =>
+    (d.vin && h.vin && h.vin === d.vin) ||
+    (!d.vin && d.plate && h.plate && normPlate(h.plate) === normPlate(d.plate)));
+}
 function addHistory(d) {
   const hist = getHistory();
-  const last = hist[0];
-  if (last && last.type === d.type && last.vin === d.vin) return; // 直前と同一なら追加しない
-  hist.unshift({
-    id: Date.now(), type: d.type || null, vin: d.vin || null,
-    expiry: d.expiry ? d.expiry.getTime() : null,
-    firstReg: d.firstReg || null, kataShitei: d.kataShitei || null,
-    at: new Date().toISOString(),
-  });
+  const exist = findHistEntry(hist, d);
+  if (exist) {
+    // 同一車両: 情報を統合して先頭へ (使用者名は保持)
+    Object.assign(exist, {
+      type: d.type || exist.type, vin: d.vin || exist.vin, plate: d.plate || exist.plate,
+      expiry: d.expiry ? d.expiry.getTime() : exist.expiry,
+      firstReg: d.firstReg || exist.firstReg, kataShitei: d.kataShitei || exist.kataShitei,
+      at: new Date().toISOString(),
+    });
+    hist.splice(hist.indexOf(exist), 1); hist.unshift(exist);
+  } else {
+    hist.unshift({
+      id: Date.now(), type: d.type || null, vin: d.vin || null, plate: d.plate || null, name: null,
+      expiry: d.expiry ? d.expiry.getTime() : null,
+      firstReg: d.firstReg || null, kataShitei: d.kataShitei || null,
+      at: new Date().toISOString(),
+    });
+  }
   localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 200)));
   renderHistory();
+}
+/* 現在表示中の車両に使用者名を保存 */
+function saveUserName(name) {
+  const hist = getHistory();
+  let e = findHistEntry(hist, current);
+  if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
+  const h2 = getHistory();
+  const t = findHistEntry(h2, current);
+  if (t) { t.name = name || null; localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); }
+}
+function histToResult(h) {
+  return {
+    type: h.type, vin: h.vin, plate: h.plate || null,
+    expiry: h.expiry ? new Date(h.expiry) : null,
+    firstReg: h.firstReg || null, kataShitei: h.kataShitei || null,
+    raw: [h.type, h.vin, h.plate].filter(Boolean),
+  };
 }
 function renderHistory() {
   const hist = getHistory();
@@ -494,18 +571,12 @@ function renderHistory() {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
     const dt = new Date(h.at);
-    main.innerHTML = '<div class="hType">' + esc(h.type || "型式不明") + '</div>' +
-      '<div class="hSub">' + esc(h.vin || "車台番号なし") + " ・ " +
+    const title = [h.plate, h.name].filter(Boolean).join(" ／ ") || h.type || "型式不明";
+    main.innerHTML = '<div class="hType">' + esc(title) + '</div>' +
+      '<div class="hSub">' + esc(h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + " ・ " +
       dt.getFullYear() + "/" + String(dt.getMonth()+1).padStart(2,"0") + "/" + String(dt.getDate()).padStart(2,"0") +
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
-    main.addEventListener("click", () => {
-      showResult({
-        type: h.type, vin: h.vin, plate: null,
-        expiry: h.expiry ? new Date(h.expiry) : null,
-        firstReg: h.firstReg || null, kataShitei: h.kataShitei || null,
-        raw: [h.type, h.vin].filter(Boolean),
-      }, { fromScan: false });
-    });
+    main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
     del.addEventListener("click", () => {
       localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));

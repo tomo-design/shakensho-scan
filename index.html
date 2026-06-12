@@ -39,8 +39,19 @@
   </div>
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
+    <button class="textlink" id="lnkShowPlate" type="button">ナンバーで過去の車両を呼び出す</button>
     <button class="textlink" id="lnkShowOcr" type="button">QRが読めない → 券面を撮影</button>
     <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
+  </div>
+
+  <div id="plateArea" class="hidden">
+    <section>
+      <h2>ナンバーで検索</h2>
+      <div class="sec-body">
+        <input type="text" id="plateSearch" placeholder="例: 品川100 / 12-34 / 使用者名でも可" autocomplete="off">
+        <div id="plateResults" style="margin-top:10px"></div>
+      </div>
+    </section>
   </div>
 
   <div id="ocrArea" class="hidden">
@@ -74,6 +85,7 @@
         <dt>型式</dt><dd id="rType">—</dd>
         <dt>車台番号</dt><dd id="rVin" class="small">—</dd>
         <dt>登録番号</dt><dd id="rPlate" class="small">—</dd>
+        <dt>使用者</dt><dd id="rUser" class="small">—</dd>
         <dt>初度登録</dt><dd id="rFirstReg" class="small">—</dd>
         <dt>有効期限</dt><dd id="rExpiry" class="small">—</dd>
         <dt>指定-類別</dt><dd id="rKata" class="small">—</dd>
@@ -91,6 +103,7 @@
         <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
       </div>
       <div class="linkrow">
+        <button class="textlink" id="lnkEditUser" type="button">✎ 使用者名を登録・変更（ナンバー検索で使えます）</button>
         <button class="textlink" id="lnkFixRead" type="button">読み取り結果が違う？ → 手動で修正する</button>
       </div>
     </div>
@@ -139,7 +152,7 @@
     </section>
   </div>
 
-  <p class="note">※ 所有者の個人情報は読取・保存しません。</p>
+  <p class="note">※ ナンバー・使用者名を含む保存データはすべてこの端末内のみ。外部送信されません。</p>
 </div>
 
 <!-- ============ VIEW: DIAG ============ -->
