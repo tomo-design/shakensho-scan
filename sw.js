@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v15";
+const CACHE = "shaken-scan-v16";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -16,7 +16,7 @@ const PRECACHE = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
-  "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js",
+  "./lib/jsQR.js",
 ];
 
 self.addEventListener("install", e => {

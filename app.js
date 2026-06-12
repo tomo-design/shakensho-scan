@@ -178,32 +178,79 @@ const cv = document.createElement("canvas"), ctx = cv.getContext("2d", { willRea
 $("btnStart").addEventListener("click", startScan);
 $("btnStop").addEventListener("click", stopAndParse);
 
+/* ネイティブQR検出器 (Android Chrome等。jsQRより高速・高精度) */
+let nativeDetector = null;
+if ("BarcodeDetector" in window) {
+  try { nativeDetector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { nativeDetector = null; }
+}
+
 async function startScan() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } } });
+    // 車検証のQRは小さいため高解像度を要求 (取れない端末は自動で下がる)
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
   } catch (e) {
-    setPlaceholder("この環境ではライブカメラを使えません。下の「📸 写真で読み取り」を使ってください。");
+    setPlaceholder("この環境ではライブカメラを使えません。「QRが読めない場合はこちら」から券面撮影のOCRを使ってください。");
     return;
   }
+  // 接写向けの連続オートフォーカス (対応端末のみ)
+  try {
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.focusMode && caps.focusMode.includes("continuous")) {
+      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    }
+  } catch (e) {}
   payloads.clear();
   video.srcObject = stream; await video.play();
   toggle("camPlaceholder", false); toggle("video", true); toggle("scanOverlay", true); toggle("scanStatus", true);
   toggle("btnStart", false); toggle("btnStop", true);
-  scanning = true; tick();
+  document.querySelector("#scanStatus span").textContent = "QRが画面の1/3くらいになるまで近づけてください";
+  scanning = true; tickBusy = false; tickCount = 0; tick();
 }
-function tick() {
+
+function onQrFound(data) {
+  if (!data || payloads.has(data)) return;
+  payloads.add(data);
+  setText("qrCount", payloads.size + " 件読取");
+  if (navigator.vibrate) navigator.vibrate(60);
+  document.querySelector("#scanStatus span").textContent = "✓ 読取OK。隣のQRにずらしてください（読み終えたら停止）";
+}
+
+let tickBusy = false, tickCount = 0;
+async function tick() {
   if (!scanning) return;
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    cv.width = video.videoWidth; cv.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const img = ctx.getImageData(0, 0, cv.width, cv.height);
-    const code = jsQR(img.data, cv.width, cv.height, { inversionAttempts: "dontInvert" });
-    if (code && code.data && !payloads.has(code.data)) {
-      payloads.add(code.data);
-      setText("qrCount", payloads.size + " 件読取");
-      if (navigator.vibrate) navigator.vibrate(60);
-      document.querySelector("#scanStatus span").textContent = "✓ 読取OK。別のQRも続けて読めます";
-    }
+  if (!tickBusy && video.readyState === video.HAVE_ENOUGH_DATA) {
+    tickBusy = true;
+    tickCount++;
+    try {
+      if (nativeDetector) {
+        // ネイティブ検出: フレームを直接渡せて複数QRも一度に拾える
+        const codes = await nativeDetector.detect(video);
+        codes.forEach(c => onQrFound(c.rawValue));
+      } else {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (tickCount % 3 === 0) {
+          // 3回に1回は全面スキャン (枠から外れたQR対策)
+          cv.width = vw; cv.height = vh;
+          ctx.drawImage(video, 0, 0);
+          const img = ctx.getImageData(0, 0, vw, vh);
+          const code = jsQR(img.data, vw, vh, { inversionAttempts: "dontInvert" });
+          if (code) onQrFound(code.data);
+        } else {
+          // 通常は照準枠の中央領域だけを高密度スキャン (小さいQR対策)
+          const s = Math.floor(Math.min(vw, vh) * 0.7);
+          const sx = Math.floor((vw - s) / 2), sy = Math.floor((vh - s) / 2);
+          cv.width = s; cv.height = s;
+          ctx.drawImage(video, sx, sy, s, s, 0, 0, s, s);
+          const img = ctx.getImageData(0, 0, s, s);
+          const code = jsQR(img.data, s, s, { inversionAttempts: "attemptBoth" });
+          if (code) onQrFound(code.data);
+        }
+      }
+    } catch (e) {}
+    tickBusy = false;
   }
   raf = requestAnimationFrame(tick);
 }
