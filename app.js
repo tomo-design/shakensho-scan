@@ -183,34 +183,65 @@ const payloads = new Set();
 const video = $("video");
 const cv = document.createElement("canvas"), ctx = cv.getContext("2d", { willReadFrequently: true });
 
-$("btnStart").addEventListener("click", startScan);
-$("btnStop").addEventListener("click", stopAndParse);
+/* ===== 写真でスキャン: QRを1つずつ撮影 → 溜めていく方式 ===== */
+let scanComplete = false; // 直前に車両を確定表示したか(次の撮影で新規開始)
 
-/* ===== 写真でスキャン (標準カメラで撮影 → 高解像度画像から読み取り。最も確実) ===== */
 $("btnPhotoQr").addEventListener("click", () => $("qrPhotoIn").click());
 $("qrPhotoIn").addEventListener("change", async e => {
   const file = e.target.files[0]; $("qrPhotoIn").value = "";
   if (!file) return;
+  if (scanComplete) { payloads.clear(); scanComplete = false; } // 別の車両を開始
   toggle("qrPhotoStatus", true);
   $("qrPhotoStatus").textContent = "画像を解析中…";
   try {
-    const found = await decodePhotoQR(file);
-    if (found && payloads.size) {
-      const d = parsePayloads(payloads);
-      if (d.type || d.vin) {
-        $("qrPhotoStatus").textContent = "✓ " + payloads.size + "件のQRを読み取りました。";
-        showResult(d, { fromScan: true });
-        return;
-      }
-      $("qrPhotoStatus").textContent = "QRは読めましたが型式・車台番号を特定できませんでした。下のRAW候補から手動割り当てするか、もう一度撮影してください。";
-      showResult(d, { fromScan: false });
+    const before = payloads.size;
+    const codes = await decodePhotoQR(file);
+    codes.forEach(c => payloads.add(c));
+    const added = payloads.size - before;
+    const d = parsePayloads(payloads);
+    updateScanProgress(d);
+    toggle("scanActions", payloads.size > 0);
+    if (d.type && d.vin) {
+      // 必要情報が揃った → 自動表示
+      $("qrPhotoStatus").textContent = "✓ 型式・車台番号が揃いました。";
+      scanComplete = true;
+      showResult(d, { fromScan: true });
+    } else if (added === 0) {
+      $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。1つのQRが<b>画面いっぱい</b>になるまで近づけ、ピントを合わせて撮影してください。";
     } else {
-      $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。<br>・車検証右下のQRの<b>かたまり全体</b>が画面いっぱいになるよう近づけて<br>・明るい場所で、ピントが合ってから撮影してください。";
+      const need = [!d.type && "型式", !d.vin && "車台番号"].filter(Boolean).join("・");
+      $("qrPhotoStatus").textContent = "✓ " + added + "件読取。続けて" + (need ? "「" + need + "」の" : "別の") + "QRを撮影してください。";
     }
   } catch (err) {
     $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err);
   }
 });
+
+$("btnScanShow").addEventListener("click", () => {
+  if (!payloads.size) return;
+  scanComplete = true;
+  showResult(parsePayloads(payloads), { fromScan: true });
+});
+$("btnScanReset").addEventListener("click", () => {
+  payloads.clear(); scanComplete = false;
+  updateScanProgress({});
+  toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+});
+
+/* 読み取り済み項目の進捗表示 */
+function updateScanProgress(d) {
+  const box = $("scanProgress");
+  const items = [
+    ["型式", d.type], ["原動機型式", d.engine], ["車台番号", d.vin], ["登録番号", d.plate],
+  ];
+  box.innerHTML = items.map(([label, val]) =>
+    '<div class="progRow ' + (val ? "got" : "") + '">' +
+    '<span class="progIco">' + (val ? "✓" : "○") + '</span>' +
+    '<span class="progLabel">' + label + '</span>' +
+    '<span class="progVal">' + (val ? esc(String(val)) : "未取得") + '</span></div>'
+  ).join("");
+  toggle("scanProgress", true);
+}
 
 function loadImageEl(file) {
   return new Promise((res, rej) => {
@@ -222,17 +253,17 @@ function loadImageEl(file) {
   });
 }
 
-/* 1枚の写真から複数QRを抽出 (車検証は型式・車台番号が別QRのため) */
+/* 1枚の写真からQRを抽出して配列で返す(純関数。グローバルは触らない) */
 async function decodePhotoQR(file) {
-  payloads.clear();
+  const out = new Set();
   // ① ネイティブ検出 (Android Chrome): 1枚で複数QRを一度に取得
   if (nativeDetector) {
     try {
       const bmp = await createImageBitmap(file);
       const codes = await nativeDetector.detect(bmp);
       if (bmp.close) bmp.close();
-      codes.forEach(c => { if (c.rawValue) payloads.add(c.rawValue); });
-      if (payloads.size) return payloads.size;
+      codes.forEach(c => { if (c.rawValue) out.add(c.rawValue); });
+      if (out.size) return [...out];
     } catch (e) {}
   }
   // ② jsQR (iPhone等): 複数QRが1枚に並ぶと全体スキャンは失敗するため、
@@ -256,9 +287,9 @@ async function decodePhotoQR(file) {
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
     const id = ctx.getImageData(0, 0, w, h);
     const code = jsQR(id.data, w, h, { inversionAttempts: "attemptBoth" });
-    if (code && code.data) payloads.add(code.data);
+    if (code && code.data) out.add(code.data);
   }
-  return payloads.size;
+  return [...out];
 }
 
 /* ネイティブQR検出器 (Android Chrome等。jsQRより高速・高精度) */
@@ -266,87 +297,6 @@ let nativeDetector = null;
 if ("BarcodeDetector" in window) {
   try { nativeDetector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { nativeDetector = null; }
 }
-
-async function startScan() {
-  try {
-    // 車検証のQRは小さいため高解像度を要求 (取れない端末は自動で下がる)
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-    });
-  } catch (e) {
-    setPlaceholder("この環境ではライブカメラを使えません。「QRが読めない場合はこちら」から券面撮影のOCRを使ってください。");
-    return;
-  }
-  // 接写向けの連続オートフォーカス (対応端末のみ)
-  try {
-    const track = stream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.focusMode && caps.focusMode.includes("continuous")) {
-      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-    }
-  } catch (e) {}
-  payloads.clear();
-  video.srcObject = stream; await video.play();
-  toggle("camPlaceholder", false); toggle("video", true); toggle("scanOverlay", true); toggle("scanStatus", true);
-  toggle("btnStart", false); toggle("btnStop", true);
-  document.querySelector("#scanStatus span").textContent = "QRが画面の1/3くらいになるまで近づけてください";
-  scanning = true; tickBusy = false; tickCount = 0; tick();
-}
-
-function onQrFound(data) {
-  if (!data || payloads.has(data)) return;
-  payloads.add(data);
-  setText("qrCount", payloads.size + " 件読取");
-  if (navigator.vibrate) navigator.vibrate(60);
-  document.querySelector("#scanStatus span").textContent = "✓ 読取OK。隣のQRにずらしてください（読み終えたら停止）";
-}
-
-let tickBusy = false, tickCount = 0;
-async function tick() {
-  if (!scanning) return;
-  if (!tickBusy && video.readyState === video.HAVE_ENOUGH_DATA) {
-    tickBusy = true;
-    tickCount++;
-    try {
-      if (nativeDetector) {
-        // ネイティブ検出: フレームを直接渡せて複数QRも一度に拾える
-        const codes = await nativeDetector.detect(video);
-        codes.forEach(c => onQrFound(c.rawValue));
-      } else {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (tickCount % 3 === 0) {
-          // 3回に1回は全面スキャン (枠から外れたQR対策)
-          cv.width = vw; cv.height = vh;
-          ctx.drawImage(video, 0, 0);
-          const img = ctx.getImageData(0, 0, vw, vh);
-          const code = jsQR(img.data, vw, vh, { inversionAttempts: "dontInvert" });
-          if (code) onQrFound(code.data);
-        } else {
-          // 通常は照準枠の中央領域だけを高密度スキャン (小さいQR対策)
-          const s = Math.floor(Math.min(vw, vh) * 0.7);
-          const sx = Math.floor((vw - s) / 2), sy = Math.floor((vh - s) / 2);
-          cv.width = s; cv.height = s;
-          ctx.drawImage(video, sx, sy, s, s, 0, 0, s, s);
-          const img = ctx.getImageData(0, 0, s, s);
-          const code = jsQR(img.data, s, s, { inversionAttempts: "attemptBoth" });
-          if (code) onQrFound(code.data);
-        }
-      }
-    } catch (e) {}
-    tickBusy = false;
-  }
-  raf = requestAnimationFrame(tick);
-}
-function stopAndParse() {
-  scanning = false; cancelAnimationFrame(raf);
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  toggle("video", false); toggle("scanOverlay", false); toggle("scanStatus", false);
-  toggle("btnStart", true); toggle("btnStop", false);
-  toggle("camPlaceholder", true);
-  setPlaceholder(payloads.size ? "解析しました。下に結果を表示しています。" : "QRが読み取れませんでした。明るさ・ピントを調整して再試行してください。");
-  if (payloads.size) showResult(parsePayloads(payloads), { fromScan: true });
-}
-function setPlaceholder(t) { toggle("camPlaceholder", true); setText("camPlaceholder", t); }
 
 /* ---- 手動入力 ---- */
 $("btnManual").addEventListener("click", () => {
@@ -490,8 +440,10 @@ function showResult(d, opt = {}) {
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
   toggle("choicePanel", true); toggle("maintArea", false); toggle("secRaw", false);
-  // フォールバックUIは畳む
+  // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
+  toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+  scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
   setText("rUser", (histEntry && histEntry.name) || "—");

@@ -26,21 +26,20 @@
 <!-- ============ VIEW: SCAN ============ -->
 <div id="view-scan" class="view active">
 
-  <div id="scanWrap">
-    <div id="camPlaceholder">車検証のQRコードをスキャンします</div>
-    <video id="video" class="hidden" playsinline muted></video>
-    <div id="scanOverlay" class="hidden"><div class="reticle"><b></b></div></div>
-    <div id="scanStatus" class="hidden"><span>QRを探しています…</span><span id="qrCount">0 件読取</span></div>
-  </div>
+  <div id="scanIntro">車検証のQRコードを<b>1つずつ</b>撮影してください。<br>型式と車台番号が読み取れると車両が表示されます。</div>
 
   <div class="btnRow">
-    <button class="btn btn-amber btn-big" id="btnPhotoQr">📷 写真でスキャン（おすすめ）<small>カメラで撮影 → 自動読み取り</small></button>
+    <button class="btn btn-amber btn-big" id="btnPhotoQr">📷 QRを撮影<small>1つのQRを画面いっぱいに写して撮影</small></button>
     <input type="file" id="qrPhotoIn" accept="image/*" capture="environment" class="hidden">
   </div>
-  <div class="btnRow">
-    <button class="btn btn-ghost" id="btnStart">🎥 ライブカメラでスキャン</button>
-    <button class="btn btn-ghost hidden" id="btnStop">■ 停止して解析</button>
+
+  <div id="scanProgress" class="hidden"></div>
+
+  <div class="btnRow hidden" id="scanActions">
+    <button class="btn btn-amber" id="btnScanShow">✓ この内容で表示</button>
+    <button class="btn btn-ghost" id="btnScanReset" style="flex:0 0 32%">最初から</button>
   </div>
+
   <div id="qrPhotoStatus" class="hint hidden" style="margin-top:8px"></div>
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
