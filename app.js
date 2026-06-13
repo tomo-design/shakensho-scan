@@ -178,6 +178,81 @@ const cv = document.createElement("canvas"), ctx = cv.getContext("2d", { willRea
 $("btnStart").addEventListener("click", startScan);
 $("btnStop").addEventListener("click", stopAndParse);
 
+/* ===== 写真でスキャン (標準カメラで撮影 → 高解像度画像から読み取り。最も確実) ===== */
+$("btnPhotoQr").addEventListener("click", () => $("qrPhotoIn").click());
+$("qrPhotoIn").addEventListener("change", async e => {
+  const file = e.target.files[0]; $("qrPhotoIn").value = "";
+  if (!file) return;
+  toggle("qrPhotoStatus", true);
+  $("qrPhotoStatus").textContent = "画像を解析中…";
+  try {
+    const found = await decodePhotoQR(file);
+    if (found && payloads.size) {
+      const d = parsePayloads(payloads);
+      if (d.type || d.vin) {
+        $("qrPhotoStatus").textContent = "✓ " + payloads.size + "件のQRを読み取りました。";
+        showResult(d, { fromScan: true });
+        return;
+      }
+      $("qrPhotoStatus").textContent = "QRは読めましたが型式・車台番号を特定できませんでした。下のRAW候補から手動割り当てするか、もう一度撮影してください。";
+      showResult(d, { fromScan: false });
+    } else {
+      $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。<br>・車検証右下のQRの<b>かたまり全体</b>が画面いっぱいになるよう近づけて<br>・明るい場所で、ピントが合ってから撮影してください。";
+    }
+  } catch (err) {
+    $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err);
+  }
+});
+
+function loadImageEl(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("画像を読み込めませんでした")); };
+    im.src = url;
+  });
+}
+
+/* 1枚の写真から複数QRを抽出 (車検証は型式・車台番号が別QRのため) */
+async function decodePhotoQR(file) {
+  payloads.clear();
+  // ① ネイティブ検出 (Android Chrome): 1枚で複数QRを一度に取得
+  if (nativeDetector) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const codes = await nativeDetector.detect(bmp);
+      if (bmp.close) bmp.close();
+      codes.forEach(c => { if (c.rawValue) payloads.add(c.rawValue); });
+      if (payloads.size) return payloads.size;
+    } catch (e) {}
+  }
+  // ② jsQR (iPhone等): 複数QRが1枚に並ぶと全体スキャンは失敗するため、
+  //    タイル分割して各領域を個別に読む
+  const img = await loadImageEl(file);
+  const W = img.width, H = img.height;
+  // スキャン対象領域: 全体 + 3x2のオーバーラップタイル + 左右半分(QRが横一列の車検証向け)
+  const regions = [[0, 0, W, H], [0, 0, W / 2, H], [W / 2, 0, W / 2, H]];
+  const cols = 3, rows = 2, ov = 0.5;
+  const tw = W / cols, th = H / rows;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const sx = Math.max(0, c * tw - tw * ov * 0.5);
+    const sy = Math.max(0, r * th - th * ov * 0.5);
+    regions.push([sx, sy, Math.min(W - sx, tw * (1 + ov)), Math.min(H - sy, th * (1 + ov))]);
+  }
+  const cap = 1400;
+  for (const [sx, sy, sw, sh] of regions) {
+    const sc = Math.min(1, cap / Math.max(sw, sh));
+    const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
+    cv.width = w; cv.height = h;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    const id = ctx.getImageData(0, 0, w, h);
+    const code = jsQR(id.data, w, h, { inversionAttempts: "attemptBoth" });
+    if (code && code.data) payloads.add(code.data);
+  }
+  return payloads.size;
+}
+
 /* ネイティブQR検出器 (Android Chrome等。jsQRより高速・高精度) */
 let nativeDetector = null;
 if ("BarcodeDetector" in window) {

@@ -34,9 +34,14 @@
   </div>
 
   <div class="btnRow">
-    <button class="btn btn-amber btn-big" id="btnStart">📷 スキャン開始</button>
+    <button class="btn btn-amber btn-big" id="btnPhotoQr">📷 写真でスキャン（おすすめ）<small>カメラで撮影 → 自動読み取り</small></button>
+    <input type="file" id="qrPhotoIn" accept="image/*" capture="environment" class="hidden">
+  </div>
+  <div class="btnRow">
+    <button class="btn btn-ghost" id="btnStart">🎥 ライブカメラでスキャン</button>
     <button class="btn btn-ghost hidden" id="btnStop">■ 停止して解析</button>
   </div>
+  <div id="qrPhotoStatus" class="hint hidden" style="margin-top:8px"></div>
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
     <button class="textlink" id="lnkShowPlate" type="button">ナンバーで過去の車両を呼び出す</button>
