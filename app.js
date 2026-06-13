@@ -122,26 +122,31 @@ function parseStructured(codes) {
       if (/^\d{2}$/.test(fuel)) out.fuelCode = fuel;
       out.structured = true;
     }
-    // 二次元コード2 (6フィールド): 登録番号・車台番号
+    // 二次元コード2 (6フィールド): 登録番号・車台番号・原動機型式
     else if (f.length >= 5 && f.length <= 7) {
       const plateRaw = f[1] || "";
       if (/[぀-ヿ㐀-鿿Ａ-Ｚ０-９]/.test(plateRaw)) out.plate = plateRaw.replace(/[　 ]+/g, " ").trim();
       const vin = zen2han(f[3] || "").toUpperCase();
       if (/^[A-Z0-9\[\]\-]{4,23}$/.test(vin)) out.vin = vin;
+      // f[4] = 原動機型式 (位置で確定。空欄/伏字/純数字の帳票種別は除外)
+      const eng = zen2han(f[4] || "").toUpperCase().trim();
+      if (eng && !eng.startsWith("*") && /^[A-Z0-9\-]{2,10}$/.test(eng) && !/^\d+$/.test(eng)) out.engine = eng;
       out.structured = true;
     }
   }
   return out;
 }
 
-/* ---- 従来ヒューリスティック(維持・フォールバック) ---- */
-function parseHeuristic(fields) {
+/* ---- 従来ヒューリスティック(維持・フォールバック) ----
+   exclude: 原動機型式など「型式候補にしてはいけない」値の集合 */
+function parseHeuristic(fields, exclude = new Set()) {
   let type = null, vin = null, plate = null;
   for (const f of fields) {
     const u = zen2han(f).toUpperCase();
     if (!vin && /^[A-Z0-9]{2,8}-[0-9]{5,8}$/.test(u)) { vin = u; continue; }
+    // ハイフン付き型式(排ガス記号-車種記号)はエンジン型式と紛れないので除外対象外
     if (!type && /^[0-9A-Z]{2,4}-[A-Z][A-Z0-9]{2,8}$/.test(u) && !/^[0-9]+$/.test(u.split("-")[1])) { type = u; continue; }
-    if (!type && /^[A-Z]{1,4}[0-9]{1,3}[A-Z0-9]{0,4}$/.test(u) && u.length <= 9) { type = u; continue; }
+    if (!type && !exclude.has(u) && /^[A-Z]{1,4}[0-9]{1,3}[A-Z0-9]{0,4}$/.test(u) && u.length <= 9) { type = u; continue; }
     if (!plate && /[぀-ヿ㐀-鿿]/.test(f) && f.length <= 12) plate = f;
   }
   return { type, vin, plate };
@@ -155,12 +160,15 @@ function parsePayloads(payloadSet) {
   const rawFields = [];
   list.forEach(p => p.split("/").forEach(f => { f = f.trim(); if (f) rawFields.push(f); }));
   const uniq = [...new Set(rawFields)];
-  const h = parseHeuristic(uniq);
+  // 原動機型式は型式候補から除外(誤って型式欄に入るのを防ぐ)
+  const exclude = new Set([s.engine, s.vin].filter(Boolean).map(x => zen2han(x).toUpperCase()));
+  const h = parseHeuristic(uniq, exclude);
 
   return {
     type:     s.type   || h.type   || null,
     vin:      s.vin    || h.vin    || null,
     plate:    s.plate  || h.plate  || null,
+    engine:   s.engine || null,
     expiry:   s.expiry || null,
     firstReg: s.firstReg || null,
     kataShitei: s.kataShitei || null,
@@ -488,6 +496,7 @@ function showResult(d, opt = {}) {
   const histEntry = findHistEntry(getHistory(), d);
   setText("rUser", (histEntry && histEntry.name) || "—");
   setText("rType", d.type || "未検出（下のRAWから割り当て可）");
+  setText("rEngine", d.engine || "—");
   setText("rVin", d.vin || "未検出");
   setText("rPlate", d.plate || "—");
   setText("rFirstReg", d.firstReg ? `${d.firstReg.year}年${d.firstReg.month}月` : "—");
@@ -605,6 +614,7 @@ function addHistory(d) {
     // 同一車両: 情報を統合して先頭へ (使用者名は保持)
     Object.assign(exist, {
       type: d.type || exist.type, vin: d.vin || exist.vin, plate: d.plate || exist.plate,
+      engine: d.engine || exist.engine,
       expiry: d.expiry ? d.expiry.getTime() : exist.expiry,
       firstReg: d.firstReg || exist.firstReg, kataShitei: d.kataShitei || exist.kataShitei,
       at: new Date().toISOString(),
@@ -613,6 +623,7 @@ function addHistory(d) {
   } else {
     hist.unshift({
       id: Date.now(), type: d.type || null, vin: d.vin || null, plate: d.plate || null, name: null,
+      engine: d.engine || null,
       expiry: d.expiry ? d.expiry.getTime() : null,
       firstReg: d.firstReg || null, kataShitei: d.kataShitei || null,
       at: new Date().toISOString(),
@@ -632,7 +643,7 @@ function saveUserName(name) {
 }
 function histToResult(h) {
   return {
-    type: h.type, vin: h.vin, plate: h.plate || null,
+    type: h.type, vin: h.vin, plate: h.plate || null, engine: h.engine || null,
     expiry: h.expiry ? new Date(h.expiry) : null,
     firstReg: h.firstReg || null, kataShitei: h.kataShitei || null,
     raw: [h.type, h.vin, h.plate].filter(Boolean),
