@@ -178,54 +178,128 @@ function parsePayloads(payloadSet) {
 }
 
 /* ================= スキャン(ライブ/写真) ================= */
-let stream = null, scanning = false, raf = null;
 const payloads = new Set();
 const video = $("video");
 const cv = document.createElement("canvas"), ctx = cv.getContext("2d", { willReadFrequently: true });
 
-/* ===== 写真でスキャン: QRを1つずつ撮影 → 溜めていく方式 ===== */
-let scanComplete = false; // 直前に車両を確定表示したか(次の撮影で新規開始)
+/* ===== ライブ連続スキャン: シャッター不要、写すだけで読み取り蓄積 ===== */
+let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
+let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0;
 
-$("btnPhotoQr").addEventListener("click", () => $("qrPhotoIn").click());
+$("btnStart").addEventListener("click", startLiveScan);
+$("btnStop").addEventListener("click", () => stopLiveScan(true));
+$("btnScanReset").addEventListener("click", () => {
+  payloads.clear(); scanComplete = false;
+  toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+  if (!scanning) startLiveScan(); else setScanMsg("最初から: QRを写してください");
+});
+
+async function startLiveScan() {
+  if (scanComplete) { payloads.clear(); scanComplete = false; }
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+  } catch (e) {
+    toggle("qrPhotoStatus", true);
+    $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
+    return;
+  }
+  // 連続オートフォーカス + ライト対応チェック
+  try {
+    const track = liveStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.focusMode && caps.focusMode.includes("continuous"))
+      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    toggle("btnTorch", !!caps.torch);
+  } catch (e) {}
+  video.srcObject = liveStream; await video.play();
+  toggle("scanWrap", true); toggle("btnStart", false); toggle("btnStop", true);
+  toggle("scanActions", true);
+  updateScanProgress(parsePayloads(payloads));
+  setScanMsg("QRを枠内いっぱいに写してください");
+  scanning = true; tickBusy = false; tickN = 0; scanTick();
+}
+
+function stopLiveScan(show) {
+  scanning = false;
+  if (scanRaf) cancelAnimationFrame(scanRaf);
+  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  toggle("scanWrap", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnTorch", false);
+  if (show && payloads.size) { scanComplete = true; showResult(parsePayloads(payloads), { fromScan: true }); }
+}
+const setScanMsg = t => setText("scanMsg", t);
+
+/* ライト切替 */
+$("btnTorch").addEventListener("click", async () => {
+  if (!liveStream) return;
+  const track = liveStream.getVideoTracks()[0];
+  const on = !track.__torch;
+  try { await track.applyConstraints({ advanced: [{ torch: on }] }); track.__torch = on; $("btnTorch").style.opacity = on ? "1" : ".55"; } catch (e) {}
+});
+
+/* QR検出時 */
+function onLiveQr(data) {
+  if (!data || payloads.has(data)) return;
+  payloads.add(data);
+  lastHitAt = Date.now();
+  if (navigator.vibrate) navigator.vibrate(50);
+  const d = parsePayloads(payloads);
+  updateScanProgress(d);
+  if (d.type && d.vin) { setScanMsg("✓ 揃いました"); stopLiveScan(true); return; }
+  const need = [!d.type && "型式", !d.vin && "車台番号"].filter(Boolean).join("・");
+  setScanMsg("✓ " + payloads.size + "件読取。次は" + (need ? "「" + need + "」の" : "別の") + "QRを写してください");
+}
+
+async function scanTick() {
+  if (!scanning) return;
+  if (!tickBusy && video.readyState >= 2 && video.videoWidth) {
+    tickBusy = true; tickN++;
+    try {
+      if (nativeDetector) {
+        const codes = await nativeDetector.detect(video);
+        codes.forEach(c => onLiveQr(c.rawValue));
+      } else {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        // 中央80%領域を実解像度でスキャン(小さいQRの解像度を確保)
+        const s = Math.floor(Math.min(vw, vh) * 0.8);
+        const sx = (vw - s) >> 1, sy = (vh - s) >> 1;
+        cv.width = s; cv.height = s;
+        ctx.drawImage(video, sx, sy, s, s, 0, 0, s, s);
+        let code = jsQR(ctx.getImageData(0, 0, s, s).data, s, s, { inversionAttempts: "dontInvert" });
+        // 5フレームに1回は全面+反転も試す(枠外/白黒反転対策)
+        if (!code && tickN % 5 === 0) {
+          cv.width = vw; cv.height = vh; ctx.drawImage(video, 0, 0);
+          code = jsQR(ctx.getImageData(0, 0, vw, vh).data, vw, vh, { inversionAttempts: "attemptBoth" });
+        }
+        if (code && code.data) onLiveQr(code.data);
+      }
+    } catch (e) {}
+    tickBusy = false;
+  }
+  scanRaf = requestAnimationFrame(scanTick);
+}
+
+/* 写真フォールバック (カメラ不可端末用。1枚ずつ撮影して蓄積) */
+$("lnkShowPhoto").addEventListener("click", () => $("qrPhotoIn").click());
 $("qrPhotoIn").addEventListener("change", async e => {
   const file = e.target.files[0]; $("qrPhotoIn").value = "";
   if (!file) return;
-  if (scanComplete) { payloads.clear(); scanComplete = false; } // 別の車両を開始
-  toggle("qrPhotoStatus", true);
-  $("qrPhotoStatus").textContent = "画像を解析中…";
+  if (scanComplete) { payloads.clear(); scanComplete = false; }
+  toggle("qrPhotoStatus", true); $("qrPhotoStatus").textContent = "画像を解析中…";
   try {
     const before = payloads.size;
-    const codes = await decodePhotoQR(file);
-    codes.forEach(c => payloads.add(c));
+    (await decodePhotoQR(file)).forEach(c => payloads.add(c));
     const added = payloads.size - before;
     const d = parsePayloads(payloads);
-    updateScanProgress(d);
-    toggle("scanActions", payloads.size > 0);
-    if (d.type && d.vin) {
-      // 必要情報が揃った → 自動表示
-      $("qrPhotoStatus").textContent = "✓ 型式・車台番号が揃いました。";
-      scanComplete = true;
-      showResult(d, { fromScan: true });
-    } else if (added === 0) {
-      $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。1つのQRが<b>画面いっぱい</b>になるまで近づけ、ピントを合わせて撮影してください。";
-    } else {
+    updateScanProgress(d); toggle("scanActions", payloads.size > 0);
+    if (d.type && d.vin) { scanComplete = true; showResult(d, { fromScan: true }); }
+    else if (added === 0) $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。1つのQRが<b>画面いっぱい</b>になるまで近づけて撮影してください。";
+    else {
       const need = [!d.type && "型式", !d.vin && "車台番号"].filter(Boolean).join("・");
       $("qrPhotoStatus").textContent = "✓ " + added + "件読取。続けて" + (need ? "「" + need + "」の" : "別の") + "QRを撮影してください。";
     }
-  } catch (err) {
-    $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err);
-  }
-});
-
-$("btnScanShow").addEventListener("click", () => {
-  if (!payloads.size) return;
-  scanComplete = true;
-  showResult(parsePayloads(payloads), { fromScan: true });
-});
-$("btnScanReset").addEventListener("click", () => {
-  payloads.clear(); scanComplete = false;
-  updateScanProgress({});
-  toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+  } catch (err) { $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err); }
 });
 
 /* 読み取り済み項目の進捗表示 */
@@ -436,6 +510,7 @@ $("lnkFixRead").addEventListener("click", () => {
 
 function showResult(d, opt = {}) {
   current = d;
+  if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
@@ -1253,6 +1328,7 @@ async function ocrTesseractDiag(file) {
    タブ切替・初期化
    ========================================================= */
 function switchView(name) {
+  if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === name));
   if (name === "diag") updateDiagVehicleHint();
