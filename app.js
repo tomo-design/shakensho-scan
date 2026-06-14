@@ -182,6 +182,31 @@ const payloads = new Set();
 const video = $("video");
 const cv = document.createElement("canvas"), ctx = cv.getContext("2d", { willReadFrequently: true });
 
+/* QR解読: ZXing(ピンボケ・低コントラストに強い)優先 → jsQR フォールバック */
+let zxReader = null, zxHints = null;
+if (typeof ZXing !== "undefined") {
+  try {
+    zxHints = new Map(); zxHints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    zxReader = new ZXing.QRCodeReader();
+  } catch (e) { zxReader = null; }
+}
+function decodeCanvas(canvas) {
+  if (zxReader) {
+    try {
+      const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+      const bb = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+      const r = zxReader.decode(bb, zxHints);
+      if (r && r.getText()) return r.getText();
+    } catch (e) {}
+  }
+  try {
+    const id = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(id.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" });
+    if (code && code.data) return code.data;
+  } catch (e) {}
+  return null;
+}
+
 /* ===== ライブ連続スキャン: シャッター不要、写すだけで読み取り蓄積 ===== */
 let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
 let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0;
@@ -197,29 +222,53 @@ $("btnScanReset").addEventListener("click", () => {
 async function startLiveScan() {
   if (scanComplete) { payloads.clear(); scanComplete = false; }
   try {
+    // 高解像度を要求: 近づかなくても小さいQRを解像できる(=ピントが合う距離で読める)
     liveStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 2560 }, height: { ideal: 1440 } }
     });
   } catch (e) {
-    toggle("qrPhotoStatus", true);
-    $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
-    return;
+    try {
+      liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+    } catch (e2) {
+      toggle("qrPhotoStatus", true);
+      $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
+      return;
+    }
   }
-  // 連続オートフォーカス + ライト対応チェック
+  // 連続AF + ズーム(近づかず大きく写す) + ライト
   try {
     const track = liveStream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.focusMode && caps.focusMode.includes("continuous"))
-      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    const adv = [];
+    if (caps.focusMode && caps.focusMode.includes("continuous")) adv.push({ focusMode: "continuous" });
+    if (caps.zoom) { const z = Math.min(caps.zoom.max || 1, Math.max(caps.zoom.min || 1, 2)); if (z > (caps.zoom.min || 1)) adv.push({ zoom: z }); }
+    if (adv.length) await track.applyConstraints({ advanced: adv });
     toggle("btnTorch", !!caps.torch);
   } catch (e) {}
   video.srcObject = liveStream; await video.play();
   toggle("scanWrap", true); toggle("btnStart", false); toggle("btnStop", true);
   toggle("scanActions", true);
   updateScanProgress(parsePayloads(payloads));
-  setScanMsg("QRを枠内いっぱいに写してください");
+  setScanMsg("QRを枠の中央に大きく写す／合わない時は画面をタップ");
   scanning = true; tickBusy = false; tickN = 0; scanTick();
 }
+
+/* タップでピント合わせ(対応端末) */
+video.addEventListener("click", async () => {
+  if (!liveStream) return;
+  try {
+    const track = liveStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+      await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+      setScanMsg("ピント調整中…");
+      setTimeout(() => {
+        if (scanning && caps.focusMode.includes("continuous"))
+          track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+      }, 1500);
+    }
+  } catch (e) {}
+});
 
 function stopLiveScan(show) {
   scanning = false;
@@ -261,18 +310,20 @@ async function scanTick() {
         codes.forEach(c => onLiveQr(c.rawValue));
       } else {
         const vw = video.videoWidth, vh = video.videoHeight;
-        // 中央80%領域を実解像度でスキャン(小さいQRの解像度を確保)
-        const s = Math.floor(Math.min(vw, vh) * 0.8);
+        // 中央70%領域を実解像度でスキャン(小さいQRの解像度を確保) → ZXing/jsQR
+        const s = Math.floor(Math.min(vw, vh) * 0.7);
         const sx = (vw - s) >> 1, sy = (vh - s) >> 1;
         cv.width = s; cv.height = s;
         ctx.drawImage(video, sx, sy, s, s, 0, 0, s, s);
-        let code = jsQR(ctx.getImageData(0, 0, s, s).data, s, s, { inversionAttempts: "dontInvert" });
-        // 5フレームに1回は全面+反転も試す(枠外/白黒反転対策)
-        if (!code && tickN % 5 === 0) {
-          cv.width = vw; cv.height = vh; ctx.drawImage(video, 0, 0);
-          code = jsQR(ctx.getImageData(0, 0, vw, vh).data, vw, vh, { inversionAttempts: "attemptBoth" });
+        let t = decodeCanvas(cv);
+        // 4フレームに1回は全面も(枠外QR対策、過負荷防止に縮小)
+        if (!t && tickN % 4 === 0) {
+          const cap = 1600, sc = Math.min(1, cap / Math.max(vw, vh));
+          const w = Math.max(1, Math.round(vw * sc)), h = Math.max(1, Math.round(vh * sc));
+          cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
+          t = decodeCanvas(cv);
         }
-        if (code && code.data) onLiveQr(code.data);
+        if (t) onLiveQr(t);
       }
     } catch (e) {}
     tickBusy = false;
@@ -359,9 +410,8 @@ async function decodePhotoQR(file) {
     const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
     cv.width = w; cv.height = h;
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-    const id = ctx.getImageData(0, 0, w, h);
-    const code = jsQR(id.data, w, h, { inversionAttempts: "attemptBoth" });
-    if (code && code.data) out.add(code.data);
+    const t = decodeCanvas(cv);
+    if (t) out.add(t);
   }
   return [...out];
 }
