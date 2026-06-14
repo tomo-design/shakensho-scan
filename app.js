@@ -219,39 +219,76 @@ $("btnScanReset").addEventListener("click", () => {
   if (!scanning) startLiveScan(); else setScanMsg("最初から: QRを写してください");
 });
 
+let camList = [], camIdx = 0;
+
 async function startLiveScan() {
   if (scanComplete) { payloads.clear(); scanComplete = false; }
-  try {
-    // 高解像度を要求: 近づかなくても小さいQRを解像できる(=ピントが合う距離で読める)
-    liveStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 2560 }, height: { ideal: 1440 } }
-    });
-  } catch (e) {
-    try {
-      liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-    } catch (e2) {
-      toggle("qrPhotoStatus", true);
-      $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
-      return;
-    }
+  const ok = await openCamera(null);
+  if (!ok) {
+    toggle("qrPhotoStatus", true);
+    $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
+    return;
   }
-  // 連続AF + ズーム(近づかず大きく写す) + ライト
-  try {
-    const track = liveStream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    const adv = [];
-    if (caps.focusMode && caps.focusMode.includes("continuous")) adv.push({ focusMode: "continuous" });
-    if (caps.zoom) { const z = Math.min(caps.zoom.max || 1, Math.max(caps.zoom.min || 1, 2)); if (z > (caps.zoom.min || 1)) adv.push({ zoom: z }); }
-    if (adv.length) await track.applyConstraints({ advanced: adv });
-    toggle("btnTorch", !!caps.torch);
-  } catch (e) {}
-  video.srcObject = liveStream; await video.play();
-  toggle("scanWrap", true); toggle("btnStart", false); toggle("btnStop", true);
+  toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true);
   toggle("scanActions", true);
   updateScanProgress(parsePayloads(payloads));
-  setScanMsg("QRを枠の中央に大きく写す／合わない時は画面をタップ");
+  setScanMsg("QRを枠の中央に大きく写す／ピンボケ時は「カメラ切替」");
   scanning = true; tickBusy = false; tickN = 0; scanTick();
 }
+
+/* カメラを開く(deviceId指定可)。AF/ズーム/ライト/レンズ一覧を設定 */
+async function openCamera(deviceId) {
+  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  const base = deviceId
+    ? { deviceId: { exact: deviceId } }
+    : { facingMode: { ideal: "environment" } };
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({ video: { ...base, width: { ideal: 2560 }, height: { ideal: 1440 } } });
+  } catch (e) {
+    try { liveStream = await navigator.mediaDevices.getUserMedia({ video: base }); }
+    catch (e2) { return false; }
+  }
+  video.srcObject = liveStream; try { await video.play(); } catch (e) {}
+  const track = liveStream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  // 連続AF
+  try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+  // ズームスライダー(対応端末のみ)
+  const zw = $("zoomWrap"), zs = $("zoomSlider");
+  if (caps.zoom && caps.zoom.max > (caps.zoom.min || 1)) {
+    zs.min = caps.zoom.min || 1; zs.max = caps.zoom.max; zs.step = caps.zoom.step || 0.1;
+    const cur = (track.getSettings && track.getSettings().zoom) || caps.zoom.min || 1;
+    zs.value = cur; toggle("zoomWrap", true);
+  } else toggle("zoomWrap", false);
+  // ライト
+  toggle("btnTorch", !!caps.torch);
+  // 背面レンズ一覧(初回のみ。Samsung等は超広角が近接に強い)
+  if (!camList.length) {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      camList = devs.filter(d => d.kind === "videoinput");
+      const cur = track.getSettings ? track.getSettings().deviceId : null;
+      const i = camList.findIndex(d => d.deviceId === cur); if (i >= 0) camIdx = i;
+    } catch (e) {}
+  }
+  toggle("btnCamSwitch", camList.length > 1);
+  return true;
+}
+
+/* カメラ(レンズ)切替: 近接で合わない時は別レンズへ */
+$("btnCamSwitch").addEventListener("click", async () => {
+  if (camList.length < 2) return;
+  camIdx = (camIdx + 1) % camList.length;
+  setScanMsg("カメラを切り替えました（" + (camIdx + 1) + "/" + camList.length + "）…ピントを確認");
+  const ok = await openCamera(camList[camIdx].deviceId);
+  if (!ok) setScanMsg("このカメラは使えませんでした。もう一度切替を");
+});
+
+/* ズーム調整 */
+$("zoomSlider").addEventListener("input", async () => {
+  if (!liveStream) return;
+  try { await liveStream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: parseFloat($("zoomSlider").value) }] }); } catch (e) {}
+});
 
 /* タップでピント合わせ(対応端末) */
 video.addEventListener("click", async () => {
@@ -274,7 +311,7 @@ function stopLiveScan(show) {
   scanning = false;
   if (scanRaf) cancelAnimationFrame(scanRaf);
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
-  toggle("scanWrap", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnTorch", false);
+  toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnTorch", false);
   if (show && payloads.size) { scanComplete = true; showResult(parsePayloads(payloads), { fromScan: true }); }
 }
 const setScanMsg = t => setText("scanMsg", t);
