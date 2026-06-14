@@ -207,22 +207,34 @@ function decodeCanvas(canvas) {
   return null;
 }
 
-/* ===== ライブ連続スキャン: シャッター不要、写すだけで読み取り蓄積 ===== */
+/* ===== ライブ連続スキャン: QRと文字(OCR)を同時に自動認識して蓄積 ===== */
 let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
 let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0;
+
+/* 統合アキュムレータ: QR・OCR・手動のどれからでも項目を埋めていく */
+function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, raw: [] }; }
+let acc = freshAcc();
+function mergeAcc(d) {
+  for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) if (!acc[k] && d[k]) acc[k] = d[k];
+  if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
+}
+function accComplete() { return !!(acc.type && acc.vin); }
+function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean) }; }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
 $("btnScanReset").addEventListener("click", () => {
-  payloads.clear(); scanComplete = false;
+  resetScan();
+  updateScanProgress(acc);
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
-  if (!scanning) startLiveScan(); else setScanMsg("最初から: QRを写してください");
+  if (!scanning) startLiveScan(); else setScanMsg("最初から: QR・型式部分を写してください");
 });
 
 let camList = [], camIdx = 0;
 
 async function startLiveScan() {
-  if (scanComplete) { payloads.clear(); scanComplete = false; }
+  if (scanComplete) resetScan();
   const ok = await openCamera(null);
   if (!ok) {
     toggle("qrPhotoStatus", true);
@@ -231,9 +243,9 @@ async function startLiveScan() {
   }
   toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true);
   toggle("scanActions", true);
-  updateScanProgress(parsePayloads(payloads));
-  setScanMsg("QRを枠の中央に大きく写す／ピンボケ時は「カメラ切替」");
-  scanning = true; tickBusy = false; tickN = 0; scanTick();
+  updateScanProgress(acc);
+  setScanMsg("車検証のQR・型式部分にかざしてください（自動で読み取ります）");
+  scanning = true; tickBusy = false; tickN = 0; lastOcrAt = 0; scanTick();
 }
 
 /* カメラを開く(deviceId指定可)。AF/ズーム/ライト/レンズ一覧を設定 */
@@ -312,7 +324,7 @@ function stopLiveScan(show) {
   if (scanRaf) cancelAnimationFrame(scanRaf);
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
   toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnTorch", false);
-  if (show && payloads.size) { scanComplete = true; showResult(parsePayloads(payloads), { fromScan: true }); }
+  if (show && (acc.type || acc.vin || acc.plate || acc.engine)) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
 }
 const setScanMsg = t => setText("scanMsg", t);
 
@@ -328,44 +340,113 @@ $("btnTorch").addEventListener("click", async () => {
 function onLiveQr(data) {
   if (!data || payloads.has(data)) return;
   payloads.add(data);
-  lastHitAt = Date.now();
   if (navigator.vibrate) navigator.vibrate(50);
-  const d = parsePayloads(payloads);
-  updateScanProgress(d);
-  if (d.type && d.vin) { setScanMsg("✓ 揃いました"); stopLiveScan(true); return; }
-  const need = [!d.type && "型式", !d.vin && "車台番号"].filter(Boolean).join("・");
-  setScanMsg("✓ " + payloads.size + "件読取。次は" + (need ? "「" + need + "」の" : "別の") + "QRを写してください");
+  mergeAcc(parsePayloads(payloads));
+  afterScanUpdate("QR");
+}
+/* 文字(OCR)検出時 */
+function onLiveText(d) {
+  const before = acc.type + "|" + acc.vin + "|" + acc.engine;
+  mergeAcc(d);
+  if (acc.type + "|" + acc.vin + "|" + acc.engine !== before) {
+    if (navigator.vibrate) navigator.vibrate(40);
+    afterScanUpdate("文字");
+  }
+}
+function afterScanUpdate(src) {
+  updateScanProgress(acc);
+  if (accComplete()) { setScanMsg("✓ 揃いました"); stopLiveScan(true); return; }
+  const need = [!acc.type && "型式", !acc.vin && "車台番号"].filter(Boolean).join("・");
+  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "他項目") + "を写してください");
 }
 
 async function scanTick() {
   if (!scanning) return;
   if (!tickBusy && video.readyState >= 2 && video.videoWidth) {
     tickBusy = true; tickN++;
+    const vw = video.videoWidth, vh = video.videoHeight;
     try {
+      // --- QR: ネイティブ + ZXing/jsQR を併用(取りこぼし防止) ---
       if (nativeDetector) {
-        const codes = await nativeDetector.detect(video);
-        codes.forEach(c => onLiveQr(c.rawValue));
-      } else {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        // 中央70%領域を実解像度でスキャン(小さいQRの解像度を確保) → ZXing/jsQR
-        const s = Math.floor(Math.min(vw, vh) * 0.7);
-        const sx = (vw - s) >> 1, sy = (vh - s) >> 1;
-        cv.width = s; cv.height = s;
-        ctx.drawImage(video, sx, sy, s, s, 0, 0, s, s);
-        let t = decodeCanvas(cv);
-        // 4フレームに1回は全面も(枠外QR対策、過負荷防止に縮小)
-        if (!t && tickN % 4 === 0) {
-          const cap = 1600, sc = Math.min(1, cap / Math.max(vw, vh));
-          const w = Math.max(1, Math.round(vw * sc)), h = Math.max(1, Math.round(vh * sc));
-          cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
-          t = decodeCanvas(cv);
-        }
-        if (t) onLiveQr(t);
+        try { (await nativeDetector.detect(video)).forEach(c => onLiveQr(c.rawValue)); }
+        catch (e) { nativeDetector = null; }
       }
+      // 中央70%を実解像度でZXing/jsQR(ネイティブが小QRを取りこぼす対策)
+      const s = Math.floor(Math.min(vw, vh) * 0.7);
+      cv.width = s; cv.height = s;
+      ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
+      let t = decodeCanvas(cv);
+      if (!t && tickN % 3 === 0) { // 全面も時々
+        const cap = 1600, sc = Math.min(1, cap / Math.max(vw, vh));
+        const w = Math.round(vw * sc), h = Math.round(vh * sc);
+        cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
+        t = decodeCanvas(cv);
+      }
+      if (t) onLiveQr(t);
     } catch (e) {}
     tickBusy = false;
+    // --- 文字認識(OCR): 重いので約1.5秒に1回、別スレッドで ---
+    if (Date.now() - lastOcrAt > 1500 && !ocrBusy) {
+      lastOcrAt = Date.now(); ocrBusy = true;
+      const oc = grabOcrFrame(vw, vh);
+      getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
+        if (!scanning) return;
+        const d = extractFromOcrText(data.text || "");
+        if (d.type || d.vin) onLiveText(d);
+      }).catch(() => {}).finally(() => { ocrBusy = false; });
+    }
   }
   scanRaf = requestAnimationFrame(scanTick);
+}
+
+/* ===== ライブOCR用: フレーム切り出し + 前処理(グレースケール+大津二値化) ===== */
+const ocrCv = document.createElement("canvas"), ocrCtx = ocrCv.getContext("2d", { willReadFrequently: true });
+let ocrWorker = null, ocrWorkerReady = null, ocrBusy = false, lastOcrAt = 0;
+
+function grabOcrFrame(vw, vh) {
+  // 中央の横長帯(型式・車台番号の行が来やすい)を高解像度で取り、前処理して返す
+  const sw = Math.floor(vw * 0.92), sh = Math.floor(vh * 0.55);
+  const sx = (vw - sw) >> 1, sy = (vh - sh) >> 1;
+  const targetW = 1500, sc = targetW / sw;
+  ocrCv.width = targetW; ocrCv.height = Math.round(sh * sc);
+  ocrCtx.drawImage(video, sx, sy, sw, sh, 0, 0, ocrCv.width, ocrCv.height);
+  return preprocessOcr(ocrCv);
+}
+/* グレースケール + 大津の二値化(印字テキストのOCR精度を上げる) */
+function preprocessOcr(srcCanvas) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const id = srcCanvas.getContext("2d").getImageData(0, 0, w, h);
+  const g = new Uint8ClampedArray(w * h), hist = new Array(256).fill(0);
+  for (let i = 0, j = 0; i < id.data.length; i += 4, j++) {
+    const y = (id.data[i] * 0.299 + id.data[i + 1] * 0.587 + id.data[i + 2] * 0.114) | 0;
+    g[j] = y; hist[y]++;
+  }
+  const total = w * h; let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+  let sumB = 0, wB = 0, maxVar = 0, thr = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue; const wF = total - wB; if (!wF) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB, mF = (sum - sumB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
+    if (v > maxVar) { maxVar = v; thr = t; }
+  }
+  const out = document.createElement("canvas"); out.width = w; out.height = h;
+  const octx = out.getContext("2d"), oid = octx.createImageData(w, h);
+  for (let j = 0, k = 0; j < g.length; j++, k += 4) {
+    const v = g[j] > thr ? 255 : 0;
+    oid.data[k] = oid.data[k + 1] = oid.data[k + 2] = v; oid.data[k + 3] = 255;
+  }
+  octx.putImageData(oid, 0, 0);
+  return out;
+}
+function getOcrWorker() {
+  if (ocrWorkerReady) return ocrWorkerReady;
+  ocrWorkerReady = (async () => {
+    await loadTesseract();
+    const w = await Tesseract.createWorker("eng", 1); // 型式・車台番号は英数 → engが高精度
+    try { await w.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", tessedit_pageseg_mode: "6" }); } catch (e) {}
+    ocrWorker = w; return w;
+  })();
+  return ocrWorkerReady;
 }
 
 /* 写真フォールバック (カメラ不可端末用。1枚ずつ撮影して蓄積) */
@@ -373,18 +454,18 @@ $("lnkShowPhoto").addEventListener("click", () => $("qrPhotoIn").click());
 $("qrPhotoIn").addEventListener("change", async e => {
   const file = e.target.files[0]; $("qrPhotoIn").value = "";
   if (!file) return;
-  if (scanComplete) { payloads.clear(); scanComplete = false; }
+  if (scanComplete) resetScan();
   toggle("qrPhotoStatus", true); $("qrPhotoStatus").textContent = "画像を解析中…";
   try {
     const before = payloads.size;
     (await decodePhotoQR(file)).forEach(c => payloads.add(c));
     const added = payloads.size - before;
-    const d = parsePayloads(payloads);
-    updateScanProgress(d); toggle("scanActions", payloads.size > 0);
-    if (d.type && d.vin) { scanComplete = true; showResult(d, { fromScan: true }); }
+    mergeAcc(parsePayloads(payloads));
+    updateScanProgress(acc); toggle("scanActions", acc.type || acc.vin || acc.plate);
+    if (accComplete()) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
     else if (added === 0) $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。1つのQRが<b>画面いっぱい</b>になるまで近づけて撮影してください。";
     else {
-      const need = [!d.type && "型式", !d.vin && "車台番号"].filter(Boolean).join("・");
+      const need = [!acc.type && "型式", !acc.vin && "車台番号"].filter(Boolean).join("・");
       $("qrPhotoStatus").textContent = "✓ " + added + "件読取。続けて" + (need ? "「" + need + "」の" : "別の") + "QRを撮影してください。";
     }
   } catch (err) { $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err); }
@@ -459,10 +540,18 @@ if ("BarcodeDetector" in window) {
   try { nativeDetector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { nativeDetector = null; }
 }
 
-/* ---- 手動入力 ---- */
+/* ---- 手動入力 (複数項目) ---- */
 $("btnManual").addEventListener("click", () => {
-  const v = $("manualType").value.trim().toUpperCase();
-  if (v) showResult({ type: v, vin: null, plate: null, raw: [] }, { fromScan: true });
+  const uc = id => $(id).value.trim().toUpperCase();
+  const type = uc("manualType"), engine = uc("manualEngine"), vin = uc("manualVin");
+  const plate = $("manualPlate").value.trim();
+  const user = $("manualUser").value.trim();
+  if (!type && !vin && !plate && !engine) { alert("いずれか1項目以上を入力してください。"); return; }
+  const d = { type: type || null, engine: engine || null, vin: vin || null, plate: plate || null,
+    raw: [type, engine, vin, plate].filter(Boolean) };
+  showResult(d, { fromScan: true });
+  if (user) saveUserName(user);
+  setText("rUser", user || "—");
 });
 
 /* =========================================================
@@ -477,11 +566,14 @@ ocrIn.addEventListener("change", async e => {
   $("ocrPreview").src = URL.createObjectURL(file);
   $("ocrStatus").innerHTML = "Tesseract OCR を準備中…(初回はモデル取得に少し時間がかかります)";
   try {
+    if (scanComplete) resetScan();
     const text = await ocrTesseract(file);
     const d = extractFromOcrText(text);
-    if (d.type || d.vin) {
-      $("ocrStatus").innerHTML = "✓ OCR完了。<b>" + (d.type || "型式未検出") + "</b> / " + (d.vin || "車台番号未検出") + " — 誤りがあればRAWチップから修正してください。";
-      showResult({ ...d, raw: d.rawCandidates }, { fromScan: true });
+    mergeAcc({ type: d.type, vin: d.vin, raw: d.rawCandidates });
+    if (acc.type || acc.vin) {
+      $("ocrStatus").innerHTML = "✓ OCR完了。<b>" + (acc.type || "型式未検出") + "</b> / " + (acc.vin || "車台番号未検出") + " — 誤りがあればRAWチップから修正してください。";
+      scanComplete = true;
+      showResult(accResult(), { fromScan: true });
     } else {
       $("ocrStatus").innerHTML = "型式・車台番号を特定できませんでした。下のRAW候補チップから手動割り当てするか、より大きく鮮明に撮影してください。";
       if (d.rawCandidates.length) showResult({ type: null, vin: null, plate: null, raw: d.rawCandidates }, { fromScan: false });
@@ -504,13 +596,22 @@ function loadTesseract() {
 }
 async function ocrTesseract(file, statusId = "ocrStatus") {
   await loadTesseract();
+  // 前処理: 拡大+二値化で印字の認識精度を上げる
+  let target = file;
+  try {
+    const img = await loadImageEl(file);
+    const tw = Math.min(2200, Math.max(1400, img.width)), sc = tw / img.width;
+    const tmp = document.createElement("canvas"); tmp.width = tw; tmp.height = Math.round(img.height * sc);
+    tmp.getContext("2d").drawImage(img, 0, 0, tmp.width, tmp.height);
+    target = preprocessOcr(tmp);
+  } catch (e) {}
   const worker = await Tesseract.createWorker("jpn", 1, {
     logger: m => {
       if (m.status === "recognizing text")
         $(statusId).textContent = "文字認識中… " + Math.round(m.progress * 100) + "%";
     }
   });
-  const { data } = await worker.recognize(file);
+  const { data } = await worker.recognize(target);
   await worker.terminate();
   return data.text || "";
 }
@@ -1319,11 +1420,52 @@ async function runDiagAI(text) {
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
       + "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
+    appendAiFollowup(body, text, r.text);
   } catch (e) {
     p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     diagAiBusy = false;
   }
+}
+
+/* 「全部試したが解決しない」→ 追加の助言を求める欄 */
+function appendAiFollowup(body, origText, prevAnswer) {
+  const wrap = document.createElement("div");
+  wrap.style.marginTop = "12px"; wrap.style.paddingTop = "12px"; wrap.style.borderTop = "1px dashed var(--line)";
+  const lab = document.createElement("div");
+  lab.className = "hint"; lab.style.marginBottom = "6px";
+  lab.textContent = "上の見解をすべて試しても解決しない場合 — 実施した内容・結果を書いて追加で相談できます。";
+  const ta = document.createElement("textarea");
+  ta.placeholder = "例: EGRを清掃・尿素水も新品に交換したが、まだP20EEが再点灯する。実測のレール圧は正常だった。";
+  ta.style.minHeight = "70px";
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "btn btn-ghost"; btn.style.marginTop = "8px";
+  btn.textContent = "🤖 追加で相談する";
+  const ans = document.createElement("div"); ans.className = "ai-answer"; ans.style.marginTop = "10px";
+  btn.addEventListener("click", async () => {
+    const tried = ta.value.trim();
+    if (!tried) { ta.focus(); return; }
+    if (diagAiBusy) return;
+    diagAiBusy = true; btn.disabled = true;
+    ans.classList.remove("hidden"); ans.textContent = "🤖 追加で考えています…";
+    try {
+      const prompt = [
+        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。前回の助言で解決しなかったので、視点を変えて助言してください。",
+        "前回提示した原因候補(下記)は既に試して効果がなかった前提で、それ以外の見落としやすい原因・上流の根本原因・確定診断の手順を、可能性が高い順に最大5つ。各項目に切り分け方法(工具・測定値の目安)を簡潔に。最後に「次の確定的な一手」を1行。前置き・免責不要、Markdown記号なし。",
+        "■当初の相談内容: " + origText,
+        "■前回の助言(これは試して無効だった): " + prevAnswer.slice(0, 1200),
+        "■整備士が実施した内容と結果: " + tried,
+      ].join("\n");
+      const r = await geminiAsk(prompt);
+      renderAiAnswer(ans, r.text);
+    } catch (e) {
+      ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    } finally {
+      diagAiBusy = false; btn.disabled = false;
+    }
+  });
+  wrap.append(lab, ta, btn, ans);
+  body.appendChild(wrap);
 }
 
 /* メンテナンス諸元のAI調査 */

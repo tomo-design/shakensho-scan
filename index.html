@@ -87,11 +87,20 @@
 
   <div id="manualArea" class="hidden">
     <section>
-      <h2><span class="tag cy">MANUAL</span>型式を直接入力</h2>
+      <h2><span class="tag cy">MANUAL</span>車両情報を直接入力</h2>
       <div class="sec-body">
-        <div class="inputRow">
-          <input type="text" id="manualType" class="uc" placeholder="例: 2PG-FW74HZ / VY12">
-          <button class="btn btn-amber" id="btnManual">検索</button>
+        <label class="fld">型式（必須でなくてもOK）</label>
+        <input type="text" id="manualType" class="uc" placeholder="例: 2PG-FW74HZ / VY12">
+        <label class="fld">原動機型式</label>
+        <input type="text" id="manualEngine" class="uc" placeholder="例: A09C / 6UZ1 / KF">
+        <label class="fld">車台番号</label>
+        <input type="text" id="manualVin" class="uc" placeholder="例: FW74HZ-510123">
+        <label class="fld">登録番号（ナンバー）</label>
+        <input type="text" id="manualPlate" placeholder="例: 品川 100 あ 12-34">
+        <label class="fld">使用者名（任意）</label>
+        <input type="text" id="manualUser" placeholder="例: 〇〇運送">
+        <div class="btnRow">
+          <button class="btn btn-amber" id="btnManual">この内容で表示</button>
         </div>
       </div>
     </section>
