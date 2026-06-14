@@ -1320,9 +1320,21 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
    ========================================================= */
 /* モード別モデル候補 (上から順に試行。無料枠上限・未提供時は次へフォールバック) */
 const GEMINI_MODELS = {
-  flash: ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
-  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+  // 1.5系はGoogleが廃止のため除外。lite系は無料枠が広くフォールバックに有効
+  flash: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 };
+/* AI結果キャッシュ: 同じ問い合わせは再消費しない(無料枠節約) */
+function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
+function aiCacheGet(k) { try { return (JSON.parse(localStorage.getItem("ss_aicache") || "{}"))[k] || null; } catch (e) { return null; } }
+function aiCacheSet(k, v) {
+  try {
+    const c = JSON.parse(localStorage.getItem("ss_aicache") || "{}");
+    c[k] = v; const ks = Object.keys(c);
+    while (ks.length > 150) delete c[ks.shift()];
+    localStorage.setItem("ss_aicache", JSON.stringify(c));
+  } catch (e) {}
+}
 function getAiMode() { return localStorage.getItem(LS.aimode) === "pro" ? "pro" : "flash"; }
 function renderAiMode() {
   const mode = getAiMode();
@@ -1348,6 +1360,10 @@ $("btnGeminiSave").addEventListener("click", () => {
 
 async function geminiAsk(prompt) {
   const key = localStorage.getItem(LS.gemini);
+  // キャッシュ命中なら無料枠を消費せず即返す
+  const ck = getAiMode() + ":" + hashStr(prompt);
+  const cached = aiCacheGet(ck);
+  if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   let lastErr = null;
   for (const model of GEMINI_MODELS[getAiMode()]) {
     try {
@@ -1366,7 +1382,7 @@ async function geminiAsk(prompt) {
           })
         });
       if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 429) { lastErr = new Error("無料枠の利用上限に達しました。少し待ってから再試行してください。"); continue; } // 下位モデルで再試行
+      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); continue; } // 下位モデルで再試行
       if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
       if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
       const j = await res.json();
@@ -1374,7 +1390,9 @@ async function geminiAsk(prompt) {
       // 思考パート(thought:true)を除いた本文のみ結合
       const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
       if (!text) throw new Error("AIから回答が得られませんでした");
-      return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+      const r = { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+      aiCacheSet(ck, { text: r.text, truncated: r.truncated });
+      return r;
     } catch (e) {
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
