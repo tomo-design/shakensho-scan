@@ -27,7 +27,6 @@
 <!-- ============ VIEW: SCAN ============ -->
 <div id="view-scan" class="view active">
 
-  <div id="scanIntro">QRコードをカメラに<b>1つずつ</b>写すと自動で読み取ります。<br>シャッターは不要。型式と車台番号が揃うと車両を表示します。</div>
 
   <div id="scanWrap" class="hidden">
     <video id="video" playsinline muted></video>
@@ -59,8 +58,6 @@
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
     <button class="textlink" id="lnkShowPlate" type="button">ナンバーで過去の車両を呼び出す</button>
-    <button class="textlink" id="lnkShowPhoto" type="button">カメラが動かない → 写真で1枚ずつ撮影</button>
-    <button class="textlink" id="lnkShowOcr" type="button">QRが読めない → 券面を撮影</button>
     <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
   </div>
 
@@ -125,7 +122,7 @@
 
     <div id="aiQrParse" class="hidden" style="margin-top:10px">
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost" id="btnAiQr">🤖 QRデータをAIで解析（未取得の項目を埋める）</button>
+        <button class="btn btn-ghost" id="btnAiQr">🤖 QR解析</button>
       </div>
       <div id="aiQrStatus" class="hint hidden" style="margin-top:6px"></div>
     </div>

@@ -279,7 +279,10 @@ async function openCamera(deviceId) {
   if (!camList.length) {
     try {
       const devs = await navigator.mediaDevices.enumerateDevices();
-      camList = devs.filter(d => d.kind === "videoinput");
+      const cams = devs.filter(d => d.kind === "videoinput");
+      // 内側(フロント)カメラは使わないので除外。ラベルで判別できない場合は全て残す
+      const backs = cams.filter(d => !/front|face|user|内|前面|selfie/i.test(d.label || ""));
+      camList = backs.length ? backs : cams;
       const cur = track.getSettings ? track.getSettings().deviceId : null;
       const i = camList.findIndex(d => d.deviceId === cur); if (i >= 0) camIdx = i;
     } catch (e) {}
@@ -456,7 +459,6 @@ function getOcrWorker() {
 }
 
 /* 写真フォールバック (カメラ不可端末用。1枚ずつ撮影して蓄積) */
-$("lnkShowPhoto").addEventListener("click", () => $("qrPhotoIn").click());
 $("qrPhotoIn").addEventListener("change", async e => {
   const file = e.target.files[0]; $("qrPhotoIn").value = "";
   if (!file) return;
@@ -710,7 +712,6 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
-$("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("ocrArea", true); $("ocrArea").scrollIntoView({ behavior: "smooth" }); });
 $("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("manualArea", true); $("manualType").focus(); });
 $("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("plateArea", true); $("plateSearch").focus(); renderPlateSearch(); });
 
@@ -749,6 +750,8 @@ $("lnkEditUser").addEventListener("click", () => {
 $("btnGoMaint").addEventListener("click", () => {
   toggle("choicePanel", false); toggle("maintArea", true);
   $("maintArea").scrollIntoView({ behavior: "smooth" });
+  // キー設定済みなら、ボタンを押さなくても自動でAI諸元解析を実行
+  if (localStorage.getItem(LS.gemini) && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
 });
 $("btnGoDiag").addEventListener("click", () => {
   switchView("diag");
