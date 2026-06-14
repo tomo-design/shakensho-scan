@@ -220,7 +220,7 @@ function mergeAcc(d) {
 }
 function accCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); } // コード3を取得済みか
 function accComplete() { return !!(acc.type && acc.vin && accCode3()); }
-function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean) }; }
+function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; }
 
 $("btnStart").addEventListener("click", startLiveScan);
@@ -550,6 +550,61 @@ if ("BarcodeDetector" in window) {
   try { nativeDetector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { nativeDetector = null; }
 }
 
+/* ===== QR生データをAIに渡して項目分け(端末パーサーで埋まらない時の確実な手段) ===== */
+function buildQrParsePrompt(rawList) {
+  return [
+    "あなたは日本の自動車検査証(車検証)の二次元コード(QRコード)を解析する専門家です。",
+    "以下はスマホで読み取った車検証QRコードの生データ(複数のQRを行ごとに記載、フィールドは「/」区切り)です。",
+    "車検証の二次元コード仕様(二次元コード2: バージョン/登録番号/標板コード/車台番号/原動機型式/帳票種別。二次元コード3: バージョン/打刻位置/型式指定番号類別区分番号/有効期間満了日(YYMMDD)/初度登録年月(YYMM)/型式/以降に軸重・騒音・燃料種別等)を踏まえ、各データを正しい項目に振り分けてください。",
+    "999999や9999は未設定を意味します。日付は西暦に変換(満了日・初度登録年月の下2桁年は20xxと解釈)。",
+    "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。キーは以下、該当データが無ければnull:",
+    '{"type":型式, "vin":車台番号, "engine":原動機型式, "plate":登録番号, "kataShitei":型式指定番号類別区分番号(数字のみ連結), "expiry":有効期間満了日(YYYY-MM-DD), "firstRegYear":初度登録の西暦年(数値), "firstRegMonth":初度登録の月(数値), "fuel":燃料種別}',
+    "",
+    "■QR生データ:",
+    ...rawList.map((p, i) => (i + 1) + ": " + p),
+  ].join("\n");
+}
+function extractJson(text) {
+  if (!text) return null;
+  let t = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const m = t.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch (e) { return null; }
+}
+function applyAiQr(o) {
+  const d = {};
+  if (o.type) d.type = String(o.type).toUpperCase().trim();
+  if (o.vin) d.vin = String(o.vin).toUpperCase().trim();
+  if (o.engine) d.engine = String(o.engine).toUpperCase().trim();
+  if (o.plate) d.plate = String(o.plate).trim();
+  if (o.kataShitei) d.kataShitei = String(o.kataShitei).replace(/[^0-9]/g, "");
+  if (o.expiry) { const dt = new Date(o.expiry); if (!isNaN(dt.getTime())) d.expiry = dt; }
+  if (o.firstRegYear && o.firstRegMonth) { const y = +o.firstRegYear, m = +o.firstRegMonth; if (y > 1980 && m >= 1 && m <= 12) d.firstReg = { year: y, month: m }; }
+  mergeAcc(d);              // 未取得の項目だけ埋める(既存の正しい値は保持)
+  showResult(accResult(), { fromScan: false });
+}
+$("btnAiQr").addEventListener("click", async () => {
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    switchView("settings"); return;
+  }
+  const raw = (current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
+  if (!raw.length) { toggle("aiQrStatus", true); $("aiQrStatus").textContent = "QRの生データがありません(QRを読み取ってからお試しください)。"; return; }
+  toggle("aiQrStatus", true); $("aiQrStatus").textContent = "🤖 AIがQRデータを項目分け中…";
+  $("btnAiQr").disabled = true;
+  try {
+    const r = await geminiAsk(buildQrParsePrompt(raw));
+    const obj = extractJson(r.text);
+    if (!obj) throw new Error("AIの応答を解釈できませんでした。もう一度お試しください。");
+    applyAiQr(obj);
+    toggle("aiQrStatus", true); $("aiQrStatus").textContent = "✓ AI解析を反映しました。";
+  } catch (e) {
+    toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e);
+  } finally {
+    $("btnAiQr").disabled = false;
+  }
+});
+
 /* ---- 手動入力 (複数項目) ---- */
 $("btnManual").addEventListener("click", () => {
   const uc = id => $(id).value.trim().toUpperCase();
@@ -720,6 +775,11 @@ function showResult(d, opt = {}) {
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
   setText("rUser", (histEntry && histEntry.name) || "—");
+  // QR生データがあり、未取得項目があればAI解析ボタンを出す
+  current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
+  const missing = !d.engine || !d.expiry || !d.firstReg || !d.kataShitei;
+  toggle("aiQrParse", current.qrRaw.length > 0 && missing);
+  toggle("aiQrStatus", false);
   setText("rType", d.type || "未検出（下のRAWから割り当て可）");
   setText("rEngine", d.engine || "—");
   setText("rVin", d.vin || "未検出");
