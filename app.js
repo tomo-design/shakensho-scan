@@ -850,8 +850,24 @@ function hideAssign() { toggle("assignBar", false); pendingVal = null; }
 document.querySelectorAll("#assignBar [data-assign]").forEach(b =>
   b.addEventListener("click", () => {
     if (!pendingVal) return;
-    if (b.dataset.assign === "type") current.type = zen2han(pendingVal).toUpperCase();
-    if (b.dataset.assign === "vin") current.vin = zen2han(pendingVal).toUpperCase();
+    const k = b.dataset.assign;
+    const uc = zen2han(pendingVal).toUpperCase().trim();
+    if (k === "type") current.type = uc;
+    else if (k === "engine") current.engine = uc;
+    else if (k === "vin") current.vin = uc;
+    else if (k === "plate") current.plate = pendingVal.trim();              // 登録番号は大文字化しない(漢字含む)
+    else if (k === "kataShitei") current.kataShitei = uc.replace(/[^0-9]/g, "");
+    else if (k === "firstReg") {                                            // YYMM / YYYY年M月 等を解釈
+      const m = uc.replace(/[^0-9]/g, "");
+      if (m.length === 4) current.firstReg = parseYYMM(m);
+      else if (m.length === 6) current.firstReg = { year: +m.slice(0, 4), month: +m.slice(4, 6) };
+    } else if (k === "expiry") {
+      const m = uc.replace(/[^0-9]/g, "");
+      if (m.length === 6) current.expiry = parseYYMMDD(m);
+      else if (m.length === 8) current.expiry = new Date(+m.slice(0, 4), +m.slice(4, 6) - 1, +m.slice(6, 8));
+    }
+    // accにも反映(上書き)してQR解析ボタンの状態と整合
+    if (typeof acc !== "undefined") acc[k] = current[k];
     hideAssign(); showResult(current, { fromScan: false });
   }));
 $("abClose").addEventListener("click", hideAssign);
