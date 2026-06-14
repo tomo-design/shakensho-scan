@@ -218,7 +218,8 @@ function mergeAcc(d) {
   for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) if (!acc[k] && d[k]) acc[k] = d[k];
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
-function accComplete() { return !!(acc.type && acc.vin); }
+function accCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); } // コード3を取得済みか
+function accComplete() { return !!(acc.type && acc.vin && accCode3()); }
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean) }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; }
 
@@ -355,9 +356,14 @@ function onLiveText(d) {
 }
 function afterScanUpdate(src) {
   updateScanProgress(acc);
-  if (accComplete()) { setScanMsg("✓ 揃いました"); stopLiveScan(true); return; }
+  if (accComplete()) { setScanMsg("✓ 全項目そろいました"); stopLiveScan(true); return; }
+  // 型式・車台番号が揃ってもコード3未取得なら継続(初度登録・有効期限などのため)
+  if (acc.type && acc.vin && !accCode3()) {
+    setScanMsg("✓ 型式・車台番号OK。残りは右下の二次元コード3（有効期限等）を写す／完了は✓");
+    return;
+  }
   const need = [!acc.type && "型式", !acc.vin && "車台番号"].filter(Boolean).join("・");
-  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "他項目") + "を写してください");
+  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3") + "を写してください");
 }
 
 async function scanTick() {
@@ -474,8 +480,12 @@ $("qrPhotoIn").addEventListener("change", async e => {
 /* 読み取り済み項目の進捗表示 */
 function updateScanProgress(d) {
   const box = $("scanProgress");
+  const firstRegStr = d.firstReg ? d.firstReg.year + "年" + d.firstReg.month + "月" : null;
+  const expiryStr = d.expiry ? fmtDate(d.expiry) : null;
+  const kataStr = d.kataShitei ? (d.kataShitei.length > 5 ? d.kataShitei.slice(0, 5) + "-" + d.kataShitei.slice(5) : d.kataShitei) : null;
   const items = [
     ["型式", d.type], ["原動機型式", d.engine], ["車台番号", d.vin], ["登録番号", d.plate],
+    ["初度登録", firstRegStr], ["有効期限", expiryStr], ["指定-類別", kataStr],
   ];
   box.innerHTML = items.map(([label, val]) =>
     '<div class="progRow ' + (val ? "got" : "") + '">' +
