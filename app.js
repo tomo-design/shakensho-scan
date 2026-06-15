@@ -599,9 +599,22 @@ $("btnAiQr").addEventListener("click", async () => {
     const obj = extractJson(r.text);
     if (!obj) throw new Error("AIの応答を解釈できませんでした。もう一度お試しください。");
     applyAiQr(obj);
-    toggle("aiQrStatus", true); $("aiQrStatus").textContent = "✓ AI解析を反映しました。";
+    // AIが何を抽出したかを明示(AI解析の証跡)
+    const lines = [];
+    if (obj.type) lines.push("型式: " + obj.type);
+    if (obj.engine) lines.push("原動機型式: " + obj.engine);
+    if (obj.vin) lines.push("車台番号: " + obj.vin);
+    if (obj.plate) lines.push("登録番号: " + obj.plate);
+    if (obj.kataShitei) lines.push("指定-類別: " + obj.kataShitei);
+    if (obj.expiry) lines.push("有効期限: " + obj.expiry);
+    if (obj.firstRegYear && obj.firstRegMonth) lines.push("初度登録: " + obj.firstRegYear + "年" + obj.firstRegMonth + "月");
+    if (obj.fuel) lines.push("燃料: " + obj.fuel);
+    const head = r.model === "cache" ? "🤖 前回のAI解析結果を再利用しました" : "🤖 AIがQRを解析しました（" + r.model + "）";
+    toggle("aiQrParse", true); toggle("aiQrStatus", true);
+    $("aiQrStatus").style.whiteSpace = "pre-wrap";
+    $("aiQrStatus").textContent = head + "\n" + (lines.length ? "AIが読み取った内容:\n・" + lines.join("\n・") : "QRから抽出できる項目がありませんでした。");
   } catch (e) {
-    toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e);
+    toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e);
   } finally {
     $("btnAiQr").disabled = false;
   }
@@ -750,8 +763,8 @@ $("lnkEditUser").addEventListener("click", () => {
 $("btnGoMaint").addEventListener("click", () => {
   toggle("choicePanel", false); toggle("maintArea", true);
   $("maintArea").scrollIntoView({ behavior: "smooth" });
-  // キー設定済みなら、ボタンを押さなくても自動でAI諸元解析を実行
-  if (localStorage.getItem(LS.gemini) && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
+  // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
+  if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
 });
 $("btnGoDiag").addEventListener("click", () => {
   switchView("diag");
@@ -813,13 +826,15 @@ function showResult(d, opt = {}) {
   if (hit) {
     m.textContent = "⚙ 車種DB一致: " + hit.name;
     fillList("faultList", hit.faults || [], false); toggle("secFault", (hit.faults || []).length > 0);
-    renderSpecs(hit.specs || []);
     if (hit.notes) { setText("notesBody", hit.notes); toggle("secNotes", true); } else toggle("secNotes", false);
   } else {
     m.textContent = d.type ? "車種DBに未登録の型式です（DB編集タブで追加できます）" : "型式を特定するとノウハウDBと照合します";
     toggle("secFault", false); toggle("secNotes", false);
-    renderSpecs([]);
   }
+  // 諸元: 訂正保存済み(learned) > 内蔵/カスタムDB の優先で表示
+  const learned = getLearnedSpecs(d.type);
+  if (learned && learned.length) renderSpecs(learned, "learned");
+  else renderSpecs((hit && hit.specs) || [], hit ? "db" : "");
 
   // リコール: 車種を特定できた(=メーカーの検索先を案内できる)場合のみ表示
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
@@ -873,18 +888,74 @@ document.querySelectorAll("#assignBar [data-assign]").forEach(b =>
 $("abClose").addEventListener("click", hideAssign);
 
 /* メンテナンス諸元 [{k,v}] を表形式で表示 */
-function renderSpecs(specs) {
+let shownSpecs = [];        // 現在表示中の諸元(訂正の初期値に使う)
+function renderSpecs(specs, source) {
+  shownSpecs = specs || [];
   const dl = $("specList"); dl.innerHTML = "";
-  toggle("specAiBox", false); $("specAiBox").innerHTML = ""; // 車両が変わったらAI結果をリセット
-  specs.forEach(s => {
+  toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
+  toggle("specEditBox", false);
+  shownSpecs.forEach(s => {
     const dt = document.createElement("dt"); dt.textContent = s.k;
     const dd = document.createElement("dd"); dd.textContent = s.v;
     dl.append(dt, dd);
   });
-  toggle("specList", specs.length > 0);
-  // 内蔵データが無くても、型式が分かればAIで調べられるようにセクションは出す
-  toggle("secSpec", specs.length > 0 || !!current.type);
+  toggle("specList", shownSpecs.length > 0);
+  // 出所ラベル
+  const lbl = source === "learned" ? "✓ 訂正保存済みのデータ（この端末に記憶）"
+    : source === "db" ? "内蔵データ（参考値）" : "";
+  setText("specSource", lbl); toggle("specSource", !!lbl);
+  // 訂正ボタンは型式が分かっていれば常に出す(保存先キーになる)
+  toggle("btnSpecEdit", !!current.type);
+  // AIで調べるボタンは「保存済み or 内蔵データが無い」時だけ表示
+  toggle("btnSpecAI", shownSpecs.length === 0 && !!current.type);
+  // 内蔵データが無くても型式が分かればセクションは出す
+  toggle("secSpec", shownSpecs.length > 0 || !!current.type);
 }
+
+/* 訂正保存(learned)諸元: localStorage。型式単位で記憶し次回はAI不要 */
+function getLearnedSpecs(type) {
+  if (!type) return null;
+  try { const e = (JSON.parse(localStorage.getItem("ss_learnedspecs") || "{}"))[type.toUpperCase()]; return (e && e.specs) || null; } catch (e) { return null; }
+}
+function setLearnedSpecs(type, specs) {
+  if (!type) return;
+  try {
+    const c = JSON.parse(localStorage.getItem("ss_learnedspecs") || "{}");
+    c[type.toUpperCase()] = { specs, type: type.toUpperCase(), at: new Date().toISOString() };
+    localStorage.setItem("ss_learnedspecs", JSON.stringify(c));
+  } catch (e) {}
+}
+function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).join("\n"); }
+function textToSpecs(text) {
+  return (text || "").split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.search(/[:：]/);
+    return i > 0 ? { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() } : { k: l, v: "" };
+  }).filter(s => s.k);
+}
+/* AI回答テキストから「項目: 値」行を抽出(訂正の初期値に使う) */
+function aiTextToSpecs(text) {
+  return (text || "").split(/\n+/).map(l => l.replace(/^[\s・]*\d+[.)、]?\s*/, "").trim())
+    .filter(l => /[:：]/.test(l) && !/^[■【]/.test(l))
+    .map(l => { const i = l.search(/[:：]/); return { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() }; })
+    .filter(s => s.k && s.v);
+}
+
+/* 訂正フォームを開く(現在表示中の諸元 or AI回答を初期値に) */
+$("btnSpecEdit").addEventListener("click", () => {
+  let init = shownSpecs.length ? shownSpecs : aiTextToSpecs($("specAiBox").textContent);
+  $("specEditText").value = specsToText(init);
+  toggle("specEditBox", true);
+  $("specEditText").focus();
+});
+$("btnSpecEditCancel").addEventListener("click", () => toggle("specEditBox", false));
+$("btnSpecSave").addEventListener("click", () => {
+  if (!current.type) { alert("型式が不明なため保存できません(型式を割り当ててください)。"); return; }
+  const specs = textToSpecs($("specEditText").value);
+  if (!specs.length) { alert("1件以上入力してください。"); return; }
+  setLearnedSpecs(current.type, specs);
+  renderSpecs(specs, "learned");   // 即反映(AIボックスも消える)
+  toggle("specEditBox", false);
+});
 
 function fillList(id, arr, chk) {
   const ul = $(id); ul.innerHTML = "";

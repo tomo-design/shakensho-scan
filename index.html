@@ -151,12 +151,22 @@
     <section id="secSpec" class="hidden">
       <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
       <div class="sec-body">
+        <div id="specSource" class="hint hidden" style="margin:0 0 8px"></div>
         <dl class="specs" id="specList"></dl>
         <div class="btnRow">
           <button class="btn btn-ghost" id="btnSpecAI">🤖 AIで調べる</button>
+          <button class="btn btn-ghost" id="btnSpecEdit" style="flex:0 0 42%">✎ 訂正して保存</button>
         </div>
         <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
-        <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため、必ず整備書・メーカー資料で確認してください。DB編集タブで自社の確定値に書き換えできます。</div>
+        <div id="specEditBox" class="hidden" style="margin-top:10px">
+          <label class="fld">メンテナンス諸元（1行に1件、「項目: 値」形式）</label>
+          <textarea id="specEditText" style="min-height:140px"></textarea>
+          <div class="btnRow">
+            <button class="btn btn-amber" id="btnSpecSave">この内容で保存（次回からAI不要）</button>
+            <button class="btn btn-ghost" id="btnSpecEditCancel" style="flex:0 0 28%">取消</button>
+          </div>
+        </div>
+        <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため整備書で確認を。訂正して保存するとこの型式に記憶され、次回はAIを使わず表示します。</div>
       </div>
     </section>
 
