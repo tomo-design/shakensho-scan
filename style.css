@@ -166,9 +166,10 @@ ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 .specEditRow .seDel{flex:none;width:38px;background:var(--panel2);color:var(--alert);border:1px solid var(--line);border-radius:8px;font-size:16px;min-height:40px}
 
 /* spec table */
-dl.specs{display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-dl.specs dt{padding:11px 12px;font-size:12px;color:var(--dim);font-weight:700;background:var(--panel2);border-bottom:1px solid var(--line);white-space:nowrap}
-dl.specs dd{padding:11px 12px;font-size:14px;font-family:'Chakra Petch','Noto Sans JP',monospace;border-bottom:1px solid var(--line);word-break:break-all;line-height:1.5}
+dl.specs{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+dl.specs dt{padding:9px 12px 2px;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.04em;background:var(--panel2);border-top:1px solid var(--line)}
+dl.specs dt:first-child{border-top:0}
+dl.specs dd{margin:0;padding:3px 12px 10px;font-size:14px;line-height:1.6;word-break:break-word;background:var(--panel2)}
 dl.specs dt:last-of-type,dl.specs dd:last-of-type{border-bottom:0}
 
 .note{margin-top:18px;font-size:11px;color:var(--dim);line-height:1.8;padding:0 4px}

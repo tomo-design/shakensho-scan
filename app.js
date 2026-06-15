@@ -938,8 +938,6 @@ function showResult(d, opt = {}) {
     const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
     c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
   });
-  toggle("lnkFixRead", !!(d.raw && d.raw.length));
-
   if (opt.fromScan && (d.type || d.vin)) addHistory(d);
   $("result").scrollIntoView({ behavior: "smooth" });
 }
@@ -1019,11 +1017,17 @@ function textToSpecs(text) {
   }).filter(s => s.k);
 }
 /* AI回答テキストから「項目: 値」行を抽出(訂正の初期値に使う) */
+let lastSpecAiText = "";
 function aiTextToSpecs(text) {
-  return (text || "").split(/\n+/).map(l => l.replace(/^[\s・]*\d+[.)、]?\s*/, "").trim())
-    .filter(l => /[:：]/.test(l) && !/^[■【]/.test(l))
+  let t = (text || "").replace(/```/g, "");
+  // 番号項目「1. 」と見出し「■/【」の前に改行を入れる(1行に固まっていても分割)
+  t = t.replace(/\s*(\d+[.)、]\s)/g, "\n$1").replace(/\s*([■【])/g, "\n$1");
+  return t.split(/\n+/).map(l => l.trim())
+    .filter(l => !/^[■【]/.test(l))                       // 見出し行は除外
+    .map(l => l.replace(/^[\s・]*\d+[.)、]?\s*/, "").trim()) // 行頭番号を除去
+    .filter(l => /[:：]/.test(l))
     .map(l => { const i = l.search(/[:：]/); return { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() }; })
-    .filter(s => s.k && s.v);
+    .filter(s => s.k && s.v && s.k.length <= 24);   // 長すぎるkは誤抽出として除外
 }
 
 /* 項目ごとの訂正フォーム(行ごとに 項目名／値) */
@@ -1045,7 +1049,7 @@ function collectSpecRows() {
   return out;
 }
 $("btnSpecEdit").addEventListener("click", () => {
-  const init = shownSpecs.length ? shownSpecs : aiTextToSpecs($("specAiBox").textContent);
+  const init = shownSpecs.length ? shownSpecs : aiTextToSpecs(lastSpecAiText);
   $("specEditRows").innerHTML = "";
   (init.length ? init : [{ k: "", v: "" }]).forEach(s => addSpecRow(s.k, s.v));
   toggle("specEditBox", true);
@@ -1784,6 +1788,7 @@ $("btnSpecAI").addEventListener("click", async () => {
   const btn = $("btnSpecAI"); btn.disabled = true;
   try {
     const r = await geminiAsk(buildSpecPrompt());
+    lastSpecAiText = r.text;              // 訂正フォームの初期値に使う(改行を保持した生テキスト)
     renderAiAnswer(box, r.text);
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
