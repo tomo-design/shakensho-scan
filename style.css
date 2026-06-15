@@ -159,6 +159,12 @@ ol.guide-steps li:last-child{border-bottom:0}
 ol.guide-steps li::before{content:counter(gstep);flex:none;width:22px;height:22px;border-radius:50%;background:var(--amber);color:#fff;font-family:'Chakra Petch';font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:2px}
 ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 
+/* 諸元の項目別編集 */
+.specEditRow{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.specEditRow .seK{flex:0 0 38%;min-width:0}
+.specEditRow .seV{flex:1;min-width:0}
+.specEditRow .seDel{flex:none;width:38px;background:var(--panel2);color:var(--alert);border:1px solid var(--line);border-radius:8px;font-size:16px;min-height:40px}
+
 /* spec table */
 dl.specs{display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 dl.specs dt{padding:11px 12px;font-size:12px;color:var(--dim);font-weight:700;background:var(--panel2);border-bottom:1px solid var(--line);white-space:nowrap}

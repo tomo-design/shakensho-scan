@@ -750,18 +750,44 @@ function renderPlateSearch() {
 }
 $("plateSearch").addEventListener("input", renderPlateSearch);
 
-/* 使用者名の登録 */
-$("lnkEditUser").addEventListener("click", () => {
-  const cur = (findHistEntry(getHistory(), current) || {}).name || "";
-  const name = prompt("使用者名を入力してください（空欄で削除）", cur);
-  if (name === null) return;
-  saveUserName(name.trim());
-  setText("rUser", name.trim() || "—");
+/* ===== 車両データを直接修正(VEHICLE IDENTIFICATION) ===== */
+function pad2(n) { return String(n).padStart(2, "0"); }
+$("lnkFixRead").addEventListener("click", () => {
+  $("vidType").value = current.type || "";
+  $("vidEngine").value = current.engine || "";
+  $("vidVin").value = current.vin || "";
+  $("vidPlate").value = current.plate || "";
+  $("vidUser").value = (findHistEntry(getHistory(), current) || {}).name || "";
+  $("vidFirstReg").value = current.firstReg ? current.firstReg.year + "-" + pad2(current.firstReg.month) : "";
+  $("vidExpiry").value = current.expiry ? current.expiry.getFullYear() + "-" + pad2(current.expiry.getMonth() + 1) + "-" + pad2(current.expiry.getDate()) : "";
+  $("vidKata").value = current.kataShitei || "";
+  toggle("vidEdit", true); $("vidEdit").scrollIntoView({ behavior: "smooth" });
+});
+$("btnVidCancel").addEventListener("click", () => toggle("vidEdit", false));
+$("lnkRawChips").addEventListener("click", () => { toggle("secRaw", true); $("secRaw").scrollIntoView({ behavior: "smooth" }); });
+$("btnVidSave").addEventListener("click", () => {
+  const uc = id => $(id).value.trim().toUpperCase();
+  current.type = uc("vidType") || null;
+  current.engine = uc("vidEngine") || null;
+  current.vin = uc("vidVin") || null;
+  current.plate = $("vidPlate").value.trim() || null;
+  current.kataShitei = $("vidKata").value.replace(/[^0-9]/g, "") || null;
+  const fr = $("vidFirstReg").value;  // YYYY-MM
+  current.firstReg = /^\d{4}-\d{2}$/.test(fr) ? { year: +fr.slice(0, 4), month: +fr.slice(5, 7) } : null;
+  const ex = $("vidExpiry").value;    // YYYY-MM-DD
+  current.expiry = /^\d{4}-\d{2}-\d{2}$/.test(ex) ? new Date(+ex.slice(0, 4), +ex.slice(5, 7) - 1, +ex.slice(8, 10)) : null;
+  // accにも反映
+  if (typeof acc !== "undefined") ["type", "engine", "vin", "plate", "kataShitei", "firstReg", "expiry"].forEach(k => acc[k] = current[k]);
+  const user = $("vidUser").value.trim();
+  toggle("vidEdit", false);
+  showResult(current, { fromScan: true });   // 再描画＋履歴に統合保存(自動保存)
+  if (user) saveUserName(user);
+  setText("rUser", user || "—");
 });
 
 /* 認識後の行き先選択 */
 $("btnGoMaint").addEventListener("click", () => {
-  toggle("choicePanel", false); toggle("maintArea", true);
+  toggle("choicePanel", false); toggle("partsArea", false); toggle("maintArea", true);
   $("maintArea").scrollIntoView({ behavior: "smooth" });
   // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
   if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
@@ -770,11 +796,71 @@ $("btnGoDiag").addEventListener("click", () => {
   switchView("diag");
   $("diagText").focus();
 });
+$("btnGoParts").addEventListener("click", () => {
+  toggle("choicePanel", false); toggle("maintArea", false); toggle("partsArea", true);
+  $("partsArea").scrollIntoView({ behavior: "smooth" }); $("partName").focus();
+});
+$("lnkPartsBack").addEventListener("click", () => { toggle("partsArea", false); toggle("choicePanel", true); });
 $("btnMaintToDiag").addEventListener("click", () => { switchView("diag"); $("diagText").focus(); });
 $("lnkDiagBack").addEventListener("click", () => switchView("scan"));
-$("lnkFixRead").addEventListener("click", () => {
-  toggle("secRaw", true);
-  $("secRaw").scrollIntoView({ behavior: "smooth" });
+
+/* ===== 部品交換手順: AI + 動画リンク ===== */
+function buildPartsPrompt(part) {
+  const v = current.type ? findVehicle(current.type.includes("-") ? current.type.split("-")[1] : current.type) : null;
+  return [
+    "あなたは日本の自動車整備士を支援するベテランメカニックです。次の部品の交換手順を、現場で使える形で説明してください。",
+    "前置き・免責・挨拶は不要。Markdown記号(**, #, 表)は使わず、必ず次の形式で:",
+    "■準備する工具・部品",
+    "必要な工具と新品部品・消耗品(ガスケット等)を列挙。",
+    "■交換手順",
+    "1. 手順(安全確保→取り外し→取り付け→確認の順で具体的に)",
+    "2. (以降番号順に)",
+    "■締付トルク・規定値",
+    "関連する締付トルクや規定値があれば(確信が持てない値は「要確認」を付ける)。",
+    "■注意点",
+    "事故・破損を防ぐ注意を1〜3行。",
+    "",
+    "■対象車両: 型式 " + (current.type || "不明") + (current.engine ? " / 原動機 " + current.engine : "") + (v ? "（" + v.name + "）" : ""),
+    "■交換する部品: " + part,
+  ].join("\n");
+}
+function renderPartsVideoLinks(part) {
+  const box = $("partsLinks"); box.innerHTML = "";
+  const v = current.type ? findVehicle(current.type.includes("-") ? current.type.split("-")[1] : current.type) : null;
+  const carName = v ? v.name : (current.type || "");
+  const q = (carName + " " + part + " 交換 方法").trim();
+  const links = [
+    ["▶ YouTubeで交換動画を探す", "https://www.youtube.com/results?search_query=" + encodeURIComponent(q)],
+    ["🔍 交換手順をWebで検索", "https://www.google.com/search?q=" + encodeURIComponent(q)],
+  ];
+  links.forEach(([label, url]) => {
+    const a = document.createElement("a"); a.className = "linkbtn"; a.href = url; a.target = "_blank"; a.rel = "noopener";
+    a.append(label);
+    const arr = document.createElement("span"); arr.className = "arr"; arr.textContent = "↗"; a.appendChild(arr);
+    box.appendChild(a);
+  });
+}
+let partsBusy = false;
+$("btnPartsGo").addEventListener("click", async () => {
+  const part = $("partName").value.trim();
+  if (!part) { $("partName").focus(); return; }
+  renderPartsVideoLinks(part);   // 動画リンクは即出す(AIキー無しでも使える)
+  if (!localStorage.getItem(LS.gemini)) {
+    toggle("partsResult", true);
+    $("partsResult").textContent = "AI手順を使うには設定タブで無料Geminiキーを設定してください（動画リンクはそのまま使えます）。";
+    return;
+  }
+  if (partsBusy) return; partsBusy = true;
+  const box = $("partsResult"); toggle("partsResult", true);
+  box.textContent = "🤖 AIが交換手順を調べています…"; $("btnPartsGo").disabled = true;
+  try {
+    const r = await geminiAsk(buildPartsPrompt(part));
+    renderAiAnswer(box, r.text);
+  } catch (e) {
+    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+  } finally {
+    partsBusy = false; $("btnPartsGo").disabled = false;
+  }
 });
 
 function showResult(d, opt = {}) {
@@ -783,7 +869,7 @@ function showResult(d, opt = {}) {
   switchView("scan");
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
-  toggle("choicePanel", true); toggle("maintArea", false); toggle("secRaw", false);
+  toggle("choicePanel", true); toggle("maintArea", false); toggle("partsArea", false); toggle("vidEdit", false); toggle("secRaw", false);
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
@@ -940,20 +1026,38 @@ function aiTextToSpecs(text) {
     .filter(s => s.k && s.v);
 }
 
-/* 訂正フォームを開く(現在表示中の諸元 or AI回答を初期値に) */
+/* 項目ごとの訂正フォーム(行ごとに 項目名／値) */
+function addSpecRow(k, v) {
+  const row = document.createElement("div"); row.className = "specEditRow";
+  const ik = document.createElement("input"); ik.type = "text"; ik.className = "seK"; ik.placeholder = "項目"; ik.value = k || "";
+  const iv = document.createElement("input"); iv.type = "text"; iv.className = "seV"; iv.placeholder = "値"; iv.value = v || "";
+  const del = document.createElement("button"); del.type = "button"; del.className = "seDel"; del.textContent = "×";
+  del.addEventListener("click", () => row.remove());
+  row.append(ik, iv, del);
+  $("specEditRows").appendChild(row);
+}
+function collectSpecRows() {
+  const out = [];
+  $("specEditRows").querySelectorAll(".specEditRow").forEach(r => {
+    const k = r.querySelector(".seK").value.trim(), v = r.querySelector(".seV").value.trim();
+    if (k) out.push({ k, v });
+  });
+  return out;
+}
 $("btnSpecEdit").addEventListener("click", () => {
-  let init = shownSpecs.length ? shownSpecs : aiTextToSpecs($("specAiBox").textContent);
-  $("specEditText").value = specsToText(init);
+  const init = shownSpecs.length ? shownSpecs : aiTextToSpecs($("specAiBox").textContent);
+  $("specEditRows").innerHTML = "";
+  (init.length ? init : [{ k: "", v: "" }]).forEach(s => addSpecRow(s.k, s.v));
   toggle("specEditBox", true);
-  $("specEditText").focus();
 });
+$("btnSpecAddRow").addEventListener("click", () => addSpecRow("", ""));
 $("btnSpecEditCancel").addEventListener("click", () => toggle("specEditBox", false));
 $("btnSpecSave").addEventListener("click", () => {
-  if (!current.type) { alert("型式が不明なため保存できません(型式を割り当ててください)。"); return; }
-  const specs = textToSpecs($("specEditText").value);
+  if (!current.type) { alert("型式が不明なため保存できません(車両データ修正で型式を入れてください)。"); return; }
+  const specs = collectSpecRows();
   if (!specs.length) { alert("1件以上入力してください。"); return; }
   setLearnedSpecs(current.type, specs);
-  renderSpecs(specs, "learned");   // 即反映(AIボックスも消える)
+  renderSpecs(specs, "learned");
   toggle("specEditBox", false);
 });
 

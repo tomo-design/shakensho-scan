@@ -120,6 +120,25 @@
       <div class="match" id="rMatch"></div>
     </div>
 
+    <div id="vidEdit" class="hidden" style="margin-top:10px">
+      <section><h2><span class="tag cy">EDIT</span>車両データを修正</h2>
+      <div class="sec-body">
+        <label class="fld">型式</label><input type="text" id="vidType" class="uc">
+        <label class="fld">原動機型式</label><input type="text" id="vidEngine" class="uc">
+        <label class="fld">車台番号</label><input type="text" id="vidVin" class="uc">
+        <label class="fld">登録番号</label><input type="text" id="vidPlate">
+        <label class="fld">使用者名</label><input type="text" id="vidUser">
+        <label class="fld">初度登録</label><input type="month" id="vidFirstReg">
+        <label class="fld">有効期限</label><input type="date" id="vidExpiry">
+        <label class="fld">指定-類別（数字）</label><input type="text" id="vidKata">
+        <div class="btnRow">
+          <button class="btn btn-amber" id="btnVidSave">保存</button>
+          <button class="btn btn-ghost" id="btnVidCancel" style="flex:0 0 28%">取消</button>
+        </div>
+        <div class="linkrow"><button class="textlink" id="lnkRawChips" type="button">QRの生データから選んで割り当てる</button></div>
+      </div></section>
+    </div>
+
     <div id="aiQrParse" class="hidden" style="margin-top:10px">
       <div class="btnRow" style="margin-top:0">
         <button class="btn btn-ghost" id="btnAiQr">🤖 QR解析</button>
@@ -136,9 +155,11 @@
       <div class="btnRow">
         <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
       </div>
+      <div class="btnRow">
+        <button class="btn btn-ghost btn-big" id="btnGoParts">🔩 部品交換の手順を調べる<small>部品名を入力 → AI手順＋動画リンク</small></button>
+      </div>
       <div class="linkrow">
-        <button class="textlink" id="lnkEditUser" type="button">✎ 使用者名を登録・変更（ナンバー検索で使えます）</button>
-        <button class="textlink" id="lnkFixRead" type="button">読み取り結果が違う？ → 手動で修正する</button>
+        <button class="textlink" id="lnkFixRead" type="button">✎ 車両データを修正（型式・使用者名など）</button>
       </div>
     </div>
 
@@ -159,10 +180,10 @@
         </div>
         <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
         <div id="specEditBox" class="hidden" style="margin-top:10px">
-          <label class="fld">メンテナンス諸元（1行に1件、「項目: 値」形式）</label>
-          <textarea id="specEditText" style="min-height:140px"></textarea>
+          <div id="specEditRows"></div>
+          <button class="btn btn-ghost btn-sm" id="btnSpecAddRow" type="button">＋ 項目を追加</button>
           <div class="btnRow">
-            <button class="btn btn-amber" id="btnSpecSave">この内容で保存（次回からAI不要）</button>
+            <button class="btn btn-amber" id="btnSpecSave">保存（次回からAI不要）</button>
             <button class="btn btn-ghost" id="btnSpecEditCancel" style="flex:0 0 28%">取消</button>
           </div>
         </div>
@@ -186,6 +207,21 @@
       <button class="btn btn-ghost" id="btnMaintToDiag">🩺 この車両で故障診断をする</button>
     </div>
     </div><!-- /maintArea -->
+
+    <div id="partsArea" class="hidden">
+      <section><h2><span class="tag">PARTS</span>部品交換の手順</h2>
+      <div class="sec-body">
+        <label class="fld">交換する部品名</label>
+        <div class="inputRow">
+          <input type="text" id="partName" placeholder="例: フロントブレーキパッド / オルタネーター">
+          <button class="btn btn-amber" id="btnPartsGo">調べる</button>
+        </div>
+        <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
+        <div id="partsLinks"></div>
+        <div class="hint" style="margin-top:10px">※ 手順はAIによる参考情報です。締付トルク等は整備書で確認を。動画は外部サイト(YouTube等)が開きます。</div>
+      </div></section>
+      <div class="linkrow"><button class="textlink" id="lnkPartsBack" type="button">← 選択に戻る</button></div>
+    </div>
 
     <section id="secRaw" class="hidden">
       <h2><span class="tag cy">RAW</span>QRから読み取った全フィールド</h2>
