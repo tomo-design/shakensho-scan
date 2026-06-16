@@ -1156,7 +1156,7 @@ function histToResult(h) {
 function renderHistory() {
   const hist = getHistory();
   const box = $("histList"); box.innerHTML = "";
-  if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.jpg" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
+  if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
   hist.forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
