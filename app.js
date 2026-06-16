@@ -975,7 +975,7 @@ $("abClose").addEventListener("click", hideAssign);
 /* メンテナンス諸元 [{k,v}] を表形式で表示 */
 let shownSpecs = [];        // 現在表示中の諸元(訂正の初期値に使う)
 function renderSpecs(specs, source) {
-  shownSpecs = specs || [];
+  shownSpecs = normalizeSpecs(specs || []);   // 固まった値は項目ごとに自動分解して表示
   const dl = $("specList"); dl.innerHTML = "";
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
@@ -1017,18 +1017,37 @@ function textToSpecs(text) {
     return i > 0 ? { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() } : { k: l, v: "" };
   }).filter(s => s.k);
 }
-/* AI回答テキストから「項目: 値」行を抽出(訂正の初期値に使う) */
+/* 諸元テキスト → [{k,v}] 抽出。改行が無く「項目: 値。項目: 値。」の文章でも分割できる */
 let lastSpecAiText = "";
-function aiTextToSpecs(text) {
-  let t = (text || "").replace(/```/g, "");
-  // 番号項目「1. 」と見出し「■/【」の前に改行を入れる(1行に固まっていても分割)
-  t = t.replace(/\s*(\d+[.)、]\s)/g, "\n$1").replace(/\s*([■【])/g, "\n$1");
-  return t.split(/\n+/).map(l => l.trim())
-    .filter(l => !/^[■【]/.test(l))                       // 見出し行は除外
-    .map(l => l.replace(/^[\s・]*\d+[.)、]?\s*/, "").trim()) // 行頭番号を除去
-    .filter(l => /[:：]/.test(l))
-    .map(l => { const i = l.search(/[:：]/); return { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() }; })
-    .filter(s => s.k && s.v && s.k.length <= 24);   // 長すぎるkは誤抽出として除外
+function splitSpecText(text) {
+  let t = " " + (text || "").replace(/```/g, "").replace(/[■【][^。\n]*[】]?/g, " ");
+  t = t.replace(/その他[^:：。\n]*[:：]/g, " ");   // 「その他…追加:」等のノイズを除去
+  // 「。」「・」「番号.」「改行」の直後に来る『短いラベル:』の前で改行(値の途中の。では切らない)
+  t = t.replace(/([。\n・]|\d+[.)、]\s)\s*(?=[^\s:：。、，)）]{2,16}[:：])/g, "$1\n");
+  return t.split(/\n+/)
+    .map(s => s.replace(/^[\s。・]+/, "").replace(/^\d+[.)、]\s*/, "").trim())
+    .filter(Boolean)
+    .map(seg => {
+      const i = seg.search(/[:：]/); if (i <= 0) return null;
+      const k = seg.slice(0, i).trim();
+      const v = seg.slice(i + 1).trim().replace(/[。\s]+$/, "");
+      return (k && v && k.length <= 16) ? { k, v } : null;
+    })
+    .filter(Boolean);
+}
+const aiTextToSpecs = splitSpecText;
+/* 1項目に固まった値を項目ごとに分解(壊れた保存データの表示・編集を救済) */
+function normalizeSpecs(specs) {
+  const out = [];
+  (specs || []).forEach(s => {
+    // 値に複数の「ラベル:」が含まれる＝固まったデータ → 分解
+    const merged = splitSpecText(s.k + ": " + s.v);
+    if (merged.length > 1) out.push(...merged);
+    else out.push({ k: s.k, v: s.v });
+  });
+  // 同名項目は先勝ちで重複排除
+  const seen = new Set();
+  return out.filter(s => { const key = s.k; if (seen.has(key)) return false; seen.add(key); return true; });
 }
 
 /* 項目ごとの訂正フォーム(行ごとに 項目名／値) */
