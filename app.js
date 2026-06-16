@@ -871,6 +871,7 @@ function showResult(d, opt = {}) {
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
   toggle("choicePanel", true); toggle("vidEdit", false); toggle("secRaw", false);
+  toggle("mechaHero", false);   // 車両表示中はメカ君ヒーローを隠す
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
@@ -1155,7 +1156,7 @@ function histToResult(h) {
 function renderHistory() {
   const hist = getHistory();
   const box = $("histList"); box.innerHTML = "";
-  if (!hist.length) { box.innerHTML = '<div class="empty">履歴はまだありません。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
+  if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.jpg" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
   hist.forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
