@@ -785,24 +785,25 @@ $("btnVidSave").addEventListener("click", () => {
   setText("rUser", user || "—");
 });
 
-/* 認識後の行き先選択 */
-$("btnGoMaint").addEventListener("click", () => {
-  toggle("choicePanel", false); toggle("partsArea", false); toggle("maintArea", true);
-  $("maintArea").scrollIntoView({ behavior: "smooth" });
-  // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
-  if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
-});
-$("btnGoDiag").addEventListener("click", () => {
-  switchView("diag");
-  $("diagText").focus();
-});
-$("btnGoParts").addEventListener("click", () => {
-  toggle("choicePanel", false); toggle("maintArea", false); toggle("partsArea", true);
-  $("partsArea").scrollIntoView({ behavior: "smooth" }); $("partName").focus();
-});
-$("lnkPartsBack").addEventListener("click", () => { toggle("partsArea", false); toggle("choicePanel", true); });
-$("btnMaintToDiag").addEventListener("click", () => { switchView("diag"); $("diagText").focus(); });
-$("lnkDiagBack").addEventListener("click", () => switchView("scan"));
+/* 認識後の行き先選択(メンテ/診断/部品交換は独立ページ) */
+function goVehiclePage(name) {
+  switchView(name);
+  window.scrollTo(0, 0);
+  if (name === "maint") {
+    // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
+    if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
+  } else if (name === "diag") $("diagText").focus();
+  else if (name === "parts") $("partName").focus();
+}
+$("btnGoMaint").addEventListener("click", () => goVehiclePage("maint"));
+$("btnGoDiag").addEventListener("click", () => goVehiclePage("diag"));
+$("btnGoParts").addEventListener("click", () => goVehiclePage("parts"));
+/* 全ページ共通ナビ(← 車両 / メンテ / 診断 / 部品) */
+document.querySelectorAll(".pageNav .navBtn").forEach(b =>
+  b.addEventListener("click", () => {
+    const go = b.dataset.go;
+    if (go === "scan") switchView("scan"); else goVehiclePage(go);
+  }));
 
 /* ===== 部品交換手順: AI + 動画リンク ===== */
 function buildPartsPrompt(part) {
@@ -869,7 +870,7 @@ function showResult(d, opt = {}) {
   switchView("scan");
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
-  toggle("choicePanel", true); toggle("maintArea", false); toggle("partsArea", false); toggle("vidEdit", false); toggle("secRaw", false);
+  toggle("choicePanel", true); toggle("vidEdit", false); toggle("secRaw", false);
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
@@ -1846,8 +1847,13 @@ async function ocrTesseractDiag(file) {
 function switchView(name) {
   if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
-  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  // 車両のサブページ(メンテ/診断/部品)は下部タブ上「スキャン」を選択状態に
+  const tabName = ["maint", "diag", "parts"].includes(name) ? "scan" : name;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
+  // 共通ナビの現在ページをハイライト(枠だけ色)
+  document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
   if (name === "diag") updateDiagVehicleHint();
+  window.scrollTo(0, 0);
 }
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => switchView(b.dataset.view)));

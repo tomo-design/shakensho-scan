@@ -150,7 +150,7 @@
     <div id="choicePanel">
       <div class="choice-q">この車両で何をしますか？</div>
       <div class="btnRow" style="margin-top:10px">
-        <button class="btn btn-amber btn-big" id="btnGoMaint">🔧 メンテナンスデータを見る<small>オイル量・トルク・定番故障・リコール</small></button>
+        <button class="btn btn-ghost btn-big" id="btnGoMaint">🔧 メンテナンスデータを見る<small>オイル量・トルク・定番故障・リコール</small></button>
       </div>
       <div class="btnRow">
         <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
@@ -161,66 +161,6 @@
       <div class="linkrow">
         <button class="textlink" id="lnkFixRead" type="button">✎ 車両データを修正（型式・使用者名など）</button>
       </div>
-    </div>
-
-    <div id="maintArea" class="hidden">
-    <section id="secFault" class="hidden">
-      <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
-      <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
-    </section>
-
-    <section id="secSpec" class="hidden">
-      <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
-      <div class="sec-body">
-        <div id="specSource" class="hint hidden" style="margin:0 0 8px"></div>
-        <dl class="specs" id="specList"></dl>
-        <div class="btnRow">
-          <button class="btn btn-ghost" id="btnSpecAI">🤖 AIで調べる</button>
-          <button class="btn btn-ghost" id="btnSpecEdit" style="flex:0 0 42%">✎ 訂正して保存</button>
-        </div>
-        <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
-        <div id="specEditBox" class="hidden" style="margin-top:10px">
-          <div id="specEditRows"></div>
-          <button class="btn btn-ghost btn-sm" id="btnSpecAddRow" type="button">＋ 項目を追加</button>
-          <div class="btnRow">
-            <button class="btn btn-amber" id="btnSpecSave">保存（次回からAI不要）</button>
-            <button class="btn btn-ghost" id="btnSpecEditCancel" style="flex:0 0 28%">取消</button>
-          </div>
-        </div>
-        <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため整備書で確認を。訂正して保存するとこの型式に記憶され、次回はAIを使わず表示します。</div>
-      </div>
-    </section>
-
-    <section id="secNotes" class="hidden">
-      <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
-      <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
-    </section>
-
-    <section id="secRecall" class="hidden">
-      <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
-      <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
-      <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
-      <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
-    </section>
-
-    <div class="btnRow">
-      <button class="btn btn-ghost" id="btnMaintToDiag">🩺 この車両で故障診断をする</button>
-    </div>
-    </div><!-- /maintArea -->
-
-    <div id="partsArea" class="hidden">
-      <section><h2><span class="tag">PARTS</span>部品交換の手順</h2>
-      <div class="sec-body">
-        <label class="fld">交換する部品名</label>
-        <div class="inputRow">
-          <input type="text" id="partName" placeholder="例: フロントブレーキパッド / オルタネーター">
-          <button class="btn btn-amber" id="btnPartsGo">調べる</button>
-        </div>
-        <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
-        <div id="partsLinks"></div>
-        <div class="hint" style="margin-top:10px">※ 手順はAIによる参考情報です。締付トルク等は整備書で確認を。動画は外部サイト(YouTube等)が開きます。</div>
-      </div></section>
-      <div class="linkrow"><button class="textlink" id="lnkPartsBack" type="button">← 選択に戻る</button></div>
     </div>
 
     <section id="secRaw" class="hidden">
@@ -235,12 +175,84 @@
   <p class="note">※ ナンバー・使用者名を含む保存データはすべてこの端末内のみ。外部送信されません。</p>
 </div>
 
+<!-- ============ VIEW: MAINT ============ -->
+<div id="view-maint" class="view">
+  <nav class="pageNav">
+    <button class="navBtn navBack" data-go="scan">← 車両</button>
+    <button class="navBtn" data-go="maint">🔧 メンテ</button>
+    <button class="navBtn" data-go="diag">🩺 診断</button>
+    <button class="navBtn" data-go="parts">🔩 部品</button>
+  </nav>
+
+  <section id="secFault" class="hidden">
+    <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
+    <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
+  </section>
+
+  <section id="secSpec" class="hidden">
+    <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
+    <div class="sec-body">
+      <div id="specSource" class="hint hidden" style="margin:0 0 8px"></div>
+      <dl class="specs" id="specList"></dl>
+      <div class="specBtns">
+        <button class="btn btn-ghost btn-sm" id="btnSpecAI">🤖 AIで調べる</button>
+        <button class="btn btn-ghost btn-sm" id="btnSpecEdit">✎ 訂正して保存</button>
+      </div>
+      <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
+      <div id="specEditBox" class="hidden" style="margin-top:10px">
+        <div id="specEditRows"></div>
+        <button class="btn btn-ghost btn-sm" id="btnSpecAddRow" type="button">＋ 項目を追加</button>
+        <div class="btnRow">
+          <button class="btn btn-amber" id="btnSpecSave">保存（次回からAI不要）</button>
+          <button class="btn btn-ghost" id="btnSpecEditCancel" style="flex:0 0 28%">取消</button>
+        </div>
+      </div>
+      <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため整備書で確認を。訂正して保存するとこの型式に記憶され、次回はAIを使わず表示します。</div>
+    </div>
+  </section>
+
+  <section id="secNotes" class="hidden">
+    <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
+    <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
+  </section>
+
+  <section id="secRecall" class="hidden">
+    <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
+    <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
+    <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
+    <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
+  </section>
+</div>
+
+<!-- ============ VIEW: PARTS ============ -->
+<div id="view-parts" class="view">
+  <nav class="pageNav">
+    <button class="navBtn navBack" data-go="scan">← 車両</button>
+    <button class="navBtn" data-go="maint">🔧 メンテ</button>
+    <button class="navBtn" data-go="diag">🩺 診断</button>
+    <button class="navBtn" data-go="parts">🔩 部品</button>
+  </nav>
+  <section><h2><span class="tag">PARTS</span>部品交換の手順</h2>
+  <div class="sec-body">
+    <label class="fld">交換する部品名</label>
+    <div class="inputRow">
+      <input type="text" id="partName" placeholder="例: フロントブレーキパッド / オルタネーター">
+      <button class="btn btn-amber" id="btnPartsGo">調べる</button>
+    </div>
+    <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
+    <div id="partsLinks"></div>
+    <div class="hint" style="margin-top:10px">※ 手順はAIによる参考情報です。締付トルク等は整備書で確認を。動画は外部サイト(YouTube等)が開きます。</div>
+  </div></section>
+</div>
+
 <!-- ============ VIEW: DIAG ============ -->
 <div id="view-diag" class="view">
-
-  <div class="linkrow" style="margin-top:8px">
-    <button class="textlink" id="lnkDiagBack" type="button">← 車両画面に戻る</button>
-  </div>
+  <nav class="pageNav">
+    <button class="navBtn navBack" data-go="scan">← 車両</button>
+    <button class="navBtn" data-go="maint">🔧 メンテ</button>
+    <button class="navBtn" data-go="diag">🩺 診断</button>
+    <button class="navBtn" data-go="parts">🔩 部品</button>
+  </nav>
 
   <section style="margin-top:6px">
     <h2><span class="tag al">DTC</span>ダイアグコード検索</h2>

@@ -126,6 +126,18 @@ label.fld:first-child{margin-top:0}
 .choice-q{font-size:15px;font-weight:700;text-align:center;letter-spacing:.04em}
 .btn-big{padding:18px 12px;font-size:16px;line-height:1.4}
 .btn-big small{display:block;font-size:11px;font-weight:400;margin-top:3px;opacity:.75}
+/* 選択ボタン: タップ中は枠だけ色がつく */
+#choicePanel .btn-big:active{border-color:var(--amber);color:var(--amber)}
+
+/* 全ページ共通ナビ(戻る矢印を統一) */
+.pageNav{display:flex;gap:6px;position:sticky;top:0;z-index:30;background:var(--bg);
+  padding:10px 0 8px;margin:0 0 6px;border-bottom:1px solid var(--line)}
+.pageNav .navBtn{flex:1;min-width:0;font-family:inherit;font-size:12px;font-weight:700;
+  background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:9px;
+  padding:9px 4px;min-height:42px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pageNav .navBtn.navBack{flex:0 0 auto;padding:9px 12px;color:var(--dim)}
+.pageNav .navBtn:active{transform:scale(.97)}
+.pageNav .navBtn.navActive{border-color:var(--amber);color:var(--amber)}
 
 /* AIモード選択 */
 .mode-btn{font-size:13px;line-height:1.5;padding:12px 8px}
@@ -166,11 +178,16 @@ ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 .specEditRow .seDel{flex:none;width:38px;background:var(--panel2);color:var(--alert);border:1px solid var(--line);border-radius:8px;font-size:16px;min-height:40px}
 
 /* spec table */
-dl.specs{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-dl.specs dt{padding:9px 12px 2px;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.04em;background:var(--panel2);border-top:1px solid var(--line)}
-dl.specs dt:first-child{border-top:0}
-dl.specs dd{margin:0;padding:3px 12px 10px;font-size:14px;line-height:1.6;word-break:break-word;background:var(--panel2)}
-dl.specs dt:last-of-type,dl.specs dd:last-of-type{border-bottom:0}
+/* メンテ諸元: 項目ごとにカード分け(スマホで見やすく) */
+dl.specs{display:flex;flex-direction:column;gap:8px}
+dl.specs dt{margin:0;padding:0 0 3px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--amber)}
+dl.specs dd{margin:0 0 0;padding:0;font-size:15px;line-height:1.65;word-break:break-word;color:var(--txt)}
+dl.specs dt{background:var(--panel2);border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;padding:9px 12px 4px}
+dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;padding:0 12px 11px}
+
+/* 諸元の操作ボタン(中央・小さめ) */
+.specBtns{display:flex;justify-content:center;gap:8px;margin-top:12px}
+.specBtns .btn{flex:0 1 auto;padding:10px 16px;font-size:13px}
 
 .note{margin-top:18px;font-size:11px;color:var(--dim);line-height:1.8;padding:0 4px}
 .hidden{display:none!important}
