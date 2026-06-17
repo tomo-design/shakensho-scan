@@ -1684,7 +1684,7 @@ document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", 
 function renderGeminiStat() {
   const has = !!localStorage.getItem(LS.gemini);
   $("geminiStat").textContent = has
-    ? "✓ 設定済み — 診断タブで「🤖 AIに相談」が使えます。空欄で保存すると解除。"
+    ? "✓ 設定済み — 診断タブで「メカ君に相談」が使えます。空欄で保存すると解除。"
     : "未設定 — キーはこの端末のみに保存され、Google以外には送信されません。";
 }
 $("btnGeminiSave").addEventListener("click", () => {
@@ -1867,14 +1867,14 @@ function appendAiFollowup(body, origText, prevAnswer) {
   ta.style.minHeight = "70px";
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "btn btn-ghost"; btn.style.marginTop = "8px";
-  btn.textContent = "🤖 追加で相談する";
+  btn.innerHTML = '<img src="img/mecha.png" class="btnMecha" alt="">追加で相談する';
   const ans = document.createElement("div"); ans.className = "ai-answer"; ans.style.marginTop = "10px";
   btn.addEventListener("click", async () => {
     const tried = ta.value.trim();
     if (!tried) { ta.focus(); return; }
     if (diagAiBusy) return;
     diagAiBusy = true; btn.disabled = true;
-    ans.classList.remove("hidden"); ans.textContent = "🤖 追加で考えています…";
+    ans.classList.remove("hidden"); ans.textContent = "🔧 メカ君が追加で考えています…";
     try {
       const prompt = [
         "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。前回の助言で解決しなかったので、視点を変えて助言してください。",

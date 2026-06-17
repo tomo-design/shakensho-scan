@@ -148,7 +148,7 @@
 
     <div id="aiQrParse" class="hidden" style="margin-top:10px">
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost" id="btnAiQr"><img src="img/mecha.png" class="btnMecha" alt="">メカ君に聞く（QR解析）</button>
+        <button class="btn btn-ghost" id="btnAiQr"><img src="img/mecha.png" class="btnMecha" alt="">QR解析</button>
       </div>
       <div id="aiQrStatus" class="hint hidden" style="margin-top:6px"></div>
     </div>
@@ -369,9 +369,9 @@
 <!-- ============ VIEW: SETTINGS ============ -->
 <div id="view-settings" class="view">
   <section style="margin-top:14px">
-    <h2><span class="tag">AI</span>AI相談機能（無料・任意）</h2>
+    <h2><span class="tag">AI</span>メカ君に相談機能（無料・任意）</h2>
     <div class="sec-body">
-      <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると、診断タブに「🤖 AIに相談」ボタンが表示され、ダイアグ・問診の内容をAIに投げて臨機応変な診断アドバイスを受けられます（クレジットカード登録不要。無料枠: 1日あたりの回数制限あり）。<br><br>
+      <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると、診断タブで「メカ君に相談」でき、ダイアグ・問診の内容をメカ君に投げて臨機応変な診断アドバイスを受けられます（クレジットカード登録不要。無料枠: 1日あたりの回数制限あり）。<br><br>
       取得手順: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">aistudio.google.com/apikey ↗</a> → Googleアカウントでログイン → 「APIキーを作成」→ コピーして下に貼り付け</p>
       <div class="inputRow">
         <input type="password" id="geminiKey" placeholder="AIza...">
@@ -390,6 +390,11 @@
     <h2><span class="tag cy">OCR</span>OCRについて</h2>
     <div class="sec-body">
       <p class="hint">OCRは端末内で動くTesseract（完全無料）を使用します。初回利用時のみ認識モデルのダウンロードに通信が必要で、以降はオフラインでも動作します。<br><br>読み取りのコツ: 明るい場所で、読みたい文字部分が画面いっぱいに大きく写るよう近づいて、ピントが合ってから撮影してください。</p>
+      <div class="hint" style="margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px">
+        <b>📈 もっと高精度にしたい場合（課金してアップグレード）</b><br>
+        無料のTesseractは手書きや小さな印字で精度が落ちることがあります。より高い認識精度が必要な場合は、有料のクラウドOCR（例: Google Cloud Vision API。従量課金・無料枠あり）へのアップグレードを選べます。利用にはGoogle Cloudの課金設定とAPIキーが必要です。<br>
+        ご希望があればこのアプリに「Cloud Vision OCRを使う」切り替えを追加します（設定でキーを入れた時のみ有料OCRを使用し、未設定なら従来どおり無料Tesseract）。
+      </div>
     </div>
   </section>
   <section>
