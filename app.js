@@ -795,20 +795,25 @@ $("btnVidSave").addEventListener("click", () => {
 /* 「保存（DBに登録）」: 現在の車両をカスタムDB(登録車種一覧)へ追加/更新 */
 function escRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function vinPrefix(v) { return v ? (v.includes("-") ? v.split("-")[0] : v) : null; }
-function registerVehicleToDB() {
+const VALID_MAKERS = new Set([...Object.keys(MAKER_RECALL), "other"]);
+function registerVehicleToDB(opt = {}) {
   const d = current;
   if (!d || (!d.vin && !d.type && !d.plate)) { return false; }
   const histE = findHistEntry(getHistory(), d) || {};
+  const learned = getLearned(vehicleKey(d)) || {};
   const user = histE.name || null;
   // 型式マッチ = 車台番号のハイフンより前の英数字(例: FW74HZ-510123 → FW74HZ)
   const prefixRaw = vinPrefix(d.vin);
   const prefix = prefixRaw ? prefixRaw.toUpperCase().replace(/[^A-Z0-9]/g, "") : null;
-  // 車種名 = 車台番号(先頭)からDB検索した結果の車種名。無ければ使用者/登録番号等で代替
+  // 車種名 = 車台番号(先頭)からDB検索した結果の車種名 > AI推定車種名 > 代替
   const found = prefix ? findVehicle(prefix) : null;
-  const name = (found && found.name) || user || d.plate || d.vin || d.type || "無名車両";
+  const aiModel = histE.model || learned.model || null;
+  const name = (found && found.name) || aiModel || user || d.plate || d.vin || d.type || "無名車両";
   const match = prefix
     || (d.type ? escRegex(String(d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase()) : (d.kataShitei || escRegex(name)));
-  const learned = getLearned(vehicleKey(d)) || {};
+  // メーカー = DB一致のメーカー > AI推定メーカー(有効なキーのみ) > 既存 > other
+  const aiMaker = histE.maker || learned.maker || null;
+  const maker = (found && found.maker) || (VALID_MAKERS.has(aiMaker) ? aiMaker : null) || null;
   const specs = (histE.specs && histE.specs.length ? histE.specs : learned.specs) || [];
   const faults = (histE.faults && histE.faults.length ? histE.faults : learned.faults) || [];
   // 同一車両は upsert(車台番号で特定。無ければ型式/登録番号)
@@ -817,7 +822,7 @@ function registerVehicleToDB() {
   const isNew = !rec;
   if (isNew) { rec = { id: "c" + Date.now(), maker: "other" }; CUSTOM_DB.unshift(rec); }
   Object.assign(rec, {
-    name, match, maker: rec.maker || "other",
+    name, match, maker: maker || rec.maker || "other",
     vin: d.vin || rec.vin || null, engine: d.engine || rec.engine || null,
     plate: d.plate || rec.plate || null, kataShitei: d.kataShitei || rec.kataShitei || null,
     user: user || rec.user || null,
@@ -827,11 +832,13 @@ function registerVehicleToDB() {
   });
   saveCustomDB();
   try { renderDBList(); } catch (e) {}
-  const msg = $("vidSavedMsg");
-  if (msg) { msg.textContent = "✓ DBの登録車種に" + (isNew ? "追加" : "更新保存") + "しました（「" + name + "」）。DB編集タブで確認できます。"; toggle("vidSavedMsg", true); }
+  if (!opt.silent) {
+    const msg = $("vidSavedMsg");
+    if (msg) { msg.textContent = "✓ DBの登録車種に" + (isNew ? "追加" : "更新保存") + "しました（「" + name + "」）。DB編集タブで確認できます。"; toggle("vidSavedMsg", true); }
+  }
   return true;
 }
-$("btnVidRegister").addEventListener("click", registerVehicleToDB);
+$("btnVidRegister").addEventListener("click", () => registerVehicleToDB());
 
 /* 認識後の行き先選択(メンテ/診断/部品交換は独立ページ) */
 function goVehiclePage(name) {
@@ -1066,7 +1073,7 @@ function setLearned(key, patch) {
 }
 function getLearnedSpecs(d) { const e = getLearned(vehicleKey(d)); return (e && e.specs) || null; }
 /* AIで取得した諸元・故障を車両レコード(履歴=DB)へ自動保存(車台番号で同一車両を特定) */
-function saveVehicleAiData(specs, faults, recalls) {
+function saveVehicleAiData(specs, faults, recalls, extra) {
   const hist = getHistory();
   let e = findHistEntry(hist, current);
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
@@ -1075,6 +1082,8 @@ function saveVehicleAiData(specs, faults, recalls) {
   if (specs && specs.length) t.specs = specs;
   if (faults && faults.length) t.faults = faults;
   if (recalls && recalls.length) t.recalls = recalls;
+  if (extra && extra.model) t.model = extra.model;
+  if (extra && extra.maker) t.maker = extra.maker;
   t.aiAt = new Date().toISOString();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
 }
@@ -1151,6 +1160,7 @@ $("btnSpecSave").addEventListener("click", () => {
   if (!specs.length) { alert("1件以上入力してください。"); return; }
   setLearned(vk, { specs });
   saveVehicleAiData(specs, null);
+  registerVehicleToDB({ silent: true });   // 訂正した諸元をDB登録車種にも反映(更新)
   renderSpecs(specs, "learned");
   toggle("specEditBox", false);
 });
@@ -1882,8 +1892,9 @@ function buildSpecPrompt() {
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
     "確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を値の中に明記すること。",
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
+    "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
-    '{"specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
+    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "specsには上記以外もこの車種の整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
     "",
     "■対象車両: " + vehicleDesc()
@@ -1902,18 +1913,21 @@ $("btnSpecAI").addEventListener("click", async () => {
   try {
     const r = await geminiAsk(buildSpecPrompt());
     const obj = extractJson(r.text);
-    let specs = [], faults = [], recalls = [];
+    let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
       specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: String(s.k).trim(), v: String(s.v || "").trim() })) : [];
       faults = Array.isArray(obj.faults) ? obj.faults.map(x => String(x).trim()).filter(Boolean) : [];
       recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => String(x).trim()).filter(Boolean) : [];
+      model = obj.model ? String(obj.model).trim() : "";
+      maker = obj.maker ? String(obj.maker).trim().toLowerCase() : "";
     }
     // JSONで取れない時はテキストを諸元へフォールバック分解
     if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
     // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
-    setLearned(vehicleKey(current), { specs, faults, recalls });
-    saveVehicleAiData(specs, faults, recalls);
+    setLearned(vehicleKey(current), { specs, faults, recalls, model, maker });
+    saveVehicleAiData(specs, faults, recalls, { model, maker });
+    registerVehicleToDB({ silent: true });   // 諸元・故障・車種名・メーカーをDB登録車種へ自動反映
     // 表示: 諸元は表で、定番故障/持病はFAULTセクション、リコールはRECALLセクションへ
     toggle("specAiBox", false);
     if (specs.length) renderSpecs(specs, "learned");
