@@ -235,3 +235,10 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 #ocrStatus b{color:var(--amber)}
 
 @media (min-width:561px){ nav#tabs{border-left:1px solid var(--line);border-right:1px solid var(--line)} }
+
+/* ボタン内のメカ君アイコン + 押下/処理中フィードバック */
+.btnMecha{width:20px;height:20px;vertical-align:middle;margin-right:6px;object-fit:contain}
+.btn:active{transform:scale(.97)}
+.btnLoading{opacity:.7;pointer-events:none}
+.btnMecha.spin{animation:mechaSpin 1s linear infinite}
+@keyframes mechaSpin{to{transform:rotate(360deg)}}

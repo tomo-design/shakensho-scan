@@ -12,6 +12,18 @@ const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => $(id).classList.toggle("hidden", !show);
 const setText = (id, t) => { $(id).textContent = t; };
+/* ボタンの処理中表示: メカ君アイコンを回しつつ「考え中…」に。完了でsetBtnLoading(btn,false) */
+function setBtnLoading(btn, on, label) {
+  if (!btn) return;
+  if (on) {
+    if (!btn.dataset.orig) btn.dataset.orig = btn.innerHTML;
+    btn.disabled = true; btn.classList.add("btnLoading");
+    btn.innerHTML = '<img src="img/mecha.png" class="btnMecha spin" alt="">' + (label || "メカ君が考え中…");
+  } else {
+    btn.disabled = false; btn.classList.remove("btnLoading");
+    if (btn.dataset.orig) { btn.innerHTML = btn.dataset.orig; delete btn.dataset.orig; }
+  }
+}
 
 /* ================= メーカーリコールリンク(2026-06検証済) ================= */
 const MAKER_RECALL = {
@@ -599,8 +611,8 @@ $("btnAiQr").addEventListener("click", async () => {
   }
   const raw = (current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
   if (!raw.length) { toggle("aiQrStatus", true); $("aiQrStatus").textContent = "QRの生データがありません(QRを読み取ってからお試しください)。"; return; }
-  toggle("aiQrStatus", true); $("aiQrStatus").textContent = "🤖 AIがQRデータを項目分け中…";
-  $("btnAiQr").disabled = true;
+  toggle("aiQrStatus", true); $("aiQrStatus").textContent = "🔧 メカ君がQRデータを項目分け中…";
+  setBtnLoading($("btnAiQr"), true, "メカ君が解析中…");
   try {
     const r = await geminiAsk(buildQrParsePrompt(raw));
     const obj = extractJson(r.text);
@@ -616,14 +628,14 @@ $("btnAiQr").addEventListener("click", async () => {
     if (obj.expiry) lines.push("有効期限: " + obj.expiry);
     if (obj.firstRegYear && obj.firstRegMonth) lines.push("初度登録: " + obj.firstRegYear + "年" + obj.firstRegMonth + "月");
     if (obj.fuel) lines.push("燃料: " + obj.fuel);
-    const head = r.model === "cache" ? "🤖 前回のAI解析結果を再利用しました" : "🤖 AIがQRを解析しました（" + r.model + "）";
+    const head = r.model === "cache" ? "🔧 前回のメカ君の解析結果を再利用しました" : "🔧 メカ君がQRを解析しました（" + r.model + "）";
     toggle("aiQrParse", true); toggle("aiQrStatus", true);
     $("aiQrStatus").style.whiteSpace = "pre-wrap";
-    $("aiQrStatus").textContent = head + "\n" + (lines.length ? "AIが読み取った内容:\n・" + lines.join("\n・") : "QRから抽出できる項目がありませんでした。");
+    $("aiQrStatus").textContent = head + "\n" + (lines.length ? "メカ君が読み取った内容:\n・" + lines.join("\n・") : "QRから抽出できる項目がありませんでした。");
   } catch (e) {
     toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e);
   } finally {
-    $("btnAiQr").disabled = false;
+    setBtnLoading($("btnAiQr"), false);
   }
 });
 
@@ -1530,21 +1542,24 @@ function matchVehicleFaults(text, dtcs) {
   return { vehicle: v, matched, all: v.faults || [] };
 }
 
-function runDiag() {
+async function runDiag() {
   const text = $("diagText").value.trim();
   if (!text) { $("diagResults").innerHTML = '<div class="empty">コードまたは症状を入力してください。</div>'; return; }
   const dtcs = extractDTCs(text);
   const symptoms = matchSymptoms(text);
   const vf = matchVehicleFaults(text, dtcs);
   renderDiagResults(dtcs, symptoms, vf, text);
-  runDiagAI(text); // 解析と同時にAI思考を自動実行
+  await runDiagAI(text); // 解析と同時にAI思考を自動実行(ボタンの処理中表示が完了まで持続)
 }
 function updateDiagVehicleHint() {
   $("diagVehicleHint").textContent = current.type
     ? "🚚 スキャン済み車両: " + current.type + " — 検索リンクと持病照合に反映されます"
     : "車検証をスキャンしておくと、車種固有の持病との照合・型式付き事例検索ができます";
 }
-$("btnDiagRun").addEventListener("click", runDiag);
+$("btnDiagRun").addEventListener("click", async () => {
+  const btn = $("btnDiagRun"); setBtnLoading(btn, true, "メカ君が考え中…");
+  try { await runDiag(); } finally { setBtnLoading(btn, false); }
+});
 $("btnDiagClear").addEventListener("click", () => { $("diagText").value = ""; $("diagResults").innerHTML = ""; toggle("diagOcrStatus", false); });
 
 function diagSection(tagClass, tagText, title) {
@@ -1811,9 +1826,9 @@ async function runDiagAI(text) {
   }
   if (diagAiBusy) return;
   diagAiBusy = true;
-  const { sec, body } = diagSection("", "AI", "AIの見解" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+  const { sec, body } = diagSection("", "メカ君", "メカ君の見解" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
   const p = document.createElement("div");
-  p.className = "ai-answer"; p.textContent = "🤖 AIが考えています…(数秒〜十数秒)";
+  p.className = "ai-answer"; p.textContent = "🔧 メカ君が考えています…(数秒〜十数秒)";
   body.appendChild(p);
   box.prepend(sec);
   try {
@@ -1908,8 +1923,8 @@ $("btnSpecAI").addEventListener("click", async () => {
   }
   const box = $("specAiBox");
   toggle("specAiBox", true);
-  box.textContent = "🤖 AIが諸元・定番故障を調べています…(数秒〜十数秒)";
-  const btn = $("btnSpecAI"); btn.disabled = true;
+  box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
+  const btn = $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
   try {
     const r = await geminiAsk(buildSpecPrompt());
     const obj = extractJson(r.text);
@@ -1936,7 +1951,7 @@ $("btnSpecAI").addEventListener("click", async () => {
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
-    btn.disabled = false;
+    setBtnLoading(btn, false);
   }
 });
 
@@ -2068,13 +2083,13 @@ async function diagVideoAnalyze(file) {
     return;
   }
   if (diagVideoBusy) return;
-  diagVideoBusy = true; $("btnDiagVideo").disabled = true;
-  st.textContent = "🤖 AIが動画を解析しています…(数十秒かかる場合があります)";
+  diagVideoBusy = true; setBtnLoading($("btnDiagVideo"), true, "メカ君が動画を解析中…");
+  st.textContent = "🔧 メカ君が動画を解析しています…(数十秒かかる場合があります)";
   try {
     const data = await fileToBase64(file);
     const r = await geminiAskMedia(buildVideoDiagPrompt(), [{ mimeType: file.type || "video/mp4", data }]);
     const box = $("diagResults");
-    const { sec, body } = diagSection("", "AI動画", "動画からのAI診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+    const { sec, body } = diagSection("", "メカ君", "動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
     const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
     renderAiAnswer(p, r.text);
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
@@ -2086,7 +2101,7 @@ async function diagVideoAnalyze(file) {
   } catch (err) {
     st.textContent = "⚠ " + (err.message || "解析に失敗しました");
   } finally {
-    diagVideoBusy = false; $("btnDiagVideo").disabled = false;
+    diagVideoBusy = false; setBtnLoading($("btnDiagVideo"), false);
   }
 }
 
