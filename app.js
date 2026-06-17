@@ -788,9 +788,47 @@ $("btnVidSave").addEventListener("click", () => {
   const user = $("vidUser").value.trim();
   toggle("vidEdit", false);
   showResult(current, { fromScan: true });   // 再描画＋履歴に統合保存(自動保存)
-  if (user) saveUserName(user);
-  setText("rUser", user || "—");
+  if (user) { saveUserName(user); setText("rUser", user || "—"); }
+  registerVehicleToDB();   // 保存と同時にDBの登録車種へ追加/更新
 });
+
+/* 「保存（DBに登録）」: 現在の車両をカスタムDB(登録車種一覧)へ追加/更新 */
+function escRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function vinPrefix(v) { return v ? (v.includes("-") ? v.split("-")[0] : v) : null; }
+function registerVehicleToDB() {
+  const d = current;
+  if (!d || (!d.vin && !d.type && !d.plate)) { return false; }
+  const histE = findHistEntry(getHistory(), d) || {};
+  const user = histE.name || null;
+  const name = user || d.plate || d.vin || d.type || "無名車両";
+  // 型式マッチ正規表現: 型式 > 車台番号の先頭(型式相当) > 指定・類別
+  const codeSrc = d.type ? (d.type.includes("-") ? d.type.split("-")[1] : d.type)
+    : (vinPrefix(d.vin) || d.kataShitei);
+  const match = codeSrc ? "^" + escRegex(String(codeSrc).toUpperCase()) : escRegex(name);
+  const learned = getLearned(vehicleKey(d)) || {};
+  const specs = (histE.specs && histE.specs.length ? histE.specs : learned.specs) || [];
+  const faults = (histE.faults && histE.faults.length ? histE.faults : learned.faults) || [];
+  // 同一車両は upsert(車台番号で特定。無ければ型式/登録番号)
+  let rec = (d.vin && CUSTOM_DB.find(x => x.vin && x.vin === d.vin))
+    || CUSTOM_DB.find(x => x.name === name && x.match === match);
+  const isNew = !rec;
+  if (isNew) { rec = { id: "c" + Date.now(), maker: "other" }; CUSTOM_DB.unshift(rec); }
+  Object.assign(rec, {
+    name, match, maker: rec.maker || "other",
+    vin: d.vin || rec.vin || null, engine: d.engine || rec.engine || null,
+    plate: d.plate || rec.plate || null, kataShitei: d.kataShitei || rec.kataShitei || null,
+    user: user || rec.user || null,
+    faults: faults.length ? faults : (rec.faults || []),
+    specs: specs.length ? specs : (rec.specs || []),
+    notes: rec.notes || "",
+  });
+  saveCustomDB();
+  try { renderDBList(); } catch (e) {}
+  const msg = $("vidSavedMsg");
+  if (msg) { msg.textContent = "✓ DBの登録車種に" + (isNew ? "追加" : "更新保存") + "しました（「" + name + "」）。DB編集タブで確認できます。"; toggle("vidSavedMsg", true); }
+  return true;
+}
+$("btnVidRegister").addEventListener("click", registerVehicleToDB);
 
 /* 認識後の行き先選択(メンテ/診断/部品交換は独立ページ) */
 function goVehiclePage(name) {
@@ -877,7 +915,7 @@ function showResult(d, opt = {}) {
   switchView("scan");
   toggle("result", true);
   // 毎回まず「何をしますか？」の選択に戻す
-  toggle("choicePanel", true); toggle("vidEdit", false); toggle("secRaw", false);
+  toggle("choicePanel", true); toggle("vidEdit", false); toggle("secRaw", false); toggle("vidSavedMsg", false);
   toggle("mechaHero", false);   // 車両表示中はメカ君ヒーローを隠す
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
@@ -915,7 +953,7 @@ function showResult(d, opt = {}) {
     m.textContent = "⚙ 車種DB一致: " + hit.name;
     if (hit.notes) { setText("notesBody", hit.notes); toggle("secNotes", true); } else toggle("secNotes", false);
   } else {
-    m.textContent = vehicleKey(d) ? "車種DBに未登録です（メンテで調べると自動学習します）" : "車台番号・指定/類別を読み取るとノウハウDBと照合します";
+    m.textContent = "";   // 「未登録」表記は出さない(代わりに修正/保存ボタンを設置)
     toggle("secNotes", false);
   }
   fillList("faultList", allFaults, false); toggle("secFault", allFaults.length > 0);

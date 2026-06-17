@@ -121,6 +121,12 @@
       <div class="match" id="rMatch"></div>
     </div>
 
+    <div class="btnRow" id="vidActions" style="margin-top:10px">
+      <button class="btn btn-ghost" id="lnkFixRead" type="button">✎ 車両データを修正</button>
+      <button class="btn btn-amber" id="btnVidRegister" type="button">💾 保存（DBに登録）</button>
+    </div>
+    <div id="vidSavedMsg" class="hint hidden" style="margin-top:6px"></div>
+
     <div id="vidEdit" class="hidden" style="margin-top:10px">
       <section><h2><span class="tag cy">EDIT</span>車両データを修正</h2>
       <div class="sec-body">
@@ -158,9 +164,6 @@
       </div>
       <div class="btnRow">
         <button class="btn btn-ghost btn-big" id="btnGoParts">🔩 部品交換の手順を調べる<small>部品名を入力 → AI手順＋動画リンク</small></button>
-      </div>
-      <div class="linkrow">
-        <button class="textlink" id="lnkFixRead" type="button">✎ 車両データを修正（型式・使用者名など）</button>
       </div>
     </div>
 
