@@ -590,7 +590,7 @@ function applyAiQr(o) {
   if (o.expiry) { const dt = new Date(o.expiry); if (!isNaN(dt.getTime())) d.expiry = dt; }
   if (o.firstRegYear && o.firstRegMonth) { const y = +o.firstRegYear, m = +o.firstRegMonth; if (y > 1980 && m >= 1 && m <= 12) d.firstReg = { year: y, month: m }; }
   mergeAcc(d);              // 未取得の項目だけ埋める(既存の正しい値は保持)
-  showResult(accResult(), { fromScan: false });
+  showResult(accResult(), { fromScan: true });  // AI補完した指定・類別等も履歴(DB)へ保存
 }
 $("btnAiQr").addEventListener("click", async () => {
   if (!localStorage.getItem(LS.gemini)) {
@@ -800,11 +800,14 @@ function registerVehicleToDB() {
   if (!d || (!d.vin && !d.type && !d.plate)) { return false; }
   const histE = findHistEntry(getHistory(), d) || {};
   const user = histE.name || null;
-  const name = user || d.plate || d.vin || d.type || "無名車両";
-  // 型式マッチ正規表現: 型式 > 車台番号の先頭(型式相当) > 指定・類別
-  const codeSrc = d.type ? (d.type.includes("-") ? d.type.split("-")[1] : d.type)
-    : (vinPrefix(d.vin) || d.kataShitei);
-  const match = codeSrc ? "^" + escRegex(String(codeSrc).toUpperCase()) : escRegex(name);
+  // 型式マッチ = 車台番号のハイフンより前の英数字(例: FW74HZ-510123 → FW74HZ)
+  const prefixRaw = vinPrefix(d.vin);
+  const prefix = prefixRaw ? prefixRaw.toUpperCase().replace(/[^A-Z0-9]/g, "") : null;
+  // 車種名 = 車台番号(先頭)からDB検索した結果の車種名。無ければ使用者/登録番号等で代替
+  const found = prefix ? findVehicle(prefix) : null;
+  const name = (found && found.name) || user || d.plate || d.vin || d.type || "無名車両";
+  const match = prefix
+    || (d.type ? escRegex(String(d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase()) : (d.kataShitei || escRegex(name)));
   const learned = getLearned(vehicleKey(d)) || {};
   const specs = (histE.specs && histE.specs.length ? histE.specs : learned.specs) || [];
   const faults = (histE.faults && histE.faults.length ? histE.faults : learned.faults) || [];
@@ -1010,7 +1013,7 @@ document.querySelectorAll("#assignBar [data-assign]").forEach(b =>
     }
     // accにも反映(上書き)してQR解析ボタンの状態と整合
     if (typeof acc !== "undefined") acc[k] = current[k];
-    hideAssign(); showResult(current, { fromScan: false });
+    hideAssign(); showResult(current, { fromScan: true });  // 割り当てた値も履歴(DB)へ保存
   }));
 $("abClose").addEventListener("click", hideAssign);
 
