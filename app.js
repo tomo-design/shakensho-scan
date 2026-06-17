@@ -40,6 +40,7 @@ function loadCustomDB() {
 function saveCustomDB() { localStorage.setItem(LS.custom, JSON.stringify(CUSTOM_DB)); }
 
 async function loadBuiltinDB() {
+  if (localStorage.getItem("ss_dbcleared") === "1") { BUILTIN_DB = []; return; }
   try {
     const res = await fetch("db/vehicles.json");
     BUILTIN_DB = (await res.json()).vehicles || [];
@@ -101,6 +102,15 @@ function parseYYMM(s) {
   return { year, month: mm };
 }
 const fmtDate = d => d ? `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}` : null;
+/* 指定・類別の表示整形: 現行=9桁(5-4)/旧=7桁(5-2)/大型・特装・輸入=記載なし(空) */
+function formatKata(k) {
+  if (!k) return null;
+  const s = String(k).replace(/[^0-9]/g, "");
+  if (!s) return null;
+  if (s.length >= 8) return s.slice(0, s.length - 4) + "-" + s.slice(s.length - 4); // 型式指定番号-類別区分番号(4桁)
+  if (s.length >= 6) return s.slice(0, s.length - 2) + "-" + s.slice(s.length - 2); // 旧車: 類別2桁
+  return s;
+}
 
 function parseStructured(codes) {
   const out = {};
@@ -218,8 +228,8 @@ function mergeAcc(d) {
   for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) if (!acc[k] && d[k]) acc[k] = d[k];
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
-function accCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); } // コード3を取得済みか
-function accComplete() { return !!(acc.type && acc.vin && accCode3()); }
+function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
+function accComplete() { return !!(acc.vin && acc.engine && acc.plate); } // 限定4項目(指定・類別は無い車もある)
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; }
 
@@ -360,13 +370,13 @@ function onLiveText(d) {
 function afterScanUpdate(src) {
   updateScanProgress(acc);
   if (accComplete()) { setScanMsg("✓ 全項目そろいました"); stopLiveScan(true); return; }
-  // 型式・車台番号が揃ってもコード3未取得なら継続(初度登録・有効期限などのため)
-  if (acc.type && acc.vin && !accCode3()) {
-    setScanMsg("✓ 型式・車台番号OK。残りは右下の二次元コード3（有効期限等）を写す／完了は✓");
+  // 車台番号が揃っても指定・類別(コード3)未取得なら継続
+  if (acc.vin && !accCode3()) {
+    setScanMsg("✓ 車台番号OK。残りは右下の二次元コード3（指定・類別）を写す／完了は✓");
     return;
   }
-  const need = [!acc.type && "型式", !acc.vin && "車台番号"].filter(Boolean).join("・");
-  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3") + "を写してください");
+  const need = [!acc.vin && "車台番号", !acc.engine && "原動機型式", !acc.plate && "登録番号"].filter(Boolean).join("・");
+  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3（指定・類別）") + "を写してください");
 }
 
 async function scanTick() {
@@ -482,12 +492,8 @@ $("qrPhotoIn").addEventListener("change", async e => {
 /* 読み取り済み項目の進捗表示 */
 function updateScanProgress(d) {
   const box = $("scanProgress");
-  const firstRegStr = d.firstReg ? d.firstReg.year + "年" + d.firstReg.month + "月" : null;
-  const expiryStr = d.expiry ? fmtDate(d.expiry) : null;
-  const kataStr = d.kataShitei ? (d.kataShitei.length > 5 ? d.kataShitei.slice(0, 5) + "-" + d.kataShitei.slice(5) : d.kataShitei) : null;
   const items = [
-    ["型式", d.type], ["原動機型式", d.engine], ["車台番号", d.vin], ["登録番号", d.plate],
-    ["初度登録", firstRegStr], ["有効期限", expiryStr], ["指定-類別", kataStr],
+    ["車台番号", d.vin], ["原動機型式", d.engine], ["登録番号", d.plate], ["指定・類別", formatKata(d.kataShitei)],
   ];
   box.innerHTML = items.map(([label, val]) =>
     '<div class="progRow ' + (val ? "got" : "") + '">' +
@@ -881,28 +887,14 @@ function showResult(d, opt = {}) {
   setText("rUser", (histEntry && histEntry.name) || "—");
   // QR生データがあり、未取得項目があればAI解析ボタンを出す
   current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
-  const missing = !d.engine || !d.expiry || !d.firstReg || !d.kataShitei;
+  // 限定表示項目: 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
+  const missing = !d.engine || !d.plate || !d.kataShitei;
   toggle("aiQrParse", current.qrRaw.length > 0 && missing);
   toggle("aiQrStatus", false);
-  setText("rType", d.type || "未検出（下のRAWから割り当て可）");
   setText("rEngine", d.engine || "—");
   setText("rVin", d.vin || "未検出");
   setText("rPlate", d.plate || "—");
-  setText("rFirstReg", d.firstReg ? `${d.firstReg.year}年${d.firstReg.month}月` : "—");
-  setText("rKata", d.kataShitei ? d.kataShitei.slice(0, 5) + "-" + d.kataShitei.slice(5) : "—");
-
-  // 有効期限 + 90日警告バッジ
-  const rExp = $("rExpiry");
-  rExp.textContent = "";
-  if (d.expiry) {
-    rExp.append(fmtDate(d.expiry));
-    const days = Math.floor((d.expiry - new Date()) / 86400000);
-    const b = document.createElement("span");
-    if (days < 0) { b.className = "badge warn"; b.textContent = "期限切れ"; }
-    else if (days <= 90) { b.className = "badge warn"; b.textContent = "残" + days + "日"; }
-    else { b.className = "badge ok"; b.textContent = "残" + days + "日"; }
-    rExp.appendChild(b);
-  } else rExp.textContent = "—";
+  setText("rKata", formatKata(d.kataShitei) || "記載なし");
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -910,18 +902,25 @@ function showResult(d, opt = {}) {
     const code = (d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase();
     hit = findVehicle(code);
   }
+  // 学習データ(AI取得/訂正済み): 車両レコード(履歴)＞型式キー の順で取得
+  const histEntry2 = findHistEntry(getHistory(), d);
+  const learned = getLearned(vehicleKey(d));
+  const learnedFaults = (histEntry2 && histEntry2.faults) || (learned && learned.faults) || [];
+  const dbFaults = (hit && hit.faults) || [];
+  const allFaults = [...learnedFaults, ...dbFaults.filter(f => !learnedFaults.includes(f))];
+
   const m = $("rMatch");
   if (hit) {
     m.textContent = "⚙ 車種DB一致: " + hit.name;
-    fillList("faultList", hit.faults || [], false); toggle("secFault", (hit.faults || []).length > 0);
     if (hit.notes) { setText("notesBody", hit.notes); toggle("secNotes", true); } else toggle("secNotes", false);
   } else {
-    m.textContent = d.type ? "車種DBに未登録の型式です（DB編集タブで追加できます）" : "型式を特定するとノウハウDBと照合します";
-    toggle("secFault", false); toggle("secNotes", false);
+    m.textContent = vehicleKey(d) ? "車種DBに未登録です（メンテで調べると自動学習します）" : "車台番号・指定/類別を読み取るとノウハウDBと照合します";
+    toggle("secNotes", false);
   }
-  // 諸元: 訂正保存済み(learned) > 内蔵/カスタムDB の優先で表示
-  const learned = getLearnedSpecs(d.type);
-  if (learned && learned.length) renderSpecs(learned, "learned");
+  fillList("faultList", allFaults, false); toggle("secFault", allFaults.length > 0);
+  // 諸元: 車両レコード ＞ 学習(型式) ＞ 内蔵/カスタムDB の優先で表示
+  const recSpecs = (histEntry2 && histEntry2.specs) || (learned && learned.specs) || null;
+  if (recSpecs && recSpecs.length) renderSpecs(recSpecs, "learned");
   else renderSpecs((hit && hit.specs) || [], hit ? "db" : "");
 
   // リコール: 車種を特定できた(=メーカーの検索先を案内できる)場合のみ表示
@@ -990,26 +989,48 @@ function renderSpecs(specs, source) {
   const lbl = source === "learned" ? "✓ 訂正保存済みのデータ（この端末に記憶）"
     : source === "db" ? "内蔵データ（参考値）" : "";
   setText("specSource", lbl); toggle("specSource", !!lbl);
-  // 訂正ボタンは型式が分かっていれば常に出す(保存先キーになる)
-  toggle("btnSpecEdit", !!current.type);
+  // 訂正ボタンは車両を識別できれば常に出す(保存先キーになる)
+  const vk = vehicleKey(current);
+  toggle("btnSpecEdit", !!vk);
   // AIで調べるボタンは「保存済み or 内蔵データが無い」時だけ表示
-  toggle("btnSpecAI", shownSpecs.length === 0 && !!current.type);
-  // 内蔵データが無くても型式が分かればセクションは出す
-  toggle("secSpec", shownSpecs.length > 0 || !!current.type);
+  toggle("btnSpecAI", shownSpecs.length === 0 && !!vk);
+  // 内蔵データが無くても車両を識別できればセクションは出す
+  toggle("secSpec", shownSpecs.length > 0 || !!vk);
 }
 
-/* 訂正保存(learned)諸元: localStorage。型式単位で記憶し次回はAI不要 */
-function getLearnedSpecs(type) {
-  if (!type) return null;
-  try { const e = (JSON.parse(localStorage.getItem("ss_learnedspecs") || "{}"))[type.toUpperCase()]; return (e && e.specs) || null; } catch (e) { return null; }
+/* 車両識別キー: 型式 > 指定・類別 > 車台番号 の順(型式を読まなくても記憶できる) */
+function vehicleKey(d) {
+  d = d || current;
+  if (d.type) return d.type.toUpperCase();
+  if (d.kataShitei) return "K:" + String(d.kataShitei).replace(/[^0-9]/g, "");
+  if (d.vin) return "V:" + d.vin.toUpperCase();
+  return null;
 }
-function setLearnedSpecs(type, specs) {
-  if (!type) return;
+/* 学習データ(localStorage)。1キーに諸元(specs)と定番故障/持病(faults)をまとめて記憶し次回はAI不要 */
+function getLearned(key) {
+  if (!key) return null;
+  try { return (JSON.parse(localStorage.getItem("ss_learnedspecs") || "{}"))[key] || null; } catch (e) { return null; }
+}
+function setLearned(key, patch) {
+  if (!key) return;
   try {
     const c = JSON.parse(localStorage.getItem("ss_learnedspecs") || "{}");
-    c[type.toUpperCase()] = { specs, type: type.toUpperCase(), at: new Date().toISOString() };
+    c[key] = Object.assign({}, c[key], patch, { key, at: new Date().toISOString() });
     localStorage.setItem("ss_learnedspecs", JSON.stringify(c));
   } catch (e) {}
+}
+function getLearnedSpecs(d) { const e = getLearned(vehicleKey(d)); return (e && e.specs) || null; }
+/* AIで取得した諸元・故障を車両レコード(履歴=DB)へ自動保存(車台番号で同一車両を特定) */
+function saveVehicleAiData(specs, faults) {
+  const hist = getHistory();
+  let e = findHistEntry(hist, current);
+  if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
+  const h2 = getHistory();
+  const t = findHistEntry(h2, current); if (!t) return;
+  if (specs && specs.length) t.specs = specs;
+  if (faults && faults.length) t.faults = faults;
+  t.aiAt = new Date().toISOString();
+  localStorage.setItem(LS.hist, JSON.stringify(h2));
 }
 function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).join("\n"); }
 function textToSpecs(text) {
@@ -1078,10 +1099,12 @@ $("btnSpecEdit").addEventListener("click", () => {
 $("btnSpecAddRow").addEventListener("click", () => addSpecRow("", ""));
 $("btnSpecEditCancel").addEventListener("click", () => toggle("specEditBox", false));
 $("btnSpecSave").addEventListener("click", () => {
-  if (!current.type) { alert("型式が不明なため保存できません(車両データ修正で型式を入れてください)。"); return; }
+  const vk = vehicleKey(current);
+  if (!vk) { alert("車両を識別できないため保存できません(車台番号や指定・類別が必要です)。"); return; }
   const specs = collectSpecRows();
   if (!specs.length) { alert("1件以上入力してください。"); return; }
-  setLearnedSpecs(current.type, specs);
+  setLearned(vk, { specs });
+  saveVehicleAiData(specs, null);
   renderSpecs(specs, "learned");
   toggle("specEditBox", false);
 });
@@ -1334,6 +1357,17 @@ $("btnClearHist").addEventListener("click", () => {
 });
 $("btnClearCustom").addEventListener("click", () => {
   if (confirm("カスタム車種DBをすべて削除しますか？（内蔵DBは残ります）")) { CUSTOM_DB = []; saveCustomDB(); renderDBList(); }
+});
+/* DB内蔵データの全消去: 内蔵・カスタム・学習(諸元/定番故障)をすべて削除(履歴は残す) */
+$("btnClearDb").addEventListener("click", () => {
+  if (!confirm("DB内蔵データを全消去します。\n・内蔵車種DB\n・カスタムDB\n・AIが学習した諸元/定番故障\nをすべて削除します（スキャン履歴は残ります）。よろしいですか？")) return;
+  localStorage.setItem("ss_dbcleared", "1");
+  localStorage.removeItem(LS.custom);
+  localStorage.removeItem("ss_learnedspecs");
+  CUSTOM_DB = []; BUILTIN_DB = [];
+  renderDBList();
+  setText("verNote", "メカノAI v" + APP_VER + " ／ DBデータを全消去しました。スキャンやAI調査で再び蓄積されます。");
+  alert("DB内蔵データを全消去しました。");
 });
 
 /* =========================================================
@@ -1775,26 +1809,30 @@ function appendAiFollowup(body, origText, prevAnswer) {
   body.appendChild(wrap);
 }
 
-/* メンテナンス諸元のAI調査 */
-function buildSpecPrompt() {
+/* 対象車両の説明文(型式が無くても指定・類別/原動機/車台番号で識別) */
+function vehicleDesc() {
+  const parts = [];
+  if (current.type) parts.push("型式 " + current.type);
+  if (current.kataShitei) parts.push("型式指定番号・類別区分番号 " + current.kataShitei);
+  if (current.engine) parts.push("原動機型式 " + current.engine);
+  if (current.vin) parts.push("車台番号 " + current.vin);
   const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
   const v = code ? findVehicle(code) : null;
+  if (v) parts.push("（" + v.name + "）");
+  return parts.length ? parts.join(" / ") : "不明";
+}
+/* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON) */
+function buildSpecPrompt() {
   return [
-    "あなたは日本の自動車整備士向けの諸元データアドバイザーです。",
-    "次の車両の整備に必要なメンテナンス諸元を答えてください。確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を明記すること。",
-    "Markdown記号(**、#、表)は使わず、次の形式で:",
-    "■メンテナンス諸元",
-    "1. エンジンオイル量: 値（フィルタ交換時/エンジン型式別）",
-    "2. 推奨オイル粘度: 値",
-    "3. オイル交換目安: 値",
-    "4. クーラント量: 値",
-    "5. ホイールナット締付トルク: 値",
-    "6. ATF/CVT/ミッションオイル: 値",
-    "7. その他この車種の整備で重要な諸元があれば追加",
-    "■補足",
-    "整備時の注意点があれば1〜2行で。",
+    "あなたは日本の自動車整備士向けのデータアドバイザーです。",
+    "次の車両について、(A)整備に必要なメンテナンス諸元 と (B)この車種の定番故障・持病 を答えてください。",
+    "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
+    "確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を値の中に明記すること。",
+    "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
+    '{"specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"}],"faults":["定番故障・持病を1件1文で複数"]}',
+    "specsには上記以外もこの車種の整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
     "",
-    "■対象車両: 型式 " + (current.type || "不明") + (v ? "（" + v.name + "）" : "")
+    "■対象車両: " + vehicleDesc()
   ].join("\n");
 }
 $("btnSpecAI").addEventListener("click", async () => {
@@ -1805,12 +1843,26 @@ $("btnSpecAI").addEventListener("click", async () => {
   }
   const box = $("specAiBox");
   toggle("specAiBox", true);
-  box.textContent = "🤖 AIが諸元を調べています…(数秒〜十数秒)";
+  box.textContent = "🤖 AIが諸元・定番故障を調べています…(数秒〜十数秒)";
   const btn = $("btnSpecAI"); btn.disabled = true;
   try {
     const r = await geminiAsk(buildSpecPrompt());
-    lastSpecAiText = r.text;              // 訂正フォームの初期値に使う(改行を保持した生テキスト)
-    renderAiAnswer(box, r.text);
+    const obj = extractJson(r.text);
+    let specs = [], faults = [];
+    if (obj) {
+      specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: String(s.k).trim(), v: String(s.v || "").trim() })) : [];
+      faults = Array.isArray(obj.faults) ? obj.faults.map(x => String(x).trim()).filter(Boolean) : [];
+    }
+    // JSONで取れない時はテキストを諸元へフォールバック分解
+    if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
+    if (!specs.length && !faults.length) { renderAiAnswer(box, r.text); return; }
+    // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
+    setLearned(vehicleKey(current), { specs, faults });
+    saveVehicleAiData(specs, faults);
+    // 表示: 諸元は表で、定番故障/持病はFAULTセクションへ
+    toggle("specAiBox", false);
+    if (specs.length) renderSpecs(specs, "learned");
+    if (faults.length) { fillList("faultList", faults, false); toggle("secFault", true); }
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
