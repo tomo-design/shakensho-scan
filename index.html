@@ -268,6 +268,12 @@
         <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
       </div>
       <div id="diagOcrStatus" class="hint hidden" style="margin-top:8px"></div>
+      <div class="btnRow" style="margin-top:8px">
+        <button class="btn btn-ghost" id="btnDiagVideo">🎥 症状を動画で撮影してAI解析</button>
+        <input type="file" id="diagVideoIn" accept="video/*" capture="environment" class="hidden">
+      </div>
+      <div class="hint" style="margin-top:6px">異音・煙・振動・警告灯などをAIが映像から診断します（要Geminiキー・短い動画推奨）。</div>
+      <div id="diagVideoStatus" class="hint hidden" style="margin-top:8px"></div>
     </div>
   </section>
 

@@ -1983,6 +1983,113 @@ async function ocrTesseractDiag(file) {
   return data.text || "";
 }
 
+/* ---- 診断機画面の「動画を撮影してAI解析」(Geminiマルチモーダル) ---- */
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onerror = () => rej(new Error("ファイルを読み込めませんでした"));
+    r.readAsDataURL(file);
+  });
+}
+/* 動画(＋プロンプト)をGeminiに送って解析。textのみ版geminiAskと別系統(キャッシュなし) */
+async function geminiAskMedia(prompt, media) {
+  const key = localStorage.getItem(LS.gemini);
+  if (!key) throw new Error("Gemini APIキーが未設定です。");
+  let lastErr = null;
+  for (const model of GEMINI_MODELS[getAiMode()]) {
+    try {
+      const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
+      const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
+      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／標準モードにする等をお試しください。"); continue; }
+      if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効、または動画が大きすぎる可能性があります。より短い動画でお試しください。");
+      if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
+      const j = await res.json();
+      const cand = j.candidates?.[0];
+      const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
+      if (!text) throw new Error("AIから回答が得られませんでした");
+      return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+    } catch (e) {
+      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効") || e.message.includes("大きすぎる"))) throw e;
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
+}
+function buildVideoDiagPrompt() {
+  const lines = [
+    "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
+    "添付の動画(整備士が撮影した不具合の様子)を観察し、判断できる症状(異音の種類・発生タイミング、煙や排気の色、振動、警告灯、液漏れ、異常な挙動など)を読み取ってください。",
+    "音声があれば異音の特徴も考慮すること。映像・音声から判断できないことは断定せず推測には「（要確認）」を付けること。",
+    "前置き・免責・挨拶は不要。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
+    "■動画から読み取れる症状",
+    "・観察できた症状を箇条書き(判別できなければ『判別不可』)",
+    "■原因候補（可能性が高い順）",
+    "1. 原因名（一言で）",
+    "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
+    "2.（同様に最大5つまで）",
+    "■最初の1手",
+    "現場で最初にやるべきことを1〜2文で。",
+    ""
+  ];
+  if (current.type || current.vin) {
+    const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
+    const v = code ? findVehicle(code) : null;
+    lines.push("■車両: " + (current.type ? "型式 " + current.type : "車台番号 " + current.vin) + (v ? "（" + v.name + "）" : ""));
+    if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
+  }
+  const extra = $("diagText").value.trim();
+  if (extra) lines.push("■整備士の補足メモ: " + extra);
+  return lines.join("\n");
+}
+const diagVideoIn = $("diagVideoIn");
+$("btnDiagVideo").addEventListener("click", () => {
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("動画のAI解析には無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」でキーを取得・保存してください(クレジットカード不要)。");
+    switchView("settings"); return;
+  }
+  diagVideoIn.click();
+});
+diagVideoIn.addEventListener("change", e => {
+  const f = e.target.files[0]; diagVideoIn.value = "";
+  if (f) diagVideoAnalyze(f);
+});
+let diagVideoBusy = false;
+async function diagVideoAnalyze(file) {
+  const st = $("diagVideoStatus"); toggle("diagVideoStatus", true);
+  const MAX = 18 * 1024 * 1024;
+  if (file.size > MAX) {
+    st.textContent = "動画が大きすぎます(" + Math.round(file.size / 1048576) + "MB)。15秒程度の短い動画で撮り直してください(上限約18MB)。";
+    return;
+  }
+  if (diagVideoBusy) return;
+  diagVideoBusy = true; $("btnDiagVideo").disabled = true;
+  st.textContent = "🤖 AIが動画を解析しています…(数十秒かかる場合があります)";
+  try {
+    const data = await fileToBase64(file);
+    const r = await geminiAskMedia(buildVideoDiagPrompt(), [{ mimeType: file.type || "video/mp4", data }]);
+    const box = $("diagResults");
+    const { sec, body } = diagSection("", "AI動画", "動画からのAI診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+    const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
+    renderAiAnswer(p, r.text);
+    const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
+    note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
+    body.appendChild(note);
+    box.prepend(sec);
+    st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
+    sec.scrollIntoView({ behavior: "smooth" });
+  } catch (err) {
+    st.textContent = "⚠ " + (err.message || "解析に失敗しました");
+  } finally {
+    diagVideoBusy = false; $("btnDiagVideo").disabled = false;
+  }
+}
+
 /* =========================================================
    タブ切替・初期化
    ========================================================= */
