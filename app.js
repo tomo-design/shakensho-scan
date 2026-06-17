@@ -69,6 +69,13 @@ function findVehicle(typeCode) {
   }
   return null;
 }
+/* 内蔵DBのみ検索(車種名の権威ソース。自動保存したカスタムレコードへの自己ヒットを避ける) */
+function findBuiltinVehicle(typeCode) {
+  for (const v of BUILTIN_DB) {
+    try { if (new RegExp(v.match, "i").test(typeCode)) return v; } catch (e) {}
+  }
+  return null;
+}
 
 /* =========================================================
    QRパーサ — 国交省「二次元コード項目定義」(2023.1版)準拠
@@ -817,8 +824,9 @@ function registerVehicleToDB(opt = {}) {
   // 型式マッチ = 車台番号のハイフンより前の英数字(例: FW74HZ-510123 → FW74HZ)
   const prefixRaw = vinPrefix(d.vin);
   const prefix = prefixRaw ? prefixRaw.toUpperCase().replace(/[^A-Z0-9]/g, "") : null;
-  // 車種名 = 車台番号(先頭)からDB検索した結果の車種名 > AI推定車種名 > 代替
-  const found = prefix ? findVehicle(prefix) : null;
+  // 車種名 = 車台番号(先頭)から内蔵DB検索した車種名 > メンテAIで取得した車種名 > 代替
+  // ※自分が保存したカスタムレコードに自己ヒットしないよう内蔵DBのみを検索
+  const found = prefix ? findBuiltinVehicle(prefix) : null;
   const aiModel = histE.model || learned.model || null;
   const name = (found && found.name) || aiModel || user || d.plate || d.vin || d.type || "無名車両";
   const match = prefix
