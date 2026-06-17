@@ -564,6 +564,7 @@ function buildQrParsePrompt(rawList) {
     "あなたは日本の自動車検査証(車検証)の二次元コード(QRコード)を解析する専門家です。",
     "以下はスマホで読み取った車検証QRコードの生データ(複数のQRを行ごとに記載、フィールドは「/」区切り)です。",
     "車検証の二次元コード仕様(二次元コード2: バージョン/登録番号/標板コード/車台番号/原動機型式/帳票種別。二次元コード3: バージョン/打刻位置/型式指定番号類別区分番号/有効期間満了日(YYMMDD)/初度登録年月(YYMM)/型式/以降に軸重・騒音・燃料種別等)を踏まえ、各データを正しい項目に振り分けてください。",
+    "重要(配置ミス防止): kataShitei(型式指定番号・類別区分番号)は『型式指定番号(最大5桁)＋類別区分番号(最大4桁)』を連結した数字で、現行車は9桁・旧車は7桁になる。大型車・特装車・輸入車には存在しない(その場合はnull)。原動機型式や帳票種別の数字をkataShiteiに入れないこと。車台番号は英数字＋ハイフン、原動機型式は短い英数字、登録番号は地名(漢字)を含むことで区別する。各値を取り違えないよう、桁数と文字種で必ず検証すること。",
     "999999や9999は未設定を意味します。日付は西暦に変換(満了日・初度登録年月の下2桁年は20xxと解釈)。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。キーは以下、該当データが無ければnull:",
     '{"type":型式, "vin":車台番号, "engine":原動機型式, "plate":登録番号, "kataShitei":型式指定番号類別区分番号(数字のみ連結), "expiry":有効期間満了日(YYYY-MM-DD), "firstRegYear":初度登録の西暦年(数値), "firstRegMonth":初度登録の月(数値), "fuel":燃料種別}',
@@ -923,15 +924,18 @@ function showResult(d, opt = {}) {
   if (recSpecs && recSpecs.length) renderSpecs(recSpecs, "learned");
   else renderSpecs((hit && hit.specs) || [], hit ? "db" : "");
 
-  // リコール: 車種を特定できた(=メーカーの検索先を案内できる)場合のみ表示
+  // リコール: AI調査結果(履歴/学習)があれば一覧表示。メーカー特定時はリンクも案内
+  const recalls = (histEntry2 && histEntry2.recalls) || (learned && learned.recalls) || [];
+  renderRecalls(recalls);
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
-  toggle("secRecall", !!mk);
+  toggle("secRecall", !!mk || recalls.length > 0);
+  toggle("lnkMaker", !!mk);
   if (mk) {
     $("lnkMlit").href = MLIT_RECALL;
     const lm = $("lnkMaker");
     lm.firstChild.textContent = mk.label; lm.href = mk.url;
-    $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || "") + " リコール 改善対策");
   }
+  $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || d.vin || "") + " リコール 改善対策");
 
   // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
   const wrap = $("rawChips"); wrap.innerHTML = "";
@@ -1021,7 +1025,7 @@ function setLearned(key, patch) {
 }
 function getLearnedSpecs(d) { const e = getLearned(vehicleKey(d)); return (e && e.specs) || null; }
 /* AIで取得した諸元・故障を車両レコード(履歴=DB)へ自動保存(車台番号で同一車両を特定) */
-function saveVehicleAiData(specs, faults) {
+function saveVehicleAiData(specs, faults, recalls) {
   const hist = getHistory();
   let e = findHistEntry(hist, current);
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
@@ -1029,6 +1033,7 @@ function saveVehicleAiData(specs, faults) {
   const t = findHistEntry(h2, current); if (!t) return;
   if (specs && specs.length) t.specs = specs;
   if (faults && faults.length) t.faults = faults;
+  if (recalls && recalls.length) t.recalls = recalls;
   t.aiAt = new Date().toISOString();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
 }
@@ -1112,6 +1117,13 @@ $("btnSpecSave").addEventListener("click", () => {
 function fillList(id, arr, chk) {
   const ul = $(id); ul.innerHTML = "";
   arr.forEach(t => { const li = document.createElement("li"); if (chk) li.className = "chk"; li.textContent = t; ul.appendChild(li); });
+}
+/* AIが調べたリコール・改善対策の一覧を描画(参考情報の注記付き) */
+function renderRecalls(recalls) {
+  recalls = recalls || [];
+  fillList("recallList", recalls, false);
+  toggle("recallList", recalls.length > 0);
+  toggle("recallNote", recalls.length > 0);
 }
 
 /* =========================================================
@@ -1825,11 +1837,12 @@ function vehicleDesc() {
 function buildSpecPrompt() {
   return [
     "あなたは日本の自動車整備士向けのデータアドバイザーです。",
-    "次の車両について、(A)整備に必要なメンテナンス諸元 と (B)この車種の定番故障・持病 を答えてください。",
+    "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
     "確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を値の中に明記すること。",
+    "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
-    '{"specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"}],"faults":["定番故障・持病を1件1文で複数"]}',
+    '{"specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "specsには上記以外もこの車種の整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
     "",
     "■対象車両: " + vehicleDesc()
@@ -1848,21 +1861,23 @@ $("btnSpecAI").addEventListener("click", async () => {
   try {
     const r = await geminiAsk(buildSpecPrompt());
     const obj = extractJson(r.text);
-    let specs = [], faults = [];
+    let specs = [], faults = [], recalls = [];
     if (obj) {
       specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: String(s.k).trim(), v: String(s.v || "").trim() })) : [];
       faults = Array.isArray(obj.faults) ? obj.faults.map(x => String(x).trim()).filter(Boolean) : [];
+      recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => String(x).trim()).filter(Boolean) : [];
     }
     // JSONで取れない時はテキストを諸元へフォールバック分解
     if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
-    if (!specs.length && !faults.length) { renderAiAnswer(box, r.text); return; }
+    if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
     // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
-    setLearned(vehicleKey(current), { specs, faults });
-    saveVehicleAiData(specs, faults);
-    // 表示: 諸元は表で、定番故障/持病はFAULTセクションへ
+    setLearned(vehicleKey(current), { specs, faults, recalls });
+    saveVehicleAiData(specs, faults, recalls);
+    // 表示: 諸元は表で、定番故障/持病はFAULTセクション、リコールはRECALLセクションへ
     toggle("specAiBox", false);
     if (specs.length) renderSpecs(specs, "learned");
     if (faults.length) { fillList("faultList", faults, false); toggle("secFault", true); }
+    renderRecalls(recalls);
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {

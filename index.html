@@ -185,11 +185,6 @@
     <button class="navBtn" data-go="parts">🔩 部品</button>
   </nav>
 
-  <section id="secFault" class="hidden">
-    <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
-    <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
-  </section>
-
   <section id="secSpec" class="hidden">
     <h2><span class="tag gr">SPEC</span>メンテナンス諸元（参考値）</h2>
     <div class="sec-body">
@@ -212,6 +207,11 @@
     </div>
   </section>
 
+  <section id="secFault" class="hidden">
+    <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
+    <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
+  </section>
+
   <section id="secNotes" class="hidden">
     <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
     <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
@@ -219,6 +219,8 @@
 
   <section id="secRecall" class="hidden">
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
+    <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
+    <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ 上記はAIが調べた参考情報です。必ず下記の公式ページで車台番号により対象を確認してください。</div>
     <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
