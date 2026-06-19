@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v47";
+const CACHE = "shaken-scan-v48";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -19,6 +19,12 @@ const PRECACHE = [
   "./lib/jsQR.js",
   "./lib/zxing.js",
   "./img/mecha.png",
+  "./img/hero.png",
+  "./img/thinking.png",
+  "./img/ic-photo.png",
+  "./img/ic-photo-cam.png",
+  "./img/ic-video.png",
+  "./img/ic-video-cam.png",
 ];
 
 self.addEventListener("install", e => {

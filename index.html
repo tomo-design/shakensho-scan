@@ -28,8 +28,7 @@
 <div id="view-scan" class="view active">
 
   <div id="mechaHero">
-    <img src="img/mecha.png" alt="メカ君">
-    <div class="mechaBubble">車検証のQRをスキャンしてね！</div>
+    <img src="img/hero.png" alt="メカ君">
   </div>
 
   <div id="scanWrap" class="hidden">
@@ -261,31 +260,46 @@
   </nav>
 
   <section style="margin-top:6px">
-    <h2><span class="tag al">DTC</span>ダイアグコード検索</h2>
+    <h2 class="diagHead"><span class="tag al">DTC</span>ダイアグコード/故障診断
+      <span class="diagIcons">
+        <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
+        <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
+        <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
+        <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
+      </span>
+    </h2>
     <div class="sec-body">
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost" id="btnDiagOcr">📷 診断機画面を撮影してコード読取</button>
-        <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
+        <button class="btn btn-ghost btn-sm" id="btnDiagOcr">📷 診断機画面でコード読取</button>
+        <button class="btn btn-ghost btn-sm" id="btnDiagMic">🎤 音声で入力</button>
+        <button class="btn btn-ghost btn-sm" id="btnDiagVoiceChat">🗣️ メカ君と音声会話</button>
       </div>
       <div id="diagOcrStatus" class="hint hidden" style="margin-top:8px"></div>
-      <div class="btnRow" style="margin-top:8px">
-        <button class="btn btn-ghost" id="btnDiagVideo">🎥 症状を動画で撮影してAI解析</button>
-        <input type="file" id="diagVideoIn" accept="video/*" capture="environment" class="hidden">
-      </div>
-      <div class="hint" style="margin-top:6px">異音・煙・振動・警告灯などをAIが映像から診断します（要Geminiキー・短い動画推奨）。</div>
+      <textarea id="diagText" placeholder="ダイアグコード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。🎤音声入力や、右上アイコンから写真・動画の添付もできます。"></textarea>
+      <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
       <div id="diagVideoStatus" class="hint hidden" style="margin-top:8px"></div>
-    </div>
-  </section>
-
-  <section>
-    <h2><span class="tag cy">INPUT</span>コード / お客様の問診内容</h2>
-    <div class="sec-body">
-      <textarea id="diagText" placeholder="コード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。診断機画面のスクショ貼り付けもOK"></textarea>
       <div class="btnRow">
         <button class="btn btn-amber" id="btnDiagRun"><img src="img/mecha.png" class="btnMecha" alt="">メカ君に聞く</button>
         <button class="btn btn-ghost" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
       </div>
       <div class="hint" id="diagVehicleHint" style="margin-top:8px"></div>
+      <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="inAttachPhoto" accept="image/*" multiple class="hidden">
+      <input type="file" id="inAttachPhotoCam" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="inAttachVideo" accept="video/*" class="hidden">
+      <input type="file" id="inAttachVideoCam" accept="video/*" capture="environment" class="hidden">
+    </div>
+  </section>
+
+  <section id="voiceChatSec" class="hidden">
+    <h2><span class="tag">VOICE</span>メカ君と音声会話</h2>
+    <div class="sec-body">
+      <div id="voiceLog" style="max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:8px"></div>
+      <div class="btnRow">
+        <button class="btn btn-amber" id="btnVoiceTalk">🎤 押して話す</button>
+        <button class="btn btn-ghost" id="btnVoiceStop" style="flex:0 0 30%">終了</button>
+      </div>
+      <div class="hint" id="voiceStatus" style="margin-top:6px">「押して話す」を押し、症状を話してください。メカ君が音声で答えます。</div>
     </div>
   </section>
 
@@ -380,8 +394,8 @@
       <div id="geminiStat" class="hint" style="margin-top:8px"></div>
       <label class="fld" style="margin-top:14px">回答の品質モード</label>
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost mode-btn" id="modeFlash" data-mode="flash">標準（Flash＋思考）<small style="display:block;font-weight:400;font-size:11px;color:var(--dim)">速い・無料枠の回数多め</small></button>
-        <button class="btn btn-ghost mode-btn" id="modePro" data-mode="pro">高精度（Pro＋深い思考）<small style="display:block;font-weight:400;font-size:11px;color:var(--dim)">最高精度・1日の回数少なめ</small></button>
+        <button class="btn btn-ghost btn-sm mode-btn" id="modeFlash" data-mode="flash" style="white-space:nowrap">標準（速い・回数多め）</button>
+        <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（最高精度・回数少なめ）</button>
       </div>
       <div class="hint" style="margin-top:8px">どちらもAIが回答前に内部で「思考」してから答えます。高精度モードは複雑な複合症状向け。無料枠の上限に達した場合は自動で標準モデルに切り替えて再試行します。</div>
     </div>
@@ -401,8 +415,8 @@
     <h2><span class="tag al">DATA</span>データ管理</h2>
     <div class="sec-body">
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-alert btn-sm" id="btnClearHist">履歴を全削除</button>
-        <button class="btn btn-alert btn-sm" id="btnClearCustom">カスタムDBを全削除</button>
+        <button class="btn btn-alert btn-sm" id="btnClearHist" style="white-space:nowrap">履歴を全削除</button>
+        <button class="btn btn-alert btn-sm" id="btnClearCustom" style="white-space:nowrap">カスタムDBを全削除</button>
       </div>
       <div class="btnRow" style="margin-top:8px">
         <button class="btn btn-alert btn-sm" id="btnClearDb">🗑 DB内蔵データを全消去</button>

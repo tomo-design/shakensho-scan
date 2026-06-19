@@ -18,7 +18,7 @@ function setBtnLoading(btn, on, label) {
   if (on) {
     if (!btn.dataset.orig) btn.dataset.orig = btn.innerHTML;
     btn.disabled = true; btn.classList.add("btnLoading");
-    btn.innerHTML = '<img src="img/mecha.png" class="btnMecha spin" alt="">' + (label || "メカ君が考え中…");
+    btn.innerHTML = '<img src="img/thinking.png" class="btnMecha spin" alt="">' + (label || "メカ君が考え中…");
   } else {
     btn.disabled = false; btn.classList.remove("btnLoading");
     if (btn.dataset.orig) { btn.innerHTML = btn.dataset.orig; delete btn.dataset.orig; }
@@ -1565,10 +1565,16 @@ function updateDiagVehicleHint() {
     : "車検証をスキャンしておくと、車種固有の持病との照合・型式付き事例検索ができます";
 }
 $("btnDiagRun").addEventListener("click", async () => {
+  // 写真・動画の添付があればメディアAI解析、無ければ従来のコード/問診解析
+  if (diagAttachments.length) { await diagMediaAnalyze(); return; }
   const btn = $("btnDiagRun"); setBtnLoading(btn, true, "メカ君が考え中…");
   try { await runDiag(); } finally { setBtnLoading(btn, false); }
 });
-$("btnDiagClear").addEventListener("click", () => { $("diagText").value = ""; $("diagResults").innerHTML = ""; toggle("diagOcrStatus", false); });
+$("btnDiagClear").addEventListener("click", () => {
+  $("diagText").value = ""; $("diagResults").innerHTML = "";
+  toggle("diagOcrStatus", false); toggle("diagVideoStatus", false);
+  clearDiagAttachments();
+});
 
 function diagSection(tagClass, tagText, title) {
   const sec = document.createElement("section");
@@ -1995,13 +2001,24 @@ async function diagOcrImage(file) {
 }
 async function ocrTesseractDiag(file) {
   await loadTesseract();
+  // 前処理: 拡大＋大津二値化で印字の認識精度を上げる(診断機LCDの低コントラスト対策)
+  let target = file;
+  try {
+    const img = await loadImageEl(file);
+    const tw = Math.min(2400, Math.max(1600, img.width)), sc = tw / img.width;
+    const tmp = document.createElement("canvas"); tmp.width = tw; tmp.height = Math.round(img.height * sc);
+    tmp.getContext("2d").drawImage(img, 0, 0, tmp.width, tmp.height);
+    target = preprocessOcr(tmp);
+  } catch (e) {}
   const worker = await Tesseract.createWorker("eng", 1, {  // DTCは英数字のためengが高精度
     logger: m => {
       if (m.status === "recognizing text")
         $("diagOcrStatus").textContent = "文字認識中… " + Math.round(m.progress * 100) + "%";
     }
   });
-  const { data } = await worker.recognize(file);
+  // DTCで使う文字に限定し、似た記号の誤読を抑制
+  try { await worker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -", tessedit_pageseg_mode: "6" }); } catch (e) {}
+  const { data } = await worker.recognize(target);
   await worker.terminate();
   return data.text || "";
 }
@@ -2044,13 +2061,13 @@ async function geminiAskMedia(prompt, media) {
   }
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
 }
-function buildVideoDiagPrompt() {
+function buildMediaDiagPrompt() {
   const lines = [
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
-    "添付の動画(整備士が撮影した不具合の様子)を観察し、判断できる症状(異音の種類・発生タイミング、煙や排気の色、振動、警告灯、液漏れ、異常な挙動など)を読み取ってください。",
-    "音声があれば異音の特徴も考慮すること。映像・音声から判断できないことは断定せず推測には「（要確認）」を付けること。",
+    "添付の写真・動画(整備士が撮影した不具合の様子)を観察し、判断できる症状(異音の種類・発生タイミング、煙や排気の色、振動、警告灯、液漏れ、損傷、異常な挙動など)を読み取ってください。",
+    "動画に音声があれば異音の特徴も考慮すること。映像・音声から判断できないことは断定せず推測には「（要確認）」を付けること。",
     "前置き・免責・挨拶は不要。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
-    "■動画から読み取れる症状",
+    "■写真・動画から読み取れる症状",
     "・観察できた症状を箇条書き(判別できなければ『判別不可』)",
     "■原因候補（可能性が高い順）",
     "1. 原因名（一言で）",
@@ -2070,34 +2087,137 @@ function buildVideoDiagPrompt() {
   if (extra) lines.push("■整備士の補足メモ: " + extra);
   return lines.join("\n");
 }
-const diagVideoIn = $("diagVideoIn");
-$("btnDiagVideo").addEventListener("click", () => {
+/* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
+const diagAttachments = [];          // {file, kind:'image'|'video', url}
+const ATTACH_MAX = 18 * 1024 * 1024; // Geminiインライン上限の目安(約18MB)
+
+const attachMap = [
+  ["btnAttachPhoto", "inAttachPhoto"],
+  ["btnAttachPhotoCam", "inAttachPhotoCam"],
+  ["btnAttachVideo", "inAttachVideo"],
+  ["btnAttachVideoCam", "inAttachVideoCam"],
+];
+attachMap.forEach(([btn, input]) => {
+  $(btn).addEventListener("click", () => {
+    document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
+    $(btn).classList.add("sel");
+    $(input).click();
+  });
+  $(input).addEventListener("change", async e => {
+    const files = [...e.target.files]; e.target.value = "";
+    for (const f of files) await addDiagAttachment(f);
+  });
+});
+
+async function addDiagAttachment(file) {
+  const isVideo = (file.type || "").startsWith("video");
+  const st = $("diagVideoStatus");
+  let f = file;
+  if (isVideo && file.size > ATTACH_MAX) {
+    toggle("diagVideoStatus", true);
+    st.textContent = "🔧 動画が大きい(" + Math.round(file.size / 1048576) + "MB)ので自動圧縮しています…";
+    try {
+      f = await compressVideo(file, ATTACH_MAX);
+      st.textContent = "✓ 圧縮しました(" + Math.round(f.size / 1048576) + "MB)。";
+    } catch (e) {
+      f = file;
+      st.textContent = "⚠ 自動圧縮できませんでした。短い動画で撮り直すか、低画質で撮影してください。";
+    }
+    if (f.size > ATTACH_MAX) {
+      st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。15秒程度に短く撮り直してください。";
+      return;
+    }
+  }
+  diagAttachments.push({ file: f, kind: isVideo ? "video" : "image", url: URL.createObjectURL(f) });
+  renderDiagAttachList();
+}
+function renderDiagAttachList() {
+  const box = $("diagAttachList");
+  box.innerHTML = "";
+  diagAttachments.forEach((a, i) => {
+    const d = document.createElement("div"); d.className = "attachThumb";
+    const media = document.createElement(a.kind === "video" ? "video" : "img");
+    media.src = a.url; if (a.kind === "video") { media.muted = true; media.playsInline = true; }
+    const kind = document.createElement("span"); kind.className = "axKind"; kind.textContent = a.kind === "video" ? "動画" : "写真";
+    const del = document.createElement("button"); del.className = "axDel"; del.textContent = "×";
+    del.addEventListener("click", () => { URL.revokeObjectURL(a.url); diagAttachments.splice(i, 1); renderDiagAttachList(); });
+    d.append(media, kind, del); box.appendChild(d);
+  });
+  toggle("diagAttachList", diagAttachments.length > 0);
+}
+function clearDiagAttachments() {
+  diagAttachments.forEach(a => URL.revokeObjectURL(a.url));
+  diagAttachments.length = 0; renderDiagAttachList();
+  document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
+}
+
+/* 大きい動画をcanvas+MediaRecorderで縮小再エンコード(音声も維持。短時間クリップ向け) */
+function compressVideo(file, targetBytes) {
+  return new Promise((resolve, reject) => {
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) { reject(new Error("非対応")); return; }
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.src = url;
+    v.onloadedmetadata = () => {
+      const maxDim = 640;                       // 長辺640pxへ縮小
+      const scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
+      const w = Math.max(2, Math.round(v.videoWidth * scale) & ~1);
+      const h = Math.max(2, Math.round(v.videoHeight * scale) & ~1);
+      const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+      const cx = canvas.getContext("2d");
+      const cstream = canvas.captureStream(24);
+      // 元動画の音声トラックを合成(取得できる端末のみ)
+      try {
+        const vs = v.captureStream ? v.captureStream() : null;
+        const at = vs && vs.getAudioTracks ? vs.getAudioTracks()[0] : null;
+        if (at) cstream.addTrack(at);
+      } catch (e) {}
+      const dur = v.duration && isFinite(v.duration) ? v.duration : 12;
+      const bitrate = Math.max(300000, Math.min(2500000, Math.floor(targetBytes * 8 / Math.max(1, dur) * 0.85)));
+      let mime = "video/webm;codecs=vp8,opus";
+      if (!MediaRecorder.isTypeSupported(mime)) mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+      let rec;
+      try { rec = new MediaRecorder(cstream, mime ? { mimeType: mime, videoBitsPerSecond: bitrate } : { videoBitsPerSecond: bitrate }); }
+      catch (e) { URL.revokeObjectURL(url); reject(e); return; }
+      const chunks = [];
+      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        URL.revokeObjectURL(url);
+        const blob = new Blob(chunks, { type: mime || "video/webm" });
+        resolve(new File([blob], "compressed.webm", { type: blob.type }));
+      };
+      const draw = () => { if (v.ended || v.paused) return; cx.drawImage(v, 0, 0, w, h); requestAnimationFrame(draw); };
+      v.onplay = () => draw();
+      v.onended = () => { try { rec.stop(); } catch (e) {} };
+      rec.start();
+      v.play().catch(err => { URL.revokeObjectURL(url); reject(err); });
+      // 保険: 想定尺+2秒で強制停止
+      setTimeout(() => { if (rec.state !== "inactive") { try { v.pause(); rec.stop(); } catch (e) {} } }, (dur + 2) * 1000);
+    };
+    v.onerror = () => { URL.revokeObjectURL(url); reject(new Error("動画を読み込めませんでした")); };
+  });
+}
+
+let diagMediaBusy = false;
+async function diagMediaAnalyze() {
   if (!localStorage.getItem(LS.gemini)) {
-    alert("動画のAI解析には無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」でキーを取得・保存してください(クレジットカード不要)。");
+    alert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
-  diagVideoIn.click();
-});
-diagVideoIn.addEventListener("change", e => {
-  const f = e.target.files[0]; diagVideoIn.value = "";
-  if (f) diagVideoAnalyze(f);
-});
-let diagVideoBusy = false;
-async function diagVideoAnalyze(file) {
+  if (diagMediaBusy) return;
+  diagMediaBusy = true;
+  const runBtn = $("btnDiagRun"); setBtnLoading(runBtn, true, "メカ君が解析中…");
   const st = $("diagVideoStatus"); toggle("diagVideoStatus", true);
-  const MAX = 18 * 1024 * 1024;
-  if (file.size > MAX) {
-    st.textContent = "動画が大きすぎます(" + Math.round(file.size / 1048576) + "MB)。15秒程度の短い動画で撮り直してください(上限約18MB)。";
-    return;
-  }
-  if (diagVideoBusy) return;
-  diagVideoBusy = true; setBtnLoading($("btnDiagVideo"), true, "メカ君が動画を解析中…");
-  st.textContent = "🔧 メカ君が動画を解析しています…(数十秒かかる場合があります)";
+  st.textContent = "🔧 メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
+  // テキストにコード/症状があれば内蔵DB照合も表示
+  const text = $("diagText").value.trim();
+  if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
   try {
-    const data = await fileToBase64(file);
-    const r = await geminiAskMedia(buildVideoDiagPrompt(), [{ mimeType: file.type || "video/mp4", data }]);
+    const media = [];
+    for (const a of diagAttachments) media.push({ mimeType: a.file.type || (a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+    const r = await geminiAskMedia(buildMediaDiagPrompt(), media);
     const box = $("diagResults");
-    const { sec, body } = diagSection("", "メカ君", "動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+    const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
     const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
     renderAiAnswer(p, r.text);
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
@@ -2109,8 +2229,103 @@ async function diagVideoAnalyze(file) {
   } catch (err) {
     st.textContent = "⚠ " + (err.message || "解析に失敗しました");
   } finally {
-    diagVideoBusy = false; setBtnLoading($("btnDiagVideo"), false);
+    diagMediaBusy = false; setBtnLoading(runBtn, false);
   }
+}
+
+/* ===== 音声入力(Web Speech API) ===== */
+function getSpeechRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR(); r.lang = "ja-JP"; r.interimResults = true; r.continuous = false;
+  return r;
+}
+let micRec = null;
+$("btnDiagMic").addEventListener("click", () => {
+  if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; return; }
+  const rec = getSpeechRecognition();
+  if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+  micRec = rec;
+  const ta = $("diagText"); const base = ta.value;
+  $("btnDiagMic").textContent = "🎤 認識中…(押すと停止)";
+  rec.onresult = e => {
+    let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
+    ta.value = (base ? base + " " : "") + s;
+  };
+  rec.onerror = () => {};
+  rec.onend = () => { micRec = null; $("btnDiagMic").textContent = "🎤 音声で入力"; };
+  try { rec.start(); } catch (e) { micRec = null; $("btnDiagMic").textContent = "🎤 音声で入力"; }
+});
+
+/* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
+let voiceRec = null, voiceHistory = [], voiceActive = false;
+$("btnDiagVoiceChat").addEventListener("click", () => {
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("音声会話には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    switchView("settings"); return;
+  }
+  if (!getSpeechRecognition()) { alert("この端末/ブラウザは音声認識に対応していません(Chrome等をお試しください)。"); return; }
+  toggle("voiceChatSec", true);
+  $("voiceChatSec").scrollIntoView({ behavior: "smooth" });
+});
+$("btnVoiceStop").addEventListener("click", () => {
+  voiceActive = false;
+  if (voiceRec) { try { voiceRec.stop(); } catch (e) {} voiceRec = null; }
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  toggle("voiceChatSec", false);
+});
+function vcAppend(role, text) {
+  const d = document.createElement("div"); d.className = "vcMsg " + (role === "user" ? "user" : "mecha");
+  d.textContent = (role === "user" ? "あなた: " : "メカ君: ") + text;
+  $("voiceLog").appendChild(d); $("voiceLog").scrollTop = $("voiceLog").scrollHeight;
+}
+function speak(text) {
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[■#*]/g, "")); u.lang = "ja-JP"; u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
+$("btnVoiceTalk").addEventListener("click", () => {
+  if (voiceRec) { try { voiceRec.stop(); } catch (e) {} return; }
+  const rec = getSpeechRecognition(); if (!rec) return;
+  rec.interimResults = false;
+  voiceRec = rec; voiceActive = true;
+  $("voiceStatus").textContent = "🎤 聞いています…話し終わったら少し待ってください。";
+  $("btnVoiceTalk").textContent = "● 認識中…";
+  rec.onresult = async e => {
+    const said = e.results[0][0].transcript;
+    vcAppend("user", said);
+    voiceHistory.push({ role: "user", text: said });
+    $("voiceStatus").textContent = "🔧 メカ君が考えています…";
+    try {
+      const r = await geminiAsk(buildVoiceChatPrompt());
+      voiceHistory.push({ role: "mecha", text: r.text });
+      vcAppend("mecha", r.text);
+      speak(r.text);
+      $("voiceStatus").textContent = "「押して話す」でさらに質問できます。";
+    } catch (err) {
+      $("voiceStatus").textContent = "⚠ " + (err.message || "メカ君に接続できませんでした");
+    }
+  };
+  rec.onerror = () => { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; };
+  rec.onend = () => { voiceRec = null; $("btnVoiceTalk").textContent = "🎤 押して話す"; };
+  try { rec.start(); } catch (e) { voiceRec = null; }
+});
+function buildVoiceChatPrompt() {
+  const lines = [
+    "あなたは『メカ君』という、日本の自動車整備士を音声で支援する親しみやすいベテラン整備アドバイザーです。",
+    "音声で読み上げるので、簡潔に話し言葉で答えること。箇条書き記号やMarkdown記号は使わず、2〜4文程度で要点を。確信が持てない点は『要確認』と添える。",
+  ];
+  if (current.type || current.vin) {
+    const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
+    const v = code ? findVehicle(code) : null;
+    lines.push("対象車両: " + (current.type ? "型式 " + current.type : "車台番号 " + current.vin) + (v ? "（" + v.name + "）" : ""));
+  }
+  lines.push("これまでの会話:");
+  voiceHistory.slice(-8).forEach(m => lines.push((m.role === "user" ? "整備士" : "メカ君") + ": " + m.text));
+  lines.push("メカ君として次の返答を述べてください。");
+  return lines.join("\n");
 }
 
 /* =========================================================

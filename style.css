@@ -14,7 +14,7 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .mascot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:50% 6%;flex:none}
 .mascot-mini{width:64px;height:auto;margin-bottom:6px}
 #mechaHero{display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
-#mechaHero img{width:auto;height:110px;display:block}
+#mechaHero img{width:min(88%,360px);height:auto;display:block}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
 header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Chakra Petch'}
@@ -238,8 +238,27 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 
 /* ボタン内のメカ君アイコン + 押下/処理中フィードバック */
 .btnMecha{width:20px;height:20px;vertical-align:middle;margin-right:6px;object-fit:contain}
-/* 診断「メカ君に聞く」のアイコンは文字と同じくらい大きく */
-#btnDiagRun .btnMecha{width:1.5em;height:1.5em;margin-right:8px}
+/* 診断「メカ君に聞く」のアイコンは大きく(約3倍) */
+#btnDiagRun{display:flex;align-items:center;justify-content:center}
+#btnDiagRun .btnMecha{width:60px;height:60px;margin-right:10px}
+
+/* 診断見出し横の添付アイコン群 */
+.diagHead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.diagIcons{display:inline-flex;gap:4px;align-items:center;margin-left:auto}
+.diagIco{background:none;border:0;padding:1px;cursor:pointer;line-height:0;border-radius:8px}
+.diagIco img{width:30px;height:30px;object-fit:contain;display:block}
+.diagIco.sel{outline:2px solid var(--amber)}
+.diagIco:active{transform:scale(.9)}
+/* 添付プレビュー */
+#diagAttachList{display:flex;flex-wrap:wrap;gap:8px}
+.attachThumb{position:relative;width:74px;height:74px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel2)}
+.attachThumb img,.attachThumb video{width:100%;height:100%;object-fit:cover}
+.attachThumb .axDel{position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:13px;line-height:20px;cursor:pointer;padding:0}
+.attachThumb .axKind{position:absolute;left:2px;bottom:2px;font-size:10px;background:rgba(0,0,0,.6);color:#fff;border-radius:4px;padding:0 4px}
+/* 音声会話ログ */
+.vcMsg{font-size:14px;line-height:1.6;padding:8px 12px;border-radius:12px;max-width:88%}
+.vcMsg.user{align-self:flex-end;background:var(--amber);color:#3a2a00}
+.vcMsg.mecha{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
 .btn:active{transform:scale(.97)}
 .btnLoading{opacity:.7;pointer-events:none}
 .btnMecha.spin{animation:mechaSpin 1s linear infinite}
