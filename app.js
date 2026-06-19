@@ -867,8 +867,8 @@ function goVehiclePage(name) {
   if (name === "maint") {
     // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
     if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
-  } else if (name === "diag") $("diagText").focus();
-  else if (name === "parts") $("partName").focus();
+  }
+  // 診断・部品はタブを開いた時点では入力欄にフォーカスしない(自動でキーボードが出るのを防ぐ)
 }
 $("btnGoMaint").addEventListener("click", () => goVehiclePage("maint"));
 $("btnGoDiag").addEventListener("click", () => goVehiclePage("diag"));
@@ -1572,7 +1572,7 @@ $("btnDiagRun").addEventListener("click", async () => {
 });
 $("btnDiagClear").addEventListener("click", () => {
   $("diagText").value = ""; $("diagResults").innerHTML = "";
-  toggle("diagOcrStatus", false); toggle("diagVideoStatus", false);
+  toggle("diagVideoStatus", false);
   clearDiagAttachments();
 });
 
@@ -1969,61 +1969,7 @@ $("btnSpecAI").addEventListener("click", async () => {
   }
 });
 
-/* ---- 診断機画面のOCR読み取り（撮影 / 画像ペースト） ---- */
-const diagOcrIn = $("diagOcrIn");
-$("btnDiagOcr").addEventListener("click", () => diagOcrIn.click());
-diagOcrIn.addEventListener("change", e => {
-  const f = e.target.files[0]; diagOcrIn.value = "";
-  if (f) diagOcrImage(f);
-});
-document.addEventListener("paste", e => {
-  if (!document.getElementById("view-diag").classList.contains("active")) return;
-  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
-  if (item) { e.preventDefault(); diagOcrImage(item.getAsFile()); }
-});
-async function diagOcrImage(file) {
-  toggle("diagOcrStatus", true);
-  $("diagOcrStatus").textContent = "Tesseract OCR で解析中…(初回は少し時間がかかります)";
-  try {
-    const text = await ocrTesseractDiag(file);
-    const codes = extractDTCs(text);
-    if (codes.length) {
-      const cur = $("diagText").value.trim();
-      $("diagText").value = (cur ? cur + "\n" : "") + codes.join(" ");
-      $("diagOcrStatus").textContent = "✓ " + codes.length + "件のコードを検出: " + codes.join(", ");
-      runDiag();
-    } else {
-      $("diagOcrStatus").textContent = "コードを検出できませんでした。コード表示部分が大きく写るように撮影し直すか、コードを直接入力してください。";
-    }
-  } catch (err) {
-    $("diagOcrStatus").textContent = "OCRエラー: " + (err.message || err);
-  }
-}
-async function ocrTesseractDiag(file) {
-  await loadTesseract();
-  // 前処理: 拡大＋大津二値化で印字の認識精度を上げる(診断機LCDの低コントラスト対策)
-  let target = file;
-  try {
-    const img = await loadImageEl(file);
-    const tw = Math.min(2400, Math.max(1600, img.width)), sc = tw / img.width;
-    const tmp = document.createElement("canvas"); tmp.width = tw; tmp.height = Math.round(img.height * sc);
-    tmp.getContext("2d").drawImage(img, 0, 0, tmp.width, tmp.height);
-    target = preprocessOcr(tmp);
-  } catch (e) {}
-  const worker = await Tesseract.createWorker("eng", 1, {  // DTCは英数字のためengが高精度
-    logger: m => {
-      if (m.status === "recognizing text")
-        $("diagOcrStatus").textContent = "文字認識中… " + Math.round(m.progress * 100) + "%";
-    }
-  });
-  // DTCで使う文字に限定し、似た記号の誤読を抑制
-  try { await worker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -", tessedit_pageseg_mode: "6" }); } catch (e) {}
-  const { data } = await worker.recognize(target);
-  await worker.terminate();
-  return data.text || "";
-}
-
-/* ---- 診断機画面の「動画を撮影してAI解析」(Geminiマルチモーダル) ---- */
+/* ---- 写真・動画の添付AI解析(Geminiマルチモーダル) ---- */
 function fileToBase64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -2241,21 +2187,27 @@ function getSpeechRecognition() {
   return r;
 }
 let micRec = null;
-$("btnDiagMic").addEventListener("click", () => {
-  if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; return; }
-  const rec = getSpeechRecognition();
-  if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
-  micRec = rec;
-  const ta = $("diagText"); const base = ta.value;
-  $("btnDiagMic").textContent = "🎤 認識中…(押すと停止)";
-  rec.onresult = e => {
-    let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
-    ta.value = (base ? base + " " : "") + s;
-  };
-  rec.onerror = () => {};
-  rec.onend = () => { micRec = null; $("btnDiagMic").textContent = "🎤 音声で入力"; };
-  try { rec.start(); } catch (e) { micRec = null; $("btnDiagMic").textContent = "🎤 音声で入力"; }
-});
+/* 音声で文字入力: ボタンを押すと認識開始、結果を入力欄に追記。再押下で停止 */
+function wireFieldMic(btnId, fieldId, idleLabel) {
+  const btn = $(btnId); if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; return; }
+    const rec = getSpeechRecognition();
+    if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    micRec = rec;
+    const fld = $(fieldId); const base = fld.value;
+    btn.textContent = "●"; btn.classList.add("sel");
+    rec.onresult = e => {
+      let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
+      fld.value = (base ? base + " " : "") + s;
+    };
+    rec.onerror = () => {};
+    rec.onend = () => { micRec = null; btn.textContent = idleLabel; btn.classList.remove("sel"); };
+    try { rec.start(); } catch (e) { micRec = null; btn.textContent = idleLabel; btn.classList.remove("sel"); }
+  });
+}
+wireFieldMic("btnDiagMic", "diagText", "🎤");
+wireFieldMic("btnPartsMic", "partName", "🎤");
 
 /* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
 let voiceRec = null, voiceHistory = [], voiceActive = false;

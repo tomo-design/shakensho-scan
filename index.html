@@ -242,6 +242,7 @@
     <label class="fld">交換する部品名</label>
     <div class="inputRow">
       <input type="text" id="partName" placeholder="例: フロントブレーキパッド / オルタネーター">
+      <button class="btn btn-ghost" id="btnPartsMic" title="音声で入力" style="flex:0 0 auto;padding:13px 14px">🎤</button>
       <button class="btn btn-amber" id="btnPartsGo">調べる</button>
     </div>
     <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
@@ -262,6 +263,8 @@
   <section style="margin-top:6px">
     <h2 class="diagHead"><span class="tag al">DTC</span>ダイアグコード/故障診断
       <span class="diagIcons">
+        <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
+        <button type="button" class="diagIco txt" id="btnDiagVoiceChat" title="メカ君と会話">🗣️</button>
         <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
         <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
         <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
@@ -269,21 +272,14 @@
       </span>
     </h2>
     <div class="sec-body">
-      <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost btn-sm" id="btnDiagOcr">📷 診断機画面でコード読取</button>
-        <button class="btn btn-ghost btn-sm" id="btnDiagMic">🎤 音声で入力</button>
-        <button class="btn btn-ghost btn-sm" id="btnDiagVoiceChat">🗣️ メカ君と音声会話</button>
-      </div>
-      <div id="diagOcrStatus" class="hint hidden" style="margin-top:8px"></div>
       <textarea id="diagText" placeholder="ダイアグコード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。🎤音声入力や、右上アイコンから写真・動画の添付もできます。"></textarea>
       <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
       <div id="diagVideoStatus" class="hint hidden" style="margin-top:8px"></div>
-      <div class="btnRow">
-        <button class="btn btn-amber" id="btnDiagRun"><img src="img/mecha.png" class="btnMecha" alt="">メカ君に聞く</button>
-        <button class="btn btn-ghost" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
+      <div class="btnRow diagRunRow">
+        <button class="btn btn-amber btn-sm" id="btnDiagRun"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
+        <button class="btn btn-ghost btn-sm" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
       </div>
       <div class="hint" id="diagVehicleHint" style="margin-top:8px"></div>
-      <input type="file" id="diagOcrIn" accept="image/*" capture="environment" class="hidden">
       <input type="file" id="inAttachPhoto" accept="image/*" multiple class="hidden">
       <input type="file" id="inAttachPhotoCam" accept="image/*" capture="environment" class="hidden">
       <input type="file" id="inAttachVideo" accept="video/*" class="hidden">
@@ -407,6 +403,8 @@
       <div class="hint" style="margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px">
         <b>📈 もっと高精度にしたい場合（課金してアップグレード）</b><br>
         無料のTesseractは手書きや小さな印字で精度が落ちることがあります。より高い認識精度が必要な場合は、有料のクラウドOCR（例: Google Cloud Vision API。従量課金・無料枠あり）へのアップグレードを選べます。利用にはGoogle Cloudの課金設定とAPIキーが必要です。<br>
+        ・料金: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">cloud.google.com/vision/pricing ↗</a><br>
+        ・APIキー発行(課金設定): <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud Console（Vision APIを有効化）↗</a><br>
         ご希望があればこのアプリに「Cloud Vision OCRを使う」切り替えを追加します（設定でキーを入れた時のみ有料OCRを使用し、未設定なら従来どおり無料Tesseract）。
       </div>
     </div>

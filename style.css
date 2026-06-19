@@ -238,15 +238,17 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 
 /* ボタン内のメカ君アイコン + 押下/処理中フィードバック */
 .btnMecha{width:20px;height:20px;vertical-align:middle;margin-right:6px;object-fit:contain}
-/* 診断「メカ君に聞く」のアイコンは大きく(約3倍) */
+/* 診断「メカ君に聞く」: ボタンは小さめ・アイコンも控えめ */
 #btnDiagRun{display:flex;align-items:center;justify-content:center}
-#btnDiagRun .btnMecha{width:60px;height:60px;margin-right:10px}
+#btnDiagRun .btnMecha{width:30px;height:30px;margin-right:8px}
+.diagRunRow .btn{min-height:40px}
 
-/* 診断見出し横の添付アイコン群 */
+/* 診断見出し横の操作アイコン群(音声入力/会話 + 写真・動画添付) */
 .diagHead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.diagIcons{display:inline-flex;gap:4px;align-items:center;margin-left:auto}
+.diagIcons{display:inline-flex;gap:5px;align-items:center;margin-left:auto;flex-wrap:wrap}
 .diagIco{background:none;border:0;padding:1px;cursor:pointer;line-height:0;border-radius:8px}
 .diagIco img{width:30px;height:30px;object-fit:contain;display:block}
+.diagIco.txt{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1;border:1px solid var(--line);background:var(--panel2)}
 .diagIco.sel{outline:2px solid var(--amber)}
 .diagIco:active{transform:scale(.9)}
 /* 添付プレビュー */
