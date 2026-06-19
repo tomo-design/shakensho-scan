@@ -261,16 +261,15 @@
   </nav>
 
   <section style="margin-top:6px">
-    <h2 class="diagHead"><span class="tag al">DTC</span>ダイアグコード/故障診断
-      <span class="diagIcons">
-        <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
-        <button type="button" class="diagIco txt" id="btnDiagVoiceChat" title="メカ君と会話">🗣️</button>
-        <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
-        <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
-        <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
-        <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
-      </span>
-    </h2>
+    <h2><span class="tag al">DTC</span>ダイアグコード/故障診断</h2>
+    <div class="diagIcons">
+      <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
+      <button type="button" class="diagIco txt" id="btnDiagVoiceChat" title="メカ君と会話">🗣️</button>
+      <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
+      <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
+      <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
+      <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
+    </div>
     <div class="sec-body">
       <textarea id="diagText" placeholder="ダイアグコード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。🎤音声入力や、右上アイコンから写真・動画の添付もできます。"></textarea>
       <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
@@ -390,8 +389,8 @@
       <div id="geminiStat" class="hint" style="margin-top:8px"></div>
       <label class="fld" style="margin-top:14px">回答の品質モード</label>
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost btn-sm mode-btn" id="modeFlash" data-mode="flash" style="white-space:nowrap">標準（速い・回数多め）</button>
-        <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（最高精度・回数少なめ）</button>
+        <button class="btn btn-ghost btn-sm mode-btn" id="modeFlash" data-mode="flash" style="white-space:nowrap">標準（速い）</button>
+        <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（精度重視）</button>
       </div>
       <div class="hint" style="margin-top:8px">どちらもAIが回答前に内部で「思考」してから答えます。高精度モードは複雑な複合症状向け。無料枠の上限に達した場合は自動で標準モデルに切り替えて再試行します。</div>
     </div>
@@ -399,13 +398,14 @@
   <section>
     <h2><span class="tag cy">OCR</span>OCRについて</h2>
     <div class="sec-body">
-      <p class="hint">OCRは端末内で動くTesseract（完全無料）を使用します。初回利用時のみ認識モデルのダウンロードに通信が必要で、以降はオフラインでも動作します。<br><br>読み取りのコツ: 明るい場所で、読みたい文字部分が画面いっぱいに大きく写るよう近づいて、ピントが合ってから撮影してください。</p>
-      <div class="hint" style="margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px">
-        <b>📈 もっと高精度にしたい場合（課金してアップグレード）</b><br>
-        無料のTesseractは手書きや小さな印字で精度が落ちることがあります。より高い認識精度が必要な場合は、有料のクラウドOCR（例: Google Cloud Vision API。従量課金・無料枠あり）へのアップグレードを選べます。利用にはGoogle Cloudの課金設定とAPIキーが必要です。<br>
-        ・料金: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">cloud.google.com/vision/pricing ↗</a><br>
-        ・APIキー発行(課金設定): <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud Console（Vision APIを有効化）↗</a><br>
-        ご希望があればこのアプリに「Cloud Vision OCRを使う」切り替えを追加します（設定でキーを入れた時のみ有料OCRを使用し、未設定なら従来どおり無料Tesseract）。
+      <p class="hint">写真から文字を読み取る機能（DB編集の「写真から読み取り」など）は、端末内で動く<b>Tesseract（無料・オフライン可）</b>を使います。明るい場所で文字が大きく写るよう近づけて撮ると精度が上がります。</p>
+      <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
+        <b>有料で高精度にしたい場合（任意）</b><br>
+        Google Cloud Vision API（高精度・有料／無料枠あり）に対応予定です。手順は3つだけ:<br>
+        ① <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">このリンク</a>を開き「有効にする」を押す<br>
+        ② 表示される案内で「APIキー」を作成（課金を有効にする必要があります）<br>
+        ③ そのキーをこのアプリに貼り付けてONにする<br>
+        <span style="color:var(--dim)">※ ③の切り替えは<b>まだ未実装</b>です。ご希望があれば追加します（キー未設定の間は無料Tesseractのまま動きます）。<br>料金の目安: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API 料金 ↗</a></span>
       </div>
     </div>
   </section>
