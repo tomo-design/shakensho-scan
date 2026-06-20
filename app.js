@@ -918,6 +918,8 @@ function buildPartsPrompt(part) {
     "2. (以降番号順に)",
     "■締付トルク・規定値",
     "関連する締付トルクや規定値があれば(確信が持てない値は「要確認」を付ける)。",
+    "■純正部品の参考価格",
+    "この部品の純正(OEM)新品のおおよその価格を日本円で(例: 約8,000〜12,000円・要確認)。分からなければ「要確認」と記す。",
     "■注意点",
     "事故・破損を防ぐ注意を1〜3行。",
     "",
@@ -953,14 +955,15 @@ $("btnPartsGo").addEventListener("click", async () => {
   }
   if (partsBusy) return; partsBusy = true;
   const box = $("partsResult"); toggle("partsResult", true);
-  box.textContent = "🤖 AIが交換手順を調べています…"; $("btnPartsGo").disabled = true;
+  box.textContent = "🔧 メカ君が交換手順を調べています…";
+  setBtnLoading($("btnPartsGo"), true, "メカ君が調べ中…");
   try {
     const r = await geminiAsk(buildPartsPrompt(part));
     renderAiAnswer(box, r.text);
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
-    partsBusy = false; $("btnPartsGo").disabled = false;
+    partsBusy = false; setBtnLoading($("btnPartsGo"), false);
   }
 });
 $("btnPartsClear").addEventListener("click", () => {
@@ -2466,25 +2469,43 @@ function getSpeechRecognition() {
   const r = new SR(); r.lang = "ja-JP"; r.interimResults = true; r.continuous = false;
   return r;
 }
-let micRec = null;
-/* 音声で文字入力: ボタンを押すと認識開始、結果を入力欄に追記。再押下で停止 */
+let micRec = null, micListening = false, micBtnCur = null;
+/* 音声で文字入力: 押すと認識開始。無音で切れても押すまで自動再開し続ける。再押下で停止 */
 function wireFieldMic(btnId, fieldId, idleLabel) {
   const btn = $(btnId); if (!btn) return;
   btn.addEventListener("click", () => {
-    if (typeof closeVoiceChat === "function") closeVoiceChat();   // 他アイコン選択で会話モードを閉じる
-    if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; return; }
-    const rec = getSpeechRecognition();
-    if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
-    micRec = rec;
-    const fld = $(fieldId); const base = fld.value;
-    btn.textContent = "●"; btn.classList.add("sel");
-    rec.onresult = e => {
-      let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
-      fld.value = (base ? base + " " : "") + s;
+    if (typeof closeVoiceChat === "function") closeVoiceChat();
+    if (micListening && micBtnCur === btn) {      // 停止
+      micListening = false;
+      if (micRec) { try { micRec.stop(); } catch (e) {} }
+      btn.textContent = idleLabel; btn.classList.remove("sel");
+      return;
+    }
+    if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; }
+    if (!getSpeechRecognition()) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    const fld = $(fieldId);
+    const base = fld.value ? fld.value + " " : "";
+    let accum = "", sessionFinal = "";
+    micListening = true; micBtnCur = btn; btn.textContent = "●"; btn.classList.add("sel");
+    const startSession = () => {
+      const rec = getSpeechRecognition(); if (!rec) { micListening = false; return; }
+      rec.continuous = true; rec.interimResults = true; micRec = rec; sessionFinal = "";
+      rec.onresult = e => {
+        let f = "", interim = "";
+        for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
+        sessionFinal = f;
+        fld.value = base + dedupRepeats(accum + f + interim);
+      };
+      rec.onerror = () => {};
+      rec.onend = () => {
+        accum += sessionFinal; sessionFinal = ""; micRec = null;
+        if (micListening) { startSession(); return; }   // 押すまで聞き続ける
+        btn.textContent = idleLabel; btn.classList.remove("sel");
+        fld.value = base + dedupRepeats(accum);
+      };
+      try { rec.start(); } catch (e) { micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel"); }
     };
-    rec.onerror = () => {};
-    rec.onend = () => { micRec = null; btn.textContent = idleLabel; btn.classList.remove("sel"); };
-    try { rec.start(); } catch (e) { micRec = null; btn.textContent = idleLabel; btn.classList.remove("sel"); }
+    startSession();
   });
 }
 wireFieldMic("btnDiagMic", "diagText", "🎤");

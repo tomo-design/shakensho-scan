@@ -252,9 +252,14 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 .diagIco:active{transform:scale(.92)}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
-/* セクション見出しの右端にクリアボタン */
+/* セクション見出しの右端にマイク＋クリア(マイクはクリアの左) */
 .secHead{display:flex;align-items:center;gap:6px}
-.secHead .secClear{margin-left:auto;flex:0 0 auto}
+.secHead .secMic{margin-left:auto;flex:0 0 auto;padding:8px 12px}
+.secHead .secClear{flex:0 0 auto}
+/* 白背景・選択(押下/処理中)で枠だけ色がつくアクションボタン */
+.btnPick{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
+.btnPick:active,.btnPick.btnLoading{border-color:var(--amber);color:var(--amber)}
+#btnVehAsk .btnMecha{width:34px;height:34px;margin-right:8px}
 /* 音声会話: メカ君の発言アイコン */
 .vcMsg.mecha .vcIco{width:22px;height:22px;vertical-align:middle;margin-right:6px}
 /* クリック可能な原因候補・故障 */
