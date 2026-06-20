@@ -13,6 +13,9 @@
 <link rel="stylesheet" href="style.css">
 <script src="lib/jsQR.js"></script>
 <script src="lib/zxing.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -445,6 +448,43 @@
     </div>
   </section>
   <section>
+    <h2><span class="tag">CLOUD</span>クラウド同期（社内共有）</h2>
+    <div class="sec-body">
+      <!-- 未ログイン -->
+      <div id="cloudLoggedOut">
+        <p class="hint">ログインすると、車種DB・車両データ（ナンバー/使用者含む）を<b>社内の全端末で自動共有</b>できます。会社ごとに分離され、他社からは見えません。</p>
+        <label class="fld">メールアドレス</label>
+        <input type="email" id="cloudEmail" placeholder="you@example.com" autocomplete="username">
+        <label class="fld">パスワード</label>
+        <input type="password" id="cloudPw" placeholder="6文字以上" autocomplete="current-password">
+        <div class="btnRow" style="margin-top:10px"><button class="btn btn-amber" id="btnCloudLogin">ログイン</button></div>
+        <div class="linkrow"><button class="textlink" id="lnkCloudSignup" type="button">新規登録（会社を作る／会社に参加する）</button></div>
+        <!-- 新規登録フォーム -->
+        <div id="cloudSignupBox" class="hidden" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
+          <label class="fld">事業所ID（会社の識別名・半角英数）</label>
+          <input type="text" id="cloudTenant" class="uc" placeholder="例: yamada-motors">
+          <div class="btnRow" style="margin-top:8px">
+            <button class="btn btn-ghost btn-sm" id="btnSignupNew">この会社を新規作成（私が代表管理者）</button>
+          </div>
+          <div class="btnRow" style="margin-top:6px">
+            <button class="btn btn-ghost btn-sm" id="btnSignupJoin">既存の会社に参加（承認待ちになる）</button>
+          </div>
+          <div class="hint" style="margin-top:6px">新規会社は運営の承認後に有効化。会社に参加は、その会社の代表管理者の承認後に使えます。</div>
+        </div>
+        <div id="cloudAuthStat" class="hint" style="margin-top:8px"></div>
+      </div>
+      <!-- ログイン中 -->
+      <div id="cloudLoggedIn" class="hidden">
+        <div id="cloudStat" class="hint"></div>
+        <div class="btnRow" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" id="btnCloudManage">👥 メンバー / 会社管理</button>
+          <button class="btn btn-ghost btn-sm" id="btnCloudLogout">ログアウト</button>
+        </div>
+        <div id="cloudManageBox" class="hidden" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+  <section>
     <h2><span class="tag al">DATA</span>データ管理</h2>
     <div class="sec-body">
       <div class="btnRow" style="margin-top:0">
@@ -484,5 +524,6 @@
 </nav>
 
 <script src="app.js"></script>
+<script src="cloud.js"></script>
 </body>
 </html>

@@ -876,6 +876,7 @@ function registerVehicleToDB(opt = {}) {
     notes: rec.notes || "",
   });
   saveCustomDB();
+  if (window.Cloud) window.Cloud.pushVehicle(rec);   // 社内共有へ
   try { renderDBList(); } catch (e) {}
   if (!opt.silent) {
     const msg = $("vidSavedMsg");
@@ -1184,6 +1185,7 @@ function saveVehicleAiData(specs, faults, recalls, extra) {
   if (extra && extra.maker) t.maker = extra.maker;
   t.aiAt = new Date().toISOString();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
+  if (window.Cloud) window.Cloud.pushRecord(t);   // 諸元・故障も社内共有へ
 }
 function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).join("\n"); }
 function textToSpecs(text) {
@@ -1433,6 +1435,7 @@ function addHistory(d) {
   }
   localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 200)));
   renderHistory();
+  if (window.Cloud) window.Cloud.pushRecord(findHistEntry(getHistory(), d));   // 社内共有へ
 }
 /* 現在表示中の車両に使用者名を保存 */
 function saveUserName(name) {
@@ -1441,7 +1444,7 @@ function saveUserName(name) {
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
   const h2 = getHistory();
   const t = findHistEntry(h2, current);
-  if (t) { t.name = name || null; localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); }
+  if (t) { t.name = name || null; localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
 }
 function histToResult(h) {
   return {
@@ -1501,6 +1504,7 @@ function renderDBList() {
       const bd = document.createElement("button"); bd.className = "btn btn-alert btn-sm"; bd.textContent = "削除";
       bd.addEventListener("click", () => {
         if (!confirm("「" + v.name + "」を削除しますか？")) return;
+        if (window.Cloud) window.Cloud.deleteVehicle(v.id);
         CUSTOM_DB = CUSTOM_DB.filter(x => x.id !== v.id); saveCustomDB(); renderDBList();
       });
       btns.appendChild(bd);
@@ -1588,7 +1592,7 @@ $("btnDbSave").addEventListener("click", () => {
   };
   const i = CUSTOM_DB.findIndex(x => x.id === rec.id);
   if (i >= 0) CUSTOM_DB[i] = rec; else CUSTOM_DB.unshift(rec);
-  saveCustomDB(); toggle("dbFormSec", false); renderDBList();
+  saveCustomDB(); if (window.Cloud) window.Cloud.pushVehicle(rec); toggle("dbFormSec", false); renderDBList();
 });
 
 /* エクスポート / インポート */
