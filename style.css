@@ -252,6 +252,9 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 .diagIco:active{transform:scale(.92)}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
+/* セクション見出しの右端にクリアボタン */
+.secHead{display:flex;align-items:center;gap:6px}
+.secHead .secClear{margin-left:auto;flex:0 0 auto}
 /* 音声会話: メカ君の発言アイコン */
 .vcMsg.mecha .vcIco{width:22px;height:22px;vertical-align:middle;margin-right:6px}
 /* クリック可能な原因候補・故障 */

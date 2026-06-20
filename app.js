@@ -967,7 +967,39 @@ $("btnPartsClear").addEventListener("click", () => {
   $("partName").value = "";
   $("partsResult").innerHTML = ""; toggle("partsResult", false);
   $("partsLinks").innerHTML = "";
-  $("inspectResult").innerHTML = ""; toggle("secInspect", false);
+});
+
+/* この車両について質問(AI Q&A) */
+let vehAskBusy = false;
+$("btnVehClear").addEventListener("click", () => {
+  $("qVehText").value = "";
+  $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
+});
+$("btnVehAsk").addEventListener("click", async () => {
+  const q = $("qVehText").value.trim();
+  if (!q) { $("qVehText").focus(); return; }
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("質問するには設定タブで無料のGemini APIキーを設定してください。");
+    switchView("settings"); return;
+  }
+  if (vehAskBusy) return; vehAskBusy = true;
+  const box = $("qVehResult"); toggle("qVehResult", true);
+  box.textContent = "🔧 メカ君が考えています…";
+  const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
+  try {
+    const prompt = [
+      "あなたは日本の自動車整備士を支援するベテラン整備士『メカ君』です。次の車両について、整備士からの質問に正確かつ実務的に答えてください。",
+      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。前置き・免責不要。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
+      "■対象車両: " + vehicleDesc(),
+      "■質問: " + q,
+    ].join("\n");
+    const r = await geminiAsk(prompt);
+    renderAiAnswer(box, r.text);
+  } catch (e) {
+    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+  } finally {
+    vehAskBusy = false; setBtnLoading(btn, false);
+  }
 });
 
 function showResult(d, opt = {}) {
@@ -1289,12 +1321,11 @@ async function gotoInspection(text) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   }
 }
-/* 定番故障・持病をタップ可能リストで描画(タップでAIが部品特定→修理タブへ) */
+/* 定番故障・持病の一覧(タップ機能なし) */
 function renderFaultList(faults) {
   const ul = $("faultList"); ul.innerHTML = "";
   (faults || []).forEach(t => {
-    const li = document.createElement("li"); li.className = "clk"; li.textContent = t;
-    li.addEventListener("click", () => gotoRepairFromText(t, "fault"));
+    const li = document.createElement("li"); li.textContent = t;
     ul.appendChild(li);
   });
 }
@@ -1312,11 +1343,25 @@ function copyText(t) {
     try { document.execCommand("copy"); } catch (e2) {} ta.remove();
   }
 }
+/* 車台番号→型式 のキャッシュ＆AI特定 */
+function getCachedKata(vin) { try { return JSON.parse(localStorage.getItem("ss_katacache") || "{}")[vinPrefix(vin).toUpperCase()] || null; } catch (e) { return null; } }
+function setCachedKata(vin, k) { try { const c = JSON.parse(localStorage.getItem("ss_katacache") || "{}"); c[vinPrefix(vin).toUpperCase()] = k; localStorage.setItem("ss_katacache", JSON.stringify(c)); } catch (e) {} }
+async function resolveKatashiki(type, vin) {
+  if (type && type.includes("-")) return type;          // 読み取った完全形の型式があればそれ
+  if (!vin) return type || "";
+  const cached = getCachedKata(vin); if (cached) return cached;
+  if (!localStorage.getItem(LS.gemini)) return type || vinPrefix(vin);
+  try {
+    const prompt = "次の日本の自動車の車台番号から、車検証に記載される『型式』を1つだけ答えてください。型式のみ(例: QKG-FV60VX)、説明・記号・改行なし。車台番号: " + vin + (type ? " / 参考: " + type : "");
+    const r = await geminiAsk(prompt);
+    const k = (r.text || "").split(/\n/)[0].replace(/[「」『』。、\s]/g, "").trim().toUpperCase();
+    if (/^[0-9A-Z]{2,4}-[A-Z0-9]{3,10}$/.test(k)) { setCachedKata(vin, k); return k; }
+  } catch (e) {}
+  return type || vinPrefix(vin);
+}
 function renderRecallVin(type, vin) {
   const box = $("recallVin"); box.innerHTML = "";
   if (!vin && !type) return;
-  // 型式: 実際の型式(例 QKG-FV60VX)を優先。無ければ車台番号の先頭で代替
-  const kata = type || (vin ? vinPrefix(vin) : "");
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
   head.textContent = "型式・車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
   box.appendChild(head);
@@ -1328,12 +1373,16 @@ function renderRecallVin(type, vin) {
     const code = document.createElement("code"); code.textContent = val;
     code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
     const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.cssText = "flex:0 0 auto;padding:8px 11px"; cp.textContent = "📋"; cp.title = "コピー";
-    cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓"; setTimeout(() => cp.textContent = "📋", 1200); });
-    r.append(code, cp); c.append(lab, r); return c;
+    cp.addEventListener("click", () => { copyText(code.textContent); cp.textContent = "✓"; setTimeout(() => cp.textContent = "📋", 1200); });
+    r.append(code, cp); c.append(lab, r); return { col: c, code };
   };
-  if (kata) cols.appendChild(mkCol("型式", kata));
-  if (vin) cols.appendChild(mkCol("車台番号", vin));
+  // 型式: 車台番号から正しい型式を特定して表示(初期は仮表示→AI/キャッシュで更新)
+  const kataInit = (type && type.includes("-")) ? type : (vin ? (getCachedKata(vin) || vinPrefix(vin)) : (type || ""));
+  const kataCol = mkCol("型式", kataInit || "—");
+  cols.appendChild(kataCol.col);
+  if (vin) cols.appendChild(mkCol("車台番号", vin).col);
   box.appendChild(cols);
+  if (vin) resolveKatashiki(type, vin).then(k => { if (k) kataCol.code.textContent = k; });
 }
 
 /* =========================================================
@@ -1967,10 +2016,6 @@ function renderAiAnswer(container, text, opts) {
       const li = document.createElement("li");
       const div = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
-      if (opts.linkCauses) {     // 診断の原因候補をタップ→修理タブの点検手順で詳しく説明
-        t.classList.add("clk"); t.title = "タップで修理タブの点検手順を表示";
-        t.addEventListener("click", () => gotoInspection(n[2]));
-      }
       div.appendChild(t);
       li.appendChild(div);
       list.appendChild(li);
@@ -2444,6 +2489,7 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
 }
 wireFieldMic("btnDiagMic", "diagText", "🎤");
 wireFieldMic("btnPartsMic", "partName", "🎤");
+wireFieldMic("btnVehMic", "qVehText", "🎤");
 
 /* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
 let voiceRec = null, voiceHistory = [], voiceActive = false;

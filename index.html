@@ -213,7 +213,6 @@
   <section id="secFault" class="hidden">
     <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
     <div class="sec-body">
-      <div class="hint" style="margin:0 0 6px">タップすると「修理」タブでその修理手順を調べます。</div>
       <ul class="flat" id="faultList"></ul>
     </div>
   </section>
@@ -242,7 +241,7 @@
     <button class="navBtn" data-go="diag">🩺 診断</button>
     <button class="navBtn" data-go="parts">🔧 修理</button>
   </nav>
-  <section><h2><span class="tag">REPAIR</span>修理・部品交換の手順</h2>
+  <section><h2 class="secHead"><span class="tag">REPAIR</span>修理・部品交換の手順<button class="btn btn-ghost btn-sm secClear" id="btnPartsClear">クリア</button></h2>
   <div class="sec-body">
     <label class="fld">交換する部品名</label>
     <div class="inputRow">
@@ -250,21 +249,21 @@
       <button class="btn btn-ghost" id="btnPartsMic" title="音声で入力" style="flex:0 0 auto;padding:13px 14px">🎤</button>
       <button class="btn btn-amber" id="btnPartsGo">調べる</button>
     </div>
-    <div class="btnRow" style="margin-top:8px">
-      <button class="btn btn-ghost btn-sm" id="btnPartsClear">クリア</button>
-    </div>
     <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
     <div id="partsLinks"></div>
     <div class="hint" style="margin-top:10px">※ 手順はAIによる参考情報です。締付トルク等は整備書で確認を。動画は外部サイト(YouTube等)が開きます。</div>
   </div></section>
 
-  <section id="secInspect" class="hidden">
-    <h2><span class="tag cy">CHECK</span>点検手順</h2>
-    <div class="sec-body">
-      <div id="inspectTarget" class="hint" style="margin:0 0 8px"></div>
-      <div id="inspectResult" class="ai-answer"></div>
+  <section><h2 class="secHead"><span class="tag cy">ASK</span>この車両について質問<button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
+  <div class="sec-body">
+    <textarea id="qVehText" placeholder="この車両について何でも質問できます（例: この型式の推奨タイヤサイズは？ / バッテリーの品番は？ / よくある電装トラブルは？）。🎤音声入力もできます。"></textarea>
+    <div class="btnRow">
+      <button class="btn btn-ghost" id="btnVehMic" title="音声で入力" style="flex:0 0 auto;padding:13px 16px">🎤</button>
+      <button class="btn btn-amber" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
     </div>
-  </section>
+    <div id="qVehResult" class="ai-answer hidden" style="margin-top:10px"></div>
+    <div class="hint" style="margin-top:10px">※ 回答はAIによる参考情報です。整備書・実車で確認してください。</div>
+  </div></section>
 </div>
 
 <!-- ============ VIEW: DIAG ============ -->
