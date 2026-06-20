@@ -963,6 +963,12 @@ $("btnPartsGo").addEventListener("click", async () => {
     partsBusy = false; $("btnPartsGo").disabled = false;
   }
 });
+$("btnPartsClear").addEventListener("click", () => {
+  $("partName").value = "";
+  $("partsResult").innerHTML = ""; toggle("partsResult", false);
+  $("partsLinks").innerHTML = "";
+  $("inspectResult").innerHTML = ""; toggle("secInspect", false);
+});
 
 function showResult(d, opt = {}) {
   current = d;
@@ -996,12 +1002,19 @@ function showResult(d, opt = {}) {
     const code = (d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase();
     hit = findVehicle(code);
   }
-  // 学習データ(AI取得/訂正済み): 車両レコード(履歴)＞型式キー の順で取得
+  // 車台番号で登録済みカスタムレコードも照合(型式が無い/一致しない車両のため)
+  if (d.vin) {
+    const byVin = CUSTOM_DB.find(x => x.vin && x.vin === d.vin);
+    if (byVin && (!hit || hit !== byVin)) hit = byVin;
+  }
   const histEntry2 = findHistEntry(getHistory(), d);
   const learned = getLearned(vehicleKey(d));
-  const learnedFaults = (histEntry2 && histEntry2.faults) || (learned && learned.faults) || [];
+  // DB(カスタム=ユーザーが直接編集できる正データ)を最優先。無ければ学習/履歴
   const dbFaults = (hit && hit.faults) || [];
-  const allFaults = [...learnedFaults, ...dbFaults.filter(f => !learnedFaults.includes(f))];
+  const learnedFaults = (histEntry2 && histEntry2.faults) || (learned && learned.faults) || [];
+  const allFaults = dbFaults.length
+    ? [...dbFaults, ...learnedFaults.filter(f => !dbFaults.includes(f))]
+    : learnedFaults;
 
   const m = $("rMatch");
   if (hit) {
@@ -1012,13 +1025,14 @@ function showResult(d, opt = {}) {
     toggle("secNotes", false);
   }
   renderFaultList(allFaults); toggle("secFault", allFaults.length > 0);
-  // 諸元: 車両レコード ＞ 学習(型式) ＞ 内蔵/カスタムDB の優先で表示
-  const recSpecs = (histEntry2 && histEntry2.specs) || (learned && learned.specs) || null;
-  if (recSpecs && recSpecs.length) renderSpecs(recSpecs, "learned");
-  else renderSpecs((hit && hit.specs) || [], hit ? "db" : "");
+  // 諸元: DB(編集可能) ＞ 車両レコード ＞ 学習(型式) の優先で表示
+  const recSpecs = (hit && hit.specs && hit.specs.length) ? hit.specs
+    : (histEntry2 && histEntry2.specs) || (learned && learned.specs) || null;
+  if (recSpecs && recSpecs.length) renderSpecs(recSpecs, (hit && hit.specs && hit.specs.length) ? "db" : "learned");
+  else renderSpecs([], "");
 
-  // リコール: AI調査結果(履歴/学習)があれば一覧表示。メーカー特定時はリンクも案内
-  const recalls = (histEntry2 && histEntry2.recalls) || (learned && learned.recalls) || [];
+  // リコール: DB(カスタム) ＞ 履歴/学習
+  const recalls = (hit && hit.recalls && hit.recalls.length ? hit.recalls : null) || (histEntry2 && histEntry2.recalls) || (learned && learned.recalls) || [];
   renderRecalls(recalls);
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
   toggle("secRecall", !!mk || recalls.length > 0 || !!d.vin);
@@ -1304,21 +1318,23 @@ function renderRecallVin(vin, makerUrl) {
   const hasH = vin.includes("-");
   const pre = hasH ? vin.split("-")[0] : vin;
   const suf = hasH ? vin.split("-").slice(1).join("-") : "";
-  const rows = [["車台番号 前半（型式相当）", pre]];
-  if (suf) rows.push(["車台番号 後半（製造番号）", suf]);
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
   head.textContent = "車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
   box.appendChild(head);
-  rows.forEach(([label, val]) => {
-    if (!val) return;
-    const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px";
-    const lab = document.createElement("span"); lab.style.cssText = "font-size:12px;color:var(--dim);flex:0 0 100%"; lab.textContent = label;
+  const cols = document.createElement("div"); cols.style.cssText = "display:flex;gap:10px";
+  const mkCol = (label, val) => {
+    const c = document.createElement("div"); c.style.cssText = "flex:1 1 0;min-width:0";
+    const lab = document.createElement("div"); lab.style.cssText = "font-size:12px;color:var(--dim);margin-bottom:4px"; lab.textContent = label;
+    const r = document.createElement("div"); r.style.cssText = "display:flex;align-items:center;gap:6px";
     const code = document.createElement("code"); code.textContent = val;
-    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:0 0 auto";
-    const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.flex = "0 0 auto"; cp.textContent = "📋コピー";
-    cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓コピー済"; setTimeout(() => cp.textContent = "📋コピー", 1200); });
-    row.append(lab, code, cp); box.appendChild(row);
-  });
+    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.cssText = "flex:0 0 auto;padding:8px 11px"; cp.textContent = "📋"; cp.title = "コピー";
+    cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓"; setTimeout(() => cp.textContent = "📋", 1200); });
+    r.append(code, cp); c.append(lab, r); return c;
+  };
+  cols.appendChild(mkCol("型式", pre));
+  if (suf) cols.appendChild(mkCol("車台番号", suf));
+  box.appendChild(cols);
 }
 
 /* =========================================================
@@ -2466,6 +2482,13 @@ function speak(text) {
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
+/* 連続する同一フレーズの重複を1回に圧縮(音声認識の重複バグ対策) */
+function dedupRepeats(s) {
+  s = String(s || "").replace(/\s+/g, " ").trim();
+  let prev;
+  do { prev = s; s = s.replace(/(.{3,}?)\1+/g, "$1"); } while (s !== prev);
+  return s;
+}
 let voiceListening = false, voiceAccum = "", voiceSessionFinal = "";
 /* メカ君の読み上げだけ止める */
 $("btnVoiceMute").addEventListener("click", () => {
@@ -2484,7 +2507,7 @@ function startVoiceSession() {
       if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
     }
     voiceSessionFinal = f;
-    $("voiceStatus").textContent = "🎤 " + (voiceAccum + f + interim);
+    $("voiceStatus").textContent = "🎤 " + dedupRepeats(voiceAccum + f + interim);
   };
   rec.onerror = () => {};
   rec.onend = () => {
@@ -2496,7 +2519,7 @@ function startVoiceSession() {
 }
 async function finishVoiceTurn() {
   $("btnVoiceTalk").textContent = "🎤 押して話す";
-  const said = voiceAccum.trim(); voiceAccum = "";
+  const said = dedupRepeats(voiceAccum); voiceAccum = "";
   if (!said) { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; return; }
   vcAppend("user", said); voiceHistory.push({ role: "user", text: said });
   $("voiceStatus").textContent = "🔧 メカ君が考えています…";
