@@ -1223,12 +1223,31 @@ function gotoRepair(term) {
   const inp = $("partName"); inp.value = term;
   $("btnPartsGo").click();
 }
-/* 定番故障・持病をタップ可能リストで描画(タップで修理タブへ) */
+/* 故障/原因の文からAIで交換部品名を特定 → 修理タブの部品名へ挿入して検索 */
+async function gotoRepairFromText(rawText, kind) {
+  switchView("parts"); window.scrollTo(0, 0);
+  const inp = $("partName");
+  let part = rawText;
+  if (localStorage.getItem(LS.gemini)) {
+    inp.value = "🔧 部品を特定中…";
+    try {
+      const lead = kind === "fault"
+        ? "次の自動車の定番故障・不具合から、修理で交換する主要な部品名を1つだけ、日本語の部品名のみ短く答えてください(説明・記号・句読点なし)。\n不具合: "
+        : "次の自動車の故障原因から、交換・修理対象となる主要な部品名を1つだけ、日本語の部品名のみ短く答えてください(説明・記号・句読点なし)。\n原因: ";
+      const r = await geminiAsk(lead + rawText);
+      const p = (r.text || "").split(/\n/)[0].replace(/[「」『』。、・*#:：\-]/g, "").trim();
+      if (p) part = p.slice(0, 40);
+    } catch (e) {}
+  }
+  inp.value = part;
+  $("btnPartsGo").click();
+}
+/* 定番故障・持病をタップ可能リストで描画(タップでAIが部品特定→修理タブへ) */
 function renderFaultList(faults) {
   const ul = $("faultList"); ul.innerHTML = "";
   (faults || []).forEach(t => {
     const li = document.createElement("li"); li.className = "clk"; li.textContent = t;
-    li.addEventListener("click", () => gotoRepair(t));
+    li.addEventListener("click", () => gotoRepairFromText(t, "fault"));
     ul.appendChild(li);
   });
 }
@@ -1801,12 +1820,15 @@ $("useVision").addEventListener("change", () => {
   renderVisionStat();
 });
 
-async function geminiAsk(prompt) {
+async function geminiAsk(prompt, opts) {
+  opts = opts || {};
   const key = localStorage.getItem(LS.gemini);
-  // キャッシュ命中なら無料枠を消費せず即返す
+  // キャッシュ命中なら無料枠を消費せず即返す(noCache指定時は最新を取得)
   const ck = getAiMode() + ":" + hashStr(prompt);
-  const cached = aiCacheGet(ck);
-  if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
+  if (!opts.noCache) {
+    const cached = aiCacheGet(ck);
+    if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
+  }
   let lastErr = null;
   for (const model of GEMINI_MODELS[getAiMode()]) {
     try {
@@ -1900,9 +1922,9 @@ function renderAiAnswer(container, text, opts) {
       const li = document.createElement("li");
       const div = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
-      if (opts.linkCauses) {     // 診断の原因候補をタップ→修理タブの部品名へ
-        t.classList.add("clk"); t.title = "タップで修理タブに部品名を入力";
-        t.addEventListener("click", () => gotoRepair(n[2]));
+      if (opts.linkCauses) {     // 診断の原因候補をタップ→AIが部品名を特定→修理タブへ
+        t.classList.add("clk"); t.title = "タップで部品を特定して修理タブに入力";
+        t.addEventListener("click", () => gotoRepairFromText(n[2], "cause"));
       }
       div.appendChild(t);
       li.appendChild(div);
@@ -1978,9 +2000,22 @@ function appendAiFollowup(body, origText, prevAnswer) {
   ta.placeholder = "例: EGRを清掃したが まだ白煙が出る。圧縮圧は正常。— 写真や動画も添付できます。";
   ta.style.minHeight = "64px";
 
-  // 追加相談用の添付(写真/写真撮影/動画/動画撮影)
+  // 追加相談用の添付(音声入力/写真/写真撮影/動画/動画撮影)
   const atts = [];
   const icons = document.createElement("div"); icons.className = "fuIcons";
+  // 音声入力ボタン
+  const micBtn = document.createElement("button"); micBtn.type = "button"; micBtn.className = "diagIco txt"; micBtn.title = "音声で入力"; micBtn.textContent = "🎤";
+  let fuRec = null;
+  micBtn.addEventListener("click", () => {
+    if (fuRec) { try { fuRec.stop(); } catch (e) {} fuRec = null; return; }
+    const rec = getSpeechRecognition();
+    if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    fuRec = rec; const base = ta.value; micBtn.textContent = "●"; micBtn.classList.add("sel");
+    rec.onresult = e => { let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; ta.value = (base ? base + " " : "") + s; };
+    rec.onend = () => { fuRec = null; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); };
+    try { rec.start(); } catch (e) { fuRec = null; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+  });
+  icons.appendChild(micBtn);
   const preview = document.createElement("div"); preview.id = ""; preview.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:8px";
   function renderPv() {
     preview.innerHTML = "";
@@ -2014,7 +2049,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
 
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "btn btn-ghost btn-sm"; btn.style.marginTop = "8px";
-  btn.innerHTML = '<img src="img/mecha.png" class="btnMecha" alt="">メカ君に追加で相談';
+  btn.innerHTML = '<img src="img/kangae.png" class="btnMecha" alt="">メカ君に追加で相談';
   const ans = document.createElement("div"); ans.className = "ai-answer hidden"; ans.style.marginTop = "10px";
   btn.addEventListener("click", async () => {
     const tried = ta.value.trim();
@@ -2089,8 +2124,9 @@ async function runSpecAI(srcBtn) {
   toggle("specAiBox", true);
   box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
   const btn = srcBtn || $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
+  const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
   try {
-    const r = await geminiAsk(buildSpecPrompt());
+    const r = await geminiAsk(buildSpecPrompt(), { noCache: force });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
@@ -2377,7 +2413,7 @@ $("btnDiagVoiceChat").addEventListener("click", () => {
 });
 /* 会話モードを閉じる(履歴・ログは保持し、再開で続きから) */
 function closeVoiceChat() {
-  voiceActive = false;
+  voiceActive = false; voiceListening = false;
   if (voiceRec) { try { voiceRec.stop(); } catch (e) {} voiceRec = null; }
   try { window.speechSynthesis.cancel(); } catch (e) {}
   toggle("voiceChatSec", false);
@@ -2400,31 +2436,52 @@ function speak(text) {
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
+let voiceListening = false, voiceAccum = "";
+/* メカ君の読み上げだけ止める */
+$("btnVoiceMute").addEventListener("click", () => {
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  $("voiceStatus").textContent = "読み上げを止めました。「押して話す」で続けられます。";
+});
 $("btnVoiceTalk").addEventListener("click", () => {
-  if (voiceRec) { try { voiceRec.stop(); } catch (e) {} return; }
+  // メカ君が読み上げ中なら止める(しゃべりを中断して聞き取りへ)
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  if (voiceListening) {           // 2回目の押下=話し終わり → 認識停止して送信
+    voiceListening = false;
+    if (voiceRec) { try { voiceRec.stop(); } catch (e) {} }
+    $("btnVoiceTalk").textContent = "🎤 押して話す";
+    return;
+  }
   const rec = getSpeechRecognition(); if (!rec) return;
-  rec.interimResults = false;
-  voiceRec = rec; voiceActive = true;
-  $("voiceStatus").textContent = "🎤 聞いています…話し終わったら少し待ってください。";
-  $("btnVoiceTalk").textContent = "● 認識中…";
-  rec.onresult = async e => {
-    const said = e.results[0][0].transcript;
-    vcAppend("user", said);
-    voiceHistory.push({ role: "user", text: said });
+  rec.continuous = true; rec.interimResults = true;   // 短い間で切れないよう蓄積
+  voiceRec = rec; voiceActive = true; voiceListening = true; voiceAccum = "";
+  $("voiceStatus").textContent = "🎤 聞いています…話し終わったら、もう一度ボタンを押してください。";
+  $("btnVoiceTalk").textContent = "■ 話し終えたらタップ";
+  rec.onresult = e => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const tr = e.results[i];
+      if (tr.isFinal) voiceAccum += tr[0].transcript; else interim += tr[0].transcript;
+    }
+    $("voiceStatus").textContent = "🎤 " + (voiceAccum + interim);
+  };
+  rec.onerror = () => {};
+  rec.onend = async () => {
+    voiceRec = null; voiceListening = false; $("btnVoiceTalk").textContent = "🎤 押して話す";
+    const said = voiceAccum.trim();
+    if (!said) { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; return; }
+    vcAppend("user", said); voiceHistory.push({ role: "user", text: said });
     $("voiceStatus").textContent = "🔧 メカ君が考えています…";
     try {
       const r = await geminiAsk(buildVoiceChatPrompt());
       voiceHistory.push({ role: "mecha", text: r.text });
       vcAppend("mecha", r.text);
       speak(r.text);
-      $("voiceStatus").textContent = "「押して話す」でさらに質問できます。";
+      $("voiceStatus").textContent = "「押して話す」でさらに質問できます。読み上げ中は🔉停止や「押して話す」で止められます。";
     } catch (err) {
       $("voiceStatus").textContent = "⚠ " + (err.message || "メカ君に接続できませんでした");
     }
   };
-  rec.onerror = () => { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; };
-  rec.onend = () => { voiceRec = null; $("btnVoiceTalk").textContent = "🎤 押して話す"; };
-  try { rec.start(); } catch (e) { voiceRec = null; }
+  try { rec.start(); } catch (e) { voiceRec = null; voiceListening = false; }
 });
 function buildVoiceChatPrompt() {
   const lines = [
