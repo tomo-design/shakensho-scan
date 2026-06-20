@@ -162,7 +162,7 @@
         <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
       </div>
       <div class="btnRow">
-        <button class="btn btn-ghost btn-big" id="btnGoParts">🔩 部品交換の手順を調べる<small>部品名を入力 → AI手順＋動画リンク</small></button>
+        <button class="btn btn-ghost btn-big" id="btnGoParts">🔧 修理（部品交換の手順）<small>部品名を入力 → AI手順＋動画リンク</small></button>
       </div>
     </div>
 
@@ -184,7 +184,7 @@
     <button class="navBtn navBack" data-go="scan">← 車両</button>
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🔩 部品</button>
+    <button class="navBtn" data-go="parts">🔧 修理</button>
   </nav>
 
   <section id="secSpec" class="hidden">
@@ -194,6 +194,7 @@
       <dl class="specs" id="specList"></dl>
       <div class="specBtns">
         <button class="btn btn-ghost btn-sm" id="btnSpecAI"><img src="img/mecha.png" class="btnMecha" alt="">メカ君に聞く</button>
+        <button class="btn btn-ghost btn-sm" id="btnSpecReload">🔄 最新に更新</button>
         <button class="btn btn-ghost btn-sm" id="btnSpecEdit">✎ 訂正して保存</button>
       </div>
       <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
@@ -211,7 +212,10 @@
 
   <section id="secFault" class="hidden">
     <h2><span class="tag al">FAULT</span>この型式の定番故障・持病</h2>
-    <div class="sec-body"><ul class="flat" id="faultList"></ul></div>
+    <div class="sec-body">
+      <div class="hint" style="margin:0 0 6px">タップすると「修理」タブでその修理手順を調べます。</div>
+      <ul class="flat" id="faultList"></ul>
+    </div>
   </section>
 
   <section id="secNotes" class="hidden">
@@ -223,6 +227,7 @@
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
     <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
     <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ 上記はAIが調べた参考情報です。必ず下記の公式ページで車台番号により対象を確認してください。</div>
+    <div id="recallVin" style="margin:0 0 10px"></div>
     <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
@@ -235,9 +240,9 @@
     <button class="navBtn navBack" data-go="scan">← 車両</button>
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🔩 部品</button>
+    <button class="navBtn" data-go="parts">🔧 修理</button>
   </nav>
-  <section><h2><span class="tag">PARTS</span>部品交換の手順</h2>
+  <section><h2><span class="tag">REPAIR</span>修理・部品交換の手順</h2>
   <div class="sec-body">
     <label class="fld">交換する部品名</label>
     <div class="inputRow">
@@ -257,7 +262,7 @@
     <button class="navBtn navBack" data-go="scan">← 車両</button>
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🔩 部品</button>
+    <button class="navBtn" data-go="parts">🔧 修理</button>
   </nav>
 
   <section style="margin-top:6px">
@@ -405,8 +410,17 @@
         ① <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">このリンク</a>を開き「有効にする」を押す<br>
         ② 表示される案内で「APIキー」を作成（課金を有効にする必要があります）<br>
         ③ そのキーをこのアプリに貼り付けてONにする<br>
-        <span style="color:var(--dim)">※ ③の切り替えは<b>まだ未実装</b>です。ご希望があれば追加します（キー未設定の間は無料Tesseractのまま動きます）。<br>料金の目安: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API 料金 ↗</a></span>
+        <span style="color:var(--dim)">料金の目安: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API 料金 ↗</a></span>
       </div>
+      <div class="inputRow" style="margin-top:10px">
+        <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（任意）">
+        <button class="btn btn-amber" id="btnVisionSave">保存</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;font-weight:700">
+        <input type="checkbox" id="useVision" style="width:20px;height:20px"> 高精度OCR（Cloud Vision）を使う
+      </label>
+      <div id="visionStat" class="hint" style="margin-top:6px"></div>
+      <div class="hint" style="margin-top:4px;color:var(--dim)">ONかつキー設定時のみ、車検証スキャンとDB編集の写真読み取りなど全OCRがCloud Visionになります（課金はご自身のGoogle Cloud側）。未設定なら無料Tesseract。</div>
     </div>
   </section>
   <section>

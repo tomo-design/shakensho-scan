@@ -700,7 +700,32 @@ function loadTesseract() {
   });
   return tesseractReady;
 }
+/* OCR入口: 高精度OCR(Cloud Vision)がON+キー設定済みならVision、無ければ無料Tesseract */
+function visionEnabled() { return localStorage.getItem("ss_usevision") === "1" && !!localStorage.getItem("ss_visionkey"); }
+async function ocrCloudVision(file) {
+  const key = localStorage.getItem("ss_visionkey");
+  if (!key) throw new Error("Cloud Vision APIキー未設定");
+  const data = await fileToBase64(file);
+  const res = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(key), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requests: [{ image: { content: data }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] })
+  });
+  if (!res.ok) throw new Error("Cloud Vision APIエラー (" + res.status + ")");
+  const j = await res.json();
+  const r = j.responses && j.responses[0];
+  if (r && r.error) throw new Error(r.error.message || "Cloud Visionエラー");
+  return (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || "";
+}
 async function ocrTesseract(file, statusId = "ocrStatus") {
+  if (visionEnabled()) {
+    try {
+      if ($(statusId)) $(statusId).textContent = "高精度OCR（Cloud Vision）で解析中…";
+      const t = await ocrCloudVision(file);
+      if (t) return t;
+    } catch (e) {
+      if ($(statusId)) $(statusId).textContent = "Cloud Vision失敗→無料OCRに切替（" + (e.message || e) + "）…";
+    }
+  }
   await loadTesseract();
   // 前処理: 拡大+二値化で印字の認識精度を上げる
   let target = file;
@@ -713,7 +738,7 @@ async function ocrTesseract(file, statusId = "ocrStatus") {
   } catch (e) {}
   const worker = await Tesseract.createWorker("jpn", 1, {
     logger: m => {
-      if (m.status === "recognizing text")
+      if (m.status === "recognizing text" && $(statusId))
         $(statusId).textContent = "文字認識中… " + Math.round(m.progress * 100) + "%";
     }
   });
@@ -986,7 +1011,7 @@ function showResult(d, opt = {}) {
     m.textContent = "";   // 「未登録」表記は出さない(代わりに修正/保存ボタンを設置)
     toggle("secNotes", false);
   }
-  fillList("faultList", allFaults, false); toggle("secFault", allFaults.length > 0);
+  renderFaultList(allFaults); toggle("secFault", allFaults.length > 0);
   // 諸元: 車両レコード ＞ 学習(型式) ＞ 内蔵/カスタムDB の優先で表示
   const recSpecs = (histEntry2 && histEntry2.specs) || (learned && learned.specs) || null;
   if (recSpecs && recSpecs.length) renderSpecs(recSpecs, "learned");
@@ -996,7 +1021,7 @@ function showResult(d, opt = {}) {
   const recalls = (histEntry2 && histEntry2.recalls) || (learned && learned.recalls) || [];
   renderRecalls(recalls);
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
-  toggle("secRecall", !!mk || recalls.length > 0);
+  toggle("secRecall", !!mk || recalls.length > 0 || !!d.vin);
   toggle("lnkMaker", !!mk);
   if (mk) {
     $("lnkMlit").href = MLIT_RECALL;
@@ -1004,6 +1029,7 @@ function showResult(d, opt = {}) {
     lm.firstChild.textContent = mk.label; lm.href = mk.url;
   }
   $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || d.vin || "") + " リコール 改善対策");
+  renderRecallVin(d.vin, mk ? mk.url : null);   // 車台番号を前後でコピー＋各サイトを別タブで開く
 
   // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
   const wrap = $("rawChips"); wrap.innerHTML = "";
@@ -1066,6 +1092,8 @@ function renderSpecs(specs, source) {
   toggle("btnSpecEdit", !!vk);
   // AIで調べるボタンは「保存済み or 内蔵データが無い」時だけ表示
   toggle("btnSpecAI", shownSpecs.length === 0 && !!vk);
+  // 最新に更新ボタンは、諸元が既にある時に表示(再取得して都度DB更新)
+  toggle("btnSpecReload", shownSpecs.length > 0 && !!vk);
   // 内蔵データが無くても車両を識別できればセクションは出す
   toggle("secSpec", shownSpecs.length > 0 || !!vk);
 }
@@ -1189,12 +1217,60 @@ function fillList(id, arr, chk) {
   const ul = $(id); ul.innerHTML = "";
   arr.forEach(t => { const li = document.createElement("li"); if (chk) li.className = "chk"; li.textContent = t; ul.appendChild(li); });
 }
+/* 修理タブへ移動して部品名/症状で手順検索 */
+function gotoRepair(term) {
+  switchView("parts"); window.scrollTo(0, 0);
+  const inp = $("partName"); inp.value = term;
+  $("btnPartsGo").click();
+}
+/* 定番故障・持病をタップ可能リストで描画(タップで修理タブへ) */
+function renderFaultList(faults) {
+  const ul = $("faultList"); ul.innerHTML = "";
+  (faults || []).forEach(t => {
+    const li = document.createElement("li"); li.className = "clk"; li.textContent = t;
+    li.addEventListener("click", () => gotoRepair(t));
+    ul.appendChild(li);
+  });
+}
 /* AIが調べたリコール・改善対策の一覧を描画(参考情報の注記付き) */
 function renderRecalls(recalls) {
   recalls = recalls || [];
   fillList("recallList", recalls, false);
   toggle("recallList", recalls.length > 0);
   toggle("recallNote", recalls.length > 0);
+}
+/* リコール確認用: 車台番号をハイフン前/後で別々にコピー＋各々別タブでサイトを開く */
+function copyText(t) {
+  try { navigator.clipboard.writeText(t); } catch (e) {
+    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e2) {} ta.remove();
+  }
+}
+function renderRecallVin(vin, makerUrl) {
+  const box = $("recallVin"); box.innerHTML = "";
+  if (!vin) return;
+  const hasH = vin.includes("-");
+  const pre = hasH ? vin.split("-")[0] : vin;
+  const suf = hasH ? vin.split("-").slice(1).join("-") : "";
+  const rows = [
+    ["車台番号 前半（型式相当）", pre, makerUrl || MLIT_RECALL, makerUrl ? "メーカー検索を開く" : "国交省で開く"],
+  ];
+  if (suf) rows.push(["車台番号 後半（製造番号）", suf, MLIT_RECALL, "国交省で開く"]);
+  const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
+  head.textContent = "車台番号をコピーして、リコール検索サイトに貼り付けて確認できます。";
+  box.appendChild(head);
+  rows.forEach(([label, val, url, urlLabel]) => {
+    if (!val) return;
+    const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 6px";
+    const lab = document.createElement("span"); lab.style.cssText = "font-size:12px;color:var(--dim);flex:0 0 100%"; lab.textContent = label;
+    const code = document.createElement("code"); code.textContent = val;
+    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 auto";
+    const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.flex = "0 0 auto"; cp.textContent = "📋コピー";
+    cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓コピー済"; setTimeout(() => cp.textContent = "📋コピー", 1200); });
+    const go = document.createElement("button"); go.className = "btn btn-ghost btn-sm"; go.style.flex = "0 0 auto"; go.textContent = urlLabel + " ↗";
+    go.addEventListener("click", () => { copyText(val); window.open(url, "_blank", "noopener"); });
+    row.append(lab, code, cp, go); box.appendChild(row);
+  });
 }
 
 /* =========================================================
@@ -1700,6 +1776,31 @@ $("btnGeminiSave").addEventListener("click", () => {
   renderGeminiStat();
 });
 
+/* ---- Cloud Vision(高精度OCR)設定 ---- */
+function renderVisionStat() {
+  const has = !!localStorage.getItem("ss_visionkey");
+  const on = localStorage.getItem("ss_usevision") === "1";
+  $("useVision").checked = on;
+  $("visionStat").textContent = has
+    ? (on ? "✓ 高精度OCR(Cloud Vision)を使用中。" : "キー設定済み（OFF）。ONにすると有料OCRを使います。")
+    : "未設定 — キーはこの端末のみに保存。OFFまたは未設定なら無料Tesseractを使います。";
+}
+$("btnVisionSave").addEventListener("click", () => {
+  const v = $("visionKey").value.trim();
+  if (v) localStorage.setItem("ss_visionkey", v); else localStorage.removeItem("ss_visionkey");
+  $("visionKey").value = "";
+  if (!localStorage.getItem("ss_visionkey")) localStorage.removeItem("ss_usevision");
+  renderVisionStat();
+});
+$("useVision").addEventListener("change", () => {
+  if ($("useVision").checked && !localStorage.getItem("ss_visionkey")) {
+    alert("先にCloud Vision APIキーを保存してください。");
+    $("useVision").checked = false; return;
+  }
+  localStorage.setItem("ss_usevision", $("useVision").checked ? "1" : "0");
+  renderVisionStat();
+});
+
 async function geminiAsk(prompt) {
   const key = localStorage.getItem(LS.gemini);
   // キャッシュ命中なら無料枠を消費せず即返す
@@ -1774,7 +1875,8 @@ function buildDiagPrompt(text) {
 }
 
 /* AI回答テキストを構造化して見やすく描画 */
-function renderAiAnswer(container, text) {
+function renderAiAnswer(container, text, opts) {
+  opts = opts || {};
   container.innerHTML = "";
   // Markdown記号の残骸を除去
   const clean = text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "").replace(/^\s*[\*\-]\s+/gm, "・");
@@ -1798,6 +1900,10 @@ function renderAiAnswer(container, text) {
       const li = document.createElement("li");
       const div = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
+      if (opts.linkCauses) {     // 診断の原因候補をタップ→修理タブの部品名へ
+        t.classList.add("clk"); t.title = "タップで修理タブに部品名を入力";
+        t.addEventListener("click", () => gotoRepair(n[2]));
+      }
       div.appendChild(t);
       li.appendChild(div);
       list.appendChild(li);
@@ -1847,7 +1953,7 @@ async function runDiagAI(text) {
   box.prepend(sec);
   try {
     const r = await geminiAsk(buildDiagPrompt(text));
-    renderAiAnswer(p, r.text);
+    renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
@@ -1861,43 +1967,87 @@ async function runDiagAI(text) {
   }
 }
 
-/* 「全部試したが解決しない」→ 追加の助言を求める欄 */
+/* 各診断の下に「追加で相談」欄(テキスト＋写真/動画添付、会話モードは除く)。回答後さらに追い相談を連鎖 */
 function appendAiFollowup(body, origText, prevAnswer) {
   const wrap = document.createElement("div");
   wrap.style.marginTop = "12px"; wrap.style.paddingTop = "12px"; wrap.style.borderTop = "1px dashed var(--line)";
   const lab = document.createElement("div");
   lab.className = "hint"; lab.style.marginBottom = "6px";
-  lab.textContent = "上の見解をすべて試しても解決しない場合 — 実施した内容・結果を書いて追加で相談できます。";
+  lab.textContent = "解決しない・追加で相談したい場合 — 実施内容や追加の症状を書く／写真・動画を添付して、メカ君にもう一度相談できます。";
   const ta = document.createElement("textarea");
-  ta.placeholder = "例: EGRを清掃・尿素水も新品に交換したが、まだP20EEが再点灯する。実測のレール圧は正常だった。";
-  ta.style.minHeight = "70px";
+  ta.placeholder = "例: EGRを清掃したが まだ白煙が出る。圧縮圧は正常。— 写真や動画も添付できます。";
+  ta.style.minHeight = "64px";
+
+  // 追加相談用の添付(写真/写真撮影/動画/動画撮影)
+  const atts = [];
+  const icons = document.createElement("div"); icons.className = "fuIcons";
+  const preview = document.createElement("div"); preview.id = ""; preview.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:8px";
+  function renderPv() {
+    preview.innerHTML = "";
+    atts.forEach((a, i) => {
+      const d = document.createElement("div"); d.className = "attachThumb";
+      const m = document.createElement(a.kind === "video" ? "video" : "img"); m.src = a.url; if (a.kind === "video") { m.muted = true; m.playsInline = true; }
+      const del = document.createElement("button"); del.className = "axDel"; del.textContent = "×";
+      del.addEventListener("click", () => { URL.revokeObjectURL(a.url); atts.splice(i, 1); renderPv(); });
+      d.append(m, del); preview.appendChild(d);
+    });
+  }
+  const defs = [
+    ["img/ic-photo.png", "写真を添付", "image/*", false],
+    ["img/ic-photo-cam.png", "写真を撮って添付", "image/*", true],
+    ["img/ic-video.png", "動画を添付", "video/*", false],
+    ["img/ic-video-cam.png", "動画を撮って添付", "video/*", true],
+  ];
+  defs.forEach(([src, title, accept, cap]) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "diagIco"; b.title = title;
+    const im = document.createElement("img"); im.src = src; b.appendChild(im);
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = accept; if (cap) inp.capture = "environment"; inp.className = "hidden";
+    b.addEventListener("click", () => inp.click());
+    inp.addEventListener("change", async e => {
+      let f = e.target.files[0]; inp.value = ""; if (!f) return;
+      const isV = (f.type || "").startsWith("video");
+      if (isV && f.size > ATTACH_MAX) { try { f = await compressVideo(f, ATTACH_MAX); } catch (er) {} if (f.size > ATTACH_MAX) { alert("動画が大きすぎます。短く撮り直してください。"); return; } }
+      atts.push({ file: f, kind: isV ? "video" : "image", url: URL.createObjectURL(f) }); renderPv();
+    });
+    icons.appendChild(b); wrap.appendChild(inp);
+  });
+
   const btn = document.createElement("button");
-  btn.type = "button"; btn.className = "btn btn-ghost"; btn.style.marginTop = "8px";
-  btn.innerHTML = '<img src="img/mecha.png" class="btnMecha" alt="">追加で相談する';
-  const ans = document.createElement("div"); ans.className = "ai-answer"; ans.style.marginTop = "10px";
+  btn.type = "button"; btn.className = "btn btn-ghost btn-sm"; btn.style.marginTop = "8px";
+  btn.innerHTML = '<img src="img/mecha.png" class="btnMecha" alt="">メカ君に追加で相談';
+  const ans = document.createElement("div"); ans.className = "ai-answer hidden"; ans.style.marginTop = "10px";
   btn.addEventListener("click", async () => {
     const tried = ta.value.trim();
-    if (!tried) { ta.focus(); return; }
+    if (!tried && !atts.length) { ta.focus(); return; }
     if (diagAiBusy) return;
-    diagAiBusy = true; btn.disabled = true;
+    diagAiBusy = true; setBtnLoading(btn, true, "メカ君が考え中…");
     ans.classList.remove("hidden"); ans.textContent = "🔧 メカ君が追加で考えています…";
     try {
       const prompt = [
-        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。前回の助言で解決しなかったので、視点を変えて助言してください。",
-        "前回提示した原因候補(下記)は既に試して効果がなかった前提で、それ以外の見落としやすい原因・上流の根本原因・確定診断の手順を、可能性が高い順に最大5つ。各項目に切り分け方法(工具・測定値の目安)を簡潔に。最後に「次の確定的な一手」を1行。前置き・免責不要、Markdown記号なし。",
+        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。前回の見解で解決しなかったため、整備士の追加情報(文章・写真・動画)を踏まえ、悩みを正確に理解して的確に助言してください。",
+        "前回の原因候補は試して効果が無かった前提で、見落としやすい原因・上流の根本原因・確定診断の手順を可能性の高い順に最大5つ。各項目に切り分け(工具・測定値の目安)を簡潔に。最後に『次の確定的な一手』を1行。前置き・免責不要、Markdown記号なし。",
         "■当初の相談内容: " + origText,
-        "■前回の助言(これは試して無効だった): " + prevAnswer.slice(0, 1200),
-        "■整備士が実施した内容と結果: " + tried,
+        "■前回の見解(試して無効): " + String(prevAnswer).slice(0, 1200),
+        "■追加情報(整備士の実施内容・結果・追加症状): " + (tried || "(テキストなし。添付を参照)"),
       ].join("\n");
-      const r = await geminiAsk(prompt);
-      renderAiAnswer(ans, r.text);
+      let r;
+      if (atts.length) {
+        const media = [];
+        for (const a of atts) media.push({ mimeType: a.file.type || (a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+        r = await geminiAskMedia(prompt, media);
+      } else {
+        r = await geminiAsk(prompt);
+      }
+      renderAiAnswer(ans, r.text, { linkCauses: true });
+      // さらに追い相談できるよう、回答の下に次の相談欄を連鎖
+      appendAiFollowup(body, origText + " / " + tried, r.text);
     } catch (e) {
       ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
     } finally {
-      diagAiBusy = false; btn.disabled = false;
+      diagAiBusy = false; setBtnLoading(btn, false);
     }
   });
-  wrap.append(lab, ta, btn, ans);
+  wrap.append(lab, ta, icons, preview, btn, ans);
   body.appendChild(wrap);
 }
 
@@ -1929,7 +2079,7 @@ function buildSpecPrompt() {
     "■対象車両: " + vehicleDesc()
   ].join("\n");
 }
-$("btnSpecAI").addEventListener("click", async () => {
+async function runSpecAI(srcBtn) {
   if (!localStorage.getItem(LS.gemini)) {
     alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings");
@@ -1938,7 +2088,7 @@ $("btnSpecAI").addEventListener("click", async () => {
   const box = $("specAiBox");
   toggle("specAiBox", true);
   box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
-  const btn = $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
+  const btn = srcBtn || $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
   try {
     const r = await geminiAsk(buildSpecPrompt());
     const obj = extractJson(r.text);
@@ -1960,14 +2110,16 @@ $("btnSpecAI").addEventListener("click", async () => {
     // 表示: 諸元は表で、定番故障/持病はFAULTセクション、リコールはRECALLセクションへ
     toggle("specAiBox", false);
     if (specs.length) renderSpecs(specs, "learned");
-    if (faults.length) { fillList("faultList", faults, false); toggle("secFault", true); }
+    if (faults.length) { renderFaultList(faults); toggle("secFault", true); }
     renderRecalls(recalls);
   } catch (e) {
     box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     setBtnLoading(btn, false);
   }
-});
+}
+$("btnSpecAI").addEventListener("click", () => runSpecAI($("btnSpecAI")));
+$("btnSpecReload").addEventListener("click", () => runSpecAI($("btnSpecReload")));  // 最新に更新(都度DB更新)
 
 /* ---- 写真・動画の添付AI解析(Geminiマルチモーダル) ---- */
 function fileToBase64(file) {
@@ -2045,6 +2197,7 @@ const attachMap = [
 ];
 attachMap.forEach(([btn, input]) => {
   $(btn).addEventListener("click", () => {
+    if (typeof closeVoiceChat === "function") closeVoiceChat();   // 添付選択で会話モードを閉じる
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
     $(input).click();
@@ -2165,10 +2318,11 @@ async function diagMediaAnalyze() {
     const box = $("diagResults");
     const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
     const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
-    renderAiAnswer(p, r.text);
+    renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
+    appendAiFollowup(body, text || "(添付の写真・動画による相談)", r.text);  // この診断にも追加相談欄
     box.prepend(sec);
     st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
     sec.scrollIntoView({ behavior: "smooth" });
@@ -2191,6 +2345,7 @@ let micRec = null;
 function wireFieldMic(btnId, fieldId, idleLabel) {
   const btn = $(btnId); if (!btn) return;
   btn.addEventListener("click", () => {
+    if (typeof closeVoiceChat === "function") closeVoiceChat();   // 他アイコン選択で会話モードを閉じる
     if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; return; }
     const rec = getSpeechRecognition();
     if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
@@ -2220,15 +2375,22 @@ $("btnDiagVoiceChat").addEventListener("click", () => {
   toggle("voiceChatSec", true);
   $("voiceChatSec").scrollIntoView({ behavior: "smooth" });
 });
-$("btnVoiceStop").addEventListener("click", () => {
+/* 会話モードを閉じる(履歴・ログは保持し、再開で続きから) */
+function closeVoiceChat() {
   voiceActive = false;
   if (voiceRec) { try { voiceRec.stop(); } catch (e) {} voiceRec = null; }
   try { window.speechSynthesis.cancel(); } catch (e) {}
   toggle("voiceChatSec", false);
-});
+}
+$("btnVoiceStop").addEventListener("click", closeVoiceChat);
 function vcAppend(role, text) {
   const d = document.createElement("div"); d.className = "vcMsg " + (role === "user" ? "user" : "mecha");
-  d.textContent = (role === "user" ? "あなた: " : "メカ君: ") + text;
+  if (role === "user") {
+    d.textContent = "あなた: " + text;
+  } else {
+    const ic = document.createElement("img"); ic.className = "vcIco"; ic.src = "img/speak.png"; ic.alt = "メカ君";
+    d.append(ic, document.createTextNode(text));
+  }
   $("voiceLog").appendChild(d); $("voiceLog").scrollTop = $("voiceLog").scrollHeight;
 }
 function speak(text) {
@@ -2303,6 +2465,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderHistory();
   renderDBList();
   renderGeminiStat();
+  renderVisionStat();
   renderAiMode();
   setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {

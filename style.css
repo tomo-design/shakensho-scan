@@ -243,13 +243,21 @@ dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;b
 #btnDiagRun .btnMecha{width:30px;height:30px;margin-right:8px}
 .diagRunRow .btn{min-height:40px}
 
-/* 診断の操作アイコン群(音声入力/会話 + 写真・動画添付): 見出し下に横一列で全幅に配置 */
-.diagIcons{display:flex;gap:6px;align-items:center;justify-content:space-between;flex-wrap:nowrap;margin:10px 2px 0}
-.diagIco{flex:1 1 0;background:none;border:0;padding:1px;cursor:pointer;line-height:0;border-radius:8px;display:flex;align-items:center;justify-content:center}
-.diagIco img{width:38px;height:38px;object-fit:contain;display:block}
-.diagIco.txt{height:38px;font-size:21px;line-height:1;border:1px solid var(--line);background:var(--panel2)}
-.diagIco.sel{outline:2px solid var(--amber)}
-.diagIco:active{transform:scale(.9)}
+/* 診断の操作アイコン群(音声入力/会話 + 写真・動画添付): 見出し下に全幅・均一サイズで横一列 */
+.diagIcons{display:flex;gap:6px;align-items:stretch;justify-content:space-between;flex-wrap:nowrap;margin:10px 2px 0}
+.diagIco{flex:1 1 0;height:46px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:0;cursor:pointer}
+.diagIco img{width:34px;height:34px;object-fit:contain;display:block}
+.diagIco.txt{font-size:22px;line-height:1}
+.diagIco.sel{outline:2px solid var(--amber);border-color:var(--amber)}
+.diagIco:active{transform:scale(.92)}
+/* 追加相談の小アイコン行も同じ見た目 */
+.fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
+/* 音声会話: メカ君の発言アイコン */
+.vcMsg.mecha .vcIco{width:22px;height:22px;vertical-align:middle;margin-right:6px}
+/* クリック可能な原因候補・故障 */
+.ai-cause.clk,.flat li.clk{cursor:pointer}
+.ai-cause.clk:active,.flat li.clk:active{opacity:.6}
+.flat li.clk{color:var(--cyan);text-decoration:underline dotted}
 /* 添付プレビュー */
 #diagAttachList{display:flex;flex-wrap:wrap;gap:8px}
 .attachThumb{position:relative;width:74px;height:74px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel2)}
