@@ -410,6 +410,16 @@
         <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（精度重視）</button>
       </div>
       <div class="hint" style="margin-top:8px">どちらもAIが回答前に内部で「思考」してから答えます。高精度モードは複雑な複合症状向け。無料枠の上限に達した場合は自動で標準モデルに切り替えて再試行します。</div>
+      <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
+        <b>「無料枠の上限」をなくしたい場合（任意・従量課金）</b><br>
+        いまのAPIキーは<b>無料</b>で使えますが、1分あたり・1日あたりの回数制限があります。<b>同じキーのまま</b>、キーに紐づくプロジェクトの「課金」を有効にすると上限が大幅に上がります（有料・従量課金）。<br>
+        手順:<br>
+        ① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">Google AI Studio のAPIキー画面 ↗</a> を開く<br>
+        ② 使っているキーの行で <b>Plan</b> を確認 →「<b>Set up Billing</b>（お支払いを設定）」を押す<br>
+        ③ 表示される <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud のお支払い ↗</a> でカードを登録し、そのプロジェクトに請求先を紐付ける<br>
+        ④ 反映後は<b>キーの貼り替え不要</b>。これまで通り使えて上限だけ上がります。<br>
+        <span style="color:var(--dim)">料金目安: <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Gemini API 料金 ↗</a>（標準モデルは安価。課金はご自身のGoogle側で発生し、アプリは無料のままです）</span>
+      </div>
     </div>
   </section>
   <section>
