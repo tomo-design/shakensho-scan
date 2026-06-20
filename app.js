@@ -1242,6 +1242,39 @@ async function gotoRepairFromText(rawText, kind) {
   inp.value = part;
   $("btnPartsGo").click();
 }
+/* 原因候補をタップ→修理タブの「点検手順」にAIで詳しい点検方法を表示 */
+async function gotoInspection(text) {
+  switchView("parts"); window.scrollTo(0, 0);
+  toggle("secInspect", true);
+  setText("inspectTarget", "点検対象: " + text);
+  const box = $("inspectResult"); box.textContent = "🔧 メカ君が点検手順を調べています…(数秒〜十数秒)";
+  $("secInspect").scrollIntoView({ behavior: "smooth" });
+  if (!localStorage.getItem(LS.gemini)) {
+    box.textContent = "点検手順のAI調査には設定タブで無料Geminiキーが必要です。"; return;
+  }
+  try {
+    const prompt = [
+      "あなたは日本の自動車整備士を支援するベテラン整備士『メカ君』です。次の故障原因について、現場での点検方法を、経験の浅い整備士にも分かるよう具体的に説明してください。",
+      "前置き・免責不要。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
+      "■準備する工具・計測器",
+      "必要な工具・テスター等を列挙。",
+      "■点検手順",
+      "1. どこを どの工具で どう測る/見るか。判定の目安となる数値・状態を必ず添える。",
+      "2.（番号順に具体的に。安全確保→分解/アクセス→計測→判定の順）",
+      "■判定の目安",
+      "正常値・異常値の境目を具体的に。",
+      "■次のアクション",
+      "点検結果に応じた次の一手を1〜2行。",
+      "",
+      "■対象車両: " + vehicleDesc(),
+      "■点検する原因: " + text,
+    ].join("\n");
+    const r = await geminiAsk(prompt);
+    renderAiAnswer(box, r.text);
+  } catch (e) {
+    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+  }
+}
 /* 定番故障・持病をタップ可能リストで描画(タップでAIが部品特定→修理タブへ) */
 function renderFaultList(faults) {
   const ul = $("faultList"); ul.innerHTML = "";
@@ -1271,24 +1304,20 @@ function renderRecallVin(vin, makerUrl) {
   const hasH = vin.includes("-");
   const pre = hasH ? vin.split("-")[0] : vin;
   const suf = hasH ? vin.split("-").slice(1).join("-") : "";
-  const rows = [
-    ["車台番号 前半（型式相当）", pre, makerUrl || MLIT_RECALL, makerUrl ? "メーカー検索を開く" : "国交省で開く"],
-  ];
-  if (suf) rows.push(["車台番号 後半（製造番号）", suf, MLIT_RECALL, "国交省で開く"]);
+  const rows = [["車台番号 前半（型式相当）", pre]];
+  if (suf) rows.push(["車台番号 後半（製造番号）", suf]);
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
-  head.textContent = "車台番号をコピーして、リコール検索サイトに貼り付けて確認できます。";
+  head.textContent = "車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
   box.appendChild(head);
-  rows.forEach(([label, val, url, urlLabel]) => {
+  rows.forEach(([label, val]) => {
     if (!val) return;
-    const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 6px";
+    const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px";
     const lab = document.createElement("span"); lab.style.cssText = "font-size:12px;color:var(--dim);flex:0 0 100%"; lab.textContent = label;
     const code = document.createElement("code"); code.textContent = val;
-    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 auto";
+    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:0 0 auto";
     const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.flex = "0 0 auto"; cp.textContent = "📋コピー";
     cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓コピー済"; setTimeout(() => cp.textContent = "📋コピー", 1200); });
-    const go = document.createElement("button"); go.className = "btn btn-ghost btn-sm"; go.style.flex = "0 0 auto"; go.textContent = urlLabel + " ↗";
-    go.addEventListener("click", () => { copyText(val); window.open(url, "_blank", "noopener"); });
-    row.append(lab, code, cp, go); box.appendChild(row);
+    row.append(lab, code, cp); box.appendChild(row);
   });
 }
 
@@ -1822,15 +1851,16 @@ $("useVision").addEventListener("change", () => {
 
 async function geminiAsk(prompt, opts) {
   opts = opts || {};
+  const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
   const key = localStorage.getItem(LS.gemini);
   // キャッシュ命中なら無料枠を消費せず即返す(noCache指定時は最新を取得)
-  const ck = getAiMode() + ":" + hashStr(prompt);
+  const ck = mode + ":" + hashStr(prompt);
   if (!opts.noCache) {
     const cached = aiCacheGet(ck);
     if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   }
   let lastErr = null;
-  for (const model of GEMINI_MODELS[getAiMode()]) {
+  for (const model of GEMINI_MODELS[mode]) {
     try {
       // 思考トークンと本文が両方収まるよう上限は大きめに確保
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
@@ -1922,9 +1952,9 @@ function renderAiAnswer(container, text, opts) {
       const li = document.createElement("li");
       const div = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
-      if (opts.linkCauses) {     // 診断の原因候補をタップ→AIが部品名を特定→修理タブへ
-        t.classList.add("clk"); t.title = "タップで部品を特定して修理タブに入力";
-        t.addEventListener("click", () => gotoRepairFromText(n[2], "cause"));
+      if (opts.linkCauses) {     // 診断の原因候補をタップ→修理タブの点検手順で詳しく説明
+        t.classList.add("clk"); t.title = "タップで修理タブの点検手順を表示";
+        t.addEventListener("click", () => gotoInspection(n[2]));
       }
       div.appendChild(t);
       li.appendChild(div);
@@ -2436,52 +2466,61 @@ function speak(text) {
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
-let voiceListening = false, voiceAccum = "";
+let voiceListening = false, voiceAccum = "", voiceSessionFinal = "";
 /* メカ君の読み上げだけ止める */
 $("btnVoiceMute").addEventListener("click", () => {
   try { window.speechSynthesis.cancel(); } catch (e) {}
   $("voiceStatus").textContent = "読み上げを止めました。「押して話す」で続けられます。";
 });
+/* 1セッションの音声認識(無音で切れても voiceListening 中は自動再開して待ち続ける) */
+function startVoiceSession() {
+  const rec = getSpeechRecognition(); if (!rec) { voiceListening = false; return; }
+  rec.continuous = true; rec.interimResults = true;
+  voiceRec = rec; voiceSessionFinal = "";
+  rec.onresult = e => {
+    // 毎回 全結果から作り直す(重複・連結バグ防止)
+    let f = "", interim = "";
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+    }
+    voiceSessionFinal = f;
+    $("voiceStatus").textContent = "🎤 " + (voiceAccum + f + interim);
+  };
+  rec.onerror = () => {};
+  rec.onend = () => {
+    voiceAccum += voiceSessionFinal; voiceSessionFinal = ""; voiceRec = null;
+    if (voiceListening) { startVoiceSession(); return; }  // 押すまで聞き続ける
+    finishVoiceTurn();
+  };
+  try { rec.start(); } catch (e) { voiceRec = null; }
+}
+async function finishVoiceTurn() {
+  $("btnVoiceTalk").textContent = "🎤 押して話す";
+  const said = voiceAccum.trim(); voiceAccum = "";
+  if (!said) { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; return; }
+  vcAppend("user", said); voiceHistory.push({ role: "user", text: said });
+  $("voiceStatus").textContent = "🔧 メカ君が考えています…";
+  try {
+    const r = await geminiAsk(buildVoiceChatPrompt(), { mode: "flash" });  // 会話は標準モードで無料枠を節約
+    voiceHistory.push({ role: "mecha", text: r.text });
+    vcAppend("mecha", r.text); speak(r.text);
+    $("voiceStatus").textContent = "「押して話す」でさらに質問できます。読み上げ中は🔇停止や「押して話す」で止められます。";
+  } catch (err) {
+    $("voiceStatus").textContent = "⚠ " + (err.message || "メカ君に接続できませんでした");
+  }
+}
 $("btnVoiceTalk").addEventListener("click", () => {
-  // メカ君が読み上げ中なら止める(しゃべりを中断して聞き取りへ)
-  try { window.speechSynthesis.cancel(); } catch (e) {}
-  if (voiceListening) {           // 2回目の押下=話し終わり → 認識停止して送信
+  try { window.speechSynthesis.cancel(); } catch (e) {}   // 読み上げ中なら止めて聞き取りへ
+  if (voiceListening) {            // 2回目の押下=話し終わり → 停止して送信
     voiceListening = false;
-    if (voiceRec) { try { voiceRec.stop(); } catch (e) {} }
+    if (voiceRec) { try { voiceRec.stop(); } catch (e) {} } else { finishVoiceTurn(); }
     $("btnVoiceTalk").textContent = "🎤 押して話す";
     return;
   }
-  const rec = getSpeechRecognition(); if (!rec) return;
-  rec.continuous = true; rec.interimResults = true;   // 短い間で切れないよう蓄積
-  voiceRec = rec; voiceActive = true; voiceListening = true; voiceAccum = "";
+  voiceActive = true; voiceListening = true; voiceAccum = ""; voiceSessionFinal = "";
   $("voiceStatus").textContent = "🎤 聞いています…話し終わったら、もう一度ボタンを押してください。";
   $("btnVoiceTalk").textContent = "■ 話し終えたらタップ";
-  rec.onresult = e => {
-    let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const tr = e.results[i];
-      if (tr.isFinal) voiceAccum += tr[0].transcript; else interim += tr[0].transcript;
-    }
-    $("voiceStatus").textContent = "🎤 " + (voiceAccum + interim);
-  };
-  rec.onerror = () => {};
-  rec.onend = async () => {
-    voiceRec = null; voiceListening = false; $("btnVoiceTalk").textContent = "🎤 押して話す";
-    const said = voiceAccum.trim();
-    if (!said) { $("voiceStatus").textContent = "聞き取れませんでした。もう一度「押して話す」を。"; return; }
-    vcAppend("user", said); voiceHistory.push({ role: "user", text: said });
-    $("voiceStatus").textContent = "🔧 メカ君が考えています…";
-    try {
-      const r = await geminiAsk(buildVoiceChatPrompt());
-      voiceHistory.push({ role: "mecha", text: r.text });
-      vcAppend("mecha", r.text);
-      speak(r.text);
-      $("voiceStatus").textContent = "「押して話す」でさらに質問できます。読み上げ中は🔉停止や「押して話す」で止められます。";
-    } catch (err) {
-      $("voiceStatus").textContent = "⚠ " + (err.message || "メカ君に接続できませんでした");
-    }
-  };
-  try { rec.start(); } catch (e) { voiceRec = null; voiceListening = false; }
+  startVoiceSession();
 });
 function buildVoiceChatPrompt() {
   const lines = [
