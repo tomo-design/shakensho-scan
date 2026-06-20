@@ -1043,7 +1043,7 @@ function showResult(d, opt = {}) {
     lm.firstChild.textContent = mk.label; lm.href = mk.url;
   }
   $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || d.vin || "") + " リコール 改善対策");
-  renderRecallVin(d.vin, mk ? mk.url : null);   // 車台番号を前後でコピー＋各サイトを別タブで開く
+  renderRecallVin(d.type, d.vin);   // 型式(車台番号から特定)と車台番号をそれぞれコピー
 
   // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
   const wrap = $("rawChips"); wrap.innerHTML = "";
@@ -1312,14 +1312,13 @@ function copyText(t) {
     try { document.execCommand("copy"); } catch (e2) {} ta.remove();
   }
 }
-function renderRecallVin(vin, makerUrl) {
+function renderRecallVin(type, vin) {
   const box = $("recallVin"); box.innerHTML = "";
-  if (!vin) return;
-  const hasH = vin.includes("-");
-  const pre = hasH ? vin.split("-")[0] : vin;
-  const suf = hasH ? vin.split("-").slice(1).join("-") : "";
+  if (!vin && !type) return;
+  // 型式: 実際の型式(例 QKG-FV60VX)を優先。無ければ車台番号の先頭で代替
+  const kata = type || (vin ? vinPrefix(vin) : "");
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
-  head.textContent = "車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
+  head.textContent = "型式・車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
   box.appendChild(head);
   const cols = document.createElement("div"); cols.style.cssText = "display:flex;gap:10px";
   const mkCol = (label, val) => {
@@ -1332,8 +1331,8 @@ function renderRecallVin(vin, makerUrl) {
     cp.addEventListener("click", () => { copyText(val); cp.textContent = "✓"; setTimeout(() => cp.textContent = "📋", 1200); });
     r.append(code, cp); c.append(lab, r); return c;
   };
-  cols.appendChild(mkCol("型式", pre));
-  if (suf) cols.appendChild(mkCol("車台番号", suf));
+  if (kata) cols.appendChild(mkCol("型式", kata));
+  if (vin) cols.appendChild(mkCol("車台番号", vin));
   box.appendChild(cols);
 }
 
@@ -2478,7 +2477,7 @@ function vcAppend(role, text) {
 function speak(text) {
   try {
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/[■#*]/g, "")); u.lang = "ja-JP"; u.rate = 1.05;
+    const u = new SpeechSynthesisUtterance(text.replace(/[■#*]/g, "")); u.lang = "ja-JP"; u.rate = 1.5;
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
