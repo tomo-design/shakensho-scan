@@ -184,11 +184,10 @@ ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 
 /* spec table */
 /* メンテ諸元: 項目ごとにカード分け(スマホで見やすく) */
-dl.specs{display:flex;flex-direction:column;gap:8px}
-dl.specs dt{margin:0;padding:0 0 3px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--amber)}
-dl.specs dd{margin:0 0 0;padding:0;font-size:15px;line-height:1.65;word-break:break-word;color:var(--txt)}
-dl.specs dt{background:var(--panel2);border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;padding:9px 12px 4px}
-dl.specs dd{background:var(--panel2);border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;padding:0 12px 11px}
+dl.specs{display:flex;flex-direction:column;gap:10px}
+.specItem{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:10px 14px}
+.specItem .specK{font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--amber);margin-bottom:3px}
+.specItem .specV{font-size:16px;line-height:1.55;font-weight:600;color:var(--txt);word-break:break-word}
 
 /* 諸元の操作ボタン(中央・小さめ) */
 .specBtns{display:flex;justify-content:center;gap:8px;margin-top:12px}

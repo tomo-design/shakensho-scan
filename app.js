@@ -1127,9 +1127,10 @@ function renderSpecs(specs, source) {
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
   shownSpecs.forEach(s => {
-    const dt = document.createElement("dt"); dt.textContent = s.k;
-    const dd = document.createElement("dd"); dd.textContent = s.v;
-    dl.append(dt, dd);
+    const item = document.createElement("div"); item.className = "specItem";
+    const k = document.createElement("div"); k.className = "specK"; k.textContent = s.k;
+    const v = document.createElement("div"); v.className = "specV"; v.textContent = s.v;
+    item.append(k, v); dl.appendChild(item);
   });
   toggle("specList", shownSpecs.length > 0);
   // 出所ラベル
