@@ -160,10 +160,16 @@
     show("cloudManageBox", true); box.innerHTML = "読み込み中…";
     try {
       let html = "";
+      let superTenants = null;
       if (profile.role === "super") {
         const ts = await db.collection("tenants").get();
+        superTenants = ts;
         html += "<div class='hint' style='font-weight:700;margin:4px 0'>会社一覧（運営）</div>";
-        ts.forEach(d => { const t = d.data(); html += rowHtml("t", d.id, d.id + (t.active ? "（有効）" : "（承認待ち）"), t.active); });
+        ts.forEach(d => {
+          const t = d.data();
+          html += rowHtml("t", d.id, d.id + (t.active ? "（有効）" : "（承認待ち）"), t.active);
+          html += "<div class='hint' id='stat_" + d.id.replace(/[^a-zA-Z0-9_-]/g, "") + "' style='margin:-2px 0 8px;color:var(--dim);font-size:12px'>利用状況を取得中…</div>";
+        });
       }
       // 自社(または全社=super)の従業員
       let uq = db.collection("users");
@@ -173,6 +179,8 @@
       us.forEach(d => { const u = d.data(); html += rowHtml("u", d.id, (u.email || d.id) + " / " + (u.role || "staff") + (u.tenantId ? " @" + u.tenantId : ""), u.active); });
       box.innerHTML = html || "なし";
       box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", () => manageAction(b.dataset.kind, b.dataset.id, b.dataset.act)));
+      // 各社の利用状況(メンバー数・車種DB件数・車両台数)を非同期で取得して表示
+      if (superTenants) superTenants.forEach(d => fillTenantStats(d.id));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   });
   function rowHtml(kind, id, label, active) {
@@ -182,6 +190,17 @@
         ? "<button class='btn btn-ghost btn-sm' data-act='off' data-kind='" + kind + "' data-id='" + esc(id) + "'>無効化</button>"
         : "<button class='btn btn-amber btn-sm' data-act='on' data-kind='" + kind + "' data-id='" + esc(id) + "'>承認</button><button class='btn btn-ghost btn-sm' data-act='del' data-kind='" + kind + "' data-id='" + esc(id) + "'>却下</button>") +
       "</div>";
+  }
+  async function fillTenantStats(tid) {
+    const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
+    try {
+      const [v, r, u] = await Promise.all([
+        db.collection("tenants").doc(tid).collection("vehicles").get().then(s => s.size).catch(() => "?"),
+        db.collection("tenants").doc(tid).collection("records").get().then(s => s.size).catch(() => "?"),
+        db.collection("users").where("tenantId", "==", tid).get().then(s => s.size).catch(() => "?"),
+      ]);
+      el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台";
+    } catch (e) { el.textContent = "利用状況の取得に失敗"; }
   }
   async function manageAction(kind, id, act) {
     try {
