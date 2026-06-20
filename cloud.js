@@ -14,6 +14,8 @@
     messagingSenderId: "126560659288",
     appId: "1:126560659288:web:627b913aef320e7e76a72d"
   };
+  // このメールでログインした人は自動で「運営管理者(super)」になる(あなた専用・コンソール操作不要)
+  const OWNER_EMAIL = "banana19870729@gmail.com";
   if (typeof firebase === "undefined") { console.warn("Firebase未読込(オフライン等)。クラウド同期はスキップ"); return; }
 
   let auth, db;
@@ -74,8 +76,14 @@
     if (!user) { me = null; profile = null; renderAuthUI(); return; }
     me = { uid: user.uid, email: user.email };
     try {
-      const doc = await db.collection("users").doc(user.uid).get();
+      let doc = await db.collection("users").doc(user.uid).get();
       profile = doc.exists ? doc.data() : null;
+      // オーナー(あなた)は自動で運営管理者(super・有効)に昇格(コンソール操作不要)
+      if (user.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase() && (!profile || profile.role !== "super" || !profile.active)) {
+        await db.collection("users").doc(user.uid).set({ email: user.email, role: "super", active: true, tenantId: (profile && profile.tenantId) || "admin", createdAt: (profile && profile.createdAt) || Date.now() }, { merge: true });
+        doc = await db.collection("users").doc(user.uid).get();
+        profile = doc.data();
+      }
     } catch (e) { profile = null; }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) startSync(profile.tenantId);

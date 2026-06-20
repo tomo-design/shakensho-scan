@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function isOwner(){ return signedIn() && request.auth.token.email == "banana19870729@gmail.com"; }
+    function meDoc(){ return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function meActive(){ return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && meDoc().active == true; }
+    function myTenant(){ return meActive() ? meDoc().tenantId : ""; }
+    function myRole(){ return meActive() ? meDoc().role : ""; }
+    function isSuper(){ return isOwner() || myRole() == "super"; }
+    function isAdmin(){ return myRole() == "admin"; }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isSuper() || (isAdmin() && resource.data.tenantId == myTenant()));
+      // オーナー本人は自分のドキュメントを自由に作成/更新可(super昇格のため)
+      allow write: if request.auth.uid == uid && isOwner();
+      // 一般の自己登録: active=false かつ role は admin/staff のみ
+      allow create: if request.auth.uid == uid
+                    && request.resource.data.active == false
+                    && request.resource.data.role in ['admin','staff'];
+      // 承認/無効化: super は全員、admin は自社のみ
+      allow update, delete: if isSuper() || (isAdmin() && resource.data.tenantId == myTenant());
+    }
+
+    match /tenants/{tid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (request.resource.data.active == false || isOwner());
+      allow update, delete: if isSuper();
+    }
+
+    match /tenants/{tid}/{coll}/{doc} {
+      allow read, write: if meActive() && (myTenant() == tid || isSuper());
+    }
+  }
+}
