@@ -150,13 +150,13 @@ label.fld:first-child{margin-top:0}
 .mode-btn.mode-active small{color:#dbe7ff!important}
 
 /* AI回答 */
-.ai-answer{font-size:14px;line-height:1.8;word-break:break-word}
-.ai-h{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--amber);margin:14px 0 6px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.ai-answer{font-size:15px;line-height:1.9;word-break:break-word;color:var(--txt)}
+.ai-h{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--txt);margin:16px 0 8px;padding:8px 12px;background:var(--panel2);border-left:4px solid var(--amber);border-radius:8px}
 .ai-h:first-child{margin-top:2px}
-.ai-cause{font-weight:700;font-size:14px;line-height:1.6}
+.ai-cause{font-weight:700;font-size:15px;line-height:1.6}
 .ai-check{margin-top:5px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:7px 10px;border-radius:0}
 .ai-check-label{color:var(--cyan);font-weight:700;font-size:11px;letter-spacing:.1em;margin-right:4px}
-.ai-p{margin:6px 0;line-height:1.8}
+.ai-p{margin:7px 0 7px 2px;line-height:1.9}
 ol.ai-list li{align-items:flex-start}
 ol.ai-list li>div{flex:1;min-width:0}
 

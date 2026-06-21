@@ -612,6 +612,7 @@ function applyAiQr(o) {
   showResult(accResult(), { fromScan: true });  // AI補完した指定・類別等も履歴(DB)へ保存
 }
 $("btnAiQr").addEventListener("click", async () => {
+  stopFieldMic();
   if (!localStorage.getItem(LS.gemini)) {
     alert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
@@ -948,6 +949,7 @@ function renderPartsVideoLinks(part) {
 }
 let partsBusy = false;
 $("btnPartsGo").addEventListener("click", async () => {
+  stopFieldMic();
   const part = $("partName").value.trim();
   if (!part) { $("partName").focus(); return; }
   renderPartsVideoLinks(part);   // 動画リンクは即出す(AIキー無しでも使える)
@@ -958,7 +960,7 @@ $("btnPartsGo").addEventListener("click", async () => {
   }
   if (partsBusy) return; partsBusy = true;
   const box = $("partsResult"); toggle("partsResult", true);
-  box.textContent = "🔧 メカ君が交換手順を調べています…";
+  box.textContent = "メカ君が交換手順を調べています…";
   setBtnLoading($("btnPartsGo"), true, "メカ君が調べ中…");
   try {
     const r = await geminiAsk(buildPartsPrompt(part));
@@ -982,6 +984,7 @@ $("btnVehClear").addEventListener("click", () => {
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
 });
 $("btnVehAsk").addEventListener("click", async () => {
+  stopFieldMic();
   const q = $("qVehText").value.trim();
   if (!q) { $("qVehText").focus(); return; }
   if (!localStorage.getItem(LS.gemini)) {
@@ -1763,6 +1766,7 @@ function updateDiagVehicleHint() {
     : "車検証をスキャンしておくと、車種固有の持病との照合・型式付き事例検索ができます";
 }
 $("btnDiagRun").addEventListener("click", async () => {
+  stopFieldMic();
   // 写真・動画の添付があればメディアAI解析、無ければ従来のコード/問診解析
   if (diagAttachments.length) { await diagMediaAnalyze(); return; }
   const btn = $("btnDiagRun"); setBtnLoading(btn, true, "メカ君が考え中…");
@@ -2215,6 +2219,7 @@ function buildSpecPrompt() {
   ].join("\n");
 }
 async function runSpecAI(srcBtn) {
+  stopFieldMic();
   if (!localStorage.getItem(LS.gemini)) {
     alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings");
@@ -2477,6 +2482,8 @@ function getSpeechRecognition() {
   return r;
 }
 let micRec = null, micListening = false, micBtnCur = null;
+/* 検索/相談ボタン押下時に音声入力を終了させる */
+function stopFieldMic() { micListening = false; if (micRec) { try { micRec.stop(); } catch (e) {} } }
 /* 音声で文字入力: 押すと認識開始。無音で切れても押すまで自動再開し続ける。再押下で停止 */
 function wireFieldMic(btnId, fieldId, idleLabel) {
   const btn = $(btnId); if (!btn) return;

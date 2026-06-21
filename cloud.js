@@ -54,6 +54,13 @@
     } else { signup(cloudMode === "new"); }
   });
   $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
+  /* パスワード再設定メール */
+  $("lnkResetPw") && $("lnkResetPw").addEventListener("click", async () => {
+    const email = ($("cloudEmail").value || "").trim() || (prompt("再設定メールを送るメールアドレスを入力") || "").trim();
+    if (!email) return;
+    try { await auth.sendPasswordResetEmail(email); $("cloudAuthStat").textContent = "✓ " + email + " に再設定メールを送りました。受信箱をご確認ください。"; }
+    catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
+  });
   /* 完全自動同期: リアルタイム購読に加え、アプリ復帰/オンライン復帰の度に取りこぼしを自動同期 */
   function autoResync() { if (profile && profile.active && profile.tenantId) startSync(profile.tenantId); }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) autoResync(); });
@@ -114,6 +121,11 @@
     } catch (e) { profile = null; }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) startSync(profile.tenantId);
+    // 運営ログイン後の遷移
+    if (pendingSuperOpen) {
+      if (profile && profile.active && profile.role === "super") { openAdminIfSuper(); }
+      else { pendingSuperOpen = false; const s = $("superStat"); if (s) s.textContent = "⚠ このアカウントは運営管理者ではありません。"; }
+    }
   });
 
   function renderAuthUI() {
@@ -263,12 +275,18 @@
     return rowWrap(esc(label), active ? btn("off", kind, id, "停止") : btn("on", kind, id, "承認", "btn-amber") + btn("del", kind, id, "削除"));
   }
   function userRow(id, u) {
-    const roleJa = ({ super: "👑運営", admin: "👑代表管理者", staff: "従業員" }[u.role] || u.role);
-    const namePart = (u.name ? "<b>" + esc(u.name) + "</b>" : esc(u.email || id)) + " <span style='color:var(--dim)'>/ " + roleJa + (u.tenantId ? " @" + esc(u.tenantId) : "") + "</span>";
+    const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
+    const isAdmin = u.role === "admin" || u.role === "super";
+    const namePart = (u.name ? "<b>" + esc(u.name) + "</b>" : esc(u.email || id)) +
+      " <span style='color:var(--dim)'>/ " + (isAdmin ? "<b style='color:var(--amber)'>" + roleJa + "</b>" : roleJa) + (u.tenantId ? " @" + esc(u.tenantId) : "") + "</span>" +
+      (u.email ? "<br><span style='color:var(--dim);font-size:11px'>" + esc(u.email) + "</span>" : "");
     let btns;
-    if (u.rejected) btns = btn("on", "u", id, "再承認", "btn-amber") + btn("del", "u", id, "削除");
-    else if (u.active) btns = btn("off", "u", id, "無効化");
-    else btns = btn("on", "u", id, "承認", "btn-amber") + btn("reject", "u", id, "却下");
+    if (u.active) {
+      // 代表管理者の引き継ぎ: 従業員を代表管理者に昇格
+      btns = (u.role === "staff" ? btn("promote", "u", id, "代表管理者にする", "btn-amber") : "") + btn("off", "u", id, "無効化");
+    } else {
+      btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");   // 却下=記録ごと削除
+    }
     return rowWrap(namePart, btns);
   }
   async function fillTenantStats(tid) {
@@ -285,10 +303,22 @@
   async function manageAction(kind, id, act) {
     try {
       const col = kind === "t" ? "tenants" : "users";
-      if (act === "del") { if (!confirm("完全に削除しますか？（取り消せません）")) return; await db.collection(col).doc(id).delete(); }
-      else if (act === "reject") { await db.collection(col).doc(id).update({ active: false, rejected: true }); }     // 却下=記録を残す(再承認可)
-      else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }          // 承認/再承認
-      else await db.collection(col).doc(id).update({ active: false });                                                 // 無効化/停止
+      if (act === "del") {
+        if (!confirm("この申請を却下し、記録（氏名・メール）を完全に削除しますか？（取り消せません）")) return;
+        await db.collection(col).doc(id).delete();
+      } else if (act === "promote") {
+        // 代表管理者の引き継ぎ: 対象を admin に、その会社の既存 admin を staff に降格
+        const tdoc = await db.collection("users").doc(id).get(); const tu = tdoc.data() || {};
+        const tid = tu.tenantId;
+        if (tid) {
+          const admins = await db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get();
+          for (const a of admins.docs) { if (a.id !== id) await db.collection("users").doc(a.id).update({ role: "staff" }); }
+          await db.collection("users").doc(id).update({ role: "admin", active: true });
+          await db.collection("tenants").doc(tid).set({ adminName: tu.name || "" }, { merge: true });
+        }
+        alert("代表管理者を引き継ぎました。");
+      } else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }
+      else await db.collection(col).doc(id).update({ active: false });
     } catch (e) { alert("操作失敗: " + (e.message || e)); }
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -305,15 +335,30 @@
     const ut = $("appUrlText"); if (ut) ut.textContent = appUrl;
   } catch (e) {}
 
-  /* ---------- 運営タブの隠し入口(ヘッダーを素早く5回タップ・superのみ) ---------- */
+  /* ---------- 運営の隠し入口(ヘッダーを素早く5回タップ) ---------- */
+  let pendingSuperOpen = false;
+  function openAdminIfSuper() {
+    if (profile && profile.active && profile.role === "super" && typeof switchView === "function") {
+      show("superLogin", false); pendingSuperOpen = false; switchView("admin"); return true;
+    }
+    return false;
+  }
   try {
     const hdr = document.querySelector("header"); let taps = 0, tm = null;
     if (hdr) hdr.addEventListener("click", () => {
       taps++; clearTimeout(tm); tm = setTimeout(() => taps = 0, 1500);
       if (taps >= 5) {
         taps = 0;
-        if (profile && profile.active && profile.role === "super" && typeof switchView === "function") switchView("admin");
+        if (!openAdminIfSuper()) { show("superLogin", true); $("superStat").textContent = ""; }  // 未ログイン/非super → 運営ログイン
       }
     });
   } catch (e) {}
+  $("btnSuperCancel") && $("btnSuperCancel").addEventListener("click", () => show("superLogin", false));
+  $("btnSuperLogin") && $("btnSuperLogin").addEventListener("click", async () => {
+    const email = ($("superEmail").value || "").trim(), pw = $("superPw").value;
+    if (!email || !pw) { $("superStat").textContent = "メールとパスワードを入力してください。"; return; }
+    $("superStat").textContent = "ログイン中…"; pendingSuperOpen = true;
+    try { await auth.signInWithEmailAndPassword(email, pw); }
+    catch (e) { pendingSuperOpen = false; $("superStat").textContent = "⚠ " + authErr(e); }
+  });
 })();

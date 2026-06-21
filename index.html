@@ -419,7 +419,9 @@
             <button class="btn btn-amber" id="btnCloudSubmit">実行</button>
             <button class="btn btn-ghost btn-sm" id="btnCloudBack" style="flex:0 0 28%">戻る</button>
           </div>
+          <div class="linkrow"><button class="textlink" id="lnkResetPw" type="button">パスワードを忘れた方（再設定メール）</button></div>
         </div>
+        <div class="hint" style="margin-top:8px;color:var(--dim)">ログインでお困りの場合は、会社の代表管理者または運営（<a href="mailto:banana19870729@gmail.com" style="color:var(--cyan)">お問い合わせ</a>）へご連絡ください。</div>
         <div id="cloudAuthStat" class="hint" style="margin-top:8px"></div>
         <details style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
           <summary style="font-weight:700;cursor:pointer">📋 従業員の登録手順（はじめての方へ）</summary>
@@ -532,6 +534,22 @@
       <div id="adminBox" style="margin-top:10px">読み込み中…</div>
     </div>
   </section>
+</div>
+
+<!-- 運営管理者ログイン(ヘッダー5回タップで出現) -->
+<div id="superLogin" class="hidden" style="position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;width:100%;max-width:360px">
+    <div style="font-weight:700;font-size:15px;margin-bottom:10px">🛡️ 運営管理者ログイン</div>
+    <label class="fld">メールアドレス</label>
+    <input type="email" id="superEmail" placeholder="運営のメール" autocomplete="username">
+    <label class="fld">パスワード</label>
+    <input type="password" id="superPw" placeholder="パスワード" autocomplete="current-password">
+    <div id="superStat" class="hint" style="margin-top:8px"></div>
+    <div class="btnRow" style="margin-top:12px">
+      <button class="btn btn-amber" id="btnSuperLogin">ログイン</button>
+      <button class="btn btn-ghost btn-sm" id="btnSuperCancel" style="flex:0 0 28%">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <!-- assign bar -->
