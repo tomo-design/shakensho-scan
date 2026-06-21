@@ -251,4 +251,16 @@
     const qr = $("appQr"); if (qr) qr.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(appUrl);
     const ut = $("appUrlText"); if (ut) ut.textContent = appUrl;
   } catch (e) {}
+
+  /* ---------- 運営タブの隠し入口(ヘッダーを素早く5回タップ・superのみ) ---------- */
+  try {
+    const hdr = document.querySelector("header"); let taps = 0, tm = null;
+    if (hdr) hdr.addEventListener("click", () => {
+      taps++; clearTimeout(tm); tm = setTimeout(() => taps = 0, 1500);
+      if (taps >= 5) {
+        taps = 0;
+        if (profile && profile.active && profile.role === "super" && typeof switchView === "function") switchView("admin");
+      }
+    });
+  } catch (e) {}
 })();

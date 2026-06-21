@@ -178,7 +178,7 @@
     </section>
   </div>
 
-  <p class="note">※ ナンバー・使用者名を含む保存データはすべてこの端末内のみ。外部送信されません。</p>
+  <p class="note">※ データはこの端末に保存。クラウド同期にログイン中は社内で共有されます。</p>
 </div>
 
 <!-- ============ VIEW: MAINT ============ -->
@@ -209,7 +209,7 @@
           <button class="btn btn-ghost" id="btnSpecEditCancel" style="flex:0 0 28%">取消</button>
         </div>
       </div>
-      <div class="hint" style="margin:10px 0 0">※ 内蔵値・AIの回答とも参考値です。年式・エンジン型式で異なるため整備書で確認を。訂正して保存するとこの型式に記憶され、次回はAIを使わず表示します。</div>
+      <div class="hint" style="margin:10px 0 0">※ 参考値です。年式・型式で異なるため整備書で確認を。訂正保存するとこの車両に記憶され次回も表示します。</div>
     </div>
   </section>
 
@@ -228,7 +228,7 @@
   <section id="secRecall" class="hidden">
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
     <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
-    <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ 上記はAIが調べた参考情報です。必ず下記の公式ページで車台番号により対象を確認してください。</div>
+    <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ AIの参考情報です。下記の公式ページで車台番号により対象を確認してください。</div>
     <div id="recallVin" style="margin:0 0 10px"></div>
     <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
@@ -253,7 +253,7 @@
     </div>
     <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
     <div id="partsLinks"></div>
-    <div class="hint" style="margin-top:10px">※ 手順・価格はAIによる<b>参照値</b>です。EPB整備モードや締付トルク等、より正確な情報は整備書（<a href="https://www.faines.jp/" target="_blank" rel="noopener" style="color:var(--cyan)">FAINES ↗</a>）で必ず確認してください。動画は外部サイト(YouTube等)が開きます。</div>
+    <div class="hint" style="margin-top:10px">※ AIによる<b>参照値</b>です。EPB整備モード・締付トルク等は整備書（<a href="https://www.faines.jp/" target="_blank" rel="noopener" style="color:var(--cyan)">FAINES ↗</a>）で確認を。</div>
   </div></section>
 
   <section><h2 class="secHead"><span class="tag cy">ASK</span>この車両について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
@@ -444,17 +444,19 @@
   </section>
 
   <section>
-    <h2><span class="tag">SHARE</span>このアプリを紹介</h2>
-    <div class="sec-body" style="text-align:center">
-      <p class="hint" style="text-align:left">下のQRを読み取るとこのアプリが開きます。整備士仲間・他事業所への紹介にどうぞ。</p>
-      <img id="appQr" alt="アプリQR" style="width:200px;height:200px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px">
-      <div class="hint" id="appUrlText" style="word-break:break-all;margin-top:8px"></div>
-    </div>
+    <details>
+      <summary class="secSummary">このアプリを紹介（QRコード）</summary>
+      <div class="sec-body" style="text-align:center">
+        <p class="hint" style="text-align:left">下のQRを読み取るとこのアプリが開きます。整備士仲間・他事業所への紹介にどうぞ。</p>
+        <img id="appQr" alt="アプリQR" style="width:200px;height:200px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px">
+        <div class="hint" id="appUrlText" style="word-break:break-all;margin-top:8px"></div>
+      </div>
+    </details>
   </section>
 
   <section>
     <details>
-      <summary class="secSummary"><span class="tag">AI</span>メカ君に相談機能（無料・任意）</summary>
+      <summary class="secSummary">メカ君に相談機能（無料・任意）</summary>
       <div class="sec-body">
         <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると「メカ君に相談」が使えます（クレジットカード登録不要。無料枠あり）。<br>取得: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">aistudio.google.com/apikey ↗</a> → ログイン →「APIキーを作成」→ 下に貼り付け</p>
         <div class="inputRow">
@@ -481,7 +483,7 @@
 
   <section>
     <details>
-      <summary class="secSummary"><span class="tag cy">OCR</span>OCRについて</summary>
+      <summary class="secSummary">OCRについて</summary>
       <div class="sec-body">
         <p class="hint">写真の文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使用。明るく大きく写すと精度UP。</p>
         <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
@@ -550,7 +552,6 @@
   <button data-view="history"><span class="ico">🕓</span>履歴</button>
   <button data-view="db"><span class="ico">🔧</span>DB編集</button>
   <button data-view="settings"><span class="ico">⚙️</span>設定</button>
-  <button data-view="admin" id="tabAdmin" class="hidden"><span class="ico">🛡️</span>運営</button>
 </nav>
 
 <script src="app.js"></script>
