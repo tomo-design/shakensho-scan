@@ -402,18 +402,20 @@
         <p class="hint">ログインすると、車種DB・車両データ（ナンバー/使用者含む）を<b>社内の全端末で自動共有</b>できます。会社ごとに分離され、他社からは見えません。</p>
         <div id="cloudChoice">
           <div class="btnRow" style="margin-top:4px"><button class="btn btn-amber" id="btnModeLogin">ログイン</button></div>
-          <div class="btnRow" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnModeNew">この会社を新規作成</button></div>
-          <div class="btnRow" style="margin-top:6px"><button class="btn btn-ghost btn-sm" id="btnModeJoin">既存の会社に参加</button></div>
+          <div class="btnRow" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnModeNew">管理者として会社を新規登録</button></div>
+          <div class="btnRow" style="margin-top:6px"><button class="btn btn-ghost btn-sm" id="btnModeJoin">従業員として会社に参加</button></div>
         </div>
-        <div id="cloudForm" class="hidden" style="margin-top:10px">
-          <div id="cloudFormTitle" class="hint" style="font-weight:700;margin-bottom:6px"></div>
+        <div id="cloudForm" class="hidden" style="margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)">
+          <div id="cloudFormTitle" style="font-weight:700;margin-bottom:8px"></div>
+          <div id="nameField"><label class="fld">氏名</label>
+          <input type="text" id="cloudName" placeholder="例: 山田 太郎" autocomplete="name"></div>
           <label class="fld">メールアドレス</label>
           <input type="email" id="cloudEmail" placeholder="you@example.com" autocomplete="username">
           <label class="fld">パスワード</label>
           <input type="password" id="cloudPw" placeholder="6文字以上" autocomplete="current-password">
           <div id="tenantField"><label class="fld">事業所ID（会社の識別名・半角英数）</label>
           <input type="text" id="cloudTenant" class="uc" placeholder="例: marukouseibi"></div>
-          <div class="btnRow" style="margin-top:10px">
+          <div class="btnRow" style="margin-top:12px">
             <button class="btn btn-amber" id="btnCloudSubmit">実行</button>
             <button class="btn btn-ghost btn-sm" id="btnCloudBack" style="flex:0 0 28%">戻る</button>
           </div>

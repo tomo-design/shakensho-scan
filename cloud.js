@@ -34,8 +34,9 @@
     cloudMode = mode;
     show("cloudChoice", false); show("cloudForm", true);
     show("tenantField", mode !== "login");
-    $("cloudFormTitle").textContent = mode === "new" ? "この会社を新規作成（あなたが代表管理者）" : mode === "join" ? "既存の会社に参加（承認待ちになります）" : "ログイン";
-    $("btnCloudSubmit").textContent = mode === "new" ? "会社を作成" : mode === "join" ? "参加を申請" : "ログイン";
+    show("nameField", mode !== "login");
+    $("cloudFormTitle").textContent = mode === "new" ? "管理者として会社を新規登録（1社1名）" : mode === "join" ? "従業員として会社に参加（承認待ちになります）" : "ログイン";
+    $("btnCloudSubmit").textContent = mode === "new" ? "会社を登録" : mode === "join" ? "参加を申請" : "ログイン";
     $("cloudAuthStat").textContent = "";
   }
   function closeForm() { show("cloudForm", false); show("cloudChoice", true); }
@@ -59,20 +60,29 @@
   });
 
   async function signup(isNewCompany) {
+    const name = $("cloudName").value.trim();
     const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
     const tid = ($("cloudTenant").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""));
+    if (!name) { $("cloudAuthStat").textContent = "氏名を入力してください。"; return; }
     if (!email || pw.length < 6) { $("cloudAuthStat").textContent = "メールと6文字以上のパスワードを入力してください。"; return; }
     if (!tid) { $("cloudAuthStat").textContent = "事業所IDを入力してください(半角英数)。"; return; }
     $("cloudAuthStat").textContent = "登録中…";
+    // 管理者の新規登録は1社1名: 既に会社が存在していたら拒否
+    if (isNewCompany) {
+      try {
+        const t = await db.collection("tenants").doc(tid).get();
+        if (t.exists) { $("cloudAuthStat").textContent = "⚠ この事業所IDは既に登録されています。従業員として参加してください。"; return; }
+      } catch (e) {}
+    }
     try {
       const cred = await auth.createUserWithEmailAndPassword(email, pw);
       const uid = cred.user.uid;
       if (isNewCompany) {
-        await db.collection("tenants").doc(tid).set({ name: tid, active: false, createdAt: Date.now() }, { merge: true });
-        await db.collection("users").doc(uid).set({ email, tenantId: tid, role: "admin", active: false, createdAt: Date.now() });
-        $("cloudAuthStat").textContent = "✓ 会社を作成しました。運営の承認後に有効化されます。";
+        await db.collection("tenants").doc(tid).set({ name: tid, adminName: name, active: false, createdAt: Date.now() }, { merge: true });
+        await db.collection("users").doc(uid).set({ name, email, tenantId: tid, role: "admin", active: false, rejected: false, createdAt: Date.now() });
+        $("cloudAuthStat").textContent = "✓ 会社を登録しました。運営の承認後に有効化されます。";
       } else {
-        await db.collection("users").doc(uid).set({ email, tenantId: tid, role: "staff", active: false, createdAt: Date.now() });
+        await db.collection("users").doc(uid).set({ name, email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() });
         $("cloudAuthStat").textContent = "✓ 参加申請しました。会社の代表管理者の承認をお待ちください。";
       }
     } catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
@@ -114,12 +124,22 @@
     show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
     if (!inLogged) { closeForm(); show("tabAdmin", false); return; }
     const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[profile.role] || profile.role) : "—";
+    const who = profile && profile.name ? profile.name + "（" + me.email + "）" : me.email;
     if (!profile) {
-      $("cloudStat").textContent = me.email + " — プロフィール未作成。再登録してください。";
+      $("cloudStat").innerHTML = esc(me.email) + " — プロフィール未作成です。<br><button class='btn btn-amber btn-sm' id='cloudRecover' style='margin-top:6px'>会社に参加（再申請）</button>";
+      const rb = $("cloudRecover");
+      if (rb) rb.onclick = async () => {
+        const nm = (prompt("氏名を入力してください") || "").trim(); if (!nm) return;
+        const tid = (prompt("事業所IDを入力してください（例: marukouseibi）") || "").toLowerCase().replace(/[^a-z0-9_-]/g, ""); if (!tid) return;
+        try { await db.collection("users").doc(me.uid).set({ name: nm, email: me.email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() }); alert("再申請しました。管理者の承認をお待ちください。"); location.reload(); }
+        catch (e) { alert("失敗: " + (e.message || e)); }
+      };
+    } else if (profile.rejected) {
+      $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>会社の代表管理者に承認をご相談ください。再申請が必要な場合は管理者が再承認できます。";
     } else if (!profile.active) {
-      $("cloudStat").innerHTML = me.email + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
+      $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
     } else {
-      $("cloudStat").innerHTML = "✓ 同期中 — " + me.email + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
+      $("cloudStat").innerHTML = "✓ 同期中 — " + who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
     }
     // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
@@ -228,19 +248,28 @@
       if (profile.role === "admin") uq = uq.where("tenantId", "==", profile.tenantId);
       const us = await uq.get();
       html += "<div class='hint' style='font-weight:700;margin:10px 0 4px'>メンバー</div>";
-      us.forEach(d => { const u = d.data(); html += rowHtml("u", d.id, (u.email || d.id) + " / " + (u.role || "staff") + (u.tenantId ? " @" + u.tenantId : ""), u.active); });
+      us.forEach(d => html += userRow(d.id, d.data()));
       box.innerHTML = html || "なし";
       box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async () => { await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
       if (superTenants) superTenants.forEach(d => fillTenantStats(d.id));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   }
-  function rowHtml(kind, id, label, active) {
+  function btn(act, kind, id, label, cls) { return "<button class='btn " + (cls || "btn-ghost") + " btn-sm' data-act='" + act + "' data-kind='" + kind + "' data-id='" + esc(id) + "'>" + label + "</button>"; }
+  function rowWrap(labelHtml, btnsHtml) {
     return "<div style='display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px'>" +
-      "<span style='flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis'>" + esc(label) + "</span>" +
-      (active
-        ? "<button class='btn btn-ghost btn-sm' data-act='off' data-kind='" + kind + "' data-id='" + esc(id) + "'>無効化</button>"
-        : "<button class='btn btn-amber btn-sm' data-act='on' data-kind='" + kind + "' data-id='" + esc(id) + "'>承認</button><button class='btn btn-ghost btn-sm' data-act='del' data-kind='" + kind + "' data-id='" + esc(id) + "'>却下</button>") +
-      "</div>";
+      "<span style='flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis'>" + labelHtml + "</span>" + btnsHtml + "</div>";
+  }
+  function rowHtml(kind, id, label, active) {  // 会社(tenant)用
+    return rowWrap(esc(label), active ? btn("off", kind, id, "停止") : btn("on", kind, id, "承認", "btn-amber") + btn("del", kind, id, "削除"));
+  }
+  function userRow(id, u) {
+    const roleJa = ({ super: "👑運営", admin: "👑代表管理者", staff: "従業員" }[u.role] || u.role);
+    const namePart = (u.name ? "<b>" + esc(u.name) + "</b>" : esc(u.email || id)) + " <span style='color:var(--dim)'>/ " + roleJa + (u.tenantId ? " @" + esc(u.tenantId) : "") + "</span>";
+    let btns;
+    if (u.rejected) btns = btn("on", "u", id, "再承認", "btn-amber") + btn("del", "u", id, "削除");
+    else if (u.active) btns = btn("off", "u", id, "無効化");
+    else btns = btn("on", "u", id, "承認", "btn-amber") + btn("reject", "u", id, "却下");
+    return rowWrap(namePart, btns);
   }
   async function fillTenantStats(tid) {
     const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
@@ -256,8 +285,10 @@
   async function manageAction(kind, id, act) {
     try {
       const col = kind === "t" ? "tenants" : "users";
-      if (act === "del") { if (!confirm("削除しますか？")) return; await db.collection(col).doc(id).delete(); }
-      else await db.collection(col).doc(id).update({ active: act === "on" });
+      if (act === "del") { if (!confirm("完全に削除しますか？（取り消せません）")) return; await db.collection(col).doc(id).delete(); }
+      else if (act === "reject") { await db.collection(col).doc(id).update({ active: false, rejected: true }); }     // 却下=記録を残す(再承認可)
+      else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }          // 承認/再承認
+      else await db.collection(col).doc(id).update({ active: false });                                                 // 無効化/停止
     } catch (e) { alert("操作失敗: " + (e.message || e)); }
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
