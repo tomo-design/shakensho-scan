@@ -63,7 +63,7 @@
   <input type="file" id="qrPhotoIn" accept="image/*" capture="environment" class="hidden">
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
-    <button class="textlink" id="lnkShowPlate" type="button">ナンバーで過去の車両を呼び出す</button>
+    <button class="textlink" id="lnkShowPlate" type="button">ナンバーで車両を呼び出す</button>
     <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
   </div>
 
@@ -253,7 +253,7 @@
     </div>
     <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
     <div id="partsLinks"></div>
-    <div class="hint" style="margin-top:10px">※ 手順はAIによる参考情報です。締付トルク等は整備書で確認を。動画は外部サイト(YouTube等)が開きます。</div>
+    <div class="hint" style="margin-top:10px">※ 手順・価格はAIによる<b>参照値</b>です。EPB整備モードや締付トルク等、より正確な情報は整備書（<a href="https://www.faines.jp/" target="_blank" rel="noopener" style="color:var(--cyan)">FAINES ↗</a>）で必ず確認してください。動画は外部サイト(YouTube等)が開きます。</div>
   </div></section>
 
   <section><h2 class="secHead"><span class="tag cy">ASK</span>この車両について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
@@ -395,92 +395,38 @@
 <!-- ============ VIEW: SETTINGS ============ -->
 <div id="view-settings" class="view">
   <section style="margin-top:14px">
-    <h2><span class="tag">AI</span>メカ君に相談機能（無料・任意）</h2>
-    <div class="sec-body">
-      <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると、診断タブで「メカ君に相談」でき、ダイアグ・問診の内容をメカ君に投げて臨機応変な診断アドバイスを受けられます（クレジットカード登録不要。無料枠: 1日あたりの回数制限あり）。<br><br>
-      取得手順: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">aistudio.google.com/apikey ↗</a> → Googleアカウントでログイン → 「APIキーを作成」→ コピーして下に貼り付け</p>
-      <div class="inputRow">
-        <input type="password" id="geminiKey" placeholder="AIza...">
-        <button class="btn btn-amber" id="btnGeminiSave">保存</button>
-      </div>
-      <div id="geminiStat" class="hint" style="margin-top:8px"></div>
-      <label class="fld" style="margin-top:14px">回答の品質モード</label>
-      <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost btn-sm mode-btn" id="modeFlash" data-mode="flash" style="white-space:nowrap">標準（速い）</button>
-        <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（精度重視）</button>
-      </div>
-      <div class="hint" style="margin-top:8px">どちらもAIが回答前に内部で「思考」してから答えます。高精度モードは複雑な複合症状向け。無料枠の上限に達した場合は自動で標準モデルに切り替えて再試行します。</div>
-      <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
-        <b>「無料枠の上限」をなくしたい場合（任意・従量課金）</b><br>
-        いまのAPIキーは<b>無料</b>で使えますが、1分あたり・1日あたりの回数制限があります。<b>同じキーのまま</b>、キーに紐づくプロジェクトの「課金」を有効にすると上限が大幅に上がります（有料・従量課金）。<br>
-        手順:<br>
-        ① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">Google AI Studio のAPIキー画面 ↗</a> を開く<br>
-        ② 使っているキーの行で <b>Plan</b> を確認 →「<b>Set up Billing</b>（お支払いを設定）」を押す<br>
-        ③ 表示される <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud のお支払い ↗</a> でカードを登録し、そのプロジェクトに請求先を紐付ける<br>
-        ④ 反映後は<b>キーの貼り替え不要</b>。これまで通り使えて上限だけ上がります。<br>
-        <span style="color:var(--dim)">料金目安: <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Gemini API 料金 ↗</a>（標準モデルは安価。課金はご自身のGoogle側で発生し、アプリは無料のままです）</span>
-      </div>
-    </div>
-  </section>
-  <section>
-    <h2><span class="tag cy">OCR</span>OCRについて</h2>
-    <div class="sec-body">
-      <p class="hint">写真から文字を読み取る機能（DB編集の「写真から読み取り」など）は、端末内で動く<b>Tesseract（無料・オフライン可）</b>を使います。明るい場所で文字が大きく写るよう近づけて撮ると精度が上がります。</p>
-      <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
-        <b>有料で高精度にしたい場合（任意・Cloud Vision）</b><br>
-        APIキーの取り方（初回のみ・10分ほど）:<br>
-        1. <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud でプロジェクト作成 ↗</a>（Googleアカウントでログイン→名前を入れて「作成」）<br>
-        2. <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">お支払い情報を登録 ↗</a>（カード登録。無料枠あり＝月1,000枚まで無料）<br>
-        3. <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API を「有効にする」 ↗</a><br>
-        4. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--cyan)">「認証情報を作成」→「APIキー」 ↗</a> でキーをコピー<br>
-        5. 下の欄に貼り付けて「保存」→「高精度OCRを使う」をON<br>
-        <span style="color:var(--dim)">料金目安: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">月1,000枚まで無料／以降1,000枚あたり約$1.5 ↗</a></span>
-      </div>
-      <div class="inputRow" style="margin-top:10px">
-        <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（任意）">
-        <button class="btn btn-amber" id="btnVisionSave">保存</button>
-      </div>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;font-weight:700">
-        <input type="checkbox" id="useVision" style="width:20px;height:20px"> 高精度OCR（Cloud Vision）を使う
-      </label>
-      <div id="visionStat" class="hint" style="margin-top:6px"></div>
-      <div class="hint" style="margin-top:4px;color:var(--dim)">ONかつキー設定時のみ、車検証スキャンとDB編集の写真読み取りなど全OCRがCloud Visionになります（課金はご自身のGoogle Cloud側）。未設定なら無料Tesseract。</div>
-    </div>
-  </section>
-  <section>
     <h2><span class="tag">CLOUD</span>クラウド同期（社内共有）</h2>
     <div class="sec-body">
       <!-- 未ログイン -->
       <div id="cloudLoggedOut">
         <p class="hint">ログインすると、車種DB・車両データ（ナンバー/使用者含む）を<b>社内の全端末で自動共有</b>できます。会社ごとに分離され、他社からは見えません。</p>
-        <label class="fld">メールアドレス</label>
-        <input type="email" id="cloudEmail" placeholder="you@example.com" autocomplete="username">
-        <label class="fld">パスワード</label>
-        <input type="password" id="cloudPw" placeholder="6文字以上" autocomplete="current-password">
-        <div class="btnRow" style="margin-top:10px"><button class="btn btn-amber" id="btnCloudLogin">ログイン</button></div>
-        <div class="linkrow"><button class="textlink" id="lnkCloudSignup" type="button">新規登録（会社を作る／会社に参加する）</button></div>
-        <!-- 新規登録フォーム -->
-        <div id="cloudSignupBox" class="hidden" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
-          <label class="fld">事業所ID（会社の識別名・半角英数）</label>
-          <input type="text" id="cloudTenant" class="uc" placeholder="例: yamada-motors">
-          <div class="btnRow" style="margin-top:8px">
-            <button class="btn btn-ghost btn-sm" id="btnSignupNew">この会社を新規作成（私が代表管理者）</button>
+        <div id="cloudChoice">
+          <div class="btnRow" style="margin-top:4px"><button class="btn btn-amber" id="btnModeLogin">ログイン</button></div>
+          <div class="btnRow" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnModeNew">この会社を新規作成</button></div>
+          <div class="btnRow" style="margin-top:6px"><button class="btn btn-ghost btn-sm" id="btnModeJoin">既存の会社に参加</button></div>
+        </div>
+        <div id="cloudForm" class="hidden" style="margin-top:10px">
+          <div id="cloudFormTitle" class="hint" style="font-weight:700;margin-bottom:6px"></div>
+          <label class="fld">メールアドレス</label>
+          <input type="email" id="cloudEmail" placeholder="you@example.com" autocomplete="username">
+          <label class="fld">パスワード</label>
+          <input type="password" id="cloudPw" placeholder="6文字以上" autocomplete="current-password">
+          <div id="tenantField"><label class="fld">事業所ID（会社の識別名・半角英数）</label>
+          <input type="text" id="cloudTenant" class="uc" placeholder="例: marukouseibi"></div>
+          <div class="btnRow" style="margin-top:10px">
+            <button class="btn btn-amber" id="btnCloudSubmit">実行</button>
+            <button class="btn btn-ghost btn-sm" id="btnCloudBack" style="flex:0 0 28%">戻る</button>
           </div>
-          <div class="btnRow" style="margin-top:6px">
-            <button class="btn btn-ghost btn-sm" id="btnSignupJoin">既存の会社に参加（承認待ちになる）</button>
-          </div>
-          <div class="hint" style="margin-top:6px">新規会社は運営の承認後に有効化。会社に参加は、その会社の代表管理者の承認後に使えます。</div>
         </div>
         <div id="cloudAuthStat" class="hint" style="margin-top:8px"></div>
         <details style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
           <summary style="font-weight:700;cursor:pointer">📋 従業員の登録手順（はじめての方へ）</summary>
           <div class="hint" style="margin-top:8px;line-height:1.9">
-            ① 上の「<b>新規登録</b>」を押す<br>
+            ①「<b>既存の会社に参加</b>」を押す<br>
             ② <b>自分のメール</b>と<b>パスワード（6文字以上）</b>を入力<br>
-            ③ <b>事業所ID</b>に会社から伝えられたID（例: <b>marukouseibi</b>）を入力<br>
-            ④「<b>既存の会社に参加</b>」を押す<br>
-            ⑤「承認待ち」と出る → <b>会社の管理者が承認</b>するまで待つ<br>
-            ⑥ 承認されると自動でログイン状態になり、社内の車両データ・車種DBが同期されます<br>
+            ③ <b>事業所ID</b>に会社から伝えられたID（例: <b>marukouseibi</b>）を入力 →「実行」<br>
+            ④「承認待ち」と出る → <b>会社の管理者が承認</b>するまで待つ<br>
+            ⑤ 承認されると自動でログイン状態になり、社内の車両データ・車種DBが同期されます<br>
             <span style="color:var(--dim)">※ 2回目以降は「ログイン」だけでOK。パスワードは各自で保管してください。</span>
           </div>
         </details>
@@ -489,12 +435,71 @@
       <div id="cloudLoggedIn" class="hidden">
         <div id="cloudStat" class="hint"></div>
         <div class="btnRow" style="margin-top:8px">
-          <button class="btn btn-ghost btn-sm" id="btnCloudManage">👥 メンバー / 会社管理</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btnCloudManage">👥 メンバー管理</button>
           <button class="btn btn-ghost btn-sm" id="btnCloudLogout">ログアウト</button>
         </div>
         <div id="cloudManageBox" class="hidden" style="margin-top:10px"></div>
       </div>
     </div>
+  </section>
+
+  <section>
+    <h2><span class="tag">SHARE</span>このアプリを紹介</h2>
+    <div class="sec-body" style="text-align:center">
+      <p class="hint" style="text-align:left">下のQRを読み取るとこのアプリが開きます。整備士仲間・他事業所への紹介にどうぞ。</p>
+      <img id="appQr" alt="アプリQR" style="width:200px;height:200px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px">
+      <div class="hint" id="appUrlText" style="word-break:break-all;margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section>
+    <details>
+      <summary class="secSummary"><span class="tag">AI</span>メカ君に相談機能（無料・任意）</summary>
+      <div class="sec-body">
+        <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると「メカ君に相談」が使えます（クレジットカード登録不要。無料枠あり）。<br>取得: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">aistudio.google.com/apikey ↗</a> → ログイン →「APIキーを作成」→ 下に貼り付け</p>
+        <div class="inputRow">
+          <input type="password" id="geminiKey" placeholder="AIza...">
+          <button class="btn btn-amber" id="btnGeminiSave">保存</button>
+        </div>
+        <div id="geminiStat" class="hint" style="margin-top:8px"></div>
+        <label class="fld" style="margin-top:14px">回答の品質モード</label>
+        <div class="btnRow" style="margin-top:0">
+          <button class="btn btn-ghost btn-sm mode-btn" id="modeFlash" data-mode="flash" style="white-space:nowrap">標準（速い）</button>
+          <button class="btn btn-ghost btn-sm mode-btn" id="modePro" data-mode="pro" style="white-space:nowrap">高精度（精度重視）</button>
+        </div>
+        <div class="hint" style="margin-top:8px">高精度モードは複雑な複合症状向け。無料枠の上限時は自動で標準に切替。</div>
+        <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
+          <b>「無料枠の上限」をなくしたい場合（任意・従量課金）</b><br>
+          同じキーのまま、紐づくプロジェクトの「課金」を有効にすると上限が大幅に上がります。<br>
+          ① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">AI StudioのAPIキー画面 ↗</a> →「Set up Billing」<br>
+          ② <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">Google Cloud のお支払い ↗</a> でカード登録 → キーの貼り替え不要<br>
+          <span style="color:var(--dim)">料金: <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Gemini API 料金 ↗</a></span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <details>
+      <summary class="secSummary"><span class="tag cy">OCR</span>OCRについて</summary>
+      <div class="sec-body">
+        <p class="hint">写真の文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使用。明るく大きく写すと精度UP。</p>
+        <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
+          <b>有料で高精度にしたい場合（任意・Cloud Vision）</b><br>
+          ① <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener" style="color:var(--cyan)">プロジェクト作成 ↗</a> ② <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">お支払い登録 ↗</a> ③ <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API有効化 ↗</a> ④ <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--cyan)">APIキー作成 ↗</a> ⑤ 下に貼り付けON<br>
+          <span style="color:var(--dim)">料金: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">月1,000枚まで無料 ↗</a></span>
+        </div>
+        <div class="inputRow" style="margin-top:10px">
+          <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（任意）">
+          <button class="btn btn-amber" id="btnVisionSave">保存</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;font-weight:700">
+          <input type="checkbox" id="useVision" style="width:20px;height:20px"> 高精度OCR（Cloud Vision）を使う
+        </label>
+        <div id="visionStat" class="hint" style="margin-top:6px"></div>
+        <div class="hint" style="margin-top:4px;color:var(--dim)">ON＋キー設定時のみ全OCRがCloud Visionに（課金はご自身のGoogle側）。</div>
+      </div>
+    </details>
   </section>
   <section>
     <h2><span class="tag al">DATA</span>データ管理</h2>
@@ -510,6 +515,18 @@
     </div>
   </section>
   <p class="note" id="verNote">バージョン情報を取得中…</p>
+</div>
+
+<!-- ============ VIEW: ADMIN (運営・隠しタブ・superのみ) ============ -->
+<div id="view-admin" class="view">
+  <section style="margin-top:14px">
+    <h2><span class="tag al">ADMIN</span>運営管理（会社・メンバー）</h2>
+    <div class="sec-body">
+      <p class="hint">会社の承認/停止、各社の利用状況、全メンバーの管理ができます（運営管理者のみ）。</p>
+      <div class="btnRow" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnAdminReload">🔄 最新に更新</button></div>
+      <div id="adminBox" style="margin-top:10px">読み込み中…</div>
+    </div>
+  </section>
 </div>
 
 <!-- assign bar -->
@@ -533,6 +550,7 @@
   <button data-view="history"><span class="ico">🕓</span>履歴</button>
   <button data-view="db"><span class="ico">🔧</span>DB編集</button>
   <button data-view="settings"><span class="ico">⚙️</span>設定</button>
+  <button data-view="admin" id="tabAdmin" class="hidden"><span class="ico">🛡️</span>運営</button>
 </nav>
 
 <script src="app.js"></script>

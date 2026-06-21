@@ -28,17 +28,30 @@
   let profile = null;   // {tenantId, role, active}
   let unsubVeh = null, unsubRec = null;
 
-  /* ---------- 認証フロー ---------- */
-  $("btnCloudLogin") && $("btnCloudLogin").addEventListener("click", async () => {
-    const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
-    if (!email || !pw) { $("cloudAuthStat").textContent = "メールとパスワードを入力してください。"; return; }
-    $("cloudAuthStat").textContent = "ログイン中…";
-    try { await auth.signInWithEmailAndPassword(email, pw); }
-    catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
+  /* ---------- 認証フロー(モード選択 → フォーム出現) ---------- */
+  let cloudMode = "login";
+  function openForm(mode) {
+    cloudMode = mode;
+    show("cloudChoice", false); show("cloudForm", true);
+    show("tenantField", mode !== "login");
+    $("cloudFormTitle").textContent = mode === "new" ? "この会社を新規作成（あなたが代表管理者）" : mode === "join" ? "既存の会社に参加（承認待ちになります）" : "ログイン";
+    $("btnCloudSubmit").textContent = mode === "new" ? "会社を作成" : mode === "join" ? "参加を申請" : "ログイン";
+    $("cloudAuthStat").textContent = "";
+  }
+  function closeForm() { show("cloudForm", false); show("cloudChoice", true); }
+  $("btnModeLogin") && $("btnModeLogin").addEventListener("click", () => openForm("login"));
+  $("btnModeNew") && $("btnModeNew").addEventListener("click", () => openForm("new"));
+  $("btnModeJoin") && $("btnModeJoin").addEventListener("click", () => openForm("join"));
+  $("btnCloudBack") && $("btnCloudBack").addEventListener("click", closeForm);
+  $("btnCloudSubmit") && $("btnCloudSubmit").addEventListener("click", async () => {
+    if (cloudMode === "login") {
+      const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
+      if (!email || !pw) { $("cloudAuthStat").textContent = "メールとパスワードを入力してください。"; return; }
+      $("cloudAuthStat").textContent = "ログイン中…";
+      try { await auth.signInWithEmailAndPassword(email, pw); }
+      catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
+    } else { signup(cloudMode === "new"); }
   });
-  $("lnkCloudSignup") && $("lnkCloudSignup").addEventListener("click", () => show("cloudSignupBox", $("cloudSignupBox").classList.contains("hidden")));
-  $("btnSignupNew") && $("btnSignupNew").addEventListener("click", () => signup(true));
-  $("btnSignupJoin") && $("btnSignupJoin").addEventListener("click", () => signup(false));
   $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
 
   async function signup(isNewCompany) {
@@ -93,7 +106,9 @@
     const inLogged = !!me;
     show("cloudLoggedOut", !inLogged);
     show("cloudLoggedIn", inLogged);
-    if (!inLogged) return;
+    const isSuperUser = !!(profile && profile.active && profile.role === "super");
+    show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
+    if (!inLogged) { closeForm(); show("tabAdmin", false); return; }
     const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[profile.role] || profile.role) : "—";
     if (!profile) {
       $("cloudStat").textContent = me.email + " — プロフィール未作成。再登録してください。";
@@ -102,20 +117,37 @@
     } else {
       $("cloudStat").innerHTML = "✓ 同期中 — " + me.email + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
     }
-    // 管理ボタンは admin/super のみ
-    show("btnCloudManage", profile && (profile.role === "admin" || profile.role === "super"));
+    // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
+    show("btnCloudManage", profile && profile.active && profile.role === "admin");
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
   }
 
   /* ---------- 同期 ---------- */
   function vinKey(r) { return String(r.vin || r.type || r.plate || r.id || Date.now()).replace(/[^A-Za-z0-9]/g, "_"); }
-  function startSync(tid) {
+  function recordSubset(r) {
+    return { vin: r.vin || null, plate: r.plate || null, name: r.name || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString() };
+  }
+  /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
+  async function uploadLocal(tid) {
+    try {
+      if (typeof CUSTOM_DB !== "undefined") {
+        for (const v of CUSTOM_DB) { if (v && v.id) try { await db.collection("tenants").doc(tid).collection("vehicles").doc(String(v.id)).set(v, { merge: true }); } catch (e) {} }
+      }
+      const hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
+      for (const h of hist) { if (h && h.vin) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); } catch (e) {} }
+    } catch (e) { console.warn("uploadLocal", e); }
+  }
+  async function startSync(tid) {
     stopSync();
-    // 車種DB(vehicles) → CUSTOM_DB を上書き同期
+    await uploadLocal(tid);   // ←先にローカル分をクラウドへ(空クラウドでの消失を防止)
+    // 車種DB(vehicles) → CUSTOM_DB へマージ同期(クラウド優先・ローカル限定分は保持)
     unsubVeh = db.collection("tenants").doc(tid).collection("vehicles").onSnapshot(snap => {
       try {
-        const arr = []; snap.forEach(d => arr.push(d.data()));
-        if (typeof CUSTOM_DB !== "undefined") { CUSTOM_DB.length = 0; arr.forEach(v => CUSTOM_DB.push(v)); saveCustomDB(); try { renderDBList(); } catch (e) {} }
+        if (typeof CUSTOM_DB === "undefined") return;
+        const byId = {}; CUSTOM_DB.forEach(v => { if (v && v.id) byId[v.id] = v; });
+        snap.forEach(d => { const v = d.data(); if (v && v.id) byId[v.id] = v; });
+        CUSTOM_DB.length = 0; Object.keys(byId).forEach(k => CUSTOM_DB.push(byId[k]));
+        saveCustomDB(); try { renderDBList(); } catch (e) {}
       } catch (e) {}
     }, err => console.warn("vehicles sync", err));
     // 車両レコード(records) → ローカル履歴へマージ(ナンバー検索が全端末で可能に)
@@ -148,19 +180,23 @@
     },
     pushRecord(r) {
       if (!this.active || !r || !r.vin) return;
-      const rec = { vin: r.vin || null, plate: r.plate || null, name: r.name || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString() };
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).set(rec, { merge: true }).catch(() => {});
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
     }
   };
 
-  /* ---------- メンバー/会社 管理 ---------- */
-  $("btnCloudManage") && $("btnCloudManage").addEventListener("click", async () => {
+  /* ---------- メンバー/会社 管理 (admin=自社cloudManageBox / super=運営タブadminBox) ---------- */
+  $("btnCloudManage") && $("btnCloudManage").addEventListener("click", () => {
     const box = $("cloudManageBox");
     if (!box.classList.contains("hidden")) { show("cloudManageBox", false); return; }
-    show("cloudManageBox", true); box.innerHTML = "読み込み中…";
+    show("cloudManageBox", true); renderManage("cloudManageBox");
+  });
+  $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => renderManage("adminBox"));
+  window.CloudAdmin = { open() { renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
+  async function renderManage(boxId) {
+    const box = $(boxId); if (!box || !profile) return;
+    box.innerHTML = "読み込み中…";
     try {
-      let html = "";
-      let superTenants = null;
+      let html = "", superTenants = null;
       if (profile.role === "super") {
         const ts = await db.collection("tenants").get();
         superTenants = ts;
@@ -171,18 +207,16 @@
           html += "<div class='hint' id='stat_" + d.id.replace(/[^a-zA-Z0-9_-]/g, "") + "' style='margin:-2px 0 8px;color:var(--dim);font-size:12px'>利用状況を取得中…</div>";
         });
       }
-      // 自社(または全社=super)の従業員
       let uq = db.collection("users");
       if (profile.role === "admin") uq = uq.where("tenantId", "==", profile.tenantId);
       const us = await uq.get();
       html += "<div class='hint' style='font-weight:700;margin:10px 0 4px'>メンバー</div>";
       us.forEach(d => { const u = d.data(); html += rowHtml("u", d.id, (u.email || d.id) + " / " + (u.role || "staff") + (u.tenantId ? " @" + u.tenantId : ""), u.active); });
       box.innerHTML = html || "なし";
-      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", () => manageAction(b.dataset.kind, b.dataset.id, b.dataset.act)));
-      // 各社の利用状況(メンバー数・車種DB件数・車両台数)を非同期で取得して表示
+      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async () => { await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
       if (superTenants) superTenants.forEach(d => fillTenantStats(d.id));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
-  });
+  }
   function rowHtml(kind, id, label, active) {
     return "<div style='display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px'>" +
       "<span style='flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis'>" + esc(label) + "</span>" +
@@ -207,8 +241,14 @@
       const col = kind === "t" ? "tenants" : "users";
       if (act === "del") { if (!confirm("削除しますか？")) return; await db.collection(col).doc(id).delete(); }
       else await db.collection(col).doc(id).update({ active: act === "on" });
-      $("btnCloudManage").click(); $("btnCloudManage").click(); // 再読み込み
     } catch (e) { alert("操作失敗: " + (e.message || e)); }
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  /* ---------- 紹介用QR(アプリURL) ---------- */
+  try {
+    const appUrl = (location.origin + location.pathname).replace(/index\.html$/, "");
+    const qr = $("appQr"); if (qr) qr.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(appUrl);
+    const ut = $("appUrlText"); if (ut) ut.textContent = appUrl;
+  } catch (e) {}
 })();

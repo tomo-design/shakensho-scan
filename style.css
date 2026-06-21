@@ -251,6 +251,11 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .diagIco:active{transform:scale(.92)}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
+/* 折りたたみセクションの見出し(summary)をh2風に */
+.secSummary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--txt);padding:14px 16px}
+.secSummary::-webkit-details-marker{display:none}
+.secSummary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:13px}
+details[open] > .secSummary::after{content:"▴"}
 /* セクション見出しの右端にマイク＋クリア(マイクはクリアの左) */
 .secHead{display:flex;align-items:center;gap:6px}
 .secHead .secMic{margin-left:auto;flex:0 0 auto;padding:8px 12px}
