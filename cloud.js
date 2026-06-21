@@ -54,10 +54,10 @@
     } else { signup(cloudMode === "new"); }
   });
   $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
-  $("btnCloudResync") && $("btnCloudResync").addEventListener("click", () => {
-    if (profile && profile.active && profile.tenantId) startSync(profile.tenantId);
-    else { const el = $("cloudSyncMsg"); if (el) el.textContent = "未承認のため同期できません（承認待ち）。"; }
-  });
+  /* 完全自動同期: リアルタイム購読に加え、アプリ復帰/オンライン復帰の度に取りこぼしを自動同期 */
+  function autoResync() { if (profile && profile.active && profile.tenantId) startSync(profile.tenantId); }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) autoResync(); });
+  window.addEventListener("online", autoResync);
 
   async function signup(isNewCompany) {
     const name = $("cloudName").value.trim();
@@ -296,7 +296,12 @@
   /* ---------- 紹介用QR(アプリURL) ---------- */
   try {
     const appUrl = (location.origin + location.pathname).replace(/index\.html$/, "");
-    const qr = $("appQr"); if (qr) qr.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + encodeURIComponent(appUrl);
+    const qr = $("appQr");
+    if (qr) {
+      const enc = encodeURIComponent(appUrl);
+      qr.src = "https://quickchart.io/qr?size=240&margin=1&text=" + enc;
+      qr.onerror = () => { qr.onerror = null; qr.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=" + enc; };
+    }
     const ut = $("appUrlText"); if (ut) ut.textContent = appUrl;
   } catch (e) {}
 
