@@ -245,49 +245,54 @@
     const box = $(boxId); if (!box || !profile) return;
     box.innerHTML = "読み込み中…";
     try {
-      let html = "", superTenants = null;
-      if (profile.role === "super") {
-        const ts = await db.collection("tenants").get();
-        superTenants = ts;
-        html += "<div class='hint' style='font-weight:700;margin:4px 0'>会社一覧（運営）</div>";
-        ts.forEach(d => {
-          const t = d.data();
-          html += rowHtml("t", d.id, d.id + (t.active ? "（有効）" : "（承認待ち）"), t.active);
-          html += "<div class='hint' id='stat_" + d.id.replace(/[^a-zA-Z0-9_-]/g, "") + "' style='margin:-2px 0 8px;color:var(--dim);font-size:12px'>利用状況を取得中…</div>";
-        });
-      }
+      // メンバー取得(super=全件 / admin=自社)
       let uq = db.collection("users");
       if (profile.role === "admin") uq = uq.where("tenantId", "==", profile.tenantId);
       const us = await uq.get();
-      html += "<div class='hint' style='font-weight:700;margin:10px 0 4px'>メンバー</div>";
-      us.forEach(d => html += userRow(d.id, d.data()));
-      box.innerHTML = html || "なし";
+      const byTenant = {};
+      us.forEach(d => { const u = d.data(); const t = u.tenantId || "（未所属）"; (byTenant[t] = byTenant[t] || []).push({ id: d.id, u }); });
+
+      let html = "", statTids = [];
+      if (profile.role === "super") {
+        const ts = await db.collection("tenants").get();
+        const tlist = ts.docs.map(d => ({ id: d.id, t: d.data() }));
+        // 会社ごとにカード化(会社→所属メンバー)
+        tlist.forEach(({ id, t }) => {
+          const sid = id.replace(/[^a-zA-Z0-9_-]/g, ""); statTids.push(id);
+          html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
+            (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</div>" +
+            "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
+            membersHtml(byTenant[id]) + "</div>";
+          delete byTenant[id];
+        });
+        // どの会社にも紐づかないユーザー
+        Object.keys(byTenant).forEach(t => { html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(t) + "</span></div>" + membersHtml(byTenant[t]) + "</div>"; });
+      } else {
+        // admin: 自社のメンバーのみ
+        html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div>" + membersHtml(byTenant[profile.tenantId]) + "</div>";
+      }
+      box.innerHTML = html || "メンバーがいません。";
       box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async () => { await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
-      if (superTenants) superTenants.forEach(d => fillTenantStats(d.id));
+      statTids.forEach(t => fillTenantStats(t));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   }
   function btn(act, kind, id, label, cls) { return "<button class='btn " + (cls || "btn-ghost") + " btn-sm' data-act='" + act + "' data-kind='" + kind + "' data-id='" + esc(id) + "'>" + label + "</button>"; }
-  function rowWrap(labelHtml, btnsHtml) {
-    return "<div style='display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px'>" +
-      "<span style='flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis'>" + labelHtml + "</span>" + btnsHtml + "</div>";
-  }
-  function rowHtml(kind, id, label, active) {  // 会社(tenant)用
-    return rowWrap(esc(label), active ? btn("off", kind, id, "停止") : btn("on", kind, id, "承認", "btn-amber") + btn("del", kind, id, "削除"));
+  function membersHtml(list) {
+    if (!list || !list.length) return "<div class='mStat'>メンバーなし</div>";
+    // 代表管理者を先頭に
+    list.sort((a, b) => (b.u.role === "admin" || b.u.role === "super" ? 1 : 0) - (a.u.role === "admin" || a.u.role === "super" ? 1 : 0));
+    return list.map(x => userRow(x.id, x.u)).join("");
   }
   function userRow(id, u) {
     const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
     const isAdmin = u.role === "admin" || u.role === "super";
-    const namePart = (u.name ? "<b>" + esc(u.name) + "</b>" : esc(u.email || id)) +
-      " <span style='color:var(--dim)'>/ " + (isAdmin ? "<b style='color:var(--amber)'>" + roleJa + "</b>" : roleJa) + (u.tenantId ? " @" + esc(u.tenantId) : "") + "</span>" +
-      (u.email ? "<br><span style='color:var(--dim);font-size:11px'>" + esc(u.email) + "</span>" : "");
+    const info = "<div class='mInfo'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
+      "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" +
+      (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") + "</div>";
     let btns;
-    if (u.active) {
-      // 代表管理者の引き継ぎ: 従業員を代表管理者に昇格
-      btns = (u.role === "staff" ? btn("promote", "u", id, "代表管理者にする", "btn-amber") : "") + btn("off", "u", id, "無効化");
-    } else {
-      btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");   // 却下=記録ごと削除
-    }
-    return rowWrap(namePart, btns);
+    if (u.active) btns = (u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber") : "") + btn("off", "u", id, "無効化");
+    else btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
+    return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
   async function fillTenantStats(tid) {
     const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
