@@ -264,6 +264,8 @@ details[open] > .secSummary::after{content:"▴"}
 .btnPick{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
 .btnPick:active,.btnPick.btnLoading{border-color:var(--amber);color:var(--amber)}
 #btnVehAsk .btnMecha{width:34px;height:34px;margin-right:8px}
+#btnAiQr .btnMecha{width:60px;height:60px;margin-right:10px}
+#btnAiQr{display:flex;align-items:center;justify-content:center}
 /* 音声会話: メカ君の発言アイコン */
 .vcMsg.mecha .vcIco{width:22px;height:22px;vertical-align:middle;margin-right:6px}
 /* クリック可能な原因候補・故障 */

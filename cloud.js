@@ -53,6 +53,10 @@
     } else { signup(cloudMode === "new"); }
   });
   $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
+  $("btnCloudResync") && $("btnCloudResync").addEventListener("click", () => {
+    if (profile && profile.active && profile.tenantId) startSync(profile.tenantId);
+    else { const el = $("cloudSyncMsg"); if (el) el.textContent = "未承認のため同期できません（承認待ち）。"; }
+  });
 
   async function signup(isNewCompany) {
     const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
@@ -127,19 +131,31 @@
   function recordSubset(r) {
     return { vin: r.vin || null, plate: r.plate || null, name: r.name || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString() };
   }
+  function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
   async function uploadLocal(tid) {
+    let vUp = 0, rUp = 0, errMsg = "";
     try {
       if (typeof CUSTOM_DB !== "undefined") {
-        for (const v of CUSTOM_DB) { if (v && v.id) try { await db.collection("tenants").doc(tid).collection("vehicles").doc(String(v.id)).set(v, { merge: true }); } catch (e) {} }
+        for (const v of CUSTOM_DB) {
+          if (v && v.id) try { await db.collection("tenants").doc(tid).collection("vehicles").doc(String(v.id)).set(v, { merge: true }); vUp++; }
+          catch (e) { errMsg = (e && e.code) || e.message || String(e); }
+        }
       }
       const hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
-      for (const h of hist) { if (h && h.vin) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); } catch (e) {} }
-    } catch (e) { console.warn("uploadLocal", e); }
+      for (const h of hist) {
+        if (h && h.vin) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
+        catch (e) { errMsg = (e && e.code) || e.message || String(e); }
+      }
+    } catch (e) { errMsg = (e && e.code) || e.message || String(e); }
+    if (errMsg) syncMsg("⚠ アップロード失敗: " + errMsg + "（ルール設定をご確認ください）");
+    else syncMsg("⬆ 送信: 車種DB " + vUp + "件 / 車両 " + rUp + "台");
+    return { vUp, rUp, errMsg };
   }
   async function startSync(tid) {
     stopSync();
-    await uploadLocal(tid);   // ←先にローカル分をクラウドへ(空クラウドでの消失を防止)
+    syncMsg("同期を開始しています…");
+    const up = await uploadLocal(tid);   // ←先にローカル分をクラウドへ(空クラウドでの消失を防止)
     // 車種DB(vehicles) → CUSTOM_DB へマージ同期(クラウド優先・ローカル限定分は保持)
     unsubVeh = db.collection("tenants").doc(tid).collection("vehicles").onSnapshot(snap => {
       try {
@@ -148,8 +164,9 @@
         snap.forEach(d => { const v = d.data(); if (v && v.id) byId[v.id] = v; });
         CUSTOM_DB.length = 0; Object.keys(byId).forEach(k => CUSTOM_DB.push(byId[k]));
         saveCustomDB(); try { renderDBList(); } catch (e) {}
+        if (!up.errMsg) syncMsg("✓ 同期OK: 車種DB " + snap.size + "件（クラウド）");
       } catch (e) {}
-    }, err => console.warn("vehicles sync", err));
+    }, err => syncMsg("⚠ 同期エラー(車種DB): " + (err.code || err.message) + "（ルール設定をご確認ください）"));
     // 車両レコード(records) → ローカル履歴へマージ(ナンバー検索が全端末で可能に)
     unsubRec = db.collection("tenants").doc(tid).collection("records").onSnapshot(snap => {
       try {
@@ -163,7 +180,7 @@
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));
         try { renderHistory(); } catch (e) {}
       } catch (e) {}
-    }, err => console.warn("records sync", err));
+    }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
   }
   function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } }
 

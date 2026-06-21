@@ -150,7 +150,7 @@
 
     <div id="aiQrParse" class="hidden" style="margin-top:10px">
       <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost" id="btnAiQr"><img src="img/mecha.png" class="btnMecha" alt="">QR解析</button>
+        <button class="btn btn-ghost" id="btnAiQr"><img src="img/qrmecha.png" class="btnMecha" alt="">QR解析</button>
       </div>
       <div id="aiQrStatus" class="hint hidden" style="margin-top:6px"></div>
     </div>
@@ -434,7 +434,9 @@
       <!-- ログイン中 -->
       <div id="cloudLoggedIn" class="hidden">
         <div id="cloudStat" class="hint"></div>
+        <div id="cloudSyncMsg" class="hint" style="margin-top:6px;color:var(--dim)"></div>
         <div class="btnRow" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" id="btnCloudResync">🔄 今すぐ同期</button>
           <button class="btn btn-ghost btn-sm hidden" id="btnCloudManage">👥 メンバー管理</button>
           <button class="btn btn-ghost btn-sm" id="btnCloudLogout">ログアウト</button>
         </div>
