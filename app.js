@@ -2442,13 +2442,19 @@ function compressVideo(file, targetBytes) {
         const blob = new Blob(chunks, { type: mime || "video/webm" });
         resolve(new File([blob], "compressed.webm", { type: blob.type }));
       };
-      const draw = () => { if (v.ended || v.paused) return; cx.drawImage(v, 0, 0, w, h); requestAnimationFrame(draw); };
+      const st0 = $("diagVideoStatus");
+      const draw = () => {
+        if (v.ended || v.paused) return;
+        cx.drawImage(v, 0, 0, w, h);
+        if (st0 && dur) st0.textContent = "動画を圧縮中… " + Math.min(99, Math.round(v.currentTime / dur * 100)) + "%（動画の長さ分かかります）";
+        requestAnimationFrame(draw);
+      };
       v.onplay = () => draw();
       v.onended = () => { try { rec.stop(); } catch (e) {} };
       rec.start();
       v.play().catch(err => { URL.revokeObjectURL(url); reject(err); });
-      // 保険: 想定尺+2秒で強制停止
-      setTimeout(() => { if (rec.state !== "inactive") { try { v.pause(); rec.stop(); } catch (e) {} } }, (dur + 2) * 1000);
+      // 保険: 想定尺+3秒で強制停止
+      setTimeout(() => { if (rec.state !== "inactive") { try { v.pause(); rec.stop(); } catch (e) {} } }, (dur + 3) * 1000);
     };
     v.onerror = () => { URL.revokeObjectURL(url); reject(new Error("動画を読み込めませんでした")); };
   });
@@ -2535,8 +2541,8 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
       };
       rec.onerror = () => {};
       rec.onend = () => {
-        accum += sessionFinal; sessionFinal = ""; micRec = null;
-        if (micListening) { startSession(); return; }   // 押すまで聞き続ける
+        // 自動再開しない(再開のたびに開始音=ピコ音が鳴るのを防ぐ)。1回の認識で確定
+        accum += sessionFinal; sessionFinal = ""; micRec = null; micListening = false;
         btn.textContent = idleLabel; btn.classList.remove("sel");
         fld.value = base + dedupRepeats(accum);
       };
@@ -2614,8 +2620,9 @@ function startVoiceSession() {
   };
   rec.onerror = () => {};
   rec.onend = () => {
-    voiceAccum += voiceSessionFinal; voiceSessionFinal = ""; voiceRec = null;
-    if (voiceListening) { startVoiceSession(); return; }  // 押すまで聞き続ける
+    // 自動再開しない(ピコ音の連発防止)。話し終わり(無音)または再押下で1回分を送信
+    voiceAccum += voiceSessionFinal; voiceSessionFinal = ""; voiceRec = null; voiceListening = false;
+    $("btnVoiceTalk").textContent = "🎤 押して話す";
     finishVoiceTurn();
   };
   try { rec.start(); } catch (e) { voiceRec = null; }
