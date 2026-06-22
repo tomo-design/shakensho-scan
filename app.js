@@ -641,7 +641,7 @@ $("btnAiQr").addEventListener("click", async () => {
     $("aiQrStatus").style.whiteSpace = "pre-wrap";
     $("aiQrStatus").textContent = head + "\n" + (lines.length ? "メカ君が読み取った内容:\n・" + lines.join("\n・") : "QRから抽出できる項目がありませんでした。");
   } catch (e) {
-    toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e);
+    if (e.message !== "__cancelled__") { toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e); }
   } finally {
     setBtnLoading($("btnAiQr"), false);
   }
@@ -966,12 +966,13 @@ $("btnPartsGo").addEventListener("click", async () => {
     const r = await geminiAsk(buildPartsPrompt(part));
     renderAiAnswer(box, r.text);
   } catch (e) {
-    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     partsBusy = false; setBtnLoading($("btnPartsGo"), false);
   }
 });
 $("btnPartsClear").addEventListener("click", () => {
+  cancelAI();
   $("partName").value = "";
   $("partsResult").innerHTML = ""; toggle("partsResult", false);
   $("partsLinks").innerHTML = "";
@@ -980,6 +981,7 @@ $("btnPartsClear").addEventListener("click", () => {
 /* この車両について質問(AI Q&A) */
 let vehAskBusy = false;
 $("btnVehClear").addEventListener("click", () => {
+  cancelAI();
   $("qVehText").value = "";
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
 });
@@ -1005,7 +1007,7 @@ $("btnVehAsk").addEventListener("click", async () => {
     const r = await geminiAsk(prompt);
     renderAiAnswer(box, r.text);
   } catch (e) {
-    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
@@ -1329,7 +1331,7 @@ async function gotoInspection(text) {
     const r = await geminiAsk(prompt);
     renderAiAnswer(box, r.text);
   } catch (e) {
-    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   }
 }
 /* 定番故障・持病の一覧(タップ機能なし) */
@@ -1773,6 +1775,7 @@ $("btnDiagRun").addEventListener("click", async () => {
   try { await runDiag(); } finally { setBtnLoading(btn, false); }
 });
 $("btnDiagClear").addEventListener("click", () => {
+  cancelAI();   // 考え中のメカ君を中断
   $("diagText").value = ""; $("diagResults").innerHTML = "";
   toggle("diagVideoStatus", false);
   clearDiagAttachments();
@@ -1927,6 +1930,15 @@ $("useVision").addEventListener("change", () => {
   renderVisionStat();
 });
 
+/* 進行中のAIリクエストを中断するためのコントローラ */
+let aiAbort = null;
+function cancelAI() {
+  if (aiAbort) { try { aiAbort.abort(); } catch (e) {} aiAbort = null; }
+  // 各処理の「考え中」状態を解除
+  diagAiBusy = false; if (typeof diagMediaBusy !== "undefined") diagMediaBusy = false;
+  if (typeof partsBusy !== "undefined") partsBusy = false; if (typeof vehAskBusy !== "undefined") vehAskBusy = false;
+  ["btnDiagRun", "btnPartsGo", "btnSpecAI", "btnSpecReload", "btnVehAsk", "btnAiQr"].forEach(id => { const b = $(id); if (b) setBtnLoading(b, false); });
+}
 async function geminiAsk(prompt, opts) {
   opts = opts || {};
   const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
@@ -1938,6 +1950,7 @@ async function geminiAsk(prompt, opts) {
     if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   }
   let lastErr = null;
+  aiAbort = new AbortController();   // クリアで中断できるように
   for (const model of GEMINI_MODELS[mode]) {
     try {
       // 思考トークンと本文が両方収まるよう上限は大きめに確保
@@ -1949,6 +1962,7 @@ async function geminiAsk(prompt, opts) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: aiAbort.signal,
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: genCfg
@@ -1967,6 +1981,7 @@ async function geminiAsk(prompt, opts) {
       aiCacheSet(ck, { text: r.text, truncated: r.truncated });
       return r;
     } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("__cancelled__");   // クリアで中断
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
     }
@@ -1976,7 +1991,7 @@ async function geminiAsk(prompt, opts) {
 
 function buildDiagPrompt(text) {
   const lines = [
-    "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
+    "あなたは『メカ君』。整備士の相棒の、明るく頼れるロボット整備士(一人称はボク)です。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で書くこと。",
     "回答前に十分に考えてから答えること。正確性を最優先し、確信が持てない内容には「（要確認）」を付け、推測と確定的な事実を混同しないこと。一般論より、提示された車種・エンジンに固有の既知事例を優先すること。",
     "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
     "",
@@ -2087,7 +2102,7 @@ async function runDiagAI(text) {
     body.appendChild(note);
     appendAiFollowup(body, text, r.text);
   } catch (e) {
-    p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     diagAiBusy = false;
   }
@@ -2181,7 +2196,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
       // さらに追い相談できるよう、回答の下に次の相談欄を連鎖
       appendAiFollowup(body, origText + " / " + tried, r.text);
     } catch (e) {
-      ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+      if (e.message !== "__cancelled__") ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
     } finally {
       diagAiBusy = false; setBtnLoading(btn, false);
     }
@@ -2254,7 +2269,7 @@ async function runSpecAI(srcBtn) {
     if (faults.length) { renderFaultList(faults); toggle("secFault", true); }
     renderRecalls(recalls);
   } catch (e) {
-    box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     setBtnLoading(btn, false);
   }
@@ -2468,7 +2483,7 @@ async function diagMediaAnalyze() {
     st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
     sec.scrollIntoView({ behavior: "smooth" });
   } catch (err) {
-    st.textContent = "⚠ " + (err.message || "解析に失敗しました");
+    if (err.message !== "__cancelled__") st.textContent = "⚠ " + (err.message || "解析に失敗しました");
   } finally {
     diagMediaBusy = false; setBtnLoading(runBtn, false);
   }
@@ -2627,8 +2642,9 @@ $("btnVoiceTalk").addEventListener("click", () => {
 });
 function buildVoiceChatPrompt() {
   const lines = [
-    "あなたは『メカ君』という、日本の自動車整備士を音声で支援する親しみやすいベテラン整備アドバイザーです。",
-    "音声で読み上げるので、簡潔に話し言葉で答えること。箇条書き記号やMarkdown記号は使わず、2〜4文程度で要点を。確信が持てない点は『要確認』と添える。",
+    "あなたは『メカ君』。整備士の相棒の、明るく頼れるロボット整備士です。一人称は『ボク』。",
+    "親しみやすく丁寧な口調(です・ます調)で、専門的な内容も分かりやすく噛み砕いて話します。馴れ馴れしすぎず、相手を立てて前向きに励ますこと。安全と正確さは最優先で、確信が持てない点は正直に『要確認』と伝える。",
+    "音声で読み上げるので、簡潔に話し言葉で。箇条書き記号やMarkdown記号は使わず、2〜4文程度で要点を。",
   ];
   if (current.type || current.vin) {
     const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
