@@ -193,7 +193,13 @@
       try {
         if (typeof CUSTOM_DB === "undefined") return;
         const byId = {}; CUSTOM_DB.forEach(v => { if (v && v.id) byId[v.id] = v; });
-        snap.forEach(d => { const v = d.data(); if (v && v.id) byId[v.id] = v; });
+        snap.forEach(d => {
+          const v = d.data(); if (!v || !v.id) return;
+          const local = byId[v.id];
+          // ローカルの編集が新しければ上書きしない(編集リセット防止)。新しければクラウドを採用しクラウドへ戻す
+          if (local && (local.updatedAt || 0) > (v.updatedAt || 0)) { try { db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(local.id)).set(local, { merge: true }); } catch (e) {} }
+          else byId[v.id] = v;
+        });
         CUSTOM_DB.length = 0; Object.keys(byId).forEach(k => CUSTOM_DB.push(byId[k]));
         saveCustomDB(); try { renderDBList(); } catch (e) {}
         if (!up.errMsg) syncMsg("✓ 同期OK: 車種DB " + snap.size + "件（クラウド）");

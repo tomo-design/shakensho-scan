@@ -238,7 +238,7 @@ function decodeCanvas(canvas) {
 
 /* ===== ライブ連続スキャン: QRと文字(OCR)を同時に自動認識して蓄積 ===== */
 let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
-let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0;
+let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0, scanOkPending = false;
 
 /* 統合アキュムレータ: QR・OCR・手動のどれからでも項目を埋めていく */
 function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, raw: [] }; }
@@ -250,7 +250,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine && acc.plate); } // 限定4項目(指定・類別は無い車もある)
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
@@ -388,7 +388,15 @@ function onLiveText(d) {
 }
 function afterScanUpdate(src) {
   updateScanProgress(acc);
-  if (accComplete()) { setScanMsg("✓ 全項目そろいました"); stopLiveScan(true); return; }
+  if (accComplete()) {
+    if (scanOkPending) return;
+    scanOkPending = true; scanning = false;   // 処理を止めてOK表示
+    setScanMsg("✓ 全項目そろいました");
+    toggle("scanOK", true);   // カメラ画面に大きく「OK」を表示
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    setTimeout(() => { toggle("scanOK", false); scanOkPending = false; stopLiveScan(true); }, 1200);  // OKを見せてから結果表示
+    return;
+  }
   // 車台番号が揃っても指定・類別(コード3)未取得なら継続
   if (acc.vin && !accCode3()) {
     setScanMsg("✓ 車台番号OK。残りは右下の二次元コード3（指定・類別）を写す／完了は✓");
@@ -875,6 +883,7 @@ function registerVehicleToDB(opt = {}) {
     faults: faults.length ? faults : (rec.faults || []),
     specs: specs.length ? specs : (rec.specs || []),
     notes: rec.notes || "",
+    updatedAt: Date.now(),   // 同期時に古いクラウドで上書きされないよう更新時刻を記録
   });
   saveCustomDB();
   if (window.Cloud) window.Cloud.pushVehicle(rec);   // 社内共有へ
@@ -1596,6 +1605,7 @@ $("btnDbSave").addEventListener("click", () => {
       return i > 0 ? { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() } : { k: l, v: "" };
     }).filter(s => s.k),
     notes: $("dbfNotes").value.trim(),
+    updatedAt: Date.now(),
   };
   const i = CUSTOM_DB.findIndex(x => x.id === rec.id);
   if (i >= 0) CUSTOM_DB[i] = rec; else CUSTOM_DB.unshift(rec);
