@@ -999,7 +999,7 @@ $("btnVehAsk").addEventListener("click", async () => {
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
     const prompt = [
-      "あなたは日本の自動車整備士を支援するベテラン整備士『メカ君』です。次の車両について、整備士からの質問に正確かつ実務的に答えてください。",
+      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両について整備士の質問に正確かつ実務的に答え、説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
       "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。前置き・免責不要。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
       "■対象車両: " + vehicleDesc(),
       "■質問: " + q,
@@ -1991,7 +1991,7 @@ async function geminiAsk(prompt, opts) {
 
 function buildDiagPrompt(text) {
   const lines = [
-    "あなたは『メカ君』。整備士の相棒の、明るく頼れるロボット整備士(一人称はボク)です。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で書くこと。",
+    "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
     "回答前に十分に考えてから答えること。正確性を最優先し、確信が持てない内容には「（要確認）」を付け、推測と確定的な事実を混同しないこと。一般論より、提示された車種・エンジンに固有の既知事例を優先すること。",
     "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
     "",
@@ -2343,7 +2343,8 @@ function buildMediaDiagPrompt() {
 }
 /* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
 const diagAttachments = [];          // {file, kind:'image'|'video', url}
-const ATTACH_MAX = 18 * 1024 * 1024; // Geminiインライン上限の目安(約18MB)
+const ATTACH_MAX = 12 * 1024 * 1024;   // インライン送信の安全上限(base64で約1.37倍に膨らむため raw 12MB ≒ 16.5MB)
+const VIDEO_TARGET = 9 * 1024 * 1024;  // 圧縮の目標サイズ(余裕を持って)
 
 const attachMap = [
   ["btnAttachPhoto", "inAttachPhoto"],
@@ -2370,16 +2371,16 @@ async function addDiagAttachment(file) {
   let f = file;
   if (isVideo && file.size > ATTACH_MAX) {
     toggle("diagVideoStatus", true);
-    st.textContent = "🔧 動画が大きい(" + Math.round(file.size / 1048576) + "MB)ので自動圧縮しています…";
+    st.textContent = "動画が大きい(" + Math.round(file.size / 1048576) + "MB)ので自動圧縮しています…";
     try {
-      f = await compressVideo(file, ATTACH_MAX);
+      f = await compressVideo(file, VIDEO_TARGET);
       st.textContent = "✓ 圧縮しました(" + Math.round(f.size / 1048576) + "MB)。";
     } catch (e) {
       f = file;
       st.textContent = "⚠ 自動圧縮できませんでした。短い動画で撮り直すか、低画質で撮影してください。";
     }
     if (f.size > ATTACH_MAX) {
-      st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。15秒程度に短く撮り直してください。";
+      st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。10秒程度に短く撮り直してください。";
       return;
     }
   }
@@ -2414,7 +2415,7 @@ function compressVideo(file, targetBytes) {
     const v = document.createElement("video");
     v.muted = true; v.playsInline = true; v.src = url;
     v.onloadedmetadata = () => {
-      const maxDim = 640;                       // 長辺640pxへ縮小
+      const maxDim = 540;                       // 長辺540pxへ縮小(送信サイズ優先)
       const scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
       const w = Math.max(2, Math.round(v.videoWidth * scale) & ~1);
       const h = Math.max(2, Math.round(v.videoHeight * scale) & ~1);
@@ -2428,7 +2429,7 @@ function compressVideo(file, targetBytes) {
         if (at) cstream.addTrack(at);
       } catch (e) {}
       const dur = v.duration && isFinite(v.duration) ? v.duration : 12;
-      const bitrate = Math.max(300000, Math.min(2500000, Math.floor(targetBytes * 8 / Math.max(1, dur) * 0.85)));
+      const bitrate = Math.max(250000, Math.min(1800000, Math.floor(targetBytes * 8 / Math.max(1, dur) * 0.8)));
       let mime = "video/webm;codecs=vp8,opus";
       if (!MediaRecorder.isTypeSupported(mime)) mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
       let rec;
@@ -2459,11 +2460,18 @@ async function diagMediaAnalyze() {
     alert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
+  // 合計サイズの安全チェック(インライン送信の上限対策)
+  const totalSize = diagAttachments.reduce((s, a) => s + (a.file.size || 0), 0);
+  if (totalSize > ATTACH_MAX) {
+    toggle("diagVideoStatus", true);
+    $("diagVideoStatus").textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalSize / 1048576) + "MB)。動画は1本・10秒程度に、写真は枚数を減らしてください。";
+    return;
+  }
   if (diagMediaBusy) return;
   diagMediaBusy = true;
   const runBtn = $("btnDiagRun"); setBtnLoading(runBtn, true, "メカ君が解析中…");
   const st = $("diagVideoStatus"); toggle("diagVideoStatus", true);
-  st.textContent = "🔧 メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
+  st.textContent = "メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
   // テキストにコード/症状があれば内蔵DB照合も表示
   const text = $("diagText").value.trim();
   if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
@@ -2642,8 +2650,8 @@ $("btnVoiceTalk").addEventListener("click", () => {
 });
 function buildVoiceChatPrompt() {
   const lines = [
-    "あなたは『メカ君』。整備士の相棒の、明るく頼れるロボット整備士です。一人称は『ボク』。",
-    "親しみやすく丁寧な口調(です・ます調)で、専門的な内容も分かりやすく噛み砕いて話します。馴れ馴れしすぎず、相手を立てて前向きに励ますこと。安全と正確さは最優先で、確信が持てない点は正直に『要確認』と伝える。",
+    "あなたは『メカ君』。基本はまじめで頼れるロボット整備士だが、どこかおちゃめで愛嬌がある。一人称は『ボク』。",
+    "丁寧で分かりやすい口調(です・ます調)で噛み砕いて話し、時々ちょっとした軽口やユーモアを一言だけ添える(やりすぎない・本題を邪魔しない)。安全と正確さは最優先で、確信が持てない点は正直に『要確認』と伝える。",
     "音声で読み上げるので、簡潔に話し言葉で。箇条書き記号やMarkdown記号は使わず、2〜4文程度で要点を。",
   ];
   if (current.type || current.vin) {
