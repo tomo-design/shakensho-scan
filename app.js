@@ -12,6 +12,11 @@ const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => $(id).classList.toggle("hidden", !show);
 const setText = (id, t) => { $(id).textContent = t; };
+/* メールアドレスらしい文字列か(使用者名・車種名へのメール混入対策) */
+const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
+const noEmail = s => (isEmailLike(s) ? "" : s);
+/* 全角数字→半角(表示用) */
+const han = s => String(s == null ? "" : s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 /* ボタンの処理中表示: メカ君アイコンを回しつつ「考え中…」に。完了でsetBtnLoading(btn,false) */
 function setBtnLoading(btn, on, label) {
   if (!btn) return;
@@ -248,7 +253,7 @@ function mergeAcc(d) {
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
-function accComplete() { return !!(acc.vin && acc.engine && acc.plate); } // 限定4項目(指定・類別は無い車もある)
+function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; toggle("scanOK", false); }
 
@@ -406,29 +411,35 @@ function afterScanUpdate(src) {
   setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3（指定・類別）") + "を写してください");
 }
 
+let lastScanProc = 0;
 async function scanTick() {
   if (!scanning) return;
-  if (!tickBusy && video.readyState >= 2 && video.videoWidth) {
+  // 重いQR解析は約180msに1回だけ実行(毎フレームだとカメラ/ズーム操作がカクつくため)
+  if (!tickBusy && video.readyState >= 2 && video.videoWidth && Date.now() - lastScanProc >= 180) {
+    lastScanProc = Date.now();
     tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
-      // --- QR: ネイティブ + ZXing/jsQR を併用(取りこぼし防止) ---
+      // --- QR: ネイティブ優先(高速)。失敗時のみZXing/jsQRで補完 ---
+      let t = null;
       if (nativeDetector) {
-        try { (await nativeDetector.detect(video)).forEach(c => onLiveQr(c.rawValue)); }
+        try { const codes = await nativeDetector.detect(video); if (codes.length) { codes.forEach(c => onLiveQr(c.rawValue)); t = "native"; } }
         catch (e) { nativeDetector = null; }
       }
-      // 中央70%を実解像度でZXing/jsQR(ネイティブが小QRを取りこぼす対策)
-      const s = Math.floor(Math.min(vw, vh) * 0.7);
-      cv.width = s; cv.height = s;
-      ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
-      let t = decodeCanvas(cv);
-      if (!t && tickN % 3 === 0) { // 全面も時々
-        const cap = 1600, sc = Math.min(1, cap / Math.max(vw, vh));
-        const w = Math.round(vw * sc), h = Math.round(vh * sc);
-        cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
-        t = decodeCanvas(cv);
+      // ネイティブで取れなかった時だけ重い解析(中央70%を実解像度で)
+      if (!t) {
+        const s = Math.floor(Math.min(vw, vh) * 0.7);
+        cv.width = s; cv.height = s;
+        ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
+        let dt = decodeCanvas(cv);
+        if (!dt && tickN % 3 === 0) { // 全面も時々
+          const cap = 1400, sc = Math.min(1, cap / Math.max(vw, vh));
+          const w = Math.round(vw * sc), h = Math.round(vh * sc);
+          cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
+          dt = decodeCanvas(cv);
+        }
+        if (dt) onLiveQr(dt);
       }
-      if (t) onLiveQr(t);
     } catch (e) {}
     tickBusy = false;
     // --- 文字認識(OCR): 重いので約1.5秒に1回、別スレッドで ---
@@ -854,15 +865,15 @@ function registerVehicleToDB(opt = {}) {
   if (!d || (!d.vin && !d.type && !d.plate)) { return false; }
   const histE = findHistEntry(getHistory(), d) || {};
   const learned = getLearned(vehicleKey(d)) || {};
-  const user = histE.name || null;
+  const user = noEmail(histE.name) || null;   // 使用者にメールが混入していたら使わない
   // 型式マッチ = 車台番号のハイフンより前の英数字(例: FW74HZ-510123 → FW74HZ)
   const prefixRaw = vinPrefix(d.vin);
   const prefix = prefixRaw ? prefixRaw.toUpperCase().replace(/[^A-Z0-9]/g, "") : null;
   // 車種名 = 車台番号(先頭)から内蔵DB検索した車種名 > メンテAIで取得した車種名 > 代替
   // ※自分が保存したカスタムレコードに自己ヒットしないよう内蔵DBのみを検索
   const found = prefix ? findBuiltinVehicle(prefix) : null;
-  const aiModel = histE.model || learned.model || null;
-  const name = (found && found.name) || aiModel || user || d.plate || d.vin || d.type || "無名車両";
+  const aiModel = noEmail(histE.model || learned.model) || null;
+  const name = noEmail((found && found.name) || aiModel || user || d.plate || d.vin || d.type) || "無名車両";
   const match = prefix
     || (d.type ? escRegex(String(d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase()) : (d.kataShitei || escRegex(name)));
   // メーカー = DB一致のメーカー > AI推定メーカー(有効なキーのみ) > 既存 > other
@@ -1036,17 +1047,17 @@ function showResult(d, opt = {}) {
   scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
-  setText("rUser", (histEntry && histEntry.name) || "—");
+  setText("rUser", noEmail(histEntry && histEntry.name) || "—");   // メール混入は表示しない
   // QR生データがあり、未取得項目があればAI解析ボタンを出す
   current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
   // 限定表示項目: 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
   const missing = !d.engine || !d.plate || !d.kataShitei;
   toggle("aiQrParse", current.qrRaw.length > 0 && missing);
   toggle("aiQrStatus", false);
-  setText("rEngine", d.engine || "—");
-  setText("rVin", d.vin || "未検出");
-  setText("rPlate", d.plate || "—");
-  setText("rKata", formatKata(d.kataShitei) || "記載なし");
+  setText("rEngine", han(d.engine) || "—");
+  setText("rVin", han(d.vin) || "未検出");
+  setText("rPlate", han(d.plate) || "—");
+  setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -1145,8 +1156,8 @@ function renderSpecs(specs, source) {
   toggle("specEditBox", false);
   shownSpecs.forEach(s => {
     const item = document.createElement("div"); item.className = "specItem";
-    const k = document.createElement("div"); k.className = "specK"; k.textContent = s.k;
-    const v = document.createElement("div"); v.className = "specV"; v.textContent = s.v;
+    const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
+    const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
     item.append(k, v); dl.appendChild(item);
   });
   toggle("specList", shownSpecs.length > 0);
@@ -1199,7 +1210,7 @@ function saveVehicleAiData(specs, faults, recalls, extra) {
   if (recalls && recalls.length) t.recalls = recalls;
   if (extra && extra.model) t.model = extra.model;
   if (extra && extra.maker) t.maker = extra.maker;
-  t.aiAt = new Date().toISOString();
+  t.aiAt = new Date().toISOString(); t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 諸元・故障も社内共有へ
 }
@@ -1437,7 +1448,7 @@ function addHistory(d) {
       engine: d.engine || exist.engine,
       expiry: d.expiry ? d.expiry.getTime() : exist.expiry,
       firstReg: d.firstReg || exist.firstReg, kataShitei: d.kataShitei || exist.kataShitei,
-      at: new Date().toISOString(),
+      at: new Date().toISOString(), updatedAt: Date.now(),
     });
     hist.splice(hist.indexOf(exist), 1); hist.unshift(exist);
   } else {
@@ -1446,7 +1457,7 @@ function addHistory(d) {
       engine: d.engine || null,
       expiry: d.expiry ? d.expiry.getTime() : null,
       firstReg: d.firstReg || null, kataShitei: d.kataShitei || null,
-      at: new Date().toISOString(),
+      at: new Date().toISOString(), updatedAt: Date.now(),
     });
   }
   localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 200)));
@@ -1460,7 +1471,7 @@ function saveUserName(name) {
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
   const h2 = getHistory();
   const t = findHistEntry(h2, current);
-  if (t) { t.name = name || null; localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
+  if (t) { t.name = noEmail(name) || null; t.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
 }
 function histToResult(h) {
   return {
@@ -1486,6 +1497,7 @@ function renderHistory() {
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
     del.addEventListener("click", () => {
+      if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
       localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
       renderHistory();
     });
@@ -2237,8 +2249,8 @@ function buildSpecPrompt() {
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
-    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
-    "specsには『車台番号の打刻位置』『エンジン型式の打刻位置』を必ず含め、その車種で分かる範囲の具体的な場所を記すこと(不明なら要確認)。上記以外も整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
+    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"約13L（フィルタ交換時・要確認）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"…"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
+    "specsには『デフオイル（デファレンシャルオイル）』をミッションオイルの次に必ず含め、さらに『車台番号の打刻位置』『エンジン型式の打刻位置』も必ず含めること(不明なら要確認)。上記以外も整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
     "",
     "■対象車両: " + vehicleDesc()
   ].join("\n");
@@ -2297,11 +2309,16 @@ function fileToBase64(file) {
   });
 }
 /* 動画(＋プロンプト)をGeminiに送って解析。textのみ版geminiAskと別系統(キャッシュなし) */
+/* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
+const GEMINI_MEDIA_MODELS = {
+  flash: ["gemini-2.5-flash", "gemini-2.0-flash"],
+  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+};
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
   if (!key) throw new Error("Gemini APIキーが未設定です。");
   let lastErr = null;
-  for (const model of GEMINI_MODELS[getAiMode()]) {
+  for (const model of GEMINI_MEDIA_MODELS[getAiMode()]) {
     try {
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
       if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
@@ -2311,15 +2328,20 @@ async function geminiAskMedia(prompt, media) {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
       if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／標準モードにする等をお試しください。"); continue; }
-      if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効、または動画が大きすぎる可能性があります。より短い動画でお試しください。");
-      if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
+      if (res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+      if (res.status === 400) {   // 400は次モデルでも試す(モデル非対応やサイズ等の切り分け)
+        let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch (e) {}
+        lastErr = new Error("送信できませんでした(" + model + "): " + (detail || "動画が大きすぎる可能性。10〜15秒に短く／低画質でお試しを"));
+        continue;
+      }
+      if (!res.ok) { lastErr = new Error("AI応答エラー (" + res.status + ")"); continue; }
       const j = await res.json();
       const cand = j.candidates?.[0];
       const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
       if (!text) throw new Error("AIから回答が得られませんでした");
       return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
     } catch (e) {
-      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効") || e.message.includes("大きすぎる"))) throw e;
+      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
     }
   }

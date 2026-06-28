@@ -21,6 +21,8 @@
   let auth, db;
   try { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
   catch (e) { console.warn("Firebase初期化失敗", e); return; }
+  // ログイン状態を端末に永続化(自動ログアウトを防ぐ)
+  try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
 
   const $ = id => document.getElementById(id);
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
@@ -160,8 +162,9 @@
 
   /* ---------- 同期 ---------- */
   function vinKey(r) { return String(r.vin || r.type || r.plate || r.id || Date.now()).replace(/[^A-Za-z0-9]/g, "_"); }
+  const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { vin: r.vin || null, plate: r.plate || null, name: r.name || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString() };
+    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -213,7 +216,13 @@
           const r = d.data();
           let e = hist.find(h => r.vin && h.vin === r.vin);
           if (!e) { e = { id: Date.now() + Math.random() }; hist.unshift(e); }
-          Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: r.name || e.name, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, at: e.at || r.at || new Date().toISOString() });
+          if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
+            // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
+            try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+          } else {
+            // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
+            Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
+          }
         });
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));
         try { renderHistory(); } catch (e) {}
@@ -236,6 +245,10 @@
     pushRecord(r) {
       if (!this.active || !r || !r.vin) return;
       db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
+    },
+    deleteRecord(r) {
+      if (!this.active || !r) return;
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).delete().catch(() => {});
     }
   };
 
