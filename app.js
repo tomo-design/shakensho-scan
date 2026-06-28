@@ -2209,7 +2209,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
       let r;
       if (atts.length) {
         const media = [];
-        for (const a of atts) media.push({ mimeType: a.file.type || (a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+        for (const a of atts) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
         r = await geminiAskMedia(prompt, media);
       } else {
         r = await geminiAsk(prompt);
@@ -2303,10 +2303,20 @@ $("btnSpecReload").addEventListener("click", () => runSpecAI($("btnSpecReload"))
 function fileToBase64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
-    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onload = () => {
+      // data URL の mime に codecs="vp8,opus" などコンマが含まれる場合があるため "base64," 以降を厳密に取り出す
+      const s = String(r.result);
+      const i = s.indexOf("base64,");
+      res(i >= 0 ? s.slice(i + 7) : s.slice(s.indexOf(",") + 1));
+    };
     r.onerror = () => rej(new Error("ファイルを読み込めませんでした"));
     r.readAsDataURL(file);
   });
+}
+/* inlineData用にmimeTypeからcodecsなどのパラメータをはずしてGeminiが受け付ける形に */
+function cleanMime(m, fallback) {
+  m = (m || fallback || "").split(";")[0].trim();
+  return m || fallback;
 }
 /* 動画(＋プロンプト)をGeminiに送って解析。textのみ版geminiAskと別系統(キャッシュなし) */
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
@@ -2472,7 +2482,7 @@ function compressVideo(file, targetBytes) {
       rec.onstop = () => {
         URL.revokeObjectURL(url);
         const blob = new Blob(chunks, { type: mime || "video/webm" });
-        resolve(new File([blob], "compressed.webm", { type: blob.type }));
+        resolve(new File([blob], "compressed.webm", { type: cleanMime(blob.type, "video/webm") }));
       };
       const st0 = $("diagVideoStatus");
       const draw = () => {
@@ -2515,7 +2525,7 @@ async function diagMediaAnalyze() {
   if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
   try {
     const media = [];
-    for (const a of diagAttachments) media.push({ mimeType: a.file.type || (a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+    for (const a of diagAttachments) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
     const r = await geminiAskMedia(buildMediaDiagPrompt(), media);
     const box = $("diagResults");
     const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
