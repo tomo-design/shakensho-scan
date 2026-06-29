@@ -1914,6 +1914,8 @@ const GEMINI_MODELS = {
   flash: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
   pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 };
+/* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
+const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
 /* AI結果キャッシュ: 同じ問い合わせは再消費しない(無料枠節約) */
 function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
 function aiCacheGet(k) { try { return (JSON.parse(localStorage.getItem("ss_aicache") || "{}"))[k] || null; } catch (e) { return null; } }
@@ -2032,6 +2034,68 @@ async function geminiAsk(prompt, opts) {
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
 }
 
+/* 画像生成: Geminiの画像モデルで実画像(PNG)を生成し data URL を返す。失敗時は "" */
+const imgMemCache = new Map();   // セッション内キャッシュ(無料枠の節約)
+function imgCacheGet(k) {
+  if (imgMemCache.has(k)) return imgMemCache.get(k);
+  try { const c = JSON.parse(localStorage.getItem("ss_imgcache") || "{}"); if (c[k]) { imgMemCache.set(k, c[k]); return c[k]; } } catch (e) {}
+  return null;
+}
+function imgCacheSet(k, dataUrl) {
+  imgMemCache.set(k, dataUrl);
+  // localStorageは容量が小さいので最新数件のみ保持(超過時は古いものから捨てる)
+  try {
+    const c = JSON.parse(localStorage.getItem("ss_imgcache") || "{}");
+    c[k] = dataUrl;
+    let ks = Object.keys(c);
+    while (ks.length > 8) delete c[ks.shift()];
+    while (ks.length) {
+      try { localStorage.setItem("ss_imgcache", JSON.stringify(c)); break; }
+      catch (e) { delete c[ks.shift()]; }   // 容量超過なら古い順に減らして再試行
+    }
+  } catch (e) {}
+}
+async function geminiGenImage(prompt, opts) {
+  opts = opts || {};
+  const key = localStorage.getItem(LS.gemini);
+  if (!key) throw new Error("APIキー未設定");
+  const ck = "img:" + hashStr(prompt);
+  if (!opts.noCache) { const c = imgCacheGet(ck); if (c) return c; }
+  aiAbort = new AbortController();
+  let lastErr = null;
+  for (const model of GEMINI_IMAGE_MODELS) {
+    try {
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: aiAbort.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
+          })
+        });
+      if (res.status === 404) { lastErr = new Error(model + " 利用不可"); continue; }
+      if (res.status === 429) { lastErr = new Error("無料枠の上限"); continue; }
+      if (res.status === 400 || res.status === 403) { lastErr = new Error("画像モデル非対応/キー権限不足"); continue; }
+      if (!res.ok) { lastErr = new Error("画像生成エラー(" + res.status + ")"); continue; }
+      const j = await res.json();
+      const parts = j.candidates?.[0]?.content?.parts || [];
+      const img = parts.find(p => p.inlineData && p.inlineData.data);
+      if (!img) { lastErr = new Error("画像が返りませんでした"); continue; }
+      const mime = img.inlineData.mimeType || "image/png";
+      const dataUrl = "data:" + mime + ";base64," + img.inlineData.data;
+      imgCacheSet(ck, dataUrl);
+      return dataUrl;
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("__cancelled__");
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("画像生成に失敗しました");
+}
+
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
@@ -2125,7 +2189,7 @@ function attachStepFigure(li, div, stepText) {
     hint.textContent = open ? "🖼 参考図を隠す" : "🖼 タップで参考図";
     if (!open || loaded) return;
     loaded = true;
-    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…</div>';
+    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…(数秒〜十数秒)</div>';
     // 画像検索リンク(AIキーが無くても使える保険)
     const carName = (current && (current.model || current.type)) || "";
     const q = (carName + " " + stepText).trim();
@@ -2133,13 +2197,33 @@ function attachStepFigure(li, div, stepText) {
       + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
     if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
     try {
-      const svg = await geminiStepFigure(stepText);
-      fig.innerHTML = (svg ? '<div class="stepFigSvg">' + svg + '</div><div class="stepFigCap">メカ君のイメージ図（参考）</div>' : "") + linkHtml;
+      // ①まず実画像を生成(リアル)。失敗したら②線画SVGにフォールバック
+      let body = "";
+      try {
+        const dataUrl = await geminiGenImage(buildStepImagePrompt(stepText, carName));
+        if (dataUrl) body = '<div class="stepFigSvg"><img alt="参考図" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた参考イラスト（イメージ）</div>';
+      } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+      if (!body) {
+        const svg = await geminiStepFigure(stepText);
+        if (svg) body = '<div class="stepFigSvg">' + svg + '</div><div class="stepFigCap">メカ君のイメージ図（参考）</div>';
+      }
+      fig.innerHTML = body + linkHtml;
     } catch (e) {
       fig.innerHTML = (e && e.message === "__cancelled__" ? "" : '<div class="hint">図を描けませんでした。</div>') + linkHtml;
       loaded = false;
     }
   });
+}
+/* 画像生成モデル向けプロンプト(リアルな整備イラスト) */
+function buildStepImagePrompt(stepText, carName) {
+  return [
+    "自動車整備マニュアル用の、分かりやすくリアルな解説イラストを1枚生成してください。",
+    "スタイル: 写実的だが清潔感のある整備マニュアル風のイラスト。立体感のある陰影、自然な色。背景はシンプル(整備工場/ガレージ)。",
+    "構図: 作業箇所が主役になるよう寄りの視点。手や工具が部品に対してどう当たるかが分かるように描く。",
+    "文字・ロゴ・透かしは入れない(言語に依存しない図にする)。過度な誇張は避け、正確な工具と部品の関係を優先。",
+    "対象車両: " + (carName || "一般的な自動車") + "(整備シーン)。",
+    "描く作業内容: " + stepText,
+  ].join("\n");
 }
 /* 手順テキストから、シンプルな線画SVGをGeminiに描かせる(キャッシュあり) */
 async function geminiStepFigure(stepText) {
