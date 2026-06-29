@@ -186,7 +186,7 @@ ol.ai-list li.hasFig:active{opacity:.85}
 .stepFig.hidden{display:none}
 .stepFigLoad{font-size:13px;color:var(--dim);padding:6px 0}
 .stepFigSvg{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px}
-.stepFigSvg svg{display:block;width:100%;height:auto;max-height:260px}
+.stepFigSvg svg,.stepFigSvg img{display:block;width:100%;height:auto;max-height:300px;object-fit:contain;border-radius:6px}
 .stepFigCap{font-size:11px;color:var(--dim);text-align:center;margin-bottom:8px}
 
 /* 諸元の項目別編集 */
