@@ -1158,7 +1158,9 @@ function renderSpecs(specs, source) {
     const item = document.createElement("div"); item.className = "specItem";
     const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
     const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
-    item.append(k, v); dl.appendChild(item);
+    const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけ最新に更新"; up.textContent = "🔄";
+    up.addEventListener("click", () => refreshSpecItem(s.k, up));
+    item.append(up, k, v); dl.appendChild(item);
   });
   toggle("specList", shownSpecs.length > 0);
   // 出所ラベル
@@ -2245,15 +2247,15 @@ function buildSpecPrompt() {
     "あなたは日本の自動車整備士向けのデータアドバイザーです。",
     "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
-    "確信が持てない値には必ず「（要確認）」を付け、年式・エンジンで差がある場合はその旨を値の中に明記すること。",
-    "【数値の書き方・最重要】曖昧な『A又はB』『A〜B』という書き方は禁止。値が条件で変わる場合は必ず『値＋その条件(理由)』をセットで書くこと。例: エンジンオイル量は『9.0L（オイルのみ交換）／10.0L（オイル＋オイルエレメント同時交換時）』のように、それぞれの数値が何の時の値か明記する。オイルエレメント/フィルターも品番や容量差の理由を添える。",
-    "【締付トルク】範囲(550〜650)ではなく、必ず『規定値±公差』の形にすること。例: ホイールナット『600±50 N·m』。エンジン位置やボルトサイズで分かれる場合はそれぞれ条件付きで。確信が持てない時のみ範囲＋（要確認）。",
+    "【要確認の書き方】確信が持てない値は理由や説明を付けず『（要確認）』とだけ書くこと。長い但し書きは不要。",
+    "【曖昧禁止・最重要】『オイルパンの仕様により異なる』『A又はB』『A〜B』のような曖昧な逃げは禁止。車台番号・原動機型式から特定して確定値を出すこと。値が交換条件で変わる場合のみ『値＋条件』を簡潔に書く(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。",
+    "【締付トルク】範囲(550〜650)ではなく、必ず『規定値±公差』の形にすること。例: ホイールナット『600±50 N·m』。",
     "ドラムブレーキ(リジッド/ドラム式アクスル)の車両の場合は『アクスルシャフト(ハブ)ナット締付トルク』も specs に必ず含めること。",
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
-    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（オイル＋エレメント交換時）"},{"k":"オイルエレメント","v":"純正品番●●（容量差の理由も）"},{"k":"推奨オイル粘度","v":"…"},{"k":"オイル交換目安","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
-    "specsには『オイルエレメント(品番/容量差)』『デフオイル（デファレンシャルオイル）』をミッションオイルの近くに、さらに『車台番号の打刻位置』『エンジン型式の打刻位置』も必ず含めること(不明なら要確認)。上記以外も整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
+    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
+    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。specsには『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』を必ず含めること(不明なら要確認)。上記以外も整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
     "",
     "■対象車両: " + vehicleDesc()
   ].join("\n");
@@ -2264,6 +2266,10 @@ async function runSpecAI(srcBtn) {
     alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings");
     return;
+  }
+  // 「最新に更新」で既存の(訂正含む)データを上書きする前に確認
+  if (srcBtn && srcBtn.id === "btnSpecReload" && shownSpecs && shownSpecs.length) {
+    if (!confirm("最新のAI結果で諸元を取り直します。手動で『訂正して保存』した内容も上書きされます。よろしいですか？")) return;
   }
   const box = $("specAiBox");
   toggle("specAiBox", true);
@@ -2301,6 +2307,44 @@ async function runSpecAI(srcBtn) {
 }
 $("btnSpecAI").addEventListener("click", () => runSpecAI($("btnSpecAI")));
 $("btnSpecReload").addEventListener("click", () => runSpecAI($("btnSpecReload")));  // 最新に更新(都度DB更新)
+
+/* 項目ごとに最新値だけ取り直す(右上の🔄) */
+async function refreshSpecItem(key, btn) {
+  stopFieldMic();
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
+    switchView("settings"); return;
+  }
+  if (btn) { btn.classList.add("loading"); btn.disabled = true; }
+  try {
+    const prompt = [
+      "あなたは日本の自動車整備士向けのデータアドバイザーです。",
+      "次の車両の整備諸元のうち、指定された1項目だけを答えてください。",
+      "【要確認の書き方】確信が持てない場合のみ『（要確認）』とだけ書く。長い但し書きは不要。",
+      "【曖昧禁止】『オイルパンの仕様により異なる』等の逃げは禁止。車台番号・原動機型式から特定して確定値を出すこと。交換条件で変わる場合のみ『値＋条件』を簡潔に。",
+      "【締付トルク】範囲ではなく『規定値±公差』の形(例 600±50 N·m)。",
+      "出力は厳密なJSONのみ。形式: {\"v\":\"値\"}",
+      "",
+      "■対象車両: " + vehicleDesc(),
+      "■知りたい項目: " + key
+    ].join("\n");
+    const r = await geminiAsk(prompt, { noCache: true });
+    const obj = extractJson(r.text);
+    const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
+    if (!nv) return;
+    const idx = shownSpecs.findIndex(s => s.k === key);
+    if (idx >= 0) shownSpecs[idx] = { k: key, v: nv }; else shownSpecs.push({ k: key, v: nv });
+    const specs = shownSpecs.slice();
+    setLearned(vehicleKey(current), { specs });
+    saveVehicleAiData(specs);
+    registerVehicleToDB({ silent: true });
+    renderSpecs(specs, "learned");
+  } catch (e) {
+    if (e.message !== "__cancelled__") alert("⚠ " + (e.message || "更新に失敗しました"));
+  } finally {
+    if (btn) { btn.classList.remove("loading"); btn.disabled = false; }
+  }
+}
 
 /* ---- 写真・動画の添付AI解析(Geminiマルチモーダル) ---- */
 function fileToBase64(file) {
