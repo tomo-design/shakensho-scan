@@ -804,17 +804,21 @@ function renderPlateSearch() {
   const q = normPlate($("plateSearch").value);
   const qRaw = $("plateSearch").value.trim();
   const box = $("plateResults"); box.innerHTML = "";
-  const hist = getHistory().filter(h => h.plate || h.name);
+  const hist = getHistory().filter(h => h.plate || h.name || h.model || h.type);
   if (!hist.length) { box.innerHTML = '<div class="empty">保存済みの車両がまだありません。<br>スキャンするとナンバーが自動保存されます。</div>'; return; }
   const matches = (q || qRaw)
-    ? hist.filter(h => (h.plate && normPlate(h.plate).includes(q)) || (h.name && qRaw && h.name.includes(qRaw)))
+    ? hist.filter(h =>
+        (h.plate && normPlate(h.plate).includes(q)) ||
+        (qRaw && h.name && h.name.includes(qRaw)) ||
+        (qRaw && h.model && h.model.includes(qRaw)) ||
+        (qRaw && h.type && h.type.toUpperCase().includes(qRaw.toUpperCase())))
     : hist.slice(0, 10);
   if (!matches.length) { box.innerHTML = '<div class="empty">一致する車両がありません。</div>'; return; }
   matches.slice(0, 20).forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
     main.innerHTML = '<div class="hType">' + esc(h.plate || "ナンバー未登録") + (h.name ? ' <span style="font-weight:400">／ ' + esc(h.name) + '</span>' : '') + '</div>' +
-      '<div class="hSub">' + esc(h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + '</div>';
+      '<div class="hSub">' + esc(h.model || h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + '</div>';
     main.addEventListener("click", () => { foldEntryAreas(); showResult(histToResult(h), { fromScan: false }); });
     div.appendChild(main); box.appendChild(div);
   });
@@ -881,8 +885,9 @@ function registerVehicleToDB(opt = {}) {
   const maker = (found && found.maker) || (VALID_MAKERS.has(aiMaker) ? aiMaker : null) || null;
   const specs = (histE.specs && histE.specs.length ? histE.specs : learned.specs) || [];
   const faults = (histE.faults && histE.faults.length ? histE.faults : learned.faults) || [];
-  // 同一車両は upsert(車台番号で特定。無ければ型式/登録番号)
-  let rec = (d.vin && CUSTOM_DB.find(x => x.vin && x.vin === d.vin))
+  // DBは「登録車種」なので同じ型式は1件に統一(重複を避ける)。型式 > 車台番号 > 車種名+型式 の順で既存を探す
+  let rec = (match && CUSTOM_DB.find(x => x.match && x.match === match))
+    || (d.vin && CUSTOM_DB.find(x => x.vin && x.vin === d.vin))
     || CUSTOM_DB.find(x => x.name === name && x.match === match);
   const isNew = !rec;
   if (isNew) { rec = { id: "c" + Date.now(), maker: "other" }; CUSTOM_DB.unshift(rec); }

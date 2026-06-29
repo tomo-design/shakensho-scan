@@ -64,15 +64,15 @@
   <input type="file" id="qrPhotoIn" accept="image/*" capture="environment" class="hidden">
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
-    <button class="textlink" id="lnkShowPlate" type="button">ナンバーで車両を呼び出す</button>
+    <button class="textlink" id="lnkShowPlate" type="button">車両検索</button>
     <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
   </div>
 
   <div id="plateArea" class="hidden">
     <section>
-      <h2>ナンバーで検索</h2>
+      <h2>車両検索</h2>
       <div class="sec-body">
-        <input type="text" id="plateSearch" placeholder="例: 品川100 / 12-34 / 使用者名でも可" autocomplete="off">
+        <input type="text" id="plateSearch" placeholder="登録ナンバー / 使用者名 / 車種名で検索" autocomplete="off">
         <div id="plateResults" style="margin-top:10px"></div>
       </div>
     </section>
