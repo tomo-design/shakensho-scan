@@ -989,7 +989,7 @@ $("btnPartsGo").addEventListener("click", async () => {
   setBtnLoading($("btnPartsGo"), true, "メカ君が調べ中…");
   try {
     const r = await geminiAsk(buildPartsPrompt(part));
-    renderAiAnswer(box, r.text);
+    renderAiAnswer(box, r.text, { illustrate: true });
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
@@ -1038,7 +1038,21 @@ $("btnVehAsk").addEventListener("click", async () => {
   }
 });
 
+/* 車両が変わったら診断・修理タブの前車両データを消す(混ざり防止) */
+function resetVehicleWorkTabs() {
+  try { cancelAI(); } catch (e) {}
+  const clr = (id, hideId) => { const el = $(id); if (el) el.innerHTML = ""; if (hideId) toggle(hideId, false); };
+  const val = id => { const el = $(id); if (el) el.value = ""; };
+  // 診断タブ
+  val("diagText"); clr("diagResults");
+  // 修理タブ(交換手順・参考図・この車両について質問)
+  val("partName"); clr("partsResult", "partsResult"); clr("partsLinks");
+  val("qVehText"); clr("qVehResult", "qVehResult");
+}
+
 function showResult(d, opt = {}) {
+  // 別車両に切り替わったら前の車両の診断/修理結果をクリア
+  if (!current || vehicleKey(current) !== vehicleKey(d)) resetVehicleWorkTabs();
   current = d;
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
@@ -2075,6 +2089,7 @@ function renderAiAnswer(container, text, opts) {
       const div = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
       div.appendChild(t);
+      if (opts.illustrate) attachStepFigure(li, div, n[2]);   // タップで参考図を表示
       li.appendChild(div);
       list.appendChild(li);
       continue;
@@ -2095,6 +2110,60 @@ function renderAiAnswer(container, text, opts) {
     p.className = "ai-p"; p.textContent = line;
     container.appendChild(p);
   }
+}
+
+/* 手順の li をタップ可能にして、参考図(メカ君の図解＋画像検索)を下に開く */
+function attachStepFigure(li, div, stepText) {
+  li.classList.add("hasFig");
+  const fig = document.createElement("div"); fig.className = "stepFig hidden";
+  div.appendChild(fig);
+  const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = "🖼 タップで参考図";
+  div.appendChild(hint);
+  let loaded = false;
+  div.addEventListener("click", async () => {
+    const open = fig.classList.toggle("hidden") === false;
+    hint.textContent = open ? "🖼 参考図を隠す" : "🖼 タップで参考図";
+    if (!open || loaded) return;
+    loaded = true;
+    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…</div>';
+    // 画像検索リンク(AIキーが無くても使える保険)
+    const carName = (current && (current.model || current.type)) || "";
+    const q = (carName + " " + stepText).trim();
+    const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
+      + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
+    if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
+    try {
+      const svg = await geminiStepFigure(stepText);
+      fig.innerHTML = (svg ? '<div class="stepFigSvg">' + svg + '</div><div class="stepFigCap">メカ君のイメージ図（参考）</div>' : "") + linkHtml;
+    } catch (e) {
+      fig.innerHTML = (e && e.message === "__cancelled__" ? "" : '<div class="hint">図を描けませんでした。</div>') + linkHtml;
+      loaded = false;
+    }
+  });
+}
+/* 手順テキストから、シンプルな線画SVGをGeminiに描かせる(キャッシュあり) */
+async function geminiStepFigure(stepText) {
+  const prompt = [
+    "あなたは整備マニュアル用の図を描くイラストレーターです。",
+    "次の自動車整備の手順を理解しやすくする、シンプルな線画の説明イラストを SVG で1枚描いてください。",
+    "条件: 出力は <svg> ～ </svg> のみ(前後の文章・コードフェンス・説明は一切不要)。",
+    "viewBox=\"0 0 400 300\" を指定し、width/heightは付けない。背景は描かない(透明)。",
+    "線は stroke=\"#1f2a44\" stroke-width=\"3\" fill=\"none\" を基本に、必要な部分だけ薄い塗り(fill=\"#dbe4f3\")。",
+    "要点を矢印で示し、日本語の短いラベルを <text fill=\"#1f2a44\" font-size=\"15\"> で2〜4個まで添える。",
+    "写実的でなくてよい。記号的・模式的に、工具や部品の位置関係が伝わることを最優先。",
+    "<script> や外部参照(href, image)は使わないこと。",
+    "■対象車両: " + ((current && (current.model || current.type)) || "一般車両"),
+    "■描く手順: " + stepText,
+  ].join("\n");
+  const r = await geminiAsk(prompt, { mode: "flash" });
+  let s = String(r.text || "").trim();
+  const i = s.indexOf("<svg"); const j = s.lastIndexOf("</svg>");
+  if (i < 0 || j < 0) return "";
+  s = s.slice(i, j + 6);
+  // 安全化: scriptや外部参照を除去
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+="[^"]*"/gi, "")
+       .replace(/(href|xlink:href|src)\s*=\s*"[^"]*"/gi, "");
+  return /<svg[\s\S]*<\/svg>/i.test(s) ? s : "";
 }
 
 /* 「解析する」から自動実行されるAI診断 (キー未設定なら案内カードのみ) */

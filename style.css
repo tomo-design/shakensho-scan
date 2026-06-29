@@ -178,6 +178,16 @@ ol.guide-steps{margin:0;padding-left:0;list-style:none;counter-reset:gstep;displ
 ol.guide-steps li{counter-increment:gstep;display:flex;gap:12px;padding:12px 14px;font-size:15px;line-height:1.75;background:var(--panel2);border:1px solid var(--line);border-radius:12px}
 ol.guide-steps li::before{content:counter(gstep);flex:none;width:28px;height:28px;border-radius:50%;background:var(--amber);color:#fff;font-family:'Chakra Petch';font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(37,99,235,.3)}
 ul.guide-caution li::before{content:"⚠";color:var(--alert)}
+/* 手順タップで参考図 */
+ol.ai-list li.hasFig>div{cursor:pointer}
+ol.ai-list li.hasFig:active{opacity:.85}
+.stepFigHint{margin-top:6px;font-size:12px;font-weight:600;color:var(--amber);user-select:none}
+.stepFig{margin-top:8px}
+.stepFig.hidden{display:none}
+.stepFigLoad{font-size:13px;color:var(--dim);padding:6px 0}
+.stepFigSvg{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px}
+.stepFigSvg svg{display:block;width:100%;height:auto;max-height:260px}
+.stepFigCap{font-size:11px;color:var(--dim);text-align:center;margin-bottom:8px}
 
 /* 諸元の項目別編集 */
 .specEditRow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;border:1px solid var(--line);border-radius:10px;padding:8px;align-items:flex-start}
