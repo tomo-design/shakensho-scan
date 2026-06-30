@@ -891,13 +891,17 @@ function registerVehicleToDB(opt = {}) {
     || CUSTOM_DB.find(x => x.name === name && x.match === match);
   const isNew = !rec;
   if (isNew) { rec = { id: "c" + Date.now(), maker: "other" }; CUSTOM_DB.unshift(rec); }
+  // 手動編集済みレコードは「正データ」として尊重。AI/内蔵推定で車種名・諸元を上書きしない
+  const locked = !!rec.manual;
   Object.assign(rec, {
-    name, match, maker: maker || rec.maker || "other",
+    name: locked ? rec.name : name,
+    match: locked ? (rec.match || match) : match,
+    maker: locked ? (rec.maker || "other") : (maker || rec.maker || "other"),
     vin: d.vin || rec.vin || null, engine: d.engine || rec.engine || null,
     plate: d.plate || rec.plate || null, kataShitei: d.kataShitei || rec.kataShitei || null,
     user: user || rec.user || null,
-    faults: faults.length ? faults : (rec.faults || []),
-    specs: specs.length ? specs : (rec.specs || []),
+    faults: locked ? (rec.faults || []) : (faults.length ? faults : (rec.faults || [])),
+    specs: locked ? (rec.specs || []) : (specs.length ? specs : (rec.specs || [])),
     notes: rec.notes || "",
     updatedAt: Date.now(),   // 同期時に古いクラウドで上書きされないよう更新時刻を記録
   });
@@ -1098,6 +1102,12 @@ function showResult(d, opt = {}) {
     ? [...dbFaults, ...learnedFaults.filter(f => !dbFaults.includes(f))]
     : learnedFaults;
 
+  // 手動修正済みの正データがあれば、履歴・学習の車種名もそれに揃える(誤特定名の残留を解消)
+  if (hit && hit.manual && hit.name) {
+    const hh = getHistory(); const te = findHistEntry(hh, d);
+    if (te && te.model !== hit.name) { te.model = hit.name; te.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(hh)); if (window.Cloud) window.Cloud.pushRecord(te); }
+    if (!learned || learned.model !== hit.name) setLearned(vehicleKey(d), { model: hit.name });
+  }
   const m = $("rMatch");
   if (hit) {
     m.textContent = "⚙ 車種DB一致: " + hit.name;
@@ -1661,8 +1671,11 @@ $("btnDbSave").addEventListener("click", () => {
   if (!name || !match) { alert("車種名と型式マッチ正規表現は必須です。"); return; }
   try { new RegExp(match); } catch (e) { alert("正規表現が不正です: " + e.message); return; }
   const lines = id => $(id).value.split("\n").map(s => s.trim()).filter(Boolean);
+  const id = editingId || ("c" + Date.now());
+  const prev = CUSTOM_DB.find(x => x.id === id) || {};
   const rec = {
-    id: editingId || ("c" + Date.now()),
+    ...prev,   // vin/plate/engine/kataShitei/user など既存フィールドを維持
+    id,
     name, match, maker: $("dbfMaker").value,
     faults: lines("dbfFaults"),
     specs: lines("dbfSpecs").map(l => {
@@ -1670,6 +1683,7 @@ $("btnDbSave").addEventListener("click", () => {
       return i > 0 ? { k: l.slice(0, i).trim(), v: l.slice(i + 1).trim() } : { k: l, v: "" };
     }).filter(s => s.k),
     notes: $("dbfNotes").value.trim(),
+    manual: true,   // 手動編集=正データ。AI/内蔵推定で上書きさせない
     updatedAt: Date.now(),
   };
   const i = CUSTOM_DB.findIndex(x => x.id === rec.id);
@@ -2423,15 +2437,30 @@ function appendAiFollowup(body, origText, prevAnswer) {
 }
 
 /* 対象車両の説明文(型式が無くても指定・類別/原動機/車台番号で識別) */
+/* 現在の車両について分かっている事実(車種名・諸元・持病)をまとめて返す。
+   車種名は 正データ(手動編集DB) > DB一致 > 履歴/学習 の優先で確定 */
+function currentVehicleFacts() {
+  const d = current || {};
+  const code = d.type && d.type.includes("-") ? d.type.split("-")[1] : d.type;
+  const v = code ? findVehicle(code) : null;
+  const byVin = d.vin ? CUSTOM_DB.find(x => x.vin && x.vin === d.vin) : null;
+  const he = findHistEntry(getHistory(), d) || {};
+  const learned = getLearned(vehicleKey(d)) || {};
+  // 手動編集済みの正データを最優先
+  const hit = (byVin && byVin.manual && byVin) || (v && v.manual && v) || byVin || v || null;
+  const model = (hit && hit.name) || he.model || learned.model || null;
+  const faults = (hit && hit.faults && hit.faults.length ? hit.faults : null) || he.faults || learned.faults || [];
+  const specs = (he.specs && he.specs.length ? he.specs : learned.specs) || (hit && hit.specs) || [];
+  return { d, model, faults, specs };
+}
 function vehicleDesc() {
   const parts = [];
+  const f = currentVehicleFacts();
+  if (f.model) parts.push("車種 " + f.model);
   if (current.type) parts.push("型式 " + current.type);
   if (current.kataShitei) parts.push("型式指定番号・類別区分番号 " + current.kataShitei);
   if (current.engine) parts.push("原動機型式 " + current.engine);
   if (current.vin) parts.push("車台番号 " + current.vin);
-  const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
-  const v = code ? findVehicle(code) : null;
-  if (v) parts.push("（" + v.name + "）");
   return parts.length ? parts.join(" / ") : "不明";
 }
 /* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON) */
@@ -2943,11 +2972,17 @@ function buildVoiceChatPrompt() {
     "丁寧で分かりやすい口調(です・ます調)で噛み砕いて話し、時々ちょっとした軽口やユーモアを一言だけ添える(やりすぎない・本題を邪魔しない)。安全と正確さは最優先で、確信が持てない点は正直に『要確認』と伝える。",
     "音声で読み上げるので、簡潔に話し言葉で。箇条書き記号やMarkdown記号は使わず、2〜4文程度で要点を。",
   ];
-  if (current.type || current.vin) {
-    const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
-    const v = code ? findVehicle(code) : null;
-    lines.push("対象車両: " + (current.type ? "型式 " + current.type : "車台番号 " + current.vin) + (v ? "（" + v.name + "）" : ""));
+  const f = currentVehicleFacts();
+  if (f.d && (f.d.type || f.d.vin || f.model)) {
+    lines.push("");
+    lines.push("【この相談は下記の特定車両についてです。一般論ではなく、必ずこの車両を前提に具体的に答えること。車種・型式が分かっているのに『車種が分かりません』『一般的には』と逃げない】");
+    lines.push("対象車両: " + vehicleDesc());
+    if (f.faults && f.faults.length) lines.push("この車種の既知の持病・定番故障: " + f.faults.slice(0, 8).join(" / "));
+    if (f.specs && f.specs.length) lines.push("把握済みの整備諸元: " + f.specs.slice(0, 12).map(s => s.k + "=" + s.v).join(" / "));
+  } else {
+    lines.push("(まだ車両が読み取られていません。車両が必要な質問なら、車検証スキャンを促してください。)");
   }
+  lines.push("");
   lines.push("これまでの会話:");
   voiceHistory.slice(-8).forEach(m => lines.push((m.role === "user" ? "整備士" : "メカ君") + ": " + m.text));
   lines.push("メカ君として次の返答を述べてください。");
