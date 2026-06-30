@@ -1200,9 +1200,11 @@ function renderSpecs(specs, source) {
   toggle("specEditBox", false);
   shownSpecs.forEach(s => {
     const item = document.createElement("div"); item.className = "specItem";
+    if (s.manual) item.classList.add("specManual");
     const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
+    if (s.manual) { const tag = document.createElement("span"); tag.className = "specManualTag"; tag.textContent = "✎手動修正"; k.appendChild(tag); }
     const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
-    const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけ最新に更新"; up.textContent = "🔄";
+    const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", () => refreshSpecItem(s.k, up));
     item.append(up, k, v); dl.appendChild(item);
   });
@@ -1292,8 +1294,8 @@ function normalizeSpecs(specs) {
   (specs || []).forEach(s => {
     // 値に複数の「ラベル:」が含まれる＝固まったデータ → 分解
     const merged = splitSpecText(s.k + ": " + s.v);
-    if (merged.length > 1) out.push(...merged);
-    else out.push({ k: s.k, v: s.v });
+    if (merged.length > 1) out.push(...merged.map(m => s.manual ? { ...m, manual: true } : m));
+    else out.push(s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
   });
   // 同名項目は先勝ちで重複排除
   const seen = new Set();
@@ -1311,11 +1313,27 @@ function addSpecRow(k, v) {
   $("specEditRows").appendChild(row);
 }
 function collectSpecRows() {
+  // 直前の表示値と比較し、変更した項目(と新規項目)だけ「手動修正」フラグを付ける
+  const prior = {}; (shownSpecs || []).forEach(s => { prior[s.k] = { v: s.v, manual: !!s.manual }; });
   const out = [];
   $("specEditRows").querySelectorAll(".specEditRow").forEach(r => {
     const k = r.querySelector(".seK").value.trim(), v = r.querySelector(".seV").value.trim();
-    if (k) out.push({ k, v });
+    if (!k) return;
+    const p = prior[k];
+    const manual = p ? (p.v !== v ? true : p.manual) : true;   // 値が変わった/新規 → 手動
+    out.push(manual ? { k, v, manual: true } : { k, v });
   });
+  return out;
+}
+/* AI諸元に、手動修正済み項目を上書き保持してマージ(『最新に更新』で手入力が消えないように) */
+function mergeKeepManual(aiSpecs, curSpecs) {
+  const manual = {}; (curSpecs || []).forEach(s => { if (s.manual) manual[s.k] = s; });
+  const used = new Set();
+  const out = (aiSpecs || []).map(s => {
+    if (manual[s.k]) { used.add(s.k); return { k: s.k, v: manual[s.k].v, manual: true }; }
+    return s;
+  });
+  Object.keys(manual).forEach(k => { if (!used.has(k)) out.push({ k, v: manual[k].v, manual: true }); });
   return out;
 }
 $("btnSpecEdit").addEventListener("click", () => {
@@ -2506,7 +2524,7 @@ async function runSpecAI(srcBtn) {
   }
   // 「最新に更新」で既存の(訂正含む)データを上書きする前に確認
   if (srcBtn && srcBtn.id === "btnSpecReload" && shownSpecs && shownSpecs.length) {
-    if (!confirm("最新のAI結果で諸元を取り直します。手動で『訂正して保存』した内容も上書きされます。よろしいですか？")) return;
+    if (!confirm("最新のAI結果で諸元を取り直します。手動で訂正した項目はそのまま保持します。よろしいですか？")) return;
   }
   const box = $("specAiBox");
   toggle("specAiBox", true);
@@ -2527,6 +2545,8 @@ async function runSpecAI(srcBtn) {
     // JSONで取れない時はテキストを諸元へフォールバック分解
     if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
+    // 手動修正済みの項目はAI結果で消さずに保持
+    if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
     // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
     setLearned(vehicleKey(current), { specs, faults, recalls, model, maker });
     saveVehicleAiData(specs, faults, recalls, { model, maker });
