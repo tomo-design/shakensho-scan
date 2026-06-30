@@ -1118,14 +1118,28 @@ function showResult(d, opt = {}) {
     toggle("secNotes", false);
   }
   renderFaultList(allFaults); toggle("secFault", allFaults.length > 0);
-  // 諸元: DB(編集可能) ＞ 車両レコード ＞ 学習(型式) の優先で表示
-  const recSpecs = (hit && hit.specs && hit.specs.length) ? hit.specs
-    : (histEntry2 && histEntry2.specs) || (learned && learned.specs) || null;
-  if (recSpecs && recSpecs.length) renderSpecs(recSpecs, (hit && hit.specs && hit.specs.length) ? "db" : "learned");
+  // 諸元: 「最も新しく更新されたデータ」を表示する(端末間で別IDのDB重複があっても、訂正の取りこぼしを防ぐ)。
+  // 候補: DBレコード(hit) / 車両レコード(履歴) / 学習。updatedAtが最大で諸元を持つものを採用。
+  const learnedAt = learned && learned.at ? Date.parse(learned.at) || 0 : 0;
+  const specCands = [
+    { list: hit && hit.specs, t: (hit && hit.updatedAt) || 0, src: "db" },
+    { list: histEntry2 && histEntry2.specs, t: (histEntry2 && histEntry2.updatedAt) || 0, src: "learned" },
+    { list: learned && learned.specs, t: learnedAt, src: "learned" },
+  ];
+  let bestSpec = null;
+  for (const c of specCands) if (c.list && c.list.length && (!bestSpec || c.t >= bestSpec.t)) bestSpec = c;
+  if (bestSpec && bestSpec.list.length) renderSpecs(bestSpec.list, bestSpec.src);
   else renderSpecs([], "");
 
-  // リコール: DB(カスタム) ＞ 履歴/学習
-  const recalls = (hit && hit.recalls && hit.recalls.length ? hit.recalls : null) || (histEntry2 && histEntry2.recalls) || (learned && learned.recalls) || [];
+  // リコール: 同様に最新を優先
+  const recallCands = [
+    { list: hit && hit.recalls, t: (hit && hit.updatedAt) || 0 },
+    { list: histEntry2 && histEntry2.recalls, t: (histEntry2 && histEntry2.updatedAt) || 0 },
+    { list: learned && learned.recalls, t: learnedAt },
+  ];
+  let bestRecall = null;
+  for (const c of recallCands) if (c.list && c.list.length && (!bestRecall || c.t >= bestRecall.t)) bestRecall = c;
+  const recalls = (bestRecall && bestRecall.list) || [];
   renderRecalls(recalls);
   const mk = hit ? MAKER_RECALL[hit.maker] : null;
   toggle("secRecall", !!mk || recalls.length > 0 || !!d.vin);
