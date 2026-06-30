@@ -21,8 +21,11 @@
   let auth, db;
   try { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
   catch (e) { console.warn("Firebase初期化失敗", e); return; }
-  // ログイン状態を端末に永続化(自動ログアウトを防ぐ)
-  try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
+  // ログイン状態を端末に永続化(自動ログアウトを防ぐ)。サインイン前に必ず確定させる
+  const persistReady = (async () => {
+    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
+    catch (e) { console.warn("setPersistence失敗(既定の永続化を使用)", e); }
+  })();
 
   const $ = id => document.getElementById(id);
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
@@ -51,7 +54,7 @@
       const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
       if (!email || !pw) { $("cloudAuthStat").textContent = "メールとパスワードを入力してください。"; return; }
       $("cloudAuthStat").textContent = "ログイン中…";
-      try { await auth.signInWithEmailAndPassword(email, pw); }
+      try { await persistReady; await auth.signInWithEmailAndPassword(email, pw); }
       catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
     } else { signup(cloudMode === "new"); }
   });
@@ -84,6 +87,7 @@
       } catch (e) {}
     }
     try {
+      await persistReady;
       const cred = await auth.createUserWithEmailAndPassword(email, pw);
       const uid = cred.user.uid;
       if (isNewCompany) {
@@ -164,7 +168,7 @@
   function vinKey(r) { return String(r.vin || r.type || r.plate || r.id || Date.now()).replace(/[^A-Za-z0-9]/g, "_"); }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -177,9 +181,10 @@
           catch (e) { errMsg = (e && e.code) || e.message || String(e); }
         }
       }
-      const hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
+      let hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
+      if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
       for (const h of hist) {
-        if (h && h.vin) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
+        if (h && h.vin && !h.deleted) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
         catch (e) { errMsg = (e && e.code) || e.message || String(e); }
       }
     } catch (e) { errMsg = (e && e.code) || e.message || String(e); }
@@ -211,19 +216,29 @@
     // 車両レコード(records) → ローカル履歴へマージ(ナンバー検索が全端末で可能に)
     unsubRec = db.collection("tenants").doc(tid).collection("records").onSnapshot(snap => {
       try {
-        const hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
+        let hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
         snap.forEach(d => {
           const r = d.data();
-          let e = hist.find(h => r.vin && h.vin === r.vin);
+          const ei = hist.findIndex(h => r.vin && h.vin === r.vin);
+          let e = ei >= 0 ? hist[ei] : null;
+          // 墓標(削除済み): クラウドが新しければローカルからも消す(復活防止)
+          if (r.deleted) {
+            if (e && (e.updatedAt || 0) > (r.updatedAt || 0)) {
+              // ローカルで削除後に再作成/編集された → ローカルを正としてクラウドへ復活送信
+              try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+            } else if (ei >= 0) { hist.splice(ei, 1); }
+            return;
+          }
           if (!e) { e = { id: Date.now() + Math.random() }; hist.unshift(e); }
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
             // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
             try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
           } else {
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
-            Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
+            Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
           }
         });
+        if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));
         try { renderHistory(); } catch (e) {}
       } catch (e) {}
@@ -248,7 +263,9 @@
     },
     deleteRecord(r) {
       if (!this.active || !r) return;
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).delete().catch(() => {});
+      // ハード削除ではなく墓標(deleted)で論理削除。古い端末の再アップロードで蘇るのを防ぐ
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r))
+        .set({ deleted: true, vin: r.vin || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     }
   };
 
@@ -382,7 +399,7 @@
     const email = ($("superEmail").value || "").trim(), pw = $("superPw").value;
     if (!email || !pw) { $("superStat").textContent = "メールとパスワードを入力してください。"; return; }
     $("superStat").textContent = "ログイン中…"; pendingSuperOpen = true;
-    try { await auth.signInWithEmailAndPassword(email, pw); }
+    try { await persistReady; await auth.signInWithEmailAndPassword(email, pw); }
     catch (e) { pendingSuperOpen = false; $("superStat").textContent = "⚠ " + authErr(e); }
   });
 })();

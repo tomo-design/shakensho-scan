@@ -804,7 +804,7 @@ function renderPlateSearch() {
   const q = normPlate($("plateSearch").value);
   const qRaw = $("plateSearch").value.trim();
   const box = $("plateResults"); box.innerHTML = "";
-  const hist = getHistory().filter(h => h.plate || h.name || h.model || h.type);
+  const hist = dedupeHistoryStore().filter(h => h.plate || h.name || h.model || h.type);
   if (!hist.length) { box.innerHTML = '<div class="empty">保存済みの車両がまだありません。<br>スキャンするとナンバーが自動保存されます。</div>'; return; }
   const matches = (q || qRaw)
     ? hist.filter(h =>
@@ -1445,6 +1445,37 @@ function renderRecallVin(type, vin) {
 function getHistory() {
   try { return JSON.parse(localStorage.getItem(LS.hist)) || []; } catch (e) { return []; }
 }
+/* 同一車両(車台番号 または ナンバー)の重複を1件に統合。新しい情報・updatedAtを優先して残す */
+function dedupeHistory(list) {
+  const out = []; const idx = {};
+  for (const h of (list || [])) {
+    if (!h) continue;
+    const key = (h.vin && ("V:" + String(h.vin).toUpperCase())) || (h.plate && ("P:" + normPlate(h.plate))) || null;
+    if (key == null) { out.push(h); continue; }
+    if (idx[key] == null) { idx[key] = out.length; out.push(h); continue; }
+    // 既存とマージ(各フィールドは値がある方/新しい方を採用)
+    const a = out[idx[key]];
+    const newer = (h.updatedAt || 0) >= (a.updatedAt || 0) ? h : a;
+    const older = newer === h ? a : h;
+    const pick = k => newer[k] != null ? newer[k] : older[k];
+    out[idx[key]] = {
+      id: a.id || h.id,
+      vin: pick("vin"), plate: pick("plate"), type: pick("type"), engine: pick("engine"),
+      name: newer.name != null ? newer.name : older.name,
+      model: pick("model"), kataShitei: pick("kataShitei"), firstReg: pick("firstReg"), expiry: pick("expiry"),
+      specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
+      at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
+    };
+  }
+  return out;
+}
+/* 重複を統合して保存し、統合後の配列を返す(描画・検索の前に呼ぶ) */
+function dedupeHistoryStore() {
+  const before = getHistory();
+  const after = dedupeHistory(before);
+  if (after.length !== before.length) localStorage.setItem(LS.hist, JSON.stringify(after.slice(0, 500)));
+  return after;
+}
 /* ナンバー比較用の正規化 (空白・記号除去、全角英数→半角) */
 function normPlate(s) {
   if (!s) return "";
@@ -1497,13 +1528,14 @@ function saveUserName(name) {
 function histToResult(h) {
   return {
     type: h.type, vin: h.vin, plate: h.plate || null, engine: h.engine || null,
+    model: h.model || null,
     expiry: h.expiry ? new Date(h.expiry) : null,
     firstReg: h.firstReg || null, kataShitei: h.kataShitei || null,
     raw: [h.type, h.vin, h.plate].filter(Boolean),
   };
 }
 function renderHistory() {
-  const hist = getHistory();
+  const hist = dedupeHistoryStore();
   const box = $("histList"); box.innerHTML = "";
   if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
   hist.forEach(h => {
