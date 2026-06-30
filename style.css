@@ -205,7 +205,6 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 @keyframes specSpin{to{transform:rotate(360deg)}}
 .specItem .specK{font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--amber);margin-bottom:3px;padding-right:30px}
 .specItem.specManual{border-left-color:var(--ok)}
-.specManualTag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--ok);color:#fff;font-size:10px;font-weight:700;letter-spacing:0;vertical-align:middle}
 .specItem .specV{font-size:16px;line-height:1.55;font-weight:600;color:var(--txt);word-break:break-word;padding-right:30px}
 
 /* 諸元の操作ボタン(中央・小さめ) */

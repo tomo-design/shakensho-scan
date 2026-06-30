@@ -1202,7 +1202,6 @@ function renderSpecs(specs, source) {
     const item = document.createElement("div"); item.className = "specItem";
     if (s.manual) item.classList.add("specManual");
     const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
-    if (s.manual) { const tag = document.createElement("span"); tag.className = "specManualTag"; tag.textContent = "✎手動修正"; k.appendChild(tag); }
     const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", () => refreshSpecItem(s.k, up));
