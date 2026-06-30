@@ -891,7 +891,8 @@ function registerVehicleToDB(opt = {}) {
     || CUSTOM_DB.find(x => x.name === name && x.match === match);
   const isNew = !rec;
   if (isNew) { rec = { id: "c" + Date.now(), maker: "other" }; CUSTOM_DB.unshift(rec); }
-  // 手動編集済みレコードは「正データ」として尊重。AI/内蔵推定で車種名・諸元を上書きしない
+  // 手動編集済みレコードは車種名(と型式マッチ・メーカー)を「正データ」として尊重し、AI/内蔵推定で上書きしない。
+  // 諸元・持病はユーザーの訂正で常に更新されるべきなのでロックしない(他端末へ反映させる)。
   const locked = !!rec.manual;
   Object.assign(rec, {
     name: locked ? rec.name : name,
@@ -900,8 +901,8 @@ function registerVehicleToDB(opt = {}) {
     vin: d.vin || rec.vin || null, engine: d.engine || rec.engine || null,
     plate: d.plate || rec.plate || null, kataShitei: d.kataShitei || rec.kataShitei || null,
     user: user || rec.user || null,
-    faults: locked ? (rec.faults || []) : (faults.length ? faults : (rec.faults || [])),
-    specs: locked ? (rec.specs || []) : (specs.length ? specs : (rec.specs || [])),
+    faults: faults.length ? faults : (rec.faults || []),
+    specs: specs.length ? specs : (rec.specs || []),
     notes: rec.notes || "",
     updatedAt: Date.now(),   // 同期時に古いクラウドで上書きされないよう更新時刻を記録
   });
