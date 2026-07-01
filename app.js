@@ -2187,16 +2187,25 @@ function imgCacheSet(k, dataUrl) {
     }
   } catch (e) {}
 }
+/* dataURL("data:image/png;base64,...") → {mimeType,data} (参照画像として渡す用) */
+function dataUrlToInline(dataUrl) {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || "");
+  return m ? { mimeType: m[1], data: m[2] } : null;
+}
 async function geminiGenImage(prompt, opts) {
   opts = opts || {};
   const key = localStorage.getItem(LS.gemini);
   if (!key) throw new Error("APIキー未設定");
-  const ck = "img:" + hashStr(prompt);
+  const refs = (opts.refImages || []).filter(Boolean);
+  // 参照画像がある時はキャッシュキーにも反映(内容が変わるため)
+  const ck = "img:" + hashStr(prompt + "|" + refs.map(r => (r.data || "").slice(0, 32)).join(","));
   if (!opts.noCache) { const c = imgCacheGet(ck); if (c) return c; }
   aiAbort = new AbortController();
   let lastErr = null;
   for (const model of GEMINI_IMAGE_MODELS) {
     try {
+      const parts = [{ text: prompt }];
+      refs.forEach(r => parts.push({ inlineData: { mimeType: r.mimeType || "image/png", data: r.data } }));
       const res = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
         {
@@ -2204,7 +2213,7 @@ async function geminiGenImage(prompt, opts) {
           headers: { "Content-Type": "application/json" },
           signal: aiAbort.signal,
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: [{ parts }],
             generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
           })
         });
@@ -2213,8 +2222,8 @@ async function geminiGenImage(prompt, opts) {
       if (res.status === 400 || res.status === 403) { lastErr = new Error("画像モデル非対応/キー権限不足"); continue; }
       if (!res.ok) { lastErr = new Error("画像生成エラー(" + res.status + ")"); continue; }
       const j = await res.json();
-      const parts = j.candidates?.[0]?.content?.parts || [];
-      const img = parts.find(p => p.inlineData && p.inlineData.data);
+      const respParts = j.candidates?.[0]?.content?.parts || [];
+      const img = respParts.find(p => p.inlineData && p.inlineData.data);
       if (!img) { lastErr = new Error("画像が返りませんでした"); continue; }
       const mime = img.inlineData.mimeType || "image/png";
       const dataUrl = "data:" + mime + ";base64," + img.inlineData.data;
@@ -2321,7 +2330,7 @@ function attachStepFigure(li, div, stepText) {
     hint.textContent = open ? "参考図を隠す" : "参考図";
     if (!open || loaded) return;
     loaded = true;
-    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…(数秒〜十数秒)</div>';
+    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が実物を確認して図を描いています…(十数秒〜30秒ほど)</div>';
     // 画像検索リンク(AIキーが無くても使える保険)
     const carName = figureVehicleDesc();
     const q = ((currentVehicleFacts().model || current.type || "") + " " + stepText).trim();
@@ -2329,13 +2338,22 @@ function attachStepFigure(li, div, stepText) {
       + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
     if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
     try {
-      // ①まず「実物の特徴」を文章で正確に洗い出す(実写知識で図の精度を上げる。失敗しても続行)
+      // ①「実物の特徴」を文章で正確に洗い出す(実写知識で図の精度を上げる。失敗しても続行)
       let refDesc = "";
       try { refDesc = await geminiStepVisualRef(stepText, carName); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      // ②その資料をもとに、今のイラストのタッチのまま実画像を生成。失敗したら③線画SVGにフォールバック
+      // ②実物に忠実な写実リファレンス画像を生成(部品形状・取付位置の再現性の土台)
+      let refInline = null;
+      try {
+        const photo = await geminiGenImage(buildPartPhotoPrompt(stepText, carName, refDesc));
+        if (photo) refInline = dataUrlToInline(photo);
+      } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+      // ③リファレンスの構造(形状・取付位置・工具の当たり)を保持したまま、今のイラストタッチで描き直す
       let body = "";
       try {
-        const dataUrl = await geminiGenImage(buildStepImagePrompt(stepText, carName, refDesc));
+        const dataUrl = await geminiGenImage(
+          buildStepImagePrompt(stepText, carName, refDesc, !!refInline),
+          refInline ? { refImages: [refInline] } : undefined
+        );
         if (dataUrl) body = '<div class="stepFigSvg"><img alt="参考図" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた参考イラスト（イメージ）</div>';
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
       if (!body) {
@@ -2362,20 +2380,36 @@ function figureVehicleDesc() {
   if (current.engine) parts.push("原動機 " + current.engine);
   return parts.length ? parts.join(" / ") : "一般的な自動車";
 }
-/* 画像生成モデル向けプロンプト(リアルな整備イラスト)。carName=読み取った車両 / refDesc=実物の特徴資料 */
-function buildStepImagePrompt(stepText, carName, refDesc) {
+/* 写実リファレンス画像用プロンプト(構造再現の土台。イラスト化はしない) */
+function buildPartPhotoPrompt(stepText, carName, refDesc) {
+  const lines = [
+    "自動車整備の資料用に、実物に忠実な写実的クローズアップ画像を1枚生成してください。",
+    "目的: 部品の実際の形状・取り付け位置・向き・締結部(ボルト/クリップ)・周囲の部品との位置関係を、現車と同等の再現性で正確に示すこと。",
+    "対象車両: " + (carName || "一般的な自動車") + "。この車種・車格に実在する該当部品の正しい形状とレイアウトにすること。別車種・別車格の部品にしない。",
+    "構図: 作業対象の部品を画面中央に大きく、実際の取り付け状態(車体上の位置関係が分かる範囲)で。整備士の手や工具は入れても入れなくてもよいが、部品の形状を隠さない。",
+    "写実・正確第一。文字/数字/ロゴ/寸法線/透かしは入れない。誇張やイラスト化はしない(これは資料写真)。",
+  ];
+  if (refDesc) { lines.push("【実物の特徴メモ(反映する)】"); lines.push(refDesc); }
+  lines.push("作業/対象: " + stepText);
+  return lines.join("\n");
+}
+/* 画像生成モデル向けプロンプト(整備イラスト)。carName=車両 / refDesc=特徴資料 / hasRef=参照画像あり */
+function buildStepImagePrompt(stepText, carName, refDesc, hasRef) {
   const lines = [
     "自動車整備マニュアルの『作業手順イラスト』を1枚生成してください。",
     "最重要: 車の外観カタログ写真ではなく、その作業を“今まさに行っている動作”が一目で分かる図にすること。",
     "対象車両(この車の実物に合わせて描く): " + (carName || "一般的な自動車") + "。この車種の車格・ボディタイプ(軽/乗用/ミニバン/トラック等)や、該当部品の実際の形状・レイアウトに合わせること。別の車格の部品を描かない。",
+  ];
+  if (hasRef) {
+    lines.push("【最重要・添付の参照画像に厳密に従う】添付画像は実物に忠実な資料です。部品の形状・比率・取り付け位置・向き・締結部・周囲部品との位置関係を、参照画像どおりに正確に再現(トレースするつもりで構造を保持)すること。位置や形を勝手に変えない。");
+    lines.push("変えるのは画風だけ: 参照画像の構造はそのまま、下記のイラストタッチに描き直す。");
+  }
+  lines.push(
     "視点・構図: 作業対象の部品を画面中央に大きく配置(寄りのクローズアップ)。整備士の手と工具が、その部品のどこに・どの向きで当たり、どう動かすかが明確に分かる角度で描く。",
     "動作の明示: 工具の回転方向や部品の着脱方向を、控えめな矢印で1〜2本だけ示す。手は作業に必要な分だけ(1〜2本)描き、部品を隠さない。",
-    "正確さ: 工具の種類(レンチ/ラチェット/ドライバー/ジャッキ等)と部品の形状・取り付け位置を、その作業として技術的に正しく描く。ボルト本数や向きなど分かる範囲で実機に忠実に。あいまいな部分は省略してよいが、誤った構造は描かない。",
-  ];
-  if (refDesc) {
-    lines.push("【実物の特徴(下記の実写資料に忠実に。形・素材・工具・位置関係を反映すること。ただし写真の複製ではなく、下記スタイルのイラストとして描く)】");
-    lines.push(refDesc);
-  }
+    "正確さ: 工具の種類(レンチ/ラチェット/ドライバー/ジャッキ等)と部品の形状・取り付け位置を、その作業として技術的に正しく描く。ボルト本数や向きなど分かる範囲で実機に忠実に。誤った構造は描かない。"
+  );
+  if (refDesc && !hasRef) { lines.push("【実物の特徴(忠実に反映)】"); lines.push(refDesc); }
   lines.push(
     "スタイル(厳守・変更禁止): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。背景は薄いガレージ床/単色でごく簡素にし、作業部位を最も目立たせる。1コマのみ(複数コマ・分割なし)。写真そのものにはしない。",
     "禁止: 車全体の外観・テールランプ・エンブレム等“車種が分かるだけ”の絵、文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張やマンガ的効果。",
