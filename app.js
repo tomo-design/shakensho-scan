@@ -1204,8 +1204,10 @@ function renderSpecs(specs, source) {
     const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
     const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
-    up.addEventListener("click", () => refreshSpecItem(s.k, up));
-    item.append(up, k, v); dl.appendChild(item);
+    up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
+    const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
+    item.append(up, k, v, hint); dl.appendChild(item);
+    item.addEventListener("click", () => { if (!item.classList.contains("editing")) enterSpecItemEdit(item, s.k); });
   });
   toggle("specList", shownSpecs.length > 0);
   // 出所ラベル
@@ -1221,6 +1223,40 @@ function renderSpecs(specs, source) {
   toggle("btnSpecReload", shownSpecs.length > 0 && !!vk);
   // 内蔵データが無くても車両を識別できればセクションは出す
   toggle("secSpec", shownSpecs.length > 0 || !!vk);
+}
+
+/* 諸元項目をタップ → その場で項目名・値を編集して保存(手動修正) */
+function enterSpecItemEdit(item, key) {
+  if (!vehicleKey(current)) { alert("車両を識別できないため編集できません(車台番号や指定・類別が必要です)。"); return; }
+  const s = shownSpecs.find(x => x.k === key) || { k: key, v: "" };
+  item.classList.add("editing"); item.innerHTML = "";
+  const ik = document.createElement("input"); ik.type = "text"; ik.className = "seK"; ik.value = s.k; ik.placeholder = "項目名";
+  const iv = document.createElement("textarea"); iv.className = "seV"; iv.value = s.v; iv.placeholder = "値・内容"; iv.rows = 2;
+  const row = document.createElement("div"); row.className = "specEditInline";
+  const save = document.createElement("button"); save.type = "button"; save.className = "btn btn-amber btn-sm"; save.textContent = "保存";
+  const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-ghost btn-sm"; cancel.textContent = "取消";
+  const del = document.createElement("button"); del.type = "button"; del.className = "btn btn-ghost btn-sm"; del.textContent = "削除";
+  save.addEventListener("click", () => saveSpecItemInline(key, ik.value.trim(), iv.value.trim(), false));
+  cancel.addEventListener("click", () => renderSpecs(shownSpecs, "learned"));
+  del.addEventListener("click", () => { if (confirm("この項目を削除しますか？")) saveSpecItemInline(key, "", "", true); });
+  iv.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save.click(); });
+  row.append(save, cancel, del);
+  item.append(ik, iv, row);
+  iv.focus();
+}
+function saveSpecItemInline(oldKey, newKey, newVal, remove) {
+  let specs = shownSpecs.slice();
+  const idx = specs.findIndex(x => x.k === oldKey);
+  if (remove) { if (idx >= 0) specs.splice(idx, 1); }
+  else {
+    if (!newKey) { alert("項目名を入力してください。"); return; }
+    const item = { k: newKey, v: newVal, manual: true };   // 手動修正としてマーク(AI更新でも保持)
+    if (idx >= 0) specs[idx] = item; else specs.push(item);
+  }
+  setLearned(vehicleKey(current), { specs });
+  saveVehicleAiData(specs, null);
+  registerVehicleToDB({ silent: true });
+  renderSpecs(specs, "learned");
 }
 
 /* 車両識別キー: 型式 > 指定・類別 > 車台番号 の順(型式を読まなくても記憶できる) */
