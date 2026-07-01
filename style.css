@@ -181,7 +181,7 @@ ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 /* 手順タップで参考図 */
 ol.ai-list li.hasFig>div{cursor:pointer}
 ol.ai-list li.hasFig:active{opacity:.85}
-.stepFigHint{margin-top:6px;font-size:12px;font-weight:600;color:var(--amber);user-select:none}
+.stepFigHint{margin-top:4px;text-align:right;font-size:11px;font-weight:500;color:var(--dim);opacity:.5;user-select:none}
 .stepFig{margin-top:8px}
 .stepFig.hidden{display:none}
 .stepFigLoad{font-size:13px;color:var(--dim);padding:6px 0}

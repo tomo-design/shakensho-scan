@@ -2295,12 +2295,12 @@ function attachStepFigure(li, div, stepText) {
   li.classList.add("hasFig");
   const fig = document.createElement("div"); fig.className = "stepFig hidden";
   div.appendChild(fig);
-  const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = "🖼 タップで参考図";
+  const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = "参考図";
   div.appendChild(hint);
   let loaded = false;
   div.addEventListener("click", async () => {
     const open = fig.classList.toggle("hidden") === false;
-    hint.textContent = open ? "🖼 参考図を隠す" : "🖼 タップで参考図";
+    hint.textContent = open ? "参考図を隠す" : "参考図";
     if (!open || loaded) return;
     loaded = true;
     fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…(数秒〜十数秒)</div>';
@@ -2311,10 +2311,13 @@ function attachStepFigure(li, div, stepText) {
       + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
     if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
     try {
-      // ①まず実画像を生成(リアル)。失敗したら②線画SVGにフォールバック
+      // ①まず「実物の特徴」を文章で正確に洗い出す(実写知識で図の精度を上げる。失敗しても続行)
+      let refDesc = "";
+      try { refDesc = await geminiStepVisualRef(stepText, carName); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+      // ②その資料をもとに、今のイラストのタッチのまま実画像を生成。失敗したら③線画SVGにフォールバック
       let body = "";
       try {
-        const dataUrl = await geminiGenImage(buildStepImagePrompt(stepText, carName));
+        const dataUrl = await geminiGenImage(buildStepImagePrompt(stepText, carName, refDesc));
         if (dataUrl) body = '<div class="stepFigSvg"><img alt="参考図" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた参考イラスト（イメージ）</div>';
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
       if (!body) {
@@ -2328,19 +2331,39 @@ function attachStepFigure(li, div, stepText) {
     }
   });
 }
-/* 画像生成モデル向けプロンプト(リアルな整備イラスト) */
-function buildStepImagePrompt(stepText, carName) {
-  return [
+/* 画像生成モデル向けプロンプト(リアルな整備イラスト)。refDesc=実物の特徴資料で精度を上げる */
+function buildStepImagePrompt(stepText, carName, refDesc) {
+  const lines = [
     "自動車整備マニュアルの『作業手順イラスト』を1枚生成してください。",
     "最重要: 車の外観カタログ写真ではなく、その作業を“今まさに行っている動作”が一目で分かる図にすること。",
     "視点・構図: 作業対象の部品を画面中央に大きく配置(寄りのクローズアップ)。整備士の手と工具が、その部品のどこに・どの向きで当たり、どう動かすかが明確に分かる角度で描く。",
     "動作の明示: 工具の回転方向や部品の着脱方向を、控えめな矢印で1〜2本だけ示す。手は作業に必要な分だけ(1〜2本)描き、部品を隠さない。",
     "正確さ: 工具の種類(レンチ/ラチェット/ドライバー/ジャッキ等)と部品の形状・取り付け位置を、その作業として技術的に正しく描く。ボルト本数や向きなど分かる範囲で実機に忠実に。あいまいな部分は省略してよいが、誤った構造は描かない。",
-    "スタイル: 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。背景は薄いガレージ床/単色でごく簡素にし、作業部位を最も目立たせる。1コマのみ(複数コマ・分割なし)。",
+  ];
+  if (refDesc) {
+    lines.push("【実物の特徴(下記の実写資料に忠実に。形・素材・工具・位置関係を反映すること。ただし写真の複製ではなく、下記スタイルのイラストとして描く)】");
+    lines.push(refDesc);
+  }
+  lines.push(
+    "スタイル(厳守・変更禁止): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。背景は薄いガレージ床/単色でごく簡素にし、作業部位を最も目立たせる。1コマのみ(複数コマ・分割なし)。写真そのものにはしない。",
     "禁止: 車全体の外観・テールランプ・エンブレム等“車種が分かるだけ”の絵、文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張やマンガ的効果。",
     "車種名は車格(軽/乗用/トラック等)の雰囲気の参考程度にとどめ、作業内容の正確な描写を最優先する。",
-    "作業内容(これを描く): " + stepText,
+    "作業内容(これを描く): " + stepText
+  );
+  return lines.join("\n");
+}
+/* 実物の見た目を文章で正確に洗い出す(実写知識ベースの資料。イラスト精度向上用。キャッシュあり) */
+async function geminiStepVisualRef(stepText, carName) {
+  const prompt = [
+    "あなたは自動車整備の資料担当です。次の作業を図解するための『実物の見た目メモ』を作ってください。",
+    "実際の写真を思い出すつもりで、事実に基づいて具体的に。箇条書きで4〜6行、各行短く。",
+    "含める観点: 作業対象の部品の形状・色・素材感 / 使う工具の種類と当て方 / 手の位置と動かす方向 / 周囲にある目印になる部品 / 一番分かりやすいカメラ視点。",
+    "推測が混じる場合はその旨は書かず、最も一般的で確からしい実物の特徴を書く。前置き・説明・見出しは不要、メモ本文だけ。",
+    "対象車両: " + (carName || "一般的な自動車"),
+    "作業: " + stepText,
   ].join("\n");
+  const r = await geminiAsk(prompt, { mode: "flash" });
+  return String(r.text || "").trim().slice(0, 700);
 }
 /* 手順テキストから、シンプルな線画SVGをGeminiに描かせる(キャッシュあり) */
 async function geminiStepFigure(stepText) {
