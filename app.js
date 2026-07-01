@@ -2305,8 +2305,8 @@ function attachStepFigure(li, div, stepText) {
     loaded = true;
     fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が図を描いています…(数秒〜十数秒)</div>';
     // 画像検索リンク(AIキーが無くても使える保険)
-    const carName = (current && (current.model || current.type)) || "";
-    const q = (carName + " " + stepText).trim();
+    const carName = figureVehicleDesc();
+    const q = ((currentVehicleFacts().model || current.type || "") + " " + stepText).trim();
     const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
       + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
     if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
@@ -2331,11 +2331,25 @@ function attachStepFigure(li, div, stepText) {
     }
   });
 }
-/* 画像生成モデル向けプロンプト(リアルな整備イラスト)。refDesc=実物の特徴資料で精度を上げる */
+/* 図解用の車両記述(読み取った車両データを作画へ反映) */
+function figureVehicleDesc() {
+  const f = currentVehicleFacts();
+  const makerJa = { isuzu: "いすゞ", hino: "日野", fuso: "三菱ふそう", ud: "UD", nissan: "日産", toyota: "トヨタ", honda: "ホンダ", mazda: "マツダ", suzuki: "スズキ", daihatsu: "ダイハツ", subaru: "スバル" };
+  const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
+  const hit = code ? findVehicle(code) : null;
+  const mk = hit && makerJa[hit.maker] ? makerJa[hit.maker] : null;
+  const parts = [];
+  if (f.model) parts.push(f.model); else if (mk) parts.push(mk);
+  if (current.type) parts.push("型式 " + current.type);
+  if (current.engine) parts.push("原動機 " + current.engine);
+  return parts.length ? parts.join(" / ") : "一般的な自動車";
+}
+/* 画像生成モデル向けプロンプト(リアルな整備イラスト)。carName=読み取った車両 / refDesc=実物の特徴資料 */
 function buildStepImagePrompt(stepText, carName, refDesc) {
   const lines = [
     "自動車整備マニュアルの『作業手順イラスト』を1枚生成してください。",
     "最重要: 車の外観カタログ写真ではなく、その作業を“今まさに行っている動作”が一目で分かる図にすること。",
+    "対象車両(この車の実物に合わせて描く): " + (carName || "一般的な自動車") + "。この車種の車格・ボディタイプ(軽/乗用/ミニバン/トラック等)や、該当部品の実際の形状・レイアウトに合わせること。別の車格の部品を描かない。",
     "視点・構図: 作業対象の部品を画面中央に大きく配置(寄りのクローズアップ)。整備士の手と工具が、その部品のどこに・どの向きで当たり、どう動かすかが明確に分かる角度で描く。",
     "動作の明示: 工具の回転方向や部品の着脱方向を、控えめな矢印で1〜2本だけ示す。手は作業に必要な分だけ(1〜2本)描き、部品を隠さない。",
     "正確さ: 工具の種類(レンチ/ラチェット/ドライバー/ジャッキ等)と部品の形状・取り付け位置を、その作業として技術的に正しく描く。ボルト本数や向きなど分かる範囲で実機に忠実に。あいまいな部分は省略してよいが、誤った構造は描かない。",
@@ -2347,7 +2361,6 @@ function buildStepImagePrompt(stepText, carName, refDesc) {
   lines.push(
     "スタイル(厳守・変更禁止): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。背景は薄いガレージ床/単色でごく簡素にし、作業部位を最も目立たせる。1コマのみ(複数コマ・分割なし)。写真そのものにはしない。",
     "禁止: 車全体の外観・テールランプ・エンブレム等“車種が分かるだけ”の絵、文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張やマンガ的効果。",
-    "車種名は車格(軽/乗用/トラック等)の雰囲気の参考程度にとどめ、作業内容の正確な描写を最優先する。",
     "作業内容(これを描く): " + stepText
   );
   return lines.join("\n");
