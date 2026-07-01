@@ -17,6 +17,10 @@ const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
 const noEmail = s => (isEmailLike(s) ? "" : s);
 /* 全角数字→半角(表示用) */
 const han = s => String(s == null ? "" : s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+/* 表示用: 全角英数字・記号→半角、全角スペース→半角、連続スペースを1つに整える(履歴などの見栄え統一) */
+const dispText = s => String(s == null ? "" : s)
+  .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))   // 全角ASCII(英数字・記号)→半角
+  .replace(/　/g, " ").replace(/\s+/g, " ").trim();
 /* ボタンの処理中表示: メカ君アイコンを回しつつ「考え中…」に。完了でsetBtnLoading(btn,false) */
 function setBtnLoading(btn, on, label) {
   if (!btn) return;
@@ -817,8 +821,8 @@ function renderPlateSearch() {
   matches.slice(0, 20).forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
-    main.innerHTML = '<div class="hType">' + esc(h.plate || "ナンバー未登録") + (h.name ? ' <span style="font-weight:400">／ ' + esc(h.name) + '</span>' : '') + '</div>' +
-      '<div class="hSub">' + esc(h.model || h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + '</div>';
+    main.innerHTML = '<div class="hType">' + esc(dispText(h.plate) || "ナンバー未登録") + (h.name ? ' <span style="font-weight:400">／ ' + esc(dispText(h.name)) + '</span>' : '') + '</div>' +
+      '<div class="hSub">' + esc(dispText(h.model || h.type) || "型式不明") + " ・ " + esc(dispText(h.vin) || "車台番号なし") + '</div>';
     main.addEventListener("click", () => { foldEntryAreas(); showResult(histToResult(h), { fromScan: false }); });
     div.appendChild(main); box.appendChild(div);
   });
@@ -1244,6 +1248,25 @@ function enterSpecItemEdit(item, key) {
   item.append(ik, iv, row);
   iv.focus();
 }
+/* 新しい諸元項目を1件、その場編集で追加 */
+function addSpecItemInline() {
+  if (!vehicleKey(current)) { alert("車両を識別できないため追加できません(車台番号や指定・類別が必要です)。"); return; }
+  toggle("secSpec", true); toggle("specList", true);
+  const item = document.createElement("div"); item.className = "specItem editing";
+  const ik = document.createElement("input"); ik.type = "text"; ik.className = "seK"; ik.placeholder = "項目名(例: エンジンオイル量)";
+  const iv = document.createElement("textarea"); iv.className = "seV"; iv.placeholder = "値・内容"; iv.rows = 2;
+  const row = document.createElement("div"); row.className = "specEditInline";
+  const save = document.createElement("button"); save.type = "button"; save.className = "btn btn-amber btn-sm"; save.textContent = "保存";
+  const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-ghost btn-sm"; cancel.textContent = "取消";
+  save.addEventListener("click", () => saveSpecItemInline(null, ik.value.trim(), iv.value.trim(), false));
+  cancel.addEventListener("click", () => renderSpecs(shownSpecs, "learned"));
+  ik.addEventListener("keydown", e => { if (e.key === "Enter") iv.focus(); });
+  row.append(save, cancel);
+  item.append(ik, iv, row);
+  $("specList").appendChild(item);
+  item.scrollIntoView({ block: "center", behavior: "smooth" });
+  ik.focus();
+}
 function saveSpecItemInline(oldKey, newKey, newVal, remove) {
   let specs = shownSpecs.slice();
   const idx = specs.findIndex(x => x.k === oldKey);
@@ -1371,12 +1394,7 @@ function mergeKeepManual(aiSpecs, curSpecs) {
   Object.keys(manual).forEach(k => { if (!used.has(k)) out.push({ k, v: manual[k].v, manual: true }); });
   return out;
 }
-$("btnSpecEdit").addEventListener("click", () => {
-  const init = shownSpecs.length ? shownSpecs : aiTextToSpecs(lastSpecAiText);
-  $("specEditRows").innerHTML = "";
-  (init.length ? init : [{ k: "", v: "" }]).forEach(s => addSpecRow(s.k, s.v));
-  toggle("specEditBox", true);
-});
+$("btnSpecEdit").addEventListener("click", () => addSpecItemInline());
 $("btnSpecAddRow").addEventListener("click", () => addSpecRow("", ""));
 $("btnSpecEditCancel").addEventListener("click", () => toggle("specEditBox", false));
 $("btnSpecSave").addEventListener("click", () => {
@@ -1620,9 +1638,9 @@ function renderHistory() {
     const div = document.createElement("div"); div.className = "histItem";
     const main = document.createElement("div"); main.className = "hMain";
     const dt = new Date(h.at);
-    const title = [h.plate, h.name].filter(Boolean).join(" ／ ") || h.type || "型式不明";
+    const title = [h.plate, h.name].map(dispText).filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
     main.innerHTML = '<div class="hType">' + esc(title) + '</div>' +
-      '<div class="hSub">' + esc(h.type || "型式不明") + " ・ " + esc(h.vin || "車台番号なし") + " ・ " +
+      '<div class="hSub">' + esc(dispText(h.type) || "型式不明") + " ・ " + esc(dispText(h.vin) || "車台番号なし") + " ・ " +
       dt.getFullYear() + "/" + String(dt.getMonth()+1).padStart(2,"0") + "/" + String(dt.getDate()).padStart(2,"0") +
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
@@ -2974,15 +2992,20 @@ wireFieldMic("btnVehMic", "qVehText", "🎤");
 
 /* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
 let voiceRec = null, voiceHistory = [], voiceActive = false;
-$("btnDiagVoiceChat").addEventListener("click", () => {
+/* 音声会話セクションを開く。呼び出し元(診断/質問)の直下へ移動して表示 */
+function openVoiceChat(afterEl) {
   if (!localStorage.getItem(LS.gemini)) {
     alert("音声会話には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
   if (!getSpeechRecognition()) { alert("この端末/ブラウザは音声認識に対応していません(Chrome等をお試しください)。"); return; }
+  const sec = $("voiceChatSec");
+  if (afterEl && afterEl.parentNode) afterEl.parentNode.insertBefore(sec, afterEl.nextSibling);
   toggle("voiceChatSec", true);
-  $("voiceChatSec").scrollIntoView({ behavior: "smooth" });
-});
+  sec.scrollIntoView({ behavior: "smooth" });
+}
+$("btnDiagVoiceChat").addEventListener("click", e => openVoiceChat(e.currentTarget.closest("section")));
+$("btnVehVoiceChat") && $("btnVehVoiceChat").addEventListener("click", e => openVoiceChat(e.currentTarget.closest("section")));
 /* 会話モードを閉じる(履歴・ログは保持し、再開で続きから) */
 function closeVoiceChat() {
   voiceActive = false; voiceListening = false;

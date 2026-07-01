@@ -199,7 +199,7 @@
       <div class="specBtns">
         <button class="btn btn-ghost btn-sm" id="btnSpecAI"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
         <button class="btn btn-ghost btn-sm" id="btnSpecReload">🔄 最新に更新</button>
-        <button class="btn btn-ghost btn-sm" id="btnSpecEdit">✎ 訂正して保存</button>
+        <button class="btn btn-ghost btn-sm" id="btnSpecEdit">＋ 項目を追加</button>
       </div>
       <div id="specAiBox" class="ai-answer hidden" style="margin-top:10px"></div>
       <div id="specEditBox" class="hidden" style="margin-top:10px">
@@ -257,9 +257,9 @@
     <div class="hint" style="margin-top:10px">※ AIによる<b>参照値</b>です。EPB整備モード・締付トルク等は整備書（<a href="https://faines.jaspa.or.jp/enduser/user/login" target="_blank" rel="noopener" style="color:var(--cyan)">FAINES ↗</a>）で確認を。</div>
   </div></section>
 
-  <section><h2 class="secHead"><span class="tag cy">ASK</span>この車両について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
+  <section><h2 class="secHead"><span class="tag cy">ASK</span>この車両について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secMic" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
   <div class="sec-body">
-    <textarea id="qVehText" placeholder="この車両について何でも質問できます（例: この型式の推奨タイヤサイズは？ / バッテリーの品番は？ / よくある電装トラブルは？）。🎤音声入力もできます。"></textarea>
+    <textarea id="qVehText" style="min-height:130px" placeholder="この車両について何でも質問できます（例: この型式の推奨タイヤサイズは？ / バッテリーの品番は？ / よくある電装トラブルは？）。🎤音声入力や🗣️会話もできます。"></textarea>
     <div class="btnRow">
       <button class="btn btn-ghost btnPick" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
     </div>
@@ -288,7 +288,7 @@
       <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
     </div>
     <div class="sec-body">
-      <textarea id="diagText" placeholder="ダイアグコード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。🎤音声入力や、右上アイコンから写真・動画の添付もできます。"></textarea>
+      <textarea id="diagText" style="min-height:130px" placeholder="ダイアグコード（例: P0401）や症状（例: 朝一番に白煙が出て加速しない）を入力。🎤音声入力や、右上アイコンから写真・動画の添付もできます。"></textarea>
       <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
       <div id="diagVideoStatus" class="hint hidden" style="margin-top:8px"></div>
       <div class="btnRow diagRunRow">
