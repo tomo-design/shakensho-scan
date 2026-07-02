@@ -127,10 +127,10 @@ label.fld:first-child{margin-top:0}
 .progRow.got .progVal{color:var(--txt)}
 
 /* テキストリンク・選択パネル */
-.linkrow{display:flex;flex-direction:column;gap:2px;margin-top:12px}
-.textlink{background:none;border:0;color:var(--dim);font-size:13px;font-family:inherit;cursor:pointer;
-  text-decoration:underline;text-underline-offset:3px;padding:11px 4px;text-align:left;min-height:44px}
-.textlink:active{color:var(--amber)}
+.linkrow{display:flex;flex-direction:row;gap:10px;margin-top:12px}
+.textlink{flex:1 1 0;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--txt);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+  text-decoration:none;padding:14px 8px;text-align:center;min-height:52px}
+.textlink:active{color:var(--amber);border-color:var(--amber)}
 #choicePanel{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
 .choice-q{font-size:15px;font-weight:700;text-align:center;letter-spacing:.04em}
 .btn-big{padding:18px 12px;font-size:16px;line-height:1.4}
@@ -307,8 +307,8 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}
 .mInfo{flex:1 1 100%;min-width:0;font-size:13px;line-height:1.5}
-.mInfo .mNm{font-weight:700;font-size:14px}
-.mInfo .mRole{font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--panel2);color:var(--dim);margin-left:6px}
+.mInfo .mNm{font-weight:700;font-size:14px;word-break:break-all}
+.mInfo .mRole{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--panel2);color:var(--dim);margin-left:6px}
 .mInfo .mRole.adm{background:var(--amber);color:#fff}
 .mInfo .mMail{color:var(--dim);font-size:11px;word-break:break-all}
 .mBtns{display:flex;gap:6px;flex:1 1 100%;width:100%}
