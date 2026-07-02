@@ -3315,6 +3315,20 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderAiMode();
   setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    // 新バージョンを検出したら自動で反映(更新時のみ1回リロード。初回インストールでは何もしない)
+    const hadController = !!navigator.serviceWorker.controller;
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing || !hadController) return;
+      refreshing = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      try { reg.update(); } catch (e) {}
+      // アプリに戻る/オンライン復帰のたびに更新チェック(閉じている間に出た新版を取り込む)
+      const check = () => { try { reg.update(); } catch (e) {} };
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+      window.addEventListener("online", check);
+    }).catch(() => {});
   }
 })();
