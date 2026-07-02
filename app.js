@@ -1163,6 +1163,7 @@ function showResult(d, opt = {}) {
     c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
   });
   if (opt.fromScan && (d.type || d.vin)) addHistory(d);
+  toggle("karteForm", false); toggle("secKarte", !!vehicleKey(current)); renderKarte();   // 整備カルテ(車両ごとの作業記録)
   $("result").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -1283,6 +1284,95 @@ function saveSpecItemInline(oldKey, newKey, newVal, remove) {
   registerVehicleToDB({ silent: true });
   renderSpecs(specs, "learned");
 }
+
+/* =========================================================
+   整備カルテ(車両ごとの作業記録) — 写真OCR不要・手入力/音声入力
+   履歴レコードの karte 配列に保存し、社内共有(union同期)
+   ========================================================= */
+/* 2端末で同時追加しても両方残るよう id で統合(削除は deleted フラグでソフト削除) */
+function mergeKarte(a, b) {
+  const m = {};
+  [...(a || []), ...(b || [])].forEach(e => {
+    if (!e || !e.id) return;
+    const p = m[e.id];
+    if (!p || String(e.at || "") > String(p.at || "")) m[e.id] = e;
+  });
+  return Object.values(m).sort((x, y) =>
+    String(y.date || "").localeCompare(String(x.date || "")) || String(y.at || "").localeCompare(String(x.at || "")));
+}
+function getKarteList() {
+  const e = findHistEntry(getHistory(), current);
+  return mergeKarte(e && e.karte, []).filter(k => !k.deleted);
+}
+function saveKarteEntry(entry) {
+  let e = findHistEntry(getHistory(), current);
+  if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
+  const h2 = getHistory();
+  const t = findHistEntry(h2, current); if (!t) return;
+  const list = (t.karte || []).slice();
+  const idx = list.findIndex(k => k.id === entry.id);
+  if (idx >= 0) list[idx] = entry; else list.unshift(entry);
+  t.karte = list; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(h2));
+  if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
+}
+function renderKarte() {
+  const box = $("karteList"); if (!box) return;
+  const list = getKarteList();
+  box.innerHTML = "";
+  if (!list.length) { box.innerHTML = '<div class="hint">まだ記録がありません。「＋ 記録を追加」から作業内容を残せます。</div>'; return; }
+  list.forEach(k => {
+    const card = document.createElement("div"); card.className = "karteItem";
+    const head = document.createElement("div"); head.className = "kHead";
+    const meta = [dispText(k.date), k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(k.staff) : ""].filter(Boolean).join(" ・ ");
+    head.innerHTML = '<span class="kDate">' + esc(meta) + '</span>';
+    const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
+    del.addEventListener("click", () => {
+      if (!confirm("この記録を削除しますか？")) return;
+      saveKarteEntry(Object.assign({}, k, { deleted: true, at: new Date().toISOString() }));
+      renderKarte();
+    });
+    head.appendChild(del);
+    const body = document.createElement("div"); body.className = "kBody";
+    const line = (label, val) => val ? '<div class="kLine"><b>' + label + '</b> ' + esc(han(val)) + '</div>' : "";
+    body.innerHTML = line("作業", k.work) + line("部品", k.parts) + (k.cost ? line("費用", han(String(k.cost)) + "円") : "") + line("メモ", k.note);
+    card.append(head, body); box.appendChild(card);
+  });
+}
+function openKarteForm(edit) {
+  if (!vehicleKey(current)) { alert("車両を識別できないため記録できません(車台番号や指定・類別が必要です)。"); return; }
+  const today = new Date(); const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  $("kDate").value = (edit && edit.date) || iso;
+  $("kOdo").value = (edit && edit.odo) || "";
+  $("kWork").value = (edit && edit.work) || "";
+  $("kParts").value = (edit && edit.parts) || "";
+  $("kCost").value = (edit && edit.cost) || "";
+  $("kStaff").value = (edit && edit.staff) || (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
+  $("kNote").value = (edit && edit.note) || "";
+  karteEditId = edit ? edit.id : null;
+  toggle("karteForm", true);
+  $("karteForm").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+let karteEditId = null;
+$("btnKarteAdd") && $("btnKarteAdd").addEventListener("click", () => openKarteForm(null));
+$("btnKarteCancel") && $("btnKarteCancel").addEventListener("click", () => { stopFieldMic(); toggle("karteForm", false); });
+$("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
+  stopFieldMic();
+  const work = $("kWork").value.trim();
+  const parts = $("kParts").value.trim();
+  const note = $("kNote").value.trim();
+  if (!work && !parts && !note) { alert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+  const entry = {
+    id: karteEditId || ("k" + Date.now() + Math.floor(Math.random() * 1000)),
+    date: $("kDate").value || "", odo: $("kOdo").value ? Number($("kOdo").value) : null,
+    work, parts, cost: $("kCost").value ? Number($("kCost").value) : null,
+    staff: $("kStaff").value.trim(), note,
+    at: new Date().toISOString(),
+  };
+  saveKarteEntry(entry);
+  toggle("karteForm", false);
+  renderKarte();
+});
 
 /* 車両識別キー: 型式 > 指定・類別 > 車台番号 の順(型式を読まなくても記憶できる) */
 function vehicleKey(d) {
@@ -1562,6 +1652,7 @@ function dedupeHistory(list) {
       name: newer.name != null ? newer.name : older.name,
       model: pick("model"), kataShitei: pick("kataShitei"), firstReg: pick("firstReg"), expiry: pick("expiry"),
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
+      karte: mergeKarte(a.karte, h.karte),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
   }
@@ -3025,6 +3116,7 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
 wireFieldMic("btnDiagMic", "diagText", "🎤");
 wireFieldMic("btnPartsMic", "partName", "🎤");
 wireFieldMic("btnVehMic", "qVehText", "🎤");
+wireFieldMic("btnKarteMic", "kWork", "🎤");
 
 /* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
 let voiceRec = null, voiceHistory = [], voiceActive = false;

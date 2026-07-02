@@ -31,7 +31,7 @@
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
   let profile = null;   // {tenantId, role, active}
-  let unsubVeh = null, unsubRec = null;
+  let unsubVeh = null, unsubRec = null, unsubJoin = null;
 
   /* ---------- 認証フロー(モード選択 → フォーム出現) ---------- */
   let cloudMode = "login";
@@ -126,7 +126,12 @@
       }
     } catch (e) { profile = null; }
     renderAuthUI();
-    if (profile && profile.active && profile.tenantId) startSync(profile.tenantId);
+    if (profile && profile.active && profile.tenantId) {
+      // 最終ログイン日時を記録(管理画面に表示)
+      try { db.collection("users").doc(user.uid).set({ lastLogin: Date.now() }, { merge: true }); } catch (e) {}
+      startSync(profile.tenantId);
+      if (profile.role === "admin" || profile.role === "super") startJoinWatch(profile.tenantId);
+    }
     // 運営ログイン後の遷移
     if (pendingSuperOpen) {
       if (profile && profile.active && profile.role === "super") { openAdminIfSuper(); }
@@ -168,7 +173,7 @@
   function vinKey(r) { return String(r.vin || r.type || r.plate || r.id || Date.now()).replace(/[^A-Za-z0-9]/g, "_"); }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -230,6 +235,8 @@
             return;
           }
           if (!e) { e = { id: Date.now() + Math.random() }; hist.unshift(e); }
+          // 整備カルテは両端末の追加を失わないよう常にunion統合(勝敗判定より前に実施)
+          if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
             // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
             try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
@@ -244,11 +251,46 @@
       } catch (e) {}
     }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
   }
-  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } }
+  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } }
+
+  /* ---------- 参加申請の通知(代表管理者/運営) ---------- */
+  let joinSeen = -1;
+  function startJoinWatch(tid) {
+    if (unsubJoin) { unsubJoin(); unsubJoin = null; }
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {}); } catch (e) {}
+    // 複合インデックス不要にするため単一whereで購読し、残りはクライアント側で絞る
+    const q = profile.role === "admin"
+      ? db.collection("users").where("tenantId", "==", tid)
+      : db.collection("users").where("active", "==", false);
+    unsubJoin = q.onSnapshot(snap => {
+      // 承認待ち(active=false かつ 却下でない)だけを数える
+      const pending = snap.docs.map(d => d.data()).filter(u => u.active === false && !u.rejected);
+      const n = pending.length;
+      const el = $("joinNotice");
+      if (el) {
+        if (n > 0) {
+          const names = pending.slice(0, 3).map(u => esc(u.name || u.email || "（無名）")).join("、");
+          el.innerHTML = "🔔 <b>承認待ちの参加申請が " + n + "件</b> あります（" + names + (n > 3 ? " ほか" : "") + "）。<br><button class='btn btn-amber btn-sm' id='joinOpen' style='margin-top:6px'>会社管理で承認する</button>";
+          el.classList.remove("hidden");
+          const ob = $("joinOpen");
+          if (ob) ob.onclick = () => {
+            if (profile.role === "super" && typeof switchView === "function") { switchView("admin"); if (window.CloudAdmin) window.CloudAdmin.open(); }
+            else { show("cloudManageBox", true); renderManage("cloudManageBox"); $("cloudManageBox").scrollIntoView({ behavior: "smooth" }); }
+          };
+        } else { el.classList.add("hidden"); el.innerHTML = ""; }
+      }
+      // 新規申請が増えたら端末通知(アプリを開いている間)
+      if (joinSeen >= 0 && n > joinSeen) {
+        try { if ("Notification" in window && Notification.permission === "granted") new Notification("メカノAI 参加申請", { body: "新しい参加申請が届きました（承認待ち " + n + "件）。" }); } catch (e) {}
+      }
+      joinSeen = n;
+    }, () => {});
+  }
 
   /* ---------- アプリからの書き込みフック ---------- */
   window.Cloud = {
     get active() { return !!(profile && profile.active && profile.tenantId); },
+    myName() { return (profile && profile.name) || (me && me.email) || ""; },
     pushVehicle(rec) {
       if (!this.active || !rec || !rec.id) return;
       db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(rec.id)).set(rec, { merge: true }).catch(() => {});
@@ -338,11 +380,13 @@
   function userRow(id, u) {
     const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
     const isAdmin = u.role === "admin" || u.role === "super";
+    const fmt = ms => { const d = new Date(ms); return d.toLocaleDateString("ja-JP") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
     const reg = u.createdAt ? "登録 " + new Date(u.createdAt).toLocaleDateString("ja-JP") : "";
+    const last = u.lastLogin ? "最終ログイン " + fmt(u.lastLogin) : "未ログイン";
     const info = "<div class='mInfo'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
       "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
-      (reg ? "<div class='mMeta'>" + reg + "</div>" : "") + "</div>";
+      "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + "</div></div>";
     let btns;
     if (u.active) {
       // 役割変更ボタンで無効化の隣を埋める(staff→代表者に / admin→従業員に)。運営(super)は変更不可

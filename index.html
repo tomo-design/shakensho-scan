@@ -226,6 +226,34 @@
     <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
   </section>
 
+  <section id="secKarte">
+    <h2 class="secHead"><span class="tag cy">KARTE</span>整備カルテ（作業記録）<button class="btn btn-ghost btn-sm secMic" id="btnKarteAdd" style="margin-left:auto">＋ 記録を追加</button></h2>
+    <div class="sec-body">
+      <div id="karteList"></div>
+      <div id="karteForm" class="hidden karteForm">
+        <div class="kRow2">
+          <div><label class="fld">日付</label><input type="date" id="kDate"></div>
+          <div><label class="fld">走行距離(km)</label><input type="number" id="kOdo" inputmode="numeric" placeholder="例: 82000"></div>
+        </div>
+        <label class="fld">作業内容<button type="button" class="btn btn-ghost btn-sm kMic" id="btnKarteMic" title="音声で入力">🎤</button></label>
+        <textarea id="kWork" placeholder="例: エンジンオイル・エレメント交換、下回り点検"></textarea>
+        <label class="fld">交換部品・使用材料</label>
+        <textarea id="kParts" placeholder="例: 純正オイル4.0L、オイルエレメント(品番●●)"></textarea>
+        <div class="kRow2">
+          <div><label class="fld">費用(円)</label><input type="number" id="kCost" inputmode="numeric" placeholder="任意"></div>
+          <div><label class="fld">担当者</label><input type="text" id="kStaff" placeholder="担当者名"></div>
+        </div>
+        <label class="fld">メモ</label>
+        <textarea id="kNote" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
+        <div class="btnRow">
+          <button class="btn btn-amber" id="btnKarteSave">保存</button>
+          <button class="btn btn-ghost" id="btnKarteCancel" style="flex:0 0 28%">取消</button>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:10px">※ 車両ごとに記録され、社内で共有されます（写真OCR不要。手入力・音声入力で確実に残せます）。</div>
+    </div>
+  </section>
+
   <section id="secRecall" class="hidden">
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
     <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
@@ -438,6 +466,7 @@
       </div>
       <!-- ログイン中 -->
       <div id="cloudLoggedIn" class="hidden">
+        <div id="joinNotice" class="joinNotice hidden"></div>
         <div id="cloudStat" class="hint"></div>
         <div id="cloudSyncMsg" class="hint" style="margin-top:6px;color:var(--dim)"></div>
         <div class="btnRow" style="margin-top:8px">

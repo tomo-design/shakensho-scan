@@ -18,6 +18,9 @@ service cloud.firestore {
       allow create: if request.auth.uid == uid
                     && request.resource.data.active == false
                     && request.resource.data.role in ['admin','staff'];
+      // 本人は自分の最終ログイン時刻のみ更新可(役割・所属などは変更不可)
+      allow update: if request.auth.uid == uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']);
       // 承認/無効化: super は全員、admin は自社のみ
       allow update, delete: if isSuper() || (isAdmin() && resource.data.tenantId == myTenant());
     }

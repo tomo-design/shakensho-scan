@@ -288,6 +288,21 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .mBody{margin-top:8px}
 .mBody.hidden{display:none}
 .mInfo .mMeta{color:var(--dim);font-size:11px;margin-top:2px}
+/* 参加申請の通知バナー */
+.joinNotice{background:#FFF7E6;border:1px solid var(--amber);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;line-height:1.6;color:var(--txt)}
+/* 整備カルテ */
+.karteForm{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2);margin-top:8px}
+.karteForm .fld{margin-top:8px}
+.kRow2{display:flex;gap:10px}
+.kRow2>div{flex:1 1 0;min-width:0}
+.kMic{margin-left:8px;padding:2px 8px}
+.karteItem{border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--panel)}
+.karteItem .kHead{display:flex;align-items:center;gap:8px}
+.karteItem .kDate{flex:1 1 auto;font-weight:700;font-size:13px;color:var(--cyan)}
+.karteItem .kDel{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:8px;color:var(--dim);font-size:12px;padding:3px 8px;cursor:pointer}
+.karteItem .kBody{margin-top:6px;font-size:14px;line-height:1.6}
+.karteItem .kLine{margin-top:2px}
+.karteItem .kLine b{color:var(--dim);font-size:12px;margin-right:4px}
 .mStat{color:var(--dim);font-size:12px;margin:4px 0 8px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}
