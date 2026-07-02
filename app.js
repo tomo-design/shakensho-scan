@@ -934,6 +934,7 @@ function goVehiclePage(name) {
 $("btnGoMaint").addEventListener("click", () => goVehiclePage("maint"));
 $("btnGoDiag").addEventListener("click", () => goVehiclePage("diag"));
 $("btnGoParts").addEventListener("click", () => goVehiclePage("parts"));
+$("btnGoKarte").addEventListener("click", () => goVehiclePage("karte"));
 /* 全ページ共通ナビ(← 車両 / メンテ / 診断 / 部品) */
 document.querySelectorAll(".pageNav .navBtn").forEach(b =>
   b.addEventListener("click", () => {
