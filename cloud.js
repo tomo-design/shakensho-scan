@@ -130,7 +130,7 @@
       // 最終ログイン日時を記録(管理画面に表示)
       try { db.collection("users").doc(user.uid).set({ lastLogin: Date.now() }, { merge: true }); } catch (e) {}
       startSync(profile.tenantId);
-      if (profile.role === "admin" || profile.role === "super") startJoinWatch(profile.tenantId);
+      if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
     }
     // 運営ログイン後の遷移
     if (pendingSuperOpen) {
@@ -252,6 +252,32 @@
     }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
   }
   function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } }
+
+  /* ---------- プッシュ通知(FCM): 管理者はワンタップ許可のみ。設定作業は不要 ----------
+     ↓ 運営(あなた)が一度だけ Firebase Console → Cloud Messaging → ウェブプッシュ証明書 で
+       「鍵ペアを生成」して得られる公開鍵(VAPID)をここに貼るだけ。 */
+  const VAPID_KEY = "PASTE_YOUR_WEB_PUSH_VAPID_PUBLIC_KEY_HERE";
+  async function registerPush() {
+    try {
+      if (!(profile && (profile.role === "admin" || profile.role === "super"))) return;   // 通知対象は管理者のみ
+      if (typeof firebase.messaging !== "function" || !("serviceWorker" in navigator)) return;
+      if (!VAPID_KEY || VAPID_KEY.indexOf("PASTE_") === 0) return;   // 鍵未設定なら在アプリ通知のみで運用
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return;
+      const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+      const messaging = firebase.messaging();
+      const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+      if (token) {
+        await db.collection("users").doc(me.uid).set(
+          { fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
+      }
+      // 前面にいる時に届いた通知も表示
+      messaging.onMessage(p => {
+        const n = (p && p.notification) || {};
+        try { if (Notification.permission === "granted") new Notification(n.title || "メカノAI", { body: n.body || "", icon: "icons/icon-192.png" }); } catch (e) {}
+      });
+    } catch (e) { console.warn("プッシュ通知の登録に失敗", e); }
+  }
 
   /* ---------- 参加申請の通知(代表管理者/運営) ---------- */
   let joinSeen = -1;
