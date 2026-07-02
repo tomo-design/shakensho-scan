@@ -1163,7 +1163,7 @@ function showResult(d, opt = {}) {
     c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
   });
   if (opt.fromScan && (d.type || d.vin)) addHistory(d);
-  toggle("karteForm", false); toggle("secKarte", !!vehicleKey(current)); renderKarte();   // 整備カルテ(車両ごとの作業記録)
+  toggle("karteForm", false); renderKarte();   // 整備カルテ(車両ごとの作業記録)
   $("result").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -1318,8 +1318,9 @@ function saveKarteEntry(entry) {
 }
 function renderKarte() {
   const box = $("karteList"); if (!box) return;
-  const list = getKarteList();
   box.innerHTML = "";
+  if (!current || !vehicleKey(current)) { box.innerHTML = '<div class="hint">車両を読み込むと、その車の作業記録を残せます。まず車検証をスキャンするか、履歴/検索から車両を開いてください。</div>'; return; }
+  const list = getKarteList();
   if (!list.length) { box.innerHTML = '<div class="hint">まだ記録がありません。「＋ 記録を追加」から作業内容を残せます。</div>'; return; }
   list.forEach(k => {
     const card = document.createElement("div"); card.className = "karteItem";
@@ -1372,6 +1373,43 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
   saveKarteEntry(entry);
   toggle("karteForm", false);
   renderKarte();
+});
+
+/* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
+$("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
+  if (!vehicleKey(current)) { alert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
+  if (!localStorage.getItem(LS.gemini)) {
+    alert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    switchView("settings"); return;
+  }
+  $("kPhotoIn").click();
+});
+$("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
+  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
+  st.textContent = "🔧 メカ君が写真を読み取っています…(数十秒かかる場合があります)";
+  try {
+    const prompt = [
+      "次の画像は自動車整備の作業伝票・レシート・手書きメモ・整備記録簿などです。内容を読み取り、整備カルテの各項目をJSONで返してください。",
+      "出力は厳密なJSONのみ(前後に文章・コードフェンス不要)。キー: date(YYYY-MM-DD、和暦や年月日は西暦に変換。年が無ければ空文字), odo(走行距離の数値のみ・km/、等は除く・無ければnull), work(実施した作業内容), parts(交換部品・使用材料), cost(合計金額の数値のみ・無ければnull), staff(担当者名・無ければ空文字), note(その他の申し送り・特記).",
+      "読み取れない項目は空文字またはnull。推測で埋めず、書かれている情報を正確に。数字は半角。",
+      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
+    ].join("\n");
+    const media = [{ mimeType: cleanMime(file.type, "image/jpeg"), data: await fileToBase64(file) }];
+    const r = await geminiAskMedia(prompt, media);
+    const obj = extractJson(r.text) || {};
+    openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
+    if (obj.date) $("kDate").value = String(obj.date).trim();
+    if (obj.odo != null && obj.odo !== "") $("kOdo").value = String(obj.odo).replace(/[^\d]/g, "");
+    if (obj.work) $("kWork").value = String(obj.work).trim();
+    if (obj.parts) $("kParts").value = String(obj.parts).trim();
+    if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
+    if (obj.staff) $("kStaff").value = String(obj.staff).trim();
+    if (obj.note) $("kNote").value = String(obj.note).trim();
+    st.textContent = "✓ 読み取りました。内容を確認・修正して保存してください。";
+  } catch (err) {
+    st.textContent = "⚠ " + (err.message === "__cancelled__" ? "中断しました" : (err.message || "写真を読み取れませんでした")) + "（手入力・音声入力もできます）";
+  }
 });
 
 /* 車両識別キー: 型式 > 指定・類別 > 車台番号 の順(型式を読まなくても記憶できる) */
@@ -3253,7 +3291,8 @@ function switchView(name) {
   if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   // 車両のサブページ(メンテ/診断/部品)は下部タブ上「スキャン」を選択状態に
-  const tabName = ["maint", "diag", "parts"].includes(name) ? "scan" : name;
+  const tabName = ["maint", "diag", "parts", "karte"].includes(name) ? "scan" : name;
+  if (name === "karte") { toggle("karteForm", false); renderKarte(); }
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));

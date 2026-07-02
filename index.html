@@ -190,6 +190,7 @@
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
     <button class="navBtn" data-go="parts">🔧 修理</button>
+    <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
 
   <section id="secSpec" class="hidden">
@@ -227,9 +228,36 @@
     <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
   </section>
 
-  <section id="secKarte">
-    <h2 class="secHead"><span class="tag cy">KARTE</span>整備カルテ（作業記録）<button class="btn btn-ghost btn-sm secMic" id="btnKarteAdd" style="margin-left:auto">＋ 記録を追加</button></h2>
+  <section id="secRecall" class="hidden">
+    <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
+    <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
+    <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ AIの参考情報です。下記の公式ページで車台番号により対象を確認してください。</div>
+    <div id="recallVin" style="margin:0 0 10px"></div>
+    <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
+    <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
+    <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
+  </section>
+</div>
+
+<!-- ============ VIEW: KARTE ============ -->
+<div id="view-karte" class="view">
+  <nav class="pageNav">
+    <button class="navBtn navBack" data-go="scan">← 車両</button>
+    <button class="navBtn" data-go="maint">🔧 メンテ</button>
+    <button class="navBtn" data-go="diag">🩺 診断</button>
+    <button class="navBtn" data-go="parts">🔧 修理</button>
+    <button class="navBtn" data-go="karte">📋 カルテ</button>
+  </nav>
+
+  <section id="secKarte" style="margin-top:6px">
+    <h2><span class="tag cy">KARTE</span>整備カルテ（作業記録）</h2>
     <div class="sec-body">
+      <div class="btnRow" style="margin-bottom:10px">
+        <button class="btn btn-amber btnPick" id="btnKarteAdd">＋ 記録を追加</button>
+        <button class="btn btn-ghost btnPick" id="btnKartePhoto"><img src="img/kangae.png" class="btnMecha" alt="">写真で入力</button>
+      </div>
+      <input type="file" id="kPhotoIn" accept="image/*" capture="environment" class="hidden">
+      <div id="kPhotoStatus" class="hint hidden" style="margin-bottom:8px"></div>
       <div id="karteList"></div>
       <div id="karteForm" class="hidden karteForm">
         <div class="kRow2">
@@ -251,18 +279,8 @@
           <button class="btn btn-ghost" id="btnKarteCancel" style="flex:0 0 28%">取消</button>
         </div>
       </div>
-      <div class="hint" style="margin-top:10px">※ 車両ごとに記録され、社内で共有されます（写真OCR不要。手入力・音声入力で確実に残せます）。</div>
+      <div class="hint" style="margin-top:10px">※ 車両ごとに記録・社内共有。「写真から自動入力」は作業伝票やメモの写真をメカ君(AI)が読み取り各項目に下書きします（内容は保存前に確認・修正できます）。</div>
     </div>
-  </section>
-
-  <section id="secRecall" class="hidden">
-    <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
-    <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
-    <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ AIの参考情報です。下記の公式ページで車台番号により対象を確認してください。</div>
-    <div id="recallVin" style="margin:0 0 10px"></div>
-    <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
-    <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
-    <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
   </section>
 </div>
 
@@ -273,6 +291,7 @@
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
     <button class="navBtn" data-go="parts">🔧 修理</button>
+    <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
   <section><h2 class="secHead"><span class="tag">REPAIR</span>修理・部品交換の手順<button class="btn btn-ghost btn-sm secMic" id="btnPartsMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secClear" id="btnPartsClear">クリア</button></h2>
   <div class="sec-body">
@@ -304,6 +323,7 @@
     <button class="navBtn" data-go="maint">🔧 メンテ</button>
     <button class="navBtn" data-go="diag">🩺 診断</button>
     <button class="navBtn" data-go="parts">🔧 修理</button>
+    <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
 
   <section style="margin-top:6px">
