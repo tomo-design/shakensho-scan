@@ -295,20 +295,36 @@
         // 会社ごとにカード化(会社→所属メンバー)
         tlist.forEach(({ id, t }) => {
           const sid = id.replace(/[^a-zA-Z0-9_-]/g, ""); statTids.push(id);
-          html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
+          const cnt = (byTenant[id] || []).length;
+          html += "<div class='mTenant'><div class='mTenantHead' data-toggle>" +
+            "<span class='mChevron'>▸</span>" +
+            "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
+            "<span class='mCount'>👥 " + cnt + "</span>" +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</div>" +
+            "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
-            membersHtml(byTenant[id]) + "</div>";
+            membersHtml(byTenant[id]) + "</div></div>";
           delete byTenant[id];
         });
         // どの会社にも紐づかないユーザー
-        Object.keys(byTenant).forEach(t => { html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(t) + "</span></div>" + membersHtml(byTenant[t]) + "</div>"; });
+        Object.keys(byTenant).forEach(t => {
+          const cnt = (byTenant[t] || []).length;
+          html += "<div class='mTenant'><div class='mTenantHead' data-toggle><span class='mChevron'>▸</span><span class='mName'>" + esc(t) + "</span><span class='mCount'>👥 " + cnt + "</span></div>" +
+            "<div class='mBody hidden'>" + membersHtml(byTenant[t]) + "</div></div>";
+        });
       } else {
-        // admin: 自社のメンバーのみ
-        html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div>" + membersHtml(byTenant[profile.tenantId]) + "</div>";
+        // admin: 自社のメンバーのみ(1社なので常に開いた状態)
+        html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId]) + "</div></div>";
       }
       box.innerHTML = html || "メンバーがいません。";
-      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async () => { await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
+      // 会社ヘッダーのタップでメンバーを開閉(ボタンのクリックは除外)
+      box.querySelectorAll(".mTenantHead[data-toggle]").forEach(head => head.addEventListener("click", e => {
+        if (e.target.closest("[data-act]")) return;
+        const body = head.nextElementSibling;
+        if (body) body.classList.toggle("hidden");
+        head.classList.toggle("open", body && !body.classList.contains("hidden"));
+      }));
+      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async e => { e.stopPropagation(); await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
       statTids.forEach(t => fillTenantStats(t));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   }
@@ -322,12 +338,18 @@
   function userRow(id, u) {
     const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
     const isAdmin = u.role === "admin" || u.role === "super";
+    const reg = u.createdAt ? "登録 " + new Date(u.createdAt).toLocaleDateString("ja-JP") : "";
     const info = "<div class='mInfo'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
       "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" +
-      (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") + "</div>";
+      (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
+      (reg ? "<div class='mMeta'>" + reg + "</div>" : "") + "</div>";
     let btns;
-    if (u.active) btns = (u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber") : "") + btn("off", "u", id, "無効化");
-    else btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
+    if (u.active) {
+      // 役割変更ボタンで無効化の隣を埋める(staff→代表者に / admin→従業員に)。運営(super)は変更不可
+      const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber")
+        : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
+      btns = roleBtn + btn("off", "u", id, "無効化");
+    } else btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
   async function fillTenantStats(tid) {
@@ -358,6 +380,9 @@
           await db.collection("tenants").doc(tid).set({ adminName: tu.name || "" }, { merge: true });
         }
         alert("代表管理者を引き継ぎました。");
+      } else if (act === "demote") {
+        if (!confirm("この代表管理者を従業員に降格しますか？")) return;
+        await db.collection("users").doc(id).update({ role: "staff" });
       } else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }
       else await db.collection(col).doc(id).update({ active: false });
     } catch (e) { alert("操作失敗: " + (e.message || e)); }
