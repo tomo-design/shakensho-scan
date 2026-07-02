@@ -1206,7 +1206,9 @@ function renderSpecs(specs, source) {
     const item = document.createElement("div"); item.className = "specItem";
     if (s.manual) item.classList.add("specManual");
     const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
-    const v = document.createElement("div"); v.className = "specV"; v.textContent = han(s.v);
+    const v = document.createElement("div"); v.className = "specV";
+    // 「／」区切りや改行を行分けして見やすく表示
+    v.innerHTML = esc(han(s.v)).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
     const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";

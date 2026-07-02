@@ -297,9 +297,11 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .secSummary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:13px}
 details[open] > .secSummary::after{content:"▴"}
 /* セクション見出しの右端にマイク＋クリア(マイクはクリアの左) */
-.secHead{display:flex;align-items:center;gap:6px}
-.secHead .secMic{margin-left:auto;flex:0 0 auto;padding:8px 12px}
-.secHead .secClear{flex:0 0 auto}
+.secHead{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
+.secHead>span.tag{flex:0 0 auto}
+.secHead .secMic{flex:0 0 auto;padding:7px 9px}
+.secHead .secMic:first-of-type{margin-left:auto}
+.secHead .secClear{flex:0 0 auto;padding:7px 10px}
 /* 白背景・選択(押下/処理中)で枠だけ色がつくアクションボタン */
 .btnPick{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
 .btnPick:active,.btnPick.btnLoading{border-color:var(--amber);color:var(--amber)}
