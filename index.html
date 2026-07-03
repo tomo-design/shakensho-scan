@@ -297,31 +297,15 @@
     <button class="navBtn" data-go="parts">🔧 修理</button>
     <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
-  <section><h2 class="secHead"><span class="tag">REPAIR</span>部品を調べる・注文リスト<button class="btn btn-ghost btn-sm secMic" id="btnPartsMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secClear" id="btnPartsClear">クリア</button></h2>
-  <div class="sec-body">
-    <label class="fld">交換する部品名・作業名</label>
-    <div class="inputRow">
-      <input type="text" id="partName" placeholder="例: フロントブレーキパッド / タイミングベルト交換">
-      <button class="btn btn-ghost btnPick" id="btnPartsGo">🔧 部品を洗い出す</button>
-    </div>
-    <div class="btnRow" style="margin-top:8px">
-      <button class="btn btn-ghost" id="btnPartsLoc">📍 この車両での取り付け位置を見る</button>
-    </div>
-    <div id="partsLoc" class="hidden" style="margin-top:10px"></div>
-    <div id="partsResult" class="hidden" style="margin-top:10px"></div>
-    <div id="partsLinks"></div>
-    <a class="linkbtn" href="https://faines.jaspa.or.jp/enduser/user/login" target="_blank" rel="noopener" style="margin-top:10px">📗 FAINESで正式な整備手順・部品を確認<small>純正部品番号・締付トルク・整備要領の公式データベース</small><span class="arr">↗</span></a>
-    <div class="hint" style="margin-top:10px">※ 部品名・品番はAIによる<b>参照値</b>です。<b>注文前にFAINESや部品商で正式品番をご確認ください。</b></div>
-  </div></section>
-
   <section><h2 class="secHead"><span class="tag cy">ASK</span>修理について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secMic" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
   <div class="sec-body">
-    <textarea id="qVehText" style="min-height:130px" placeholder="この車両の修理について質問できます（例: タイミングベルト交換の注意点は？ / この作業に必要な特殊工具は？ / 締付トルクは？ / EPBの整備モードの入り方は？）。🎤音声入力や🗣️会話もできます。"></textarea>
+    <textarea id="qVehText" style="min-height:130px" placeholder="修理・整備について何でも聞けます。作業名や部品名を入れるだけでもOK（例:「パッド交換」→ 必要部品・取付位置・手順・締付トルク・注文リストまで一括回答）。🎤音声入力や🗣️会話も。"></textarea>
     <div class="btnRow">
       <button class="btn btn-ghost btnPick" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
     </div>
     <div id="qVehResult" class="ai-answer hidden" style="margin-top:10px"></div>
-    <div class="hint" style="margin-top:10px">※ 回答はAIによる参考情報です。整備書・実車で確認してください。</div>
+    <a class="linkbtn" href="https://faines.jaspa.or.jp/enduser/user/login" target="_blank" rel="noopener" style="margin-top:10px">📗 FAINESで正式な整備手順・品番・トルクを確認<span class="arr">↗</span></a>
+    <div class="hint" style="margin-top:10px">※ 回答・部品番号はAIの参考情報です。注文・作業前にFAINESや部品商で正式値を確認してください。</div>
   </div></section>
 </div>
 

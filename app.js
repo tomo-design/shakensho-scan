@@ -1000,7 +1000,7 @@ function renderPartsBreakdown(box, obj, part) {
   });
 }
 let partsBusy = false;
-$("btnPartsGo").addEventListener("click", async () => {
+$("btnPartsGo") && $("btnPartsGo").addEventListener("click", async () => {
   stopFieldMic();
   const part = $("partName").value.trim();
   if (!part) { $("partName").focus(); return; }
@@ -1025,7 +1025,7 @@ $("btnPartsGo").addEventListener("click", async () => {
     partsBusy = false; setBtnLoading($("btnPartsGo"), false);
   }
 });
-$("btnPartsClear").addEventListener("click", () => {
+$("btnPartsClear") && $("btnPartsClear").addEventListener("click", () => {
   cancelAI();
   $("partName").value = "";
   $("partsResult").innerHTML = ""; toggle("partsResult", false);
@@ -1099,10 +1099,19 @@ $("btnVehAsk").addEventListener("click", async () => {
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
     const prompt = [
-      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両の『修理・整備作業』について整備士の質問に正確かつ実務的に答える(交換手順・注意点・締付トルクや規定値・必要な特殊工具・電子制御の整備モード操作(EPB/SAS/DPF再生/バッテリー登録等)・所要時間の目安など)。説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
-      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。トルクや規定値は必ず整備書(FAINES等)で確認するよう促す。前置き・免責は最小限。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
+      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両の『修理・整備』について、整備士に正確かつ実務的に答える。説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
+      "入力が『パッド交換』『タイベル交換』のように作業名・部品名だけの場合は、その作業について次の項目を“一括で”まとめて答えること(質問文であればその質問に集中して答える):",
+      "■正式部品名／対象 … 作業対象の正式名称。",
+      "■取り付け位置 … この車両でどの区画(エンジンルーム/車両下部/室内等)のどこに付くか、周囲の目印・アクセス方法・左右前後。",
+      "■必要な部品 … 本体部品／同時交換が必須・推奨(ガスケット・シール・Oリング・一度使用のボルト/ナット・割ピン・クリップ等)／消耗品(オイル・クーラント・グリス等)。純正品番の目安があれば併記(不確かなら要確認)、数量も。",
+      "■交換手順 … 安全確保→取り外し→取り付け→確認の順で番号付き。",
+      "■締付トルク・規定値 … 分かる範囲で(要確認可)。",
+      "■特殊工具・整備モード … 必要な特殊工具、電子制御の整備モード操作(EPB/SAS/DPF再生/バッテリー登録等)。無ければ『特になし』。",
+      "■所要時間の目安 … 標準作業時間の目安。",
+      "■部品注文リスト … 部品商へそのまま渡せる箇条書き(・部品名 ×数量（品番:目安）)。先頭に『車種/型式』を入れる。",
+      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。トルク・品番は必ず整備書(FAINES)や部品商で確認するよう促す。前置き・免責は最小限。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
       "■対象車両: " + vehicleDesc(),
-      "■質問(修理・整備について): " + q,
+      "■質問/作業: " + q,
     ].join("\n");
     const r = await geminiAsk(prompt);
     renderAiAnswer(box, r.text);
