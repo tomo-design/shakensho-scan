@@ -283,7 +283,7 @@ async function startLiveScan() {
   toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true);
   toggle("scanActions", true);
   updateScanProgress(acc);
-  setScanMsg("車検証のQR・型式部分にかざしてください（自動で読み取ります）");
+  setScanMsg("自動で読み取り中… 車検証のQRを枠内に大きく写してください");
   scanning = true; tickBusy = false; tickN = 0; lastOcrAt = 0; scanTick();
 }
 
@@ -383,6 +383,7 @@ function onLiveQr(data) {
   if (!data || payloads.has(data)) return;
   payloads.add(data);
   if (navigator.vibrate) navigator.vibrate(50);
+  flashScan();   // 読み取れた瞬間に緑フラッシュ(見える化)
   mergeAcc(parsePayloads(payloads));
   afterScanUpdate("QR");
 }
@@ -392,8 +393,14 @@ function onLiveText(d) {
   mergeAcc(d);
   if (acc.type + "|" + acc.vin + "|" + acc.engine !== before) {
     if (navigator.vibrate) navigator.vibrate(40);
+    flashScan();
     afterScanUpdate("文字");
   }
+}
+/* 読み取れた瞬間に緑フラッシュ(端末差に依存せず「今読めた」を明示) */
+function flashScan() {
+  const el = $("scanFlash"); if (!el) return;
+  el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit");
 }
 function afterScanUpdate(src) {
   updateScanProgress(acc);

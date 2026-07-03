@@ -37,9 +37,10 @@
 
   <div id="scanWrap" class="hidden">
     <video id="video" playsinline muted></video>
-    <div id="scanOverlay"><div class="reticle"><b></b></div></div>
+    <div id="scanOverlay"><div class="reticle"><b></b><i class="scanLine"></i></div></div>
+    <div id="scanFlash"></div>
     <div id="scanOK" class="hidden"><div class="okMark">OK</div></div>
-    <div id="scanStatus"><span id="scanMsg">QRを枠内いっぱいに写してください</span><button type="button" id="btnTorch" class="hidden" style="background:none;border:0;font-size:18px;padding:0 4px" aria-label="ライト">🔦</button></div>
+    <div id="scanStatus"><span class="scanLeft"><span class="scanDot"></span><span id="scanMsg">QRを枠内いっぱいに写してください</span></span><button type="button" id="btnTorch" class="hidden" style="background:none;border:0;font-size:18px;padding:0 4px" aria-label="ライト">🔦</button></div>
   </div>
 
   <div class="btnRow hidden" id="scanCtrls">
