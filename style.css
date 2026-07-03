@@ -314,6 +314,16 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kBody{margin-top:6px;font-size:14px;line-height:1.6}
 .karteItem .kLine{margin-top:2px}
 .karteItem .kLine b{color:var(--dim);font-size:12px;margin-right:4px}
+/* 部品の洗い出し・注文リスト */
+.partsGroup{margin-top:10px}
+.partsGroupT{font-size:12px;font-weight:800;color:var(--amber);letter-spacing:.03em;margin-bottom:5px}
+.partsItem{border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:9px;padding:8px 11px;margin-bottom:6px;background:var(--panel)}
+.partsItem .pName{font-size:15px;font-weight:700;color:var(--txt)}
+.partsItem .pName .pQty{font-weight:800;color:var(--amber);margin-left:4px}
+.partsItem .pMeta{font-size:12px;color:var(--dim);margin-top:2px}
+.orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#eef4ff}
+.orderT{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:6px}
+.orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}
 .mStat{color:var(--dim);font-size:12px;margin:4px 0 8px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}

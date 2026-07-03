@@ -949,44 +949,54 @@ document.querySelectorAll(".pageNav .navBtn").forEach(b =>
     if (go === "scan") switchView("scan"); else goVehiclePage(go);
   }));
 
-/* ===== 部品交換手順: AI + 動画リンク ===== */
-function buildPartsPrompt(part) {
-  const v = current.type ? findVehicle(current.type.includes("-") ? current.type.split("-")[1] : current.type) : null;
+/* ===== 部品の洗い出し + 部品商への注文リスト ===== */
+function buildPartsBreakdownPrompt(part) {
   return [
-    "あなたは日本の自動車整備士を支援するベテランメカニックです。次の部品の交換手順を、現場で使える形で説明してください。",
-    "前置き・免責・挨拶は不要。Markdown記号(**, #, 表)は使わず、必ず次の形式で:",
-    "■準備する工具・部品",
-    "必要な工具と新品部品・消耗品(ガスケット等)を列挙。",
-    "■交換手順",
-    "1. 手順(安全確保→取り外し→取り付け→確認の順で具体的に)",
-    "2. (以降番号順に)",
-    "■締付トルク・規定値",
-    "関連する締付トルクや規定値があれば(確信が持てない値は「要確認」を付ける)。",
-    "■電子制御・特別手順",
-    "この作業に電子制御の操作が必要な場合は必ず具体的に記す。例: 電動パーキングブレーキ(EPB)搭載車のリアブレーキ交換は『メンテナンスモード/整備モード』への移行と解除が必要(車種ごとの入り方を簡潔に)。ワイパー交換はサービスポジション(整備位置)への移し方。SAS/ステアリング角・バッテリー登録・DPF再生等が絡む場合もその旨。該当しなければ『特になし』。",
-    "■平均作業時間（目安）",
-    "この交換作業のおおよその標準作業時間を示す(例: 約1.5時間・要確認)。作業に幅がある場合は範囲で(例: 1.0〜1.5時間)。分からなければ「要確認」と記す。",
-    "■注意点",
-    "事故・破損を防ぐ注意を1〜3行。最後に必ず『正確な手順・規定値は整備書(FAINES等)で確認してください』と記す。",
+    "あなたは日本の自動車整備士を支援するベテランメカニックです。次の車両で『指定の部品交換/作業』を行う際に、部品商へ注文すべき部品を洗い出してください。",
+    "含めるもの: ①作業対象の本体部品(正式名称)、②同時交換が必須または強く推奨される部品(ガスケット/オイルシール/Oリング/一度使用のボルト・ナット/割ピン/クリップ/ロックワッシャ等)、③消耗品(オイル/クーラント/グリス/ブレーキフルード等)。",
+    "各部品は日本の整備現場で通じる正式名称で。純正品番が推定できれば目安を書き、不確かなら「要確認」。数量も。分からない項目は正直に空/要確認。",
+    "出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。形式:",
+    '{"official":"作業対象の正式部品名/作業名","note":"補足(あれば)","items":[{"name":"部品の正式名称","qty":"1","kind":"本体|同時交換必須|消耗品","partno":"純正品番の目安 または 要確認","memo":"補足(サイズ・容量・左右等)"}]}',
+    "kindは必ず『本体』『同時交換必須』『消耗品』のいずれか。同時交換必須が無ければその項目は省略可。",
     "",
-    "■対象車両: 型式 " + (current.type || "不明") + (current.engine ? " / 原動機 " + current.engine : "") + (v ? "（" + v.name + "）" : ""),
-    "■交換する部品: " + part,
+    "■対象車両: " + vehicleDesc(),
+    "■部品/作業: " + part,
   ].join("\n");
 }
-function renderPartsVideoLinks(part) {
-  const box = $("partsLinks"); box.innerHTML = "";
-  const v = current.type ? findVehicle(current.type.includes("-") ? current.type.split("-")[1] : current.type) : null;
-  const carName = v ? v.name : (current.type || "");
-  const q = (carName + " " + part + " 交換 方法").trim();
-  const links = [
-    ["▶ YouTubeで交換動画を探す", "https://www.youtube.com/results?search_query=" + encodeURIComponent(q)],
-    ["🔍 交換手順をWebで検索", "https://www.google.com/search?q=" + encodeURIComponent(q)],
-  ];
-  links.forEach(([label, url]) => {
-    const a = document.createElement("a"); a.className = "linkbtn"; a.href = url; a.target = "_blank"; a.rel = "noopener";
-    a.append(label);
-    const arr = document.createElement("span"); arr.className = "arr"; arr.textContent = "↗"; a.appendChild(arr);
-    box.appendChild(a);
+let lastOrderText = "";
+function renderPartsBreakdown(box, obj, part) {
+  const items = Array.isArray(obj.items) ? obj.items.filter(i => i && i.name) : [];
+  if (!items.length) { box.innerHTML = '<div class="hint">部品を洗い出せませんでした。表記を変えて再度お試しください。</div>'; return; }
+  const kinds = [["本体", "部品本体"], ["同時交換必須", "同時交換が必須・推奨"], ["消耗品", "消耗品・油脂類"]];
+  let html = '<div class="ai-h">' + esc(han(obj.official || part)) + ' に必要な部品</div>';
+  if (obj.note) html += '<div class="ai-p">' + esc(han(obj.note)) + '</div>';
+  kinds.forEach(([k, label]) => {
+    const list = items.filter(i => (i.kind || "本体") === k);
+    if (!list.length) return;
+    html += '<div class="partsGroup"><div class="partsGroupT">' + label + '</div>';
+    list.forEach(i => {
+      html += '<div class="partsItem"><div class="pName">' + esc(han(i.name)) + (i.qty ? ' <span class="pQty">×' + esc(han(String(i.qty))) + '</span>' : "") + '</div>' +
+        '<div class="pMeta">' + (i.partno ? "品番: " + esc(han(i.partno)) : "品番: 要確認") + (i.memo ? " ／ " + esc(han(i.memo)) : "") + '</div></div>';
+    });
+    html += '</div>';
+  });
+  // 部品商への注文リスト(コピー/共有しやすいテキスト)
+  const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") +
+    (current.vin ? " ／ 車台番号: " + current.vin : "") + "\n作業: " + (obj.official || part) + "\n";
+  const lines = items.map(i => "・" + i.name + (i.qty ? " ×" + i.qty : "") + (i.partno && i.partno.indexOf("要確認") < 0 ? "（品番: " + i.partno + "）" : "") + (i.memo ? " " + i.memo : ""));
+  lastOrderText = head + lines.join("\n") + "\n※品番は要確認。";
+  html += '<div class="orderBox"><div class="orderT">📋 部品商への注文リスト</div><pre class="orderPre" id="orderPre"></pre>' +
+    '<div class="btnRow"><button class="btn btn-amber btn-sm" id="btnOrderCopy">コピー</button><button class="btn btn-ghost btn-sm" id="btnOrderShare">共有・メール</button></div></div>';
+  box.innerHTML = html;
+  $("orderPre").textContent = lastOrderText;
+  $("btnOrderCopy") && $("btnOrderCopy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(lastOrderText); $("btnOrderCopy").textContent = "✓ コピーしました"; setTimeout(() => { const b = $("btnOrderCopy"); if (b) b.textContent = "コピー"; }, 1500); }
+    catch (e) { const p = $("orderPre"); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  });
+  $("btnOrderShare") && $("btnOrderShare").addEventListener("click", async () => {
+    const title = "部品注文リスト";
+    if (navigator.share) { try { await navigator.share({ title, text: lastOrderText }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+    location.href = "mailto:?subject=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(lastOrderText);
   });
 }
 let partsBusy = false;
@@ -994,21 +1004,23 @@ $("btnPartsGo").addEventListener("click", async () => {
   stopFieldMic();
   const part = $("partName").value.trim();
   if (!part) { $("partName").focus(); return; }
-  renderPartsVideoLinks(part);   // 動画リンクは即出す(AIキー無しでも使える)
+  if (!vehicleKey(current)) { alert("先に車両を読み込んでください(車台番号や型式が必要です)。"); return; }
   if (!localStorage.getItem(LS.gemini)) {
     toggle("partsResult", true);
-    $("partsResult").textContent = "AI手順を使うには設定タブで無料Geminiキーを設定してください（動画リンクはそのまま使えます）。";
+    $("partsResult").innerHTML = '<div class="hint">部品の洗い出しにはAI（無料Geminiキー）の設定が必要です。設定タブで登録してください。</div>';
     return;
   }
   if (partsBusy) return; partsBusy = true;
   const box = $("partsResult"); toggle("partsResult", true);
-  box.textContent = "メカ君が交換手順を調べています…";
+  box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が必要な部品を洗い出しています…</div>';
   setBtnLoading($("btnPartsGo"), true, "メカ君が調べ中…");
   try {
-    const r = await geminiAsk(buildPartsPrompt(part));
-    renderAiAnswer(box, r.text, { illustrate: true });
+    const r = await geminiAsk(buildPartsBreakdownPrompt(part));
+    const obj = extractJson(r.text);
+    if (obj && (obj.items || obj.official)) renderPartsBreakdown(box, obj, part);
+    else renderAiAnswer(box, r.text);
   } catch (e) {
-    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") box.innerHTML = "⚠ " + esc(e.message || "AIへの接続に失敗しました");
   } finally {
     partsBusy = false; setBtnLoading($("btnPartsGo"), false);
   }
@@ -1087,10 +1099,10 @@ $("btnVehAsk").addEventListener("click", async () => {
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
     const prompt = [
-      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両について整備士の質問に正確かつ実務的に答え、説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
-      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。前置き・免責不要。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
+      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両の『修理・整備作業』について整備士の質問に正確かつ実務的に答える(交換手順・注意点・締付トルクや規定値・必要な特殊工具・電子制御の整備モード操作(EPB/SAS/DPF再生/バッテリー登録等)・所要時間の目安など)。説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
+      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。トルクや規定値は必ず整備書(FAINES等)で確認するよう促す。前置き・免責は最小限。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
       "■対象車両: " + vehicleDesc(),
-      "■質問: " + q,
+      "■質問(修理・整備について): " + q,
     ].join("\n");
     const r = await geminiAsk(prompt);
     renderAiAnswer(box, r.text);
