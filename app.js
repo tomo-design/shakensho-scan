@@ -1018,6 +1018,52 @@ $("btnPartsClear").addEventListener("click", () => {
   $("partName").value = "";
   $("partsResult").innerHTML = ""; toggle("partsResult", false);
   $("partsLinks").innerHTML = "";
+  $("partsLoc").innerHTML = ""; toggle("partsLoc", false);
+});
+
+/* 部品の取り付け位置: この車両でどこにあるかを文章＋図＋Web画像リンクで表示 */
+let partsLocBusy = false;
+$("btnPartsLoc") && $("btnPartsLoc").addEventListener("click", async () => {
+  stopFieldMic();
+  const part = $("partName").value.trim();
+  if (!part) { $("partName").focus(); return; }
+  const carName = figureVehicleDesc();
+  const q = ((currentVehicleFacts().model || current.type || "") + " " + part + " 取り付け位置").trim();
+  const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
+    + encodeURIComponent(q) + '&tbm=isch">🔍 実物の取り付け位置をWebの画像で探す<span class="arr">↗</span></a>';
+  const box = $("partsLoc"); toggle("partsLoc", true);
+  if (!localStorage.getItem(LS.gemini)) {
+    box.innerHTML = '<div class="hint">AIの解説には無料Geminiキー設定が必要です（設定タブ）。Web画像リンクはそのまま使えます。</div>' + linkHtml;
+    return;
+  }
+  if (partsLocBusy) return; partsLocBusy = true;
+  box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が「' + esc(part) + '」の取り付け位置を調べています…(十数秒〜30秒ほど)</div>';
+  setBtnLoading($("btnPartsLoc"), true, "位置を調べ中…");
+  try {
+    // ①場所の文章解説
+    const locPrompt = [
+      "あなたは自動車整備士向けのアドバイザーです。次の車両で、指定部品が『どこに付いているか』を現場目線で簡潔に説明してください。",
+      "含める: どの区画か(エンジンルーム/車両下部/室内/トランク等)、周囲の目印になる部品との位置関係、アクセス方法(上から/下から/カバーを外す等)、左右・前後。前置き不要。Markdown記号は使わず3〜5行で。確信が持てない点は「（要確認）」。",
+      "■対象車両: " + vehicleDesc(),
+      "■部品: " + part,
+    ].join("\n");
+    const r = await geminiAsk(locPrompt);
+    // ②取り付け位置の図(実物に忠実な図→イラスト化の二段。失敗はスキップ)
+    let imgHtml = "";
+    try {
+      let refDesc = ""; try { refDesc = await geminiStepVisualRef(part + " の取り付け位置", carName); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+      let refInline = null;
+      try { const p = await geminiGenImage(buildPartLocationPhotoPrompt(part, carName, refDesc)); if (p) refInline = dataUrlToInline(p); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+      const dataUrl = await geminiGenImage(buildPartLocationImagePrompt(part, carName, refDesc, !!refInline), refInline ? { refImages: [refInline] } : undefined);
+      if (dataUrl) imgHtml = '<div class="stepFigSvg"><img alt="取り付け位置" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた取り付け位置の参考図（イメージ）</div>';
+    } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+    const textHtml = '<div class="ai-answer">' + esc(r.text).replace(/\n/g, "<br>") + '</div>';
+    box.innerHTML = textHtml + imgHtml + linkHtml;
+  } catch (e) {
+    box.innerHTML = (e && e.message === "__cancelled__" ? "" : '<div class="hint">⚠ ' + esc(e.message || "取得に失敗しました") + '</div>') + linkHtml;
+  } finally {
+    partsLocBusy = false; setBtnLoading($("btnPartsLoc"), false);
+  }
 });
 
 /* この車両について質問(AI Q&A) */
@@ -1063,7 +1109,7 @@ function resetVehicleWorkTabs() {
   // 診断タブ
   val("diagText"); clr("diagResults");
   // 修理タブ(交換手順・参考図・この車両について質問)
-  val("partName"); clr("partsResult", "partsResult"); clr("partsLinks");
+  val("partName"); clr("partsResult", "partsResult"); clr("partsLinks"); clr("partsLoc", "partsLoc");
   val("qVehText"); clr("qVehResult", "qVehResult");
 }
 
@@ -2521,6 +2567,34 @@ function figureVehicleDesc() {
   return parts.length ? parts.join(" / ") : "一般的な自動車";
 }
 /* 写実リファレンス画像用プロンプト(構造再現の土台。イラスト化はしない) */
+/* 取り付け位置の写実リファレンス(区画全体＋対象部品が文脈で分かる) */
+function buildPartLocationPhotoPrompt(part, carName, refDesc) {
+  const lines = [
+    "自動車整備の資料用に、指定部品の『取り付け位置』が分かる実物に忠実なクローズアップ画像を1枚生成してください。",
+    "目的: その部品が車両のどの区画(エンジンルーム/車両下部/室内/トランク等)の、どこに・どんな向きで付いているかを、周囲の部品との位置関係が分かる引き〜中距離で正確に示す。",
+    "対象車両: " + (carName || "一般的な自動車") + "。この車種・車格に実在する該当部品と周辺レイアウトの正しい形にする。別車種にしない。",
+    "写実・正確第一。文字/数字/ロゴ/透かしは入れない。イラスト化・誇張はしない(資料写真)。",
+  ];
+  if (refDesc) { lines.push("【実物の特徴メモ(反映)】"); lines.push(refDesc); }
+  lines.push("対象部品: " + part);
+  return lines.join("\n");
+}
+/* 取り付け位置のイラスト(区画を示し、対象部品を丸/矢印で強調) */
+function buildPartLocationImagePrompt(part, carName, refDesc, hasRef) {
+  const lines = [
+    "自動車整備マニュアル用の『部品の取り付け位置イラスト』を1枚生成してください。",
+    "目的: 指定部品が車両のどこに付いているかが一目で分かる図。該当区画(エンジンルーム/下部/室内等)を示し、対象部品を控えめな丸囲みまたは矢印で1か所だけ強調する。周囲の目印部品も描いて位置関係が分かるように。",
+    "対象車両(実物に合わせる): " + (carName || "一般的な自動車") + "。車格・レイアウトをこの車種に合わせ、別車格の部品を描かない。",
+  ];
+  if (hasRef) lines.push("【最重要】添付の参照画像に厳密に従い、部品の形状・位置・周囲との関係を正確に再現(構造は保持)。画風だけ下記イラストに変える。");
+  if (refDesc && !hasRef) { lines.push("【実物の特徴(反映)】"); lines.push(refDesc); }
+  lines.push(
+    "スタイル(厳守): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。1コマのみ。写真そのものにはしない。",
+    "禁止: 文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張。強調の丸/矢印以外の余計な装飾は避ける。",
+    "強調する対象部品: " + part
+  );
+  return lines.join("\n");
+}
 function buildPartPhotoPrompt(stepText, carName, refDesc) {
   const lines = [
     "自動車整備の資料用に、実物に忠実な写実的クローズアップ画像を1枚生成してください。",

@@ -304,6 +304,10 @@
       <input type="text" id="partName" placeholder="例: フロントブレーキパッド / オルタネーター">
       <button class="btn btn-ghost btnPick" id="btnPartsGo">調べる</button>
     </div>
+    <div class="btnRow" style="margin-top:8px">
+      <button class="btn btn-ghost" id="btnPartsLoc">📍 この車両での取り付け位置を見る</button>
+    </div>
+    <div id="partsLoc" class="hidden" style="margin-top:10px"></div>
     <div id="partsResult" class="ai-answer hidden" style="margin-top:10px"></div>
     <div id="partsLinks"></div>
     <div class="hint" style="margin-top:10px">※ AIによる<b>参照値</b>です。EPB整備モード・締付トルク等は整備書（<a href="https://faines.jaspa.or.jp/enduser/user/login" target="_blank" rel="noopener" style="color:var(--cyan)">FAINES ↗</a>）で確認を。</div>
