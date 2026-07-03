@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v112";
+const CACHE = "shaken-scan-v113";
 const PRECACHE = [
   "./",
   "./index.html",

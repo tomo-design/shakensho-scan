@@ -10,8 +10,8 @@ const APP_VER = "1.0.0";
 const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", aimode: "ss_aimode" };
 
 const $ = id => document.getElementById(id);
-const toggle = (id, show) => $(id).classList.toggle("hidden", !show);
-const setText = (id, t) => { $(id).textContent = t; };
+const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
+const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
 /* メールアドレスらしい文字列か(使用者名・車種名へのメール混入対策) */
 const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
 const noEmail = s => (isEmailLike(s) ? "" : s);
@@ -1129,8 +1129,7 @@ function resetVehicleWorkTabs() {
   const val = id => { const el = $(id); if (el) el.value = ""; };
   // 診断タブ
   val("diagText"); clr("diagResults");
-  // 修理タブ(交換手順・参考図・この車両について質問)
-  val("partName"); clr("partsResult", "partsResult"); clr("partsLinks"); clr("partsLoc", "partsLoc");
+  // 修理について質問
   val("qVehText"); clr("qVehResult", "qVehResult");
 }
 
@@ -1761,7 +1760,7 @@ function dedupeHistory(list) {
     const older = newer === h ? a : h;
     const pick = k => newer[k] != null ? newer[k] : older[k];
     out[idx[key]] = {
-      id: a.id || h.id,
+      id: a.id || h.id, rid: newer.rid || older.rid || a.rid || h.rid,
       vin: pick("vin"), plate: pick("plate"), type: pick("type"), engine: pick("engine"),
       name: newer.name != null ? newer.name : older.name,
       model: pick("model"), kataShitei: pick("kataShitei"), firstReg: pick("firstReg"), expiry: pick("expiry"),
@@ -1787,17 +1786,22 @@ function normPlate(s) {
     .replace(/[\s\-・･.．]/g, "")
     .toUpperCase();
 }
-/* 同一車両の既存履歴を探す (車台番号優先、なければナンバー) */
+/* 不変の識別ID(訂正で登録番号や型式が変わっても同じレコードを追える) */
+function newRid() { return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+/* 同一車両の既存履歴を探す (不変ID > 車台番号 > ナンバー の順) */
 function findHistEntry(hist, d) {
   return hist.find(h =>
+    (d.rid && h.rid && h.rid === d.rid) ||
     (d.vin && h.vin && h.vin === d.vin) ||
     (!d.vin && d.plate && h.plate && normPlate(h.plate) === normPlate(d.plate)));
 }
 function addHistory(d) {
   const hist = getHistory();
   const exist = findHistEntry(hist, d);
+  let target;
   if (exist) {
-    // 同一車両: 情報を統合して先頭へ (使用者名は保持)
+    // 同一車両: 情報を統合して先頭へ (使用者名・不変IDは保持)
+    if (!exist.rid) exist.rid = d.rid || newRid();
     Object.assign(exist, {
       type: d.type || exist.type, vin: d.vin || exist.vin, plate: d.plate || exist.plate,
       engine: d.engine || exist.engine,
@@ -1806,18 +1810,21 @@ function addHistory(d) {
       at: new Date().toISOString(), updatedAt: Date.now(),
     });
     hist.splice(hist.indexOf(exist), 1); hist.unshift(exist);
+    target = exist;
   } else {
-    hist.unshift({
-      id: Date.now(), type: d.type || null, vin: d.vin || null, plate: d.plate || null, name: null,
+    target = {
+      id: Date.now(), rid: d.rid || newRid(), type: d.type || null, vin: d.vin || null, plate: d.plate || null, name: null,
       engine: d.engine || null,
       expiry: d.expiry ? d.expiry.getTime() : null,
       firstReg: d.firstReg || null, kataShitei: d.kataShitei || null,
       at: new Date().toISOString(), updatedAt: Date.now(),
-    });
+    };
+    hist.unshift(target);
   }
+  if (d && !d.rid) d.rid = target.rid;   // current等にも不変IDを伝播(以降の訂正で同じレコードを更新)
   localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 200)));
   renderHistory();
-  if (window.Cloud) window.Cloud.pushRecord(findHistEntry(getHistory(), d));   // 社内共有へ
+  if (window.Cloud) window.Cloud.pushRecord(target);   // 社内共有へ
 }
 /* 現在表示中の車両に使用者名を保存 */
 function saveUserName(name) {
@@ -1830,6 +1837,7 @@ function saveUserName(name) {
 }
 function histToResult(h) {
   return {
+    rid: h.rid || null,
     type: h.type, vin: h.vin, plate: h.plate || null, engine: h.engine || null,
     model: h.model || null,
     expiry: h.expiry ? new Date(h.expiry) : null,

@@ -171,9 +171,16 @@
 
   /* ---------- 同期 ---------- */
   function vinKey(r) { return String(r.vin || r.type || r.plate || r.id || Date.now()).replace(/[^A-Za-z0-9]/g, "_"); }
+  /* ドキュメントID: 車台番号があればそれ(端末間で同一車両を1件に)、無ければ不変ID(rid)で固定
+     → 登録番号などを訂正しても同じドキュメントを更新でき、古い値が別レコードとして復活しない */
+  function docKey(r) {
+    if (r.vin) return String(r.vin).replace(/[^A-Za-z0-9]/g, "_");
+    if (r.rid) return String(r.rid).replace(/[^A-Za-z0-9]/g, "_");
+    return vinKey(r);
+  }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -189,7 +196,7 @@
       let hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
       if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
       for (const h of hist) {
-        if (h && h.vin && !h.deleted) try { await db.collection("tenants").doc(tid).collection("records").doc(vinKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
+        if (h && (h.vin || h.rid) && !h.deleted) try { await db.collection("tenants").doc(tid).collection("records").doc(docKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
         catch (e) { errMsg = (e && e.code) || e.message || String(e); }
       }
     } catch (e) { errMsg = (e && e.code) || e.message || String(e); }
@@ -224,22 +231,27 @@
         let hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
         snap.forEach(d => {
           const r = d.data();
-          const ei = hist.findIndex(h => r.vin && h.vin === r.vin);
+          // 照合は 車台番号 > 不変ID(rid) > ドキュメントID の順(登録番号だけの車両でも1件に固定)
+          const ei = hist.findIndex(h =>
+            (r.vin && h.vin === r.vin) ||
+            (r.rid && h.rid === r.rid) ||
+            (!r.vin && !r.rid && vinKey(h) === d.id));
           let e = ei >= 0 ? hist[ei] : null;
           // 墓標(削除済み): クラウドが新しければローカルからも消す(復活防止)
           if (r.deleted) {
             if (e && (e.updatedAt || 0) > (r.updatedAt || 0)) {
               // ローカルで削除後に再作成/編集された → ローカルを正としてクラウドへ復活送信
-              try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+              try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
             } else if (ei >= 0) { hist.splice(ei, 1); }
             return;
           }
-          if (!e) { e = { id: Date.now() + Math.random() }; hist.unshift(e); }
+          if (!e) { e = { id: Date.now() + Math.random(), rid: r.rid || d.id }; hist.unshift(e); }
+          if (!e.rid) e.rid = r.rid || d.id;   // 既存エントリにも不変IDを付与(以降の照合を安定化)
           // 整備カルテは両端末の追加を失わないよう常にunion統合(勝敗判定より前に実施)
           if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
             // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
-            try { db.collection("tenants").doc(tid).collection("records").doc(vinKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+            try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
           } else {
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
             Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
@@ -326,14 +338,14 @@
       db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(id)).delete().catch(() => {});
     },
     pushRecord(r) {
-      if (!this.active || !r || !r.vin) return;
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
+      if (!this.active || !r || !(r.vin || r.rid)) return;
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
     },
     deleteRecord(r) {
       if (!this.active || !r) return;
       // ハード削除ではなく墓標(deleted)で論理削除。古い端末の再アップロードで蘇るのを防ぐ
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(vinKey(r))
-        .set({ deleted: true, vin: r.vin || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r))
+        .set({ deleted: true, vin: r.vin || null, rid: r.rid || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     }
   };
 
