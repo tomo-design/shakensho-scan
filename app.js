@@ -1118,6 +1118,7 @@ function buildRepairPrompt(q) {
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
     "steps は安全確保→取り外し→取り付け→確認の順。各stepは {text:手順文, tools:その手順で使う工具・計測器の配列}。部品名は該当手順のtextにも登場させる。",
+    "toolsは具体的に。ソケット(コマ)は必ずサイズ明記(例『ラチェット＋14mmソケット』『17mmソケット』)、メガネ/スパナもサイズ明記(例『12mmメガネレンチ』)、ヘックス/トルクスも番手明記。サイズが車種で不確かなら『(要確認)』を付ける。",
     "確信が持てない点は「（要確認）」。年式・グレード差は明記。トルクは整備書(FAINES)で確認を促す。",
     "■対象車両: " + vehicleDesc(),
     "■質問/作業: " + q,
@@ -1143,6 +1144,12 @@ function renderRepairAnswer(box, obj, q) {
       '<div class="vidTitle">' + esc(han(vid.title || "この部品の交換動画")) + '</div>';
     box.appendChild(a);
   }
+  // 画像検索(動画検索の上に配置)
+  const iq = (carName + " " + mainPart + " 取り付け位置").trim();
+  const ia = document.createElement("a"); ia.className = "linkbtn"; ia.target = "_blank"; ia.rel = "noopener";
+  ia.href = "https://www.google.com/search?q=" + encodeURIComponent(iq) + "&tbm=isch";
+  ia.innerHTML = "🔍 実物の位置をWeb画像で探す<span class='arr'>↗</span>"; box.appendChild(ia);
+  // 動画検索
   const yq = (carName + " " + mainPart + " 交換").trim();
   const sa = document.createElement("a"); sa.className = "linkbtn"; sa.target = "_blank"; sa.rel = "noopener";
   sa.href = "https://www.youtube.com/results?search_query=" + encodeURIComponent(yq);
@@ -1152,14 +1159,18 @@ function renderRepairAnswer(box, obj, q) {
   // ③ 部品注文リスト(品番なし・当該作業＋推奨同時交換／部品名タップで手順へ)
   const order = Array.isArray(obj.order) ? obj.order.filter(o => o && o.name) : [];
   if (order.length) {
-    sec("部品注文リスト");
+    const hasRec = order.some(o => o.kind === "同時交換推奨");
+    // 見出し右端に凡例(※同時交換推奨)
+    const h = document.createElement("div"); h.className = "ai-h orderHead";
+    h.innerHTML = '<span>部品注文リスト</span>' + (hasRec ? '<span class="orderLegend">※同時交換推奨</span>' : "");
+    box.appendChild(h);
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
       const nm = document.createElement("span"); nm.className = "orderName" + (o.step ? " jump" : ""); nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
       if (o.step) { nm.title = "手順" + o.step + "へ"; nm.addEventListener("click", () => jumpToStep(box, o.step)); }
       row.appendChild(nm);
-      if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※同時交換推奨"; row.appendChild(meta); }
+      if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
     });
     // コピー/共有テキスト(品番なし)

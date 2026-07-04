@@ -328,7 +328,9 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .orderRow:first-child{border-top:0}
 .orderName{font-size:15px;font-weight:700;color:var(--txt);min-width:0}
 .orderName.jump{color:var(--amber);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-.orderMeta{font-size:10px;color:var(--dim);margin-left:auto;white-space:nowrap;opacity:.7;align-self:center}
+.orderMeta{font-size:12px;color:var(--dim);margin-left:auto;white-space:nowrap;opacity:.7;align-self:center}
+.ai-h.orderHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.orderHead .orderLegend{font-size:10px;font-weight:600;color:var(--dim);opacity:.75;letter-spacing:0}
 ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
 @keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
 /* 手順タップで工具表示 */
