@@ -1113,40 +1113,40 @@ function buildRepairPrompt(q) {
   return [
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
-    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[\"手順1(安全確保)\",\"手順2\"],\"answer\":\"\"}",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"video\":{\"title\":\"参考動画のタイトル\",\"url\":\"https://www.youtube.com/watch?v=...\"},\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "video は、この車種・この作業(部品交換)の実作業が分かる実在するYouTube動画を1本。確実に存在するURLだけを書き、自信が無ければ url は空文字にする(でっち上げ禁止)。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
-    "steps は安全確保→取り外し→取り付け→確認の順で、各手順1文。部品名は該当手順の文中にも登場させる。",
+    "steps は安全確保→取り外し→取り付け→確認の順。各stepは {text:手順文, tools:その手順で使う工具・計測器の配列}。部品名は該当手順のtextにも登場させる。",
     "確信が持てない点は「（要確認）」。年式・グレード差は明記。トルクは整備書(FAINES)で確認を促す。",
     "■対象車両: " + vehicleDesc(),
     "■質問/作業: " + q,
   ].join("\n");
 }
+function ytId(url) { const m = /(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/.exec(String(url || "")); return m ? m[1] : ""; }
 function renderRepairAnswer(box, obj, q) {
   const mainPart = (Array.isArray(obj.order) && (obj.order.find(o => o.kind === "本体") || obj.order[0]) || {}).name || q;
+  const carName = figureVehicleDesc();
   box.innerHTML = "";
   const sec = (label) => { const h = document.createElement("div"); h.className = "ai-h"; h.textContent = label; box.appendChild(h); };
-  // ① 取り付け位置(＋画像)
+  // ① 取り付け位置(＋交換動画のサムネ・URL)
   if (obj.location) {
     sec("取り付け位置");
     const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
-    const fig = document.createElement("div"); fig.className = "stepFigSvg"; fig.innerHTML = '<div class="stepFigLoad">🔧 位置の参考図を作成中…</div>'; box.appendChild(fig);
-    const carName = figureVehicleDesc();
-    (async () => {
-      try {
-        let refDesc = ""; try { refDesc = await geminiStepVisualRef(mainPart + " の取り付け位置", carName); } catch (e) {}
-        let refInline = null;
-        try { const ph = await geminiGenImage(buildPartLocationPhotoPrompt(mainPart, carName, refDesc)); if (ph) refInline = dataUrlToInline(ph); } catch (e) {}
-        const dataUrl = await geminiGenImage(buildPartLocationImagePrompt(mainPart, carName, refDesc, !!refInline), refInline ? { refImages: [refInline] } : undefined);
-        if (dataUrl) fig.innerHTML = '<img alt="取り付け位置" src="' + dataUrl + '">';
-        else fig.remove();
-      } catch (e) { fig.remove(); }
-    })();
-    const q2 = (carName + " " + mainPart + " 取り付け位置").trim();
-    const a = document.createElement("a"); a.className = "linkbtn"; a.target = "_blank"; a.rel = "noopener";
-    a.href = "https://www.google.com/search?q=" + encodeURIComponent(q2) + "&tbm=isch"; a.innerHTML = "🔍 実物の位置をWeb画像で探す<span class='arr'>↗</span>";
+  }
+  // 交換動画(サムネ表示)。AIが実在URLを返せた時のみサムネ、常にYouTube検索リンクも出す
+  const vid = obj.video || {};
+  const vidId = ytId(vid.url);
+  if (vidId) {
+    const a = document.createElement("a"); a.className = "vidCard"; a.href = "https://www.youtube.com/watch?v=" + vidId; a.target = "_blank"; a.rel = "noopener";
+    a.innerHTML = '<div class="vidThumb"><img src="https://img.youtube.com/vi/' + vidId + '/hqdefault.jpg" alt="動画"><span class="vidPlay">▶</span></div>' +
+      '<div class="vidTitle">' + esc(han(vid.title || "この部品の交換動画")) + '</div>';
     box.appendChild(a);
   }
+  const yq = (carName + " " + mainPart + " 交換").trim();
+  const sa = document.createElement("a"); sa.className = "linkbtn"; sa.target = "_blank"; sa.rel = "noopener";
+  sa.href = "https://www.youtube.com/results?search_query=" + encodeURIComponent(yq);
+  sa.innerHTML = "▶ YouTubeで交換動画を探す<span class='arr'>↗</span>"; box.appendChild(sa);
   // ② 所要時間
   if (obj.time) { sec("所要時間の目安"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.time)); box.appendChild(p); }
   // ③ 部品注文リスト(品番なし・当該作業＋推奨同時交換／部品名タップで手順へ)
@@ -1156,14 +1156,15 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      const nm = document.createElement("span"); nm.className = "orderName" + (o.step ? " jump" : ""); nm.textContent = han(o.name);
+      const nm = document.createElement("span"); nm.className = "orderName" + (o.step ? " jump" : ""); nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
       if (o.step) { nm.title = "手順" + o.step + "へ"; nm.addEventListener("click", () => jumpToStep(box, o.step)); }
-      const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = (o.qty ? "×" + han(String(o.qty)) : "") + (o.kind === "同時交換推奨" ? " ・同時交換推奨" : "");
-      row.append(nm, meta); list.appendChild(row);
+      row.appendChild(nm);
+      if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※同時交換推奨"; row.appendChild(meta); }
+      list.appendChild(row);
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
-    const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "") + (o.kind === "同時交換推奨" ? "（同時交換推奨）" : "")).join("\n");
+    const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "") + (o.kind === "同時交換推奨" ? "（※同時交換推奨）" : "")).join("\n");
     const bar = document.createElement("div"); bar.className = "btnRow"; bar.style.marginTop = "8px";
     const copy = document.createElement("button"); copy.className = "btn btn-amber btn-sm"; copy.textContent = "コピー";
     copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(orderText); copy.textContent = "✓ コピー"; setTimeout(() => copy.textContent = "コピー", 1500); } catch (e) {} });
@@ -1172,11 +1173,24 @@ function renderRepairAnswer(box, obj, q) {
     bar.append(copy, share); list.appendChild(bar);
     box.appendChild(list);
   }
-  // ④ 交換手順(ジャンプ先アンカー)
+  // ④ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
     sec("交換手順");
     const ol = document.createElement("ol"); ol.className = "guide-steps ai-list";
-    obj.steps.forEach((s, i) => { const li = document.createElement("li"); li.id = "rstep-" + (i + 1); const d = document.createElement("div"); const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = han(String(s)); d.appendChild(t); li.appendChild(d); ol.appendChild(li); });
+    obj.steps.forEach((s, i) => {
+      const text = (s && typeof s === "object") ? (s.text || "") : String(s);
+      const tools = (s && s.tools && s.tools.length) ? s.tools : [];
+      const li = document.createElement("li"); li.id = "rstep-" + (i + 1); li.className = "hasTools";
+      const d = document.createElement("div");
+      const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = han(text); d.appendChild(t);
+      const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = tools.length ? "🔧 タップで工具" : ""; d.appendChild(hint);
+      const toolBox = document.createElement("div"); toolBox.className = "stepTools hidden";
+      toolBox.innerHTML = tools.length ? '<b>使う工具:</b> ' + tools.map(x => esc(han(String(x)))).join(" ・ ") : "この手順の工具情報はありません。";
+      d.appendChild(toolBox);
+      li.appendChild(d);
+      d.addEventListener("click", () => { hint.textContent = toolBox.classList.toggle("hidden") ? (tools.length ? "🔧 タップで工具" : "") : "🔧 工具を隠す"; });
+      ol.appendChild(li);
+    });
     box.appendChild(ol);
   }
   // ⑤ 締付トルク・特殊工具

@@ -326,12 +326,22 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}
 .orderRow{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line)}
 .orderRow:first-child{border-top:0}
-.orderName{font-size:15px;font-weight:700;color:var(--txt)}
+.orderName{font-size:15px;font-weight:700;color:var(--txt);min-width:0}
 .orderName.jump{color:var(--amber);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-.orderName.jump::before{content:"🔧 ";font-size:11px}
-.orderMeta{font-size:12px;color:var(--dim);margin-left:auto;white-space:nowrap}
+.orderMeta{font-size:10px;color:var(--dim);margin-left:auto;white-space:nowrap;opacity:.7;align-self:center}
 ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
 @keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
+/* 手順タップで工具表示 */
+ol.ai-list li.hasTools>div{cursor:pointer}
+.stepTools{margin-top:6px;font-size:13px;line-height:1.6;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.stepTools.hidden{display:none}
+.stepTools b{color:var(--amber);font-size:12px}
+/* 交換動画カード(サムネ) */
+.vidCard{display:block;text-decoration:none;color:var(--txt);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:2px 0 8px;background:var(--panel)}
+.vidThumb{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.vidThumb img{width:100%;height:100%;object-fit:cover;display:block}
+.vidPlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.vidTitle{padding:8px 11px;font-size:13px;font-weight:700;line-height:1.5}
 .mStat{color:var(--dim);font-size:12px;margin:4px 0 8px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}
