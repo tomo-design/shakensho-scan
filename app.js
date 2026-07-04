@@ -1095,32 +1095,99 @@ $("btnVehAsk").addEventListener("click", async () => {
   }
   if (vehAskBusy) return; vehAskBusy = true;
   const box = $("qVehResult"); toggle("qVehResult", true);
-  box.textContent = "🔧 メカ君が考えています…";
+  box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が考えています…</div>';
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
-    const prompt = [
-      "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もある。次の車両の『修理・整備』について、整備士に正確かつ実務的に答える。説明は親しみやすく(軽い一言を添えてもよいが控えめに)。",
-      "入力が『パッド交換』『タイベル交換』のように作業名・部品名だけの場合は、その作業について次の項目を“一括で”まとめて答えること(質問文であればその質問に集中して答える):",
-      "■正式部品名／対象 … 作業対象の正式名称。",
-      "■取り付け位置 … この車両でどの区画(エンジンルーム/車両下部/室内等)のどこに付くか、周囲の目印・アクセス方法・左右前後。",
-      "■必要な部品 … 本体部品／同時交換が必須・推奨(ガスケット・シール・Oリング・一度使用のボルト/ナット・割ピン・クリップ等)／消耗品(オイル・クーラント・グリス等)。純正品番の目安があれば併記(不確かなら要確認)、数量も。",
-      "■交換手順 … 安全確保→取り外し→取り付け→確認の順で番号付き。",
-      "■締付トルク・規定値 … 分かる範囲で(要確認可)。",
-      "■特殊工具・整備モード … 必要な特殊工具、電子制御の整備モード操作(EPB/SAS/DPF再生/バッテリー登録等)。無ければ『特になし』。",
-      "■所要時間の目安 … 標準作業時間の目安。",
-      "■部品注文リスト … 部品商へそのまま渡せる箇条書き(・部品名 ×数量（品番:目安）)。先頭に『車種/型式』を入れる。",
-      "確信が持てない点は「（要確認）」を付け、年式・グレードで差がある場合は明記。トルク・品番は必ず整備書(FAINES)や部品商で確認するよう促す。前置き・免責は最小限。Markdown記号(**、#、表)は使わず、見出しは■、箇条書きは・で。",
-      "■対象車両: " + vehicleDesc(),
-      "■質問/作業: " + q,
-    ].join("\n");
-    const r = await geminiAsk(prompt);
-    renderAiAnswer(box, r.text);
+    const r = await geminiAsk(buildRepairPrompt(q));
+    const obj = extractJson(r.text);
+    if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, q);
+    else renderAiAnswer(box, (obj && obj.answer) ? obj.answer : r.text);
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
 });
+/* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章) */
+function buildRepairPrompt(q) {
+  return [
+    "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
+    "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[\"手順1(安全確保)\",\"手順2\"],\"answer\":\"\"}",
+    "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
+    "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
+    "steps は安全確保→取り外し→取り付け→確認の順で、各手順1文。部品名は該当手順の文中にも登場させる。",
+    "確信が持てない点は「（要確認）」。年式・グレード差は明記。トルクは整備書(FAINES)で確認を促す。",
+    "■対象車両: " + vehicleDesc(),
+    "■質問/作業: " + q,
+  ].join("\n");
+}
+function renderRepairAnswer(box, obj, q) {
+  const mainPart = (Array.isArray(obj.order) && (obj.order.find(o => o.kind === "本体") || obj.order[0]) || {}).name || q;
+  box.innerHTML = "";
+  const sec = (label) => { const h = document.createElement("div"); h.className = "ai-h"; h.textContent = label; box.appendChild(h); };
+  // ① 取り付け位置(＋画像)
+  if (obj.location) {
+    sec("取り付け位置");
+    const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
+    const fig = document.createElement("div"); fig.className = "stepFigSvg"; fig.innerHTML = '<div class="stepFigLoad">🔧 位置の参考図を作成中…</div>'; box.appendChild(fig);
+    const carName = figureVehicleDesc();
+    (async () => {
+      try {
+        let refDesc = ""; try { refDesc = await geminiStepVisualRef(mainPart + " の取り付け位置", carName); } catch (e) {}
+        let refInline = null;
+        try { const ph = await geminiGenImage(buildPartLocationPhotoPrompt(mainPart, carName, refDesc)); if (ph) refInline = dataUrlToInline(ph); } catch (e) {}
+        const dataUrl = await geminiGenImage(buildPartLocationImagePrompt(mainPart, carName, refDesc, !!refInline), refInline ? { refImages: [refInline] } : undefined);
+        if (dataUrl) fig.innerHTML = '<img alt="取り付け位置" src="' + dataUrl + '">';
+        else fig.remove();
+      } catch (e) { fig.remove(); }
+    })();
+    const q2 = (carName + " " + mainPart + " 取り付け位置").trim();
+    const a = document.createElement("a"); a.className = "linkbtn"; a.target = "_blank"; a.rel = "noopener";
+    a.href = "https://www.google.com/search?q=" + encodeURIComponent(q2) + "&tbm=isch"; a.innerHTML = "🔍 実物の位置をWeb画像で探す<span class='arr'>↗</span>";
+    box.appendChild(a);
+  }
+  // ② 所要時間
+  if (obj.time) { sec("所要時間の目安"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.time)); box.appendChild(p); }
+  // ③ 部品注文リスト(品番なし・当該作業＋推奨同時交換／部品名タップで手順へ)
+  const order = Array.isArray(obj.order) ? obj.order.filter(o => o && o.name) : [];
+  if (order.length) {
+    sec("部品注文リスト");
+    const list = document.createElement("div"); list.className = "orderBox";
+    order.forEach(o => {
+      const row = document.createElement("div"); row.className = "orderRow";
+      const nm = document.createElement("span"); nm.className = "orderName" + (o.step ? " jump" : ""); nm.textContent = han(o.name);
+      if (o.step) { nm.title = "手順" + o.step + "へ"; nm.addEventListener("click", () => jumpToStep(box, o.step)); }
+      const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = (o.qty ? "×" + han(String(o.qty)) : "") + (o.kind === "同時交換推奨" ? " ・同時交換推奨" : "");
+      row.append(nm, meta); list.appendChild(row);
+    });
+    // コピー/共有テキスト(品番なし)
+    const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
+    const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "") + (o.kind === "同時交換推奨" ? "（同時交換推奨）" : "")).join("\n");
+    const bar = document.createElement("div"); bar.className = "btnRow"; bar.style.marginTop = "8px";
+    const copy = document.createElement("button"); copy.className = "btn btn-amber btn-sm"; copy.textContent = "コピー";
+    copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(orderText); copy.textContent = "✓ コピー"; setTimeout(() => copy.textContent = "コピー", 1500); } catch (e) {} });
+    const share = document.createElement("button"); share.className = "btn btn-ghost btn-sm"; share.textContent = "共有・メール";
+    share.addEventListener("click", async () => { if (navigator.share) { try { await navigator.share({ title: "部品注文リスト", text: orderText }); return; } catch (e) { if (e && e.name === "AbortError") return; } } location.href = "mailto:?subject=" + encodeURIComponent("部品注文リスト") + "&body=" + encodeURIComponent(orderText); });
+    bar.append(copy, share); list.appendChild(bar);
+    box.appendChild(list);
+  }
+  // ④ 交換手順(ジャンプ先アンカー)
+  if (Array.isArray(obj.steps) && obj.steps.length) {
+    sec("交換手順");
+    const ol = document.createElement("ol"); ol.className = "guide-steps ai-list";
+    obj.steps.forEach((s, i) => { const li = document.createElement("li"); li.id = "rstep-" + (i + 1); const d = document.createElement("div"); const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = han(String(s)); d.appendChild(t); li.appendChild(d); ol.appendChild(li); });
+    box.appendChild(ol);
+  }
+  // ⑤ 締付トルク・特殊工具
+  if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.torque)); box.appendChild(p); }
+  if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
+}
+function jumpToStep(box, n) {
+  const li = box.querySelector("#rstep-" + n); if (!li) return;
+  li.scrollIntoView({ behavior: "smooth", block: "center" });
+  li.classList.remove("stepFlash"); void li.offsetWidth; li.classList.add("stepFlash");
+}
 
 /* 車両が変わったら診断・修理タブの前車両データを消す(混ざり防止) */
 function resetVehicleWorkTabs() {

@@ -324,6 +324,14 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#eef4ff}
 .orderT{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:6px}
 .orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}
+.orderRow{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.orderRow:first-child{border-top:0}
+.orderName{font-size:15px;font-weight:700;color:var(--txt)}
+.orderName.jump{color:var(--amber);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.orderName.jump::before{content:"🔧 ";font-size:11px}
+.orderMeta{font-size:12px;color:var(--dim);margin-left:auto;white-space:nowrap}
+ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
+@keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
 .mStat{color:var(--dim);font-size:12px;margin:4px 0 8px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}
