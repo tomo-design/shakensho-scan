@@ -1114,7 +1114,8 @@ function buildRepairPrompt(q) {
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
     "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"video\":{\"title\":\"参考動画のタイトル\",\"url\":\"https://www.youtube.com/watch?v=...\"},\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
-    "video は、この車種・この作業(部品交換)の実作業が分かる実在するYouTube動画を1本。確実に存在するURLだけを書き、自信が無ければ url は空文字にする(でっち上げ禁止)。",
+    "【最重要】location・video・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
+    "video は、できるだけ『対象車両の車種名＋この作業』の実作業が分かる実在するYouTube動画を1本。確実に存在するURLだけを書き、自信が無ければ url は空文字にする(でっち上げ禁止)。同一車種が無ければ同系統でも可だが、その場合 title に実際の車種名を明記。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
     "steps は安全確保→取り外し→取り付け→確認の順。各stepは {text:手順文, tools:その手順で使う工具・計測器の配列}。部品名は該当手順のtextにも登場させる。",
@@ -1125,9 +1126,11 @@ function buildRepairPrompt(q) {
   ].join("\n");
 }
 function ytId(url) { const m = /(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/.exec(String(url || "")); return m ? m[1] : ""; }
+/* 検索用の車名(読み取った車両の車種名。無ければ型式)。動画/画像検索がその車両に当たるように */
+function searchCarName() { return (currentVehicleFacts().model || current.type || "").trim(); }
 function renderRepairAnswer(box, obj, q) {
   const mainPart = (Array.isArray(obj.order) && (obj.order.find(o => o.kind === "本体") || obj.order[0]) || {}).name || q;
-  const carName = figureVehicleDesc();
+  const carName = searchCarName();
   box.innerHTML = "";
   const sec = (label) => { const h = document.createElement("div"); h.className = "ai-h"; h.textContent = label; box.appendChild(h); };
   // ① 取り付け位置(＋交換動画のサムネ・URL)
