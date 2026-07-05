@@ -1139,28 +1139,16 @@ function renderRepairAnswer(box, obj, q) {
     sec("取り付け位置");
     const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
   }
-  // 取り付け位置の実写画像(Google Custom Search)。設定済みならサムネを表示、未設定時は交換動画サムネにフォールバック
+  // 取り付け位置の交換動画サムネ(あれば)
   const vid = obj.video || {};
   const vidId = ytId(vid.url);
-  if (cseReady()) {
-    const gal = document.createElement("div"); gal.className = "imgGal"; gal.innerHTML = '<div class="stepFigLoad">🔍 実写画像を検索中…</div>'; box.appendChild(gal);
-    (async () => {
-      try {
-        const imgs = await googleImageSearch((carName + " " + mainPart + " 取り付け位置").trim(), 3);
-        if (imgs.length) {
-          gal.innerHTML = "";
-          imgs.forEach(im => { const a = document.createElement("a"); a.className = "imgThumb"; a.href = im.ctx; a.target = "_blank"; a.rel = "noopener"; a.title = im.title; const g = document.createElement("img"); g.loading = "lazy"; g.src = im.thumb; g.onerror = () => a.remove(); a.appendChild(g); gal.appendChild(a); });
-          const cap = document.createElement("div"); cap.className = "stepFigCap"; cap.textContent = "Web検索の実写画像（タップで出典へ）"; gal.appendChild(cap);
-        } else gal.remove();
-      } catch (e) { gal.innerHTML = '<div class="hint">🔍 画像検索に失敗：' + esc((e && e.userMsg) || (e && e.message) || "原因不明") + '</div>'; }
-    })();
-  } else if (vidId) {
+  if (vidId) {
     const a = document.createElement("a"); a.className = "vidCard"; a.href = "https://www.youtube.com/watch?v=" + vidId; a.target = "_blank"; a.rel = "noopener";
     a.innerHTML = '<div class="vidThumb"><img src="https://img.youtube.com/vi/' + vidId + '/hqdefault.jpg" alt="動画"><span class="vidPlay">▶</span></div>' +
       '<div class="vidTitle">' + esc(han(vid.title || "この部品の交換動画")) + '</div>';
     box.appendChild(a);
   }
-  // 画像検索(動画検索の上に配置)
+  // 実写画像はワンタップのWeb検索ボタンで(設定不要)。動画検索の上に配置
   const iq = (carName + " " + mainPart + " 取り付け位置").trim();
   const ia = document.createElement("a"); ia.className = "linkbtn"; ia.target = "_blank"; ia.rel = "noopener";
   ia.href = "https://www.google.com/search?q=" + encodeURIComponent(iq) + "&tbm=isch";

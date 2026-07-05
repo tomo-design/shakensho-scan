@@ -541,44 +541,6 @@
 
   <section>
     <details>
-      <summary class="secSummary">部品の実写画像（無料・任意）</summary>
-      <div class="sec-body">
-        <p class="hint">修理の「取り付け位置」に<b>本物のWeb検索写真</b>を表示できます（Google の無料枠・1日100回）。下の2つのボタンで取得して、それぞれ貼り付けるだけ。</p>
-
-        <div class="setupStep">
-          <div class="setupNo">STEP 1</div>
-          <div class="setupBody">
-            <b>検索エンジンID</b>を作る
-            <a class="btn btn-cyan btnWide" href="https://programmablesearchengine.google.com/controlpanel/create" target="_blank" rel="noopener">① 検索エンジンを作成する ↗</a>
-            <div class="hint">開いたページで「<b>ウェブ全体を検索</b>」を選び、名前は何でもOK →「<b>作成</b>」→ 次の画面の「<b>検索エンジン ID</b>」をコピー。<br>※ Googleにログインしていない場合は先にログインしてください。</div>
-          </div>
-        </div>
-
-        <div class="setupStep">
-          <div class="setupNo">STEP 2</div>
-          <div class="setupBody">
-            <b>APIキー</b>を取る
-            <a class="btn btn-cyan btnWide" href="https://console.cloud.google.com/apis/credentials?project=_&supportedpurview=project" target="_blank" rel="noopener">② APIキー発行ページを開く ↗</a>
-            <div class="hint">上の「<b>＋ 認証情報を作成</b>」→「<b>APIキー</b>」を押すと、<b>AIza…</b> で始まる文字が出ます。それをコピー。<br>
-            もし「有効なAPIがありません」と出たら、<a href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com?project=_" target="_blank" rel="noopener" style="color:var(--cyan)">こちらで「有効にする」↗</a> を先に押してください。</div>
-          </div>
-        </div>
-
-        <label class="fld">① 検索エンジンID（cx）をここに貼る</label>
-        <input type="text" id="cseCx" placeholder="例: a1b2c3d4e5...">
-        <label class="fld" style="margin-top:8px">② APIキーをここに貼る</label>
-        <div class="inputRow">
-          <input type="password" id="cseKey" placeholder="AIza...">
-          <button class="btn btn-amber" id="btnCseSave">保存</button>
-        </div>
-        <div id="cseStat" class="hint" style="margin-top:8px"></div>
-        <div class="hint" style="margin-top:8px">未設定でも「Web画像で探す」リンクは使えます。1日100回を超えると翌日までエラーになります（無料枠内）。</div>
-      </div>
-    </details>
-  </section>
-
-  <section>
-    <details>
       <summary class="secSummary">OCRについて</summary>
       <div class="sec-body">
         <p class="hint">ふだんの文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使います。明るく大きく写すと精度UP。<b>設定不要でそのまま使えます。</b></p>
