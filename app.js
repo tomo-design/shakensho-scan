@@ -1152,7 +1152,7 @@ function renderRepairAnswer(box, obj, q) {
           imgs.forEach(im => { const a = document.createElement("a"); a.className = "imgThumb"; a.href = im.ctx; a.target = "_blank"; a.rel = "noopener"; a.title = im.title; const g = document.createElement("img"); g.loading = "lazy"; g.src = im.thumb; g.onerror = () => a.remove(); a.appendChild(g); gal.appendChild(a); });
           const cap = document.createElement("div"); cap.className = "stepFigCap"; cap.textContent = "Web検索の実写画像（タップで出典へ）"; gal.appendChild(cap);
         } else gal.remove();
-      } catch (e) { gal.innerHTML = '<div class="hint">画像検索に失敗しました（無料枠超過・キー設定をご確認ください）。</div>'; }
+      } catch (e) { gal.innerHTML = '<div class="hint">🔍 画像検索に失敗：' + esc((e && e.userMsg) || (e && e.message) || "原因不明") + '</div>'; }
     })();
   } else if (vidId) {
     const a = document.createElement("a"); a.className = "vidCard"; a.href = "https://www.youtube.com/watch?v=" + vidId; a.target = "_blank"; a.rel = "noopener";
@@ -2450,7 +2450,19 @@ async function googleImageSearch(query, num) {
   const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + (num || 3) +
     "&key=" + encodeURIComponent(key) + "&cx=" + encodeURIComponent(cx) + "&q=" + encodeURIComponent(query);
   const res = await fetch(url);
-  if (!res.ok) throw new Error("画像検索エラー(" + res.status + ")");
+  if (!res.ok) {
+    let reason = "";
+    try { const ej = await res.json(); reason = (ej.error && ej.error.message) || ""; } catch (_) {}
+    const r = reason.toLowerCase();
+    let msg;
+    if (res.status === 429 || /quota|rate limit/.test(r)) msg = "本日の無料枠(100回)を使い切りました。明日また使えます。";
+    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled/.test(r)) msg = "「Custom Search API」が有効化されていません。設定の手順で有効化してください。";
+    else if (res.status === 403 && /referer|referrer|blocked|not authorized/.test(r)) msg = "APIキーに利用制限がかかっています。キーの制限を『なし』にするか、このサイトを許可してください。";
+    else if (res.status === 400 && /invalid.*key|api key not valid/.test(r)) msg = "APIキーが正しくありません。②のキーを貼り直してください。";
+    else if (res.status === 400 && (/invalid.*cx|invalid value/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(cx)が正しくありません。①のIDを貼り直してください。";
+    else msg = "画像検索エラー(" + res.status + ")" + (reason ? "：" + reason : "");
+    const err = new Error(msg); err.userMsg = msg; throw err;
+  }
   const j = await res.json();
   return (j.items || []).map(it => ({
     thumb: (it.image && it.image.thumbnailLink) || it.link,

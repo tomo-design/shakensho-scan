@@ -507,7 +507,16 @@
     <details>
       <summary class="secSummary">メカ君に相談機能（無料・任意）</summary>
       <div class="sec-body">
-        <p class="hint">Google AI Studio で<b>無料発行</b>できる Gemini APIキーを設定すると「メカ君に相談」が使えます（クレジットカード登録不要。無料枠あり）。<br>取得: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan)">aistudio.google.com/apikey ↗</a> → ログイン →「APIキーを作成」→ 下に貼り付け</p>
+        <p class="hint">Gemini APIキー（<b>無料・カード登録不要</b>）を設定すると「メカ君に相談」が使えます。下のボタンで取得して貼るだけ。</p>
+        <div class="setupStep">
+          <div class="setupNo">STEP 1</div>
+          <div class="setupBody">
+            <b>APIキー</b>を取る
+            <a class="btn btn-cyan btnWide" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">APIキーを取得する ↗</a>
+            <div class="hint">開いたページで（Googleにログイン後）「<b>APIキーを作成</b>」→ 出てきた <b>AIza…</b> をコピー → 下に貼る。<br>※「プロジェクトを選択」と出たら、一覧のどれかを選ぶ／無ければ「新しいプロジェクトで作成」でOK。</div>
+          </div>
+        </div>
+        <label class="fld">APIキーをここに貼る</label>
         <div class="inputRow">
           <input type="password" id="geminiKey" placeholder="AIza...">
           <button class="btn btn-amber" id="btnGeminiSave">保存</button>
@@ -572,13 +581,28 @@
     <details>
       <summary class="secSummary">OCRについて</summary>
       <div class="sec-body">
-        <p class="hint">写真の文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使用。明るく大きく写すと精度UP。</p>
+        <p class="hint">ふだんの文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使います。明るく大きく写すと精度UP。<b>設定不要でそのまま使えます。</b></p>
         <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
-          <b>有料で高精度にしたい場合（任意・Cloud Vision）</b><br>
-          ① <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener" style="color:var(--cyan)">プロジェクト作成 ↗</a> ② <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:var(--cyan)">お支払い登録 ↗</a> ③ <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noopener" style="color:var(--cyan)">Vision API有効化 ↗</a> ④ <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--cyan)">APIキー作成 ↗</a> ⑤ 下に貼り付けON<br>
-          <span style="color:var(--dim)">料金: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">月1,000枚まで無料 ↗</a></span>
+          <b>もっと高精度にしたい場合（任意・Cloud Vision／月1,000枚まで無料）</b>
         </div>
-        <div class="inputRow" style="margin-top:10px">
+        <div class="setupStep">
+          <div class="setupNo">STEP 1</div>
+          <div class="setupBody">
+            <b>Vision API</b>を有効にする
+            <a class="btn btn-cyan btnWide" href="https://console.cloud.google.com/apis/library/vision.googleapis.com?project=_" target="_blank" rel="noopener">Vision APIを有効化する ↗</a>
+            <div class="hint">開いた画面で「<b>有効にする</b>」を押す。プロジェクトが無ければ画面の案内で1つ作成（無料）。</div>
+          </div>
+        </div>
+        <div class="setupStep">
+          <div class="setupNo">STEP 2</div>
+          <div class="setupBody">
+            <b>APIキー</b>を取る
+            <a class="btn btn-cyan btnWide" href="https://console.cloud.google.com/apis/credentials?project=_" target="_blank" rel="noopener">APIキー発行ページを開く ↗</a>
+            <div class="hint">「<b>＋認証情報を作成</b>」→「<b>APIキー</b>」→ 出た <b>AIza…</b> をコピー → 下に貼る。<br>※ 月1,000枚を超えると課金（ご自身のGoogle側）になります。料金: <a href="https://cloud.google.com/vision/pricing" target="_blank" rel="noopener" style="color:var(--cyan)">Vision 料金 ↗</a></div>
+          </div>
+        </div>
+        <label class="fld">APIキーをここに貼る</label>
+        <div class="inputRow" style="margin-top:4px">
           <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（任意）">
           <button class="btn btn-amber" id="btnVisionSave">保存</button>
         </div>
