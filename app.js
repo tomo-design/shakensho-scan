@@ -2485,8 +2485,11 @@ async function geminiAsk(prompt, opts) {
     try {
       // 思考トークンと本文が両方収まるよう上限は大きめに確保
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
-      // 2.5系: 思考モードを有効化(-1=タスクに応じてAIが思考量を自動調整)。精度優先
-      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
+      // 2.5系の思考トークン制御: 標準(flash)は思考OFF=0で高速化、高精度(pro)は-1で自動調整
+      if (model.startsWith("gemini-2.5")) {
+        // flash-lite/2.0系はもともと高速。gemini-2.5-flash/proは思考が重いのでモードで切替
+        genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+      }
       const res = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
         {
