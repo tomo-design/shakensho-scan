@@ -2864,7 +2864,7 @@ async function runDiagAI(text) {
   body.appendChild(p);
   box.prepend(sec);
   try {
-    const r = await geminiAsk(buildDiagPrompt(text));
+    const r = await geminiAsk(buildDiagPrompt(text), { mode: "pro" });   // 故障診断は常に高精度(思考ON)
     renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
@@ -2961,7 +2961,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
         for (const a of atts) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
         r = await geminiAskMedia(prompt, media);
       } else {
-        r = await geminiAsk(prompt);
+        r = await geminiAsk(prompt, { mode: "pro" });   // 故障診断は常に高精度(思考ON)
       }
       renderAiAnswer(ans, r.text, { linkCauses: true });
       // さらに追い相談できるよう、回答の下に次の相談欄を連鎖
@@ -3039,7 +3039,8 @@ async function runSpecAI(srcBtn) {
   const btn = srcBtn || $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
   const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
   try {
-    const r = await geminiAsk(buildSpecPrompt(), { noCache: force });
+    // 諸元: 初回は標準(速い)、「最新に更新」の再取得時は高精度(思考ON)
+    const r = await geminiAsk(buildSpecPrompt(), { noCache: force, mode: force ? "pro" : "flash" });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
@@ -3092,7 +3093,7 @@ async function refreshSpecItem(key, btn) {
       "■対象車両: " + vehicleDesc(),
       "■知りたい項目: " + key
     ].join("\n");
-    const r = await geminiAsk(prompt, { noCache: true });
+    const r = await geminiAsk(prompt, { noCache: true, mode: "pro" });   // 項目の再取得は高精度
     const obj = extractJson(r.text);
     const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
     if (!nv) return;
