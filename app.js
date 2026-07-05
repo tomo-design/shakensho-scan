@@ -2456,7 +2456,7 @@ async function googleImageSearch(query, num) {
     const r = reason.toLowerCase();
     let msg;
     if (res.status === 429 || /quota|rate limit/.test(r)) msg = "本日の無料枠(100回)を使い切りました。明日また使えます。";
-    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled/.test(r)) msg = "「Custom Search API」が有効化されていません。設定の手順で有効化してください。";
+    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|does not have the access/.test(r)) msg = "「Custom Search API」がまだ有効になっていません。設定→部品の実写画像の案内から『Custom Search APIを有効にする』を押してください。";
     else if (res.status === 403 && /referer|referrer|blocked|not authorized/.test(r)) msg = "APIキーに利用制限がかかっています。キーの制限を『なし』にするか、このサイトを許可してください。";
     else if (res.status === 400 && /invalid.*key|api key not valid/.test(r)) msg = "APIキーが正しくありません。②のキーを貼り直してください。";
     else if (res.status === 400 && (/invalid.*cx|invalid value/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(cx)が正しくありません。①のIDを貼り直してください。";
