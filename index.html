@@ -532,6 +532,26 @@
 
   <section>
     <details>
+      <summary class="secSummary">部品の実写画像（無料・任意）</summary>
+      <div class="sec-body">
+        <p class="hint">修理の「取り付け位置」に<b>本物のWeb検索写真</b>を表示するには、Google の <b>Programmable Search（Custom Search JSON API・無料枠 1日100回）</b>を設定します。<br>
+        ① <a href="https://programmablesearchengine.google.com/controlpanel/create" target="_blank" rel="noopener" style="color:var(--cyan)">検索エンジンを作成 ↗</a>（「ウェブ全体を検索」＋「画像検索」をON）→ <b>検索エンジンID</b>をコピー<br>
+        ② <a href="https://developers.google.com/custom-search/v1/introduction" target="_blank" rel="noopener" style="color:var(--cyan)">APIキーを取得 ↗</a>（「Get a Key」）→ <b>APIキー</b>をコピー</p>
+        <label class="fld">検索エンジンID（cx）</label>
+        <input type="text" id="cseCx" placeholder="例: a1b2c3d4e5...">
+        <label class="fld" style="margin-top:8px">APIキー</label>
+        <div class="inputRow">
+          <input type="password" id="cseKey" placeholder="AIza...">
+          <button class="btn btn-amber" id="btnCseSave">保存</button>
+        </div>
+        <div id="cseStat" class="hint" style="margin-top:8px"></div>
+        <div class="hint" style="margin-top:8px">未設定でも「Web画像で探す」リンクは使えます。1日100回を超えると翌日までエラーになります（無料枠内）。</div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <details>
       <summary class="secSummary">OCRについて</summary>
       <div class="sec-body">
         <p class="hint">写真の文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使用。明るく大きく写すと精度UP。</p>

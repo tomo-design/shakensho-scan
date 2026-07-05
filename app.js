@@ -1139,10 +1139,22 @@ function renderRepairAnswer(box, obj, q) {
     sec("取り付け位置");
     const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
   }
-  // 交換動画(サムネ表示)。AIが実在URLを返せた時のみサムネ、常にYouTube検索リンクも出す
+  // 取り付け位置の実写画像(Google Custom Search)。設定済みならサムネを表示、未設定時は交換動画サムネにフォールバック
   const vid = obj.video || {};
   const vidId = ytId(vid.url);
-  if (vidId) {
+  if (cseReady()) {
+    const gal = document.createElement("div"); gal.className = "imgGal"; gal.innerHTML = '<div class="stepFigLoad">🔍 実写画像を検索中…</div>'; box.appendChild(gal);
+    (async () => {
+      try {
+        const imgs = await googleImageSearch((carName + " " + mainPart + " 取り付け位置").trim(), 3);
+        if (imgs.length) {
+          gal.innerHTML = "";
+          imgs.forEach(im => { const a = document.createElement("a"); a.className = "imgThumb"; a.href = im.ctx; a.target = "_blank"; a.rel = "noopener"; a.title = im.title; const g = document.createElement("img"); g.loading = "lazy"; g.src = im.thumb; g.onerror = () => a.remove(); a.appendChild(g); gal.appendChild(a); });
+          const cap = document.createElement("div"); cap.className = "stepFigCap"; cap.textContent = "Web検索の実写画像（タップで出典へ）"; gal.appendChild(cap);
+        } else gal.remove();
+      } catch (e) { gal.innerHTML = '<div class="hint">画像検索に失敗しました（無料枠超過・キー設定をご確認ください）。</div>'; }
+    })();
+  } else if (vidId) {
     const a = document.createElement("a"); a.className = "vidCard"; a.href = "https://www.youtube.com/watch?v=" + vidId; a.target = "_blank"; a.rel = "noopener";
     a.innerHTML = '<div class="vidThumb"><img src="https://img.youtube.com/vi/' + vidId + '/hqdefault.jpg" alt="動画"><span class="vidPlay">▶</span></div>' +
       '<div class="vidTitle">' + esc(han(vid.title || "この部品の交換動画")) + '</div>';
@@ -2418,6 +2430,36 @@ $("useVision").addEventListener("change", () => {
   renderVisionStat();
 });
 
+/* ---- Google Programmable Search(実写画像) 設定 ---- */
+function cseReady() { return !!(localStorage.getItem("ss_cse_key") && localStorage.getItem("ss_cse_cx")); }
+function renderCseStat() {
+  const el = $("cseStat"); if (!el) return;
+  el.textContent = cseReady() ? "✓ 設定済み — 取り付け位置に実写画像を表示します。" : "未設定 — 「Web画像で探す」リンクのみ使えます。";
+}
+$("btnCseSave") && $("btnCseSave").addEventListener("click", () => {
+  const key = $("cseKey").value.trim(), cx = $("cseCx").value.trim();
+  if (key) localStorage.setItem("ss_cse_key", key); else localStorage.removeItem("ss_cse_key");
+  if (cx) localStorage.setItem("ss_cse_cx", cx); else localStorage.removeItem("ss_cse_cx");
+  $("cseKey").value = "";
+  renderCseStat();
+});
+/* Google Custom Search で画像を検索(CORS対応のJSON API)。結果配列[{thumb,link,ctx,title}] */
+async function googleImageSearch(query, num) {
+  const key = localStorage.getItem("ss_cse_key"), cx = localStorage.getItem("ss_cse_cx");
+  if (!key || !cx) return [];
+  const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + (num || 3) +
+    "&key=" + encodeURIComponent(key) + "&cx=" + encodeURIComponent(cx) + "&q=" + encodeURIComponent(query);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("画像検索エラー(" + res.status + ")");
+  const j = await res.json();
+  return (j.items || []).map(it => ({
+    thumb: (it.image && it.image.thumbnailLink) || it.link,
+    link: it.link,
+    ctx: (it.image && it.image.contextLink) || it.link,
+    title: it.title || "",
+  })).filter(x => x.thumb);
+}
+
 /* 進行中のAIリクエストを中断するためのコントローラ */
 let aiAbort = null;
 function cancelAI() {
@@ -3518,6 +3560,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderDBList();
   renderGeminiStat();
   renderVisionStat();
+  renderCseStat();
   renderAiMode();
   setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
