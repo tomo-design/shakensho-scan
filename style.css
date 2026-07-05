@@ -64,6 +64,11 @@ button{font-family:inherit;border:0;cursor:pointer}
 .btn-amber{background:var(--amber);color:#fff}
 .btn-ghost{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
 .btn-alert{background:var(--alert);color:#fff}
+.btn-cyan{background:var(--cyan);color:#fff}
+.btnWide{display:block;width:100%;flex:none;text-align:center;text-decoration:none;margin:8px 0 4px;box-sizing:border-box}
+.setupStep{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.setupNo{flex:none;background:var(--cyan);color:#fff;font-weight:700;font-size:11px;letter-spacing:.06em;border-radius:8px;padding:5px 8px;min-width:52px;text-align:center}
+.setupBody{flex:1;font-size:14px;line-height:1.6}
 .btn:active{transform:scale(.98);filter:brightness(1.1)}
 .btn[disabled]{opacity:.4}
 .btn-sm{padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;min-height:44px}
