@@ -1142,7 +1142,8 @@ function buildRepairPrompt(q) {
     "確信が持てない点は「（要確認）」。年式・グレード差は明記。トルクは整備書(FAINES)で確認を促す。",
     "■対象車両: " + vehicleDesc(),
     "■質問/作業: " + q,
-  ].join("\n");
+    (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
+  ].filter(Boolean).join("\n");
 }
 function ytId(url) { const m = /(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/.exec(String(url || "")); return m ? m[1] : ""; }
 /* 検索用の車名(読み取った車両の車種名。無ければ型式)。動画/画像検索がその車両に当たるように */
@@ -2611,6 +2612,13 @@ async function geminiGenImage(prompt, opts) {
   throw lastErr || new Error("画像生成に失敗しました");
 }
 
+/* 出力言語の指示(UIが英語のときは英語で回答させる)。■等の見出し記号はそのまま維持させる */
+function aiLangDirective() {
+  return (window.APP_LANG === "en")
+    ? "Write the entire answer in natural English (technical automotive English). Keep the section markers such as ■ and the numbering exactly as specified, but translate their labels and all content into English."
+    : "";
+}
+
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
@@ -2638,6 +2646,7 @@ function buildDiagPrompt(text) {
     lines.push("■診断機のDTC: " + named.join(", "));
   }
   lines.push("■症状・問診内容: " + text);
+  const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
 
@@ -3211,6 +3220,7 @@ function buildMediaDiagPrompt() {
   }
   const extra = $("diagText").value.trim();
   if (extra) lines.push("■整備士の補足メモ: " + extra);
+  const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
 /* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
@@ -3553,6 +3563,7 @@ function buildVoiceChatPrompt() {
   lines.push("これまでの会話:");
   voiceHistory.slice(-8).forEach(m => lines.push((m.role === "user" ? "整備士" : "メカ君") + ": " + m.text));
   lines.push("メカ君として次の返答を述べてください。");
+  if (window.APP_LANG === "en") lines.push("Reply in natural spoken English (2-4 short sentences, no markdown).");
   return lines.join("\n");
 }
 
