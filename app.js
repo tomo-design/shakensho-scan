@@ -1100,7 +1100,7 @@ $("btnPartsLoc") && $("btnPartsLoc").addEventListener("click", async () => {
 let vehAskBusy = false;
 $("btnVehClear").addEventListener("click", () => {
   cancelAI();
-  $("qVehText").value = "";
+  $("qVehText").value = ""; autoGrow($("qVehText"));
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
 });
 $("btnVehAsk").addEventListener("click", async () => {
@@ -2288,7 +2288,7 @@ $("btnDiagRun").addEventListener("click", async () => {
 });
 $("btnDiagClear").addEventListener("click", () => {
   cancelAI();   // 考え中のメカ君を中断
-  $("diagText").value = ""; $("diagResults").innerHTML = "";
+  $("diagText").value = ""; autoGrow($("diagText")); $("diagResults").innerHTML = "";
   toggle("diagVideoStatus", false);
   clearDiagAttachments();
 });
@@ -3427,6 +3427,7 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
         for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
         sessionFinal = f;
         fld.value = base + dedupRepeats(accum + f + interim);
+        if (typeof autoGrow === "function") autoGrow(fld);
       };
       rec.onerror = () => {};
       rec.onend = () => {
