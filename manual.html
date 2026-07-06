@@ -18,7 +18,9 @@
   }
   /* ---- ヘッダー ---- */
   .head{display:flex; align-items:center; gap:14px; border-bottom:3px solid var(--amber); padding-bottom:10px; margin-bottom:14px;}
-  .logo{width:54px; height:54px; border-radius:14px; background:linear-gradient(135deg,var(--amber),#f4a83a); display:flex; align-items:center; justify-content:center; font-size:30px; flex:none;}
+  .logo{width:62px; height:62px; flex:none; object-fit:contain;}
+  .hero{width:150px; margin:-6px 0 -10px; object-fit:contain; float:right;}
+  .miniMecha{width:64px; object-fit:contain; float:right; margin:-4px 0 0 8px;}
   .head h1{margin:0; font-size:24px; letter-spacing:.02em;}
   .head .tag{margin:2px 0 0; font-size:13px; color:var(--sub);}
   .head .free{margin-left:auto; background:var(--ok); color:#fff; font-weight:800; font-size:13px; padding:6px 12px; border-radius:999px; white-space:nowrap;}
@@ -68,7 +70,7 @@
 <!-- ============ 1ページ目 ============ -->
 <div class="page">
   <div class="head">
-    <div class="logo">🤖</div>
+    <img class="logo" src="img/mecha.png" alt="メカ君">
     <div>
       <h1>メカノAI 使い方マニュアル</h1>
       <p class="tag">車検証をスマホで撮るだけ。整備のことはメカ君が答えます。</p>
@@ -76,6 +78,7 @@
     <div class="free">ずっと無料</div>
   </div>
 
+  <img class="hero" src="img/qrmecha.png" alt="メカ君" onerror="this.src='img/mecha.png'">
   <div class="note ok"><b>準備はスマホ1台だけ。</b>アプリのインストール不要（ホーム画面に置くだけ）。むずかしい設定はありません。まずは下の3ステップから。</div>
 
   <h2><span class="n">1</span>アプリをスマホに入れる（1分）</h2>
@@ -129,7 +132,7 @@
 <!-- ============ 2ページ目 ============ -->
 <div class="page">
   <div class="head">
-    <div class="logo">🔧</div>
+    <img class="logo" src="img/speak.png" alt="メカ君">
     <div>
       <h1>できること・メカ君の設定</h1>
       <p class="tag">読み取った車両に合わせて、メンテ・診断・修理・カルテを使えます。</p>
@@ -163,6 +166,7 @@
   </div>
 
   <h2><span class="n">5</span>「メカ君に相談」を使えるようにする（無料・任意）</h2>
+  <img class="miniMecha" src="img/kangae.png" alt="メカ君" onerror="this.src='img/thinking.png'">
   <div class="note">メカ君（AI）に質問するには、無料のキーを1つ登録します。<b>カード登録は不要</b>。5分ほどで終わります。</div>
   <ol class="steps">
     <li><span class="btnpill">設定</span>タブ →「<b>メカ君に相談機能</b>」を開く</li>
