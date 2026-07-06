@@ -3442,7 +3442,7 @@ function openVoiceChat(afterEl) {
   toggle("voiceChatSec", true);
   sec.scrollIntoView({ behavior: "smooth" });
 }
-$("btnDiagVoiceChat").addEventListener("click", e => openVoiceChat(e.currentTarget.closest("section")));
+$("btnDiagVoiceChat") && $("btnDiagVoiceChat").addEventListener("click", e => openVoiceChat(e.currentTarget.closest("section")));
 $("btnVehVoiceChat") && $("btnVehVoiceChat").addEventListener("click", e => openVoiceChat(e.currentTarget.closest("section")));
 /* 会話モードを閉じる(履歴・ログは保持し、再開で続きから) */
 function closeVoiceChat() {
