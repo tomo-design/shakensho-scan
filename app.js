@@ -113,6 +113,15 @@ function reconstructCodes(payloadList) {
 const zen2han = s => s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,
   c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, " ");
 
+/* フィラー(埋め草)判定: 車検証二次元コードは非該当フィールドを 9999… / 0000… / **** 等で埋める。
+   同一文字の連続(長さ4以上)は「未設定」とみなし、正しい値の位置に誤って固定されるのを防ぐ */
+function isFiller(v) {
+  if (!v) return true;
+  const t = String(v).replace(/[\s\-\[\]]/g, "");
+  if (t.length < 4) return false;
+  return /^(.)\1+$/.test(t) || /^\*+$/.test(t);   // 9999999 / 0000000 / AAAAA / ***** など
+}
+
 function parseYYMMDD(s) {
   if (!s || !/^\d{6}$/.test(s) || s === "999999") return null;
   const yy = +s.slice(0, 2), mm = +s.slice(2, 4), dd = +s.slice(4, 6);
@@ -148,7 +157,7 @@ function parseStructured(codes) {
 
     // 二次元コード3 (19フィールド): 型式・満了日・初度登録
     if (f.length >= 17) {
-      const kata = f[2] && /^\d{5,10}$/.test(f[2]) ? f[2] : null;
+      const kata = f[2] && /^\d{5,10}$/.test(f[2]) && !isFiller(f[2]) ? f[2] : null;
       if (kata) out.kataShitei = kata;
       const exp = parseYYMMDD(f[3]);
       if (exp) out.expiry = exp;
@@ -165,10 +174,10 @@ function parseStructured(codes) {
       const plateRaw = f[1] || "";
       if (/[぀-ヿ㐀-鿿Ａ-Ｚ０-９]/.test(plateRaw)) out.plate = plateRaw.replace(/[　 ]+/g, " ").trim();
       const vin = zen2han(f[3] || "").toUpperCase();
-      if (/^[A-Z0-9\[\]\-]{4,23}$/.test(vin)) out.vin = vin;
-      // f[4] = 原動機型式 (位置で確定。空欄/伏字/純数字の帳票種別は除外)
+      if (/^[A-Z0-9\[\]\-]{4,23}$/.test(vin) && !isFiller(vin)) out.vin = vin;
+      // f[4] = 原動機型式 (位置で確定。空欄/伏字/純数字の帳票種別・フィラーは除外)
       const eng = zen2han(f[4] || "").toUpperCase().trim();
-      if (eng && !eng.startsWith("*") && /^[A-Z0-9\-]{2,10}$/.test(eng) && !/^\d+$/.test(eng)) out.engine = eng;
+      if (eng && !eng.startsWith("*") && /^[A-Z0-9\-]{2,10}$/.test(eng) && !/^\d+$/.test(eng) && !isFiller(eng)) out.engine = eng;
       out.structured = true;
     }
   }
@@ -253,7 +262,16 @@ let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN
 function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, raw: [] }; }
 let acc = freshAcc();
 function mergeAcc(d) {
-  for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) if (!acc[k] && d[k]) acc[k] = d[k];
+  // 読み取り順に依存せず、正しい値を採用する:
+  //  ・フィラー(9999999等)は取り込まない  ・既存がフィラーなら実値で上書き
+  const fillable = new Set(["type", "vin", "engine", "plate", "kataShitei"]);
+  for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) {
+    const nv = d[k];
+    if (!nv) continue;
+    const isStr = typeof nv === "string";
+    if (fillable.has(k) && isStr && isFiller(nv)) continue;                 // フィラーは無視
+    if (!acc[k] || (fillable.has(k) && typeof acc[k] === "string" && isFiller(acc[k]))) acc[k] = nv;  // 空 or 既存フィラーなら採用
+  }
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
