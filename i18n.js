@@ -27,7 +27,7 @@
     "✎ 車両データを修正": "✎ Edit vehicle data", "💾 保存（DBに登録）": "💾 Save (to DB)",
     "車両データを修正": "Edit vehicle data", "型式": "Model",
     "初度登録": "First registration", "有効期限": "Expiry",
-    "保存": "Save", "取消": "Cancel", "キャンセル": "Cancel", "閉じる": "Close", "戻る": "Back", "実行": "Submit", "クリア": "Clear", "削除": "Delete",
+    "保存": "Save", "取消": "Cancel", "キャンセル": "Cancel", "閉じる": "Close", "戻る": "Back", "実行": "Submit", "クリア": "Clear", "削除": "Delete", "編集": "Edit",
     "QRの生データから選んで割り当てる": "Assign from raw QR data",
     "この車両で何をしますか？": "What would you like to do with this vehicle?",
     "🔧 メンテナンスデータを見る": "🔧 View maintenance data",

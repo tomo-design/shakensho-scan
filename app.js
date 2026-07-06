@@ -1503,19 +1503,31 @@ function renderKarte() {
   if (!list.length) { box.innerHTML = '<div class="hint">まだ記録がありません。「＋ 記録を追加」から作業内容を残せます。</div>'; return; }
   list.forEach(k => {
     const card = document.createElement("div"); card.className = "karteItem";
+    // ヘッダー: 日付/走行/担当 + 編集・削除
     const head = document.createElement("div"); head.className = "kHead";
-    const meta = [dispText(k.date), k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(k.staff) : ""].filter(Boolean).join(" ・ ");
-    head.innerHTML = '<span class="kDate">' + esc(meta) + '</span>';
+    const metaBits = [dispText(k.date), k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(han(k.staff)) : ""].filter(Boolean);
+    head.innerHTML = '<span class="kDate">' + metaBits.join(' <i class="kSep">・</i> ') + '</span>';
+    const btns = document.createElement("div"); btns.className = "kBtns";
+    const edit = document.createElement("button"); edit.className = "kEdit"; edit.textContent = "編集";
+    edit.addEventListener("click", () => openKarteForm(k));
     const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
     del.addEventListener("click", () => {
       if (!confirm("この記録を削除しますか？")) return;
       saveKarteEntry(Object.assign({}, k, { deleted: true, at: new Date().toISOString() }));
       renderKarte();
     });
-    head.appendChild(del);
+    btns.append(edit, del); head.appendChild(btns);
+    // 本文: 作業・部品は「、,改行」で分割して箇条書き。費用・メモは1行。
     const body = document.createElement("div"); body.className = "kBody";
-    const line = (label, val) => val ? '<div class="kLine"><b>' + label + '</b> ' + esc(han(val)) + '</div>' : "";
-    body.innerHTML = line("作業", k.work) + line("部品", k.parts) + (k.cost ? line("費用", han(String(k.cost)) + "円") : "") + line("メモ", k.note);
+    const block = (label, val) => {
+      if (!val) return "";
+      const items = String(val).split(/[、,，・\n]+/).map(s => han(s).trim()).filter(Boolean);
+      if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(han(String(val))) + '</div></div>';
+      return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(i) + '</li>').join("") + '</ul></div>';
+    };
+    body.innerHTML = block("作業", k.work) + block("部品", k.parts) +
+      (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
+      block("メモ", k.note);
     card.append(head, body); box.appendChild(card);
   });
 }
@@ -1531,8 +1543,13 @@ function openKarteForm(edit) {
   $("kNote").value = (edit && edit.note) || "";
   karteEditId = edit ? edit.id : null;
   toggle("karteForm", true);
+  autoGrowAll();   // 内容に合わせて入力欄の高さを調整
   $("karteForm").scrollIntoView({ behavior: "smooth", block: "center" });
 }
+/* テキストエリアを内容量に応じて自動拡大 */
+function autoGrow(el) { if (!el) return; el.style.height = "auto"; el.style.height = Math.max(el.clientHeight, el.scrollHeight) + "px"; }
+function autoGrowAll() { document.querySelectorAll(".kGrow").forEach(autoGrow); }
+document.addEventListener("input", e => { if (e.target && e.target.classList && e.target.classList.contains("kGrow")) autoGrow(e.target); });
 let karteEditId = null;
 $("btnKarteAdd") && $("btnKarteAdd").addEventListener("click", () => openKarteForm(null));
 $("btnKarteCancel") && $("btnKarteCancel").addEventListener("click", () => { stopFieldMic(); toggle("karteForm", false); });
@@ -1566,7 +1583,7 @@ $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
 $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
   const file = e.target.files[0]; e.target.value = ""; if (!file) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
-  st.textContent = "🔧 メカ君が写真を読み取っています…(数十秒かかる場合があります)";
+  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真を読み取っています…(数十秒かかる場合があります)';
   try {
     const prompt = [
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",

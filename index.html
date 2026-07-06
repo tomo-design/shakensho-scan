@@ -268,16 +268,16 @@
           <div><label class="fld">日付</label><input type="date" id="kDate"></div>
           <div><label class="fld">走行距離(km)</label><input type="number" id="kOdo" inputmode="numeric" placeholder="例: 82000"></div>
         </div>
-        <label class="fld">作業内容<button type="button" class="btn btn-ghost btn-sm kMic" id="btnKarteMic" title="音声で入力">🎤</button></label>
-        <textarea id="kWork" placeholder="例: エンジンオイル・エレメント交換、下回り点検"></textarea>
+        <label class="fld">作業内容</label>
+        <textarea id="kWork" class="kGrow" placeholder="例: エンジンオイル・エレメント交換、下回り点検（複数はカンマや改行で区切ると見やすく表示されます）"></textarea>
         <label class="fld">交換部品・使用材料</label>
-        <textarea id="kParts" placeholder="例: 純正オイル4.0L、オイルエレメント(品番●●)"></textarea>
+        <textarea id="kParts" class="kGrow" placeholder="例: 純正オイル4.0L、オイルエレメント(品番●●)"></textarea>
         <div class="kRow2">
           <div><label class="fld">費用(円)</label><input type="number" id="kCost" inputmode="numeric" placeholder="任意"></div>
           <div><label class="fld">担当者</label><input type="text" id="kStaff" placeholder="担当者名"></div>
         </div>
         <label class="fld">メモ</label>
-        <textarea id="kNote" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
+        <textarea id="kNote" class="kGrow" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
         <div class="btnRow">
           <button class="btn btn-amber" id="btnKarteSave">保存</button>
           <button class="btn btn-ghost" id="btnKarteCancel" style="flex:0 0 28%">取消</button>
