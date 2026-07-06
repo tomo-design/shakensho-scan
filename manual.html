@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>メカノAI 使い方マニュアル</title>
+<style>
+  :root{
+    --ink:#1b2430; --sub:#5b6673; --line:#d7dee6; --panel:#f4f7fb;
+    --amber:#E8890C; --cyan:#0E7490; --ok:#15803D; --alert:#DC2626;
+  }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  html,body{margin:0; padding:0;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; color:var(--ink); background:#e9edf2; line-height:1.6;}
+  .page{
+    width:210mm; min-height:297mm; margin:10px auto; background:#fff; padding:14mm 13mm;
+    box-shadow:0 2px 12px rgba(0,0,0,.15);
+  }
+  /* ---- ヘッダー ---- */
+  .head{display:flex; align-items:center; gap:14px; border-bottom:3px solid var(--amber); padding-bottom:10px; margin-bottom:14px;}
+  .logo{width:54px; height:54px; border-radius:14px; background:linear-gradient(135deg,var(--amber),#f4a83a); display:flex; align-items:center; justify-content:center; font-size:30px; flex:none;}
+  .head h1{margin:0; font-size:24px; letter-spacing:.02em;}
+  .head .tag{margin:2px 0 0; font-size:13px; color:var(--sub);}
+  .head .free{margin-left:auto; background:var(--ok); color:#fff; font-weight:800; font-size:13px; padding:6px 12px; border-radius:999px; white-space:nowrap;}
+
+  h2{font-size:16px; margin:16px 0 8px; padding:6px 12px; background:var(--ink); color:#fff; border-radius:8px; display:flex; align-items:center; gap:8px;}
+  h2 .n{background:#fff; color:var(--ink); width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .card{border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fff;}
+  .card h3{margin:0 0 4px; font-size:14px; color:var(--cyan); display:flex; align-items:center; gap:6px;}
+  .card p{margin:0; font-size:12.5px; color:var(--ink);}
+  .card p small{color:var(--sub);}
+
+  ol.steps{margin:6px 0 0; padding-left:0; list-style:none; counter-reset:s;}
+  ol.steps li{position:relative; padding:6px 0 6px 34px; font-size:13px; border-bottom:1px dashed var(--line);}
+  ol.steps li:last-child{border-bottom:none;}
+  ol.steps li::before{counter-increment:s; content:counter(s); position:absolute; left:0; top:6px; width:24px; height:24px; background:var(--cyan); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;}
+  .btnpill{display:inline-block; background:var(--amber); color:#fff; font-weight:700; font-size:12px; padding:2px 9px; border-radius:6px; margin:0 2px;}
+  .kbd{display:inline-block; background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:12px; font-weight:700;}
+
+  .note{background:var(--panel); border-left:4px solid var(--cyan); border-radius:0 8px 8px 0; padding:9px 12px; font-size:12.5px; margin:10px 0;}
+  .warn{background:#fff5f5; border-left:4px solid var(--alert);}
+  .ok{background:#f2fbf4; border-left:4px solid var(--ok);}
+
+  .flow{display:flex; align-items:stretch; gap:6px; margin:8px 0;}
+  .flow .b{flex:1; text-align:center; border:1.5px solid var(--cyan); border-radius:9px; padding:7px 4px; font-size:12px; font-weight:700; color:var(--cyan); background:#f2fafc;}
+  .flow .ar{display:flex; align-items:center; color:var(--sub); font-weight:800;}
+
+  .foot{margin-top:16px; border-top:2px solid var(--line); padding-top:8px; font-size:11.5px; color:var(--sub); display:flex; justify-content:space-between; gap:10px;}
+  .url{font-weight:800; color:var(--cyan);}
+
+  .tabrow{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;}
+  .tabrow .t{border:1px solid var(--line); border-radius:8px; padding:5px 10px; font-size:12.5px; font-weight:700; background:#fff;}
+  .tabrow .t b{color:var(--amber);}
+
+  @media print{
+    body{background:#fff;}
+    .page{margin:0; box-shadow:none; width:auto; min-height:auto; padding:12mm;}
+    .noprint{display:none;}
+  }
+  .barbtn{position:fixed; top:12px; right:12px; background:var(--amber); color:#fff; border:none; font-weight:800; font-size:14px; padding:10px 16px; border-radius:10px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.2);}
+</style>
+</head>
+<body>
+<button class="barbtn noprint" onclick="window.print()">🖨 印刷 / PDF保存</button>
+
+<!-- ============ 1ページ目 ============ -->
+<div class="page">
+  <div class="head">
+    <div class="logo">🤖</div>
+    <div>
+      <h1>メカノAI 使い方マニュアル</h1>
+      <p class="tag">車検証をスマホで撮るだけ。整備のことはメカ君が答えます。</p>
+    </div>
+    <div class="free">ずっと無料</div>
+  </div>
+
+  <div class="note ok"><b>準備はスマホ1台だけ。</b>アプリのインストール不要（ホーム画面に置くだけ）。むずかしい設定はありません。まずは下の3ステップから。</div>
+
+  <h2><span class="n">1</span>アプリをスマホに入れる（1分）</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>📱 iPhone（Safari）</h3>
+      <ol class="steps">
+        <li>Safariで下のアドレスを開く</li>
+        <li>下の <span class="kbd">共有 ⬆</span> を押す</li>
+        <li>「<b>ホーム画面に追加</b>」を選ぶ</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>🤖 Android（Chrome）</h3>
+      <ol class="steps">
+        <li>Chromeで下のアドレスを開く</li>
+        <li>右上の <span class="kbd">︙</span> を押す</li>
+        <li>「<b>アプリをインストール</b>」を選ぶ</li>
+      </ol>
+    </div>
+  </div>
+  <div class="note"><b>アドレス（URL）：</b><span class="url">https://tomo-design.github.io/shakensho-scan/</span><br>
+  ※ホーム画面にできた <b>メカノAI</b> のアイコンから、次回はすぐ開けます。</div>
+
+  <h2><span class="n">2</span>会社に参加する（データを仲間と共有）</h2>
+  <ol class="steps">
+    <li><span class="btnpill">設定</span>タブ → 「ログイン / 新規登録」でメールとパスワードを登録</li>
+    <li>会社を<b>新しく作る</b>か、既にある会社に<b>参加申請</b>する</li>
+    <li>管理者が承認すると、<b>整備データ・カルテ・諸元の訂正が全員の端末で共有</b>されます</li>
+  </ol>
+  <div class="note warn"><b>パスワードについて：</b>パスワードは誰にも見られません（暗号化保存）。忘れたら設定画面の「パスワード再設定メール」から作り直せます。管理者でも他人のパスワードは見られません。</div>
+
+  <h2><span class="n">3</span>車検証を読み取る</h2>
+  <div class="flow">
+    <div class="b"><span class="btnpill">スキャン</span>を開く</div>
+    <div class="ar">▶</div>
+    <div class="b">車検証の<br>QRコードを写す</div>
+    <div class="ar">▶</div>
+    <div class="b">車両情報が<br>自動で表示</div>
+    <div class="ar">▶</div>
+    <div class="b">「この車で<br>何をする？」</div>
+  </div>
+  <div class="note">QRが読めない時は、明るい所で・大きく・ピントを合わせて。うまくいかない時は写真からの文字読み取り（OCR）も自動で働きます。</div>
+
+  <div class="foot">
+    <span>メカノAI ／ 整備士のための無料アシスタント</span>
+    <span>1 / 2</span>
+  </div>
+</div>
+
+<!-- ============ 2ページ目 ============ -->
+<div class="page">
+  <div class="head">
+    <div class="logo">🔧</div>
+    <div>
+      <h1>できること・メカ君の設定</h1>
+      <p class="tag">読み取った車両に合わせて、メンテ・診断・修理・カルテを使えます。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>5つのメニューの使い方</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>🔧 メンテ</h3>
+      <p>オイル量・トルク値などの<b>整備諸元</b>を表示。項目を<b>タップで編集</b>、🔄で最新に更新。手直しした項目は<small>（緑の縁取り）</small>で消えずに残ります。</p>
+    </div>
+    <div class="card">
+      <h3>🩺 診断</h3>
+      <p>ダイアグコードや症状を入力すると、<b>原因と対処</b>を回答。写真・動画も添付可。<small>常に高精度モードで丁寧に診断します。</small></p>
+    </div>
+    <div class="card">
+      <h3>🛠 修理</h3>
+      <p>「パッド交換」など作業名を入れると、<b>取り付け位置・所要時間・部品注文リスト・手順・トルク</b>をまとめて表示。「Web画像で探す」で実物写真も。</p>
+    </div>
+    <div class="card">
+      <h3>📋 カルテ</h3>
+      <p>整備の記録を残せます。<b>手書きメモの写真をAIが自動で文字起こし</b>。会社の全員で共有されます。</p>
+    </div>
+  </div>
+  <div class="tabrow">
+    <span class="t">下のバー：<b>スキャン</b>（読取）</span>
+    <span class="t"><b>履歴</b>（過去の車両）</span>
+    <span class="t"><b>DB編集</b>（車種データ）</span>
+    <span class="t"><b>設定</b></span>
+  </div>
+
+  <h2><span class="n">5</span>「メカ君に相談」を使えるようにする（無料・任意）</h2>
+  <div class="note">メカ君（AI）に質問するには、無料のキーを1つ登録します。<b>カード登録は不要</b>。5分ほどで終わります。</div>
+  <ol class="steps">
+    <li><span class="btnpill">設定</span>タブ →「<b>メカ君に相談機能</b>」を開く</li>
+    <li>青い「<b>APIキーを取得する</b>」ボタンを押す（Googleにログイン）</li>
+    <li>「<b>APIキーを作成</b>」を押す → <b>AIza…</b> で始まる文字が出る</li>
+    <li>その文字をコピーして、設定の入力欄に<b>貼り付けて保存</b></li>
+    <li>「<span class="kbd">✓ 設定済み</span>」と出れば完了。メカ君に質問できます</li>
+  </ol>
+  <div class="note ok"><b>回答が遅い / 速い の切り替え：</b>設定の「回答の品質モード」で選べます。<b>標準＝速い</b>（普段用）／<b>高精度＝じっくり</b>（複雑な診断用）。※故障診断は自動で高精度になります。</div>
+
+  <h2><span class="n">6</span>こんな時は</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>❓ 画面が古いまま</h3>
+      <p>アプリを一度閉じて開き直すと最新版に更新されます。</p>
+    </div>
+    <div class="card">
+      <h3>❓ 通知が来ない</h3>
+      <p>設定で通知を「許可」に。参加申請などのお知らせが届きます。</p>
+    </div>
+    <div class="card">
+      <h3>❓ 圏外でも使う</h3>
+      <p>一度開いた車種データは<b>オフラインでも</b>読み取り・表示できます。</p>
+    </div>
+    <div class="card">
+      <h3>❓ 訂正が消えた？</h3>
+      <p>手動で直した項目（緑の縁取り）は「最新に更新」しても<b>残ります</b>。</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>お問い合わせ・不具合の連絡：管理者まで</span>
+    <span class="url">https://tomo-design.github.io/shakensho-scan/</span>
+    <span>2 / 2</span>
+  </div>
+</div>
+</body>
+</html>
