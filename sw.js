@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v125";
+const CACHE = "shaken-scan-v126";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -62,6 +62,17 @@ self.addEventListener("fetch", e => {
         }).catch(() => null);
         return cached || fetched || Response.error();
       })
+    );
+    return;
+  }
+
+  // チラシ・マニュアル等の配布ページ: ネット優先(常に最新を表示。オフライン時のみキャッシュ)
+  if (/\/(flyer|manual)\.html$/.test(url.pathname)) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
+        return res;
+      }).catch(() => caches.match(e.request).then(c => c || Response.error()))
     );
     return;
   }
