@@ -430,8 +430,8 @@
       // 役割変更ボタンで無効化の隣を埋める(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
-      btns = roleBtn + btn("off", "u", id, "無効化");
-    } else btns = btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
+      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("off", "u", id, "無効化");
+    } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
   async function fillTenantStats(tid) {
@@ -448,7 +448,13 @@
   async function manageAction(kind, id, act) {
     try {
       const col = kind === "t" ? "tenants" : "users";
-      if (act === "del") {
+      if (act === "rename") {
+        const doc = await db.collection("users").doc(id).get(); const u = doc.data() || {};
+        const nn = (prompt("新しい氏名を入力してください", u.name || "") || "").trim();
+        if (!nn || nn === u.name) return;
+        await db.collection("users").doc(id).update({ name: nn });
+        if ((u.role === "admin" || u.role === "super") && u.tenantId) await db.collection("tenants").doc(u.tenantId).set({ adminName: nn }, { merge: true });
+      } else if (act === "del") {
         if (!confirm("この申請を却下し、記録（氏名・メール）を完全に削除しますか？（取り消せません）")) return;
         await db.collection(col).doc(id).delete();
       } else if (act === "promote") {

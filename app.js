@@ -1509,7 +1509,7 @@ function renderKarte() {
     head.innerHTML = '<span class="kDate">' + metaBits.join(' <i class="kSep">・</i> ') + '</span>';
     const btns = document.createElement("div"); btns.className = "kBtns";
     const edit = document.createElement("button"); edit.className = "kEdit"; edit.textContent = "編集";
-    edit.addEventListener("click", () => openKarteForm(k));
+    edit.addEventListener("click", () => editKarteInline(card, k));
     const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
     del.addEventListener("click", () => {
       if (!confirm("この記録を削除しますか？")) return;
@@ -1530,6 +1530,32 @@ function renderKarte() {
       block("メモ", k.note);
     card.append(head, body); box.appendChild(card);
   });
+}
+/* カード内でその場編集(別フォームに飛ばず直接編集) */
+function editKarteInline(card, k) {
+  card.innerHTML = "";
+  const wrap = document.createElement("div"); wrap.className = "kEditBox";
+  const row = (label, el) => { const r = document.createElement("div"); r.className = "kEditRow"; const l = document.createElement("label"); l.className = "fld"; l.textContent = label; r.append(l, el); return r; };
+  const inp = (type, val) => { const i = document.createElement("input"); i.type = type; if (val != null) i.value = val; return i; };
+  const ta = (val, ph) => { const t = document.createElement("textarea"); t.className = "kGrow"; t.style.minHeight = "48px"; if (val) t.value = val; if (ph) t.placeholder = ph; return t; };
+  const dDate = inp("date", k.date || ""); const dOdo = inp("number", k.odo != null ? k.odo : ""); dOdo.inputMode = "numeric";
+  const dWork = ta(k.work, "作業内容（カンマ・改行で区切ると箇条書きに）"); const dParts = ta(k.parts, "交換部品・使用材料");
+  const dCost = inp("number", k.cost != null ? k.cost : ""); dCost.inputMode = "numeric"; const dStaff = inp("text", k.staff || "");
+  const dNote = ta(k.note, "メモ");
+  wrap.append(row("日付", dDate), row("走行距離(km)", dOdo), row("作業内容", dWork), row("交換部品・使用材料", dParts), row("費用(円)", dCost), row("担当者", dStaff), row("メモ", dNote));
+  const btns = document.createElement("div"); btns.className = "btnRow"; btns.style.marginTop = "10px";
+  const save = document.createElement("button"); save.className = "btn btn-amber"; save.textContent = "保存";
+  const cancel = document.createElement("button"); cancel.className = "btn btn-ghost"; cancel.style.flex = "0 0 28%"; cancel.textContent = "取消";
+  save.addEventListener("click", () => {
+    const work = dWork.value.trim(), parts = dParts.value.trim(), note = dNote.value.trim();
+    if (!work && !parts && !note) { alert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+    saveKarteEntry({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, at: new Date().toISOString() });
+    renderKarte();
+  });
+  cancel.addEventListener("click", renderKarte);
+  btns.append(save, cancel); wrap.appendChild(btns);
+  card.appendChild(wrap);
+  autoGrowAll();
 }
 function openKarteForm(edit) {
   if (!vehicleKey(current)) { alert("車両を識別できないため記録できません(車台番号や指定・類別が必要です)。"); return; }
@@ -1589,6 +1615,7 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
+      "【最重要・厳守】メモに書かれていない情報を勝手に補完・推測・追加しないこと。特にメーカー名・銘柄・商品名・品番・数量・単位は、メモに明記されていない限り一切足さない(例: 『オイル 3.7L』とだけあれば、そのまま『オイル 3.7L』とし、メーカー名や『エンジンオイル』等の語を付け足さない)。あくまで書かれた文字をそのまま転記する。",
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
       "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
     ].join("\n");
