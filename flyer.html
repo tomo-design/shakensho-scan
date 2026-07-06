@@ -4,140 +4,143 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>メカノAI ご案内（営業チラシ）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --ink:#16202b; --sub:#5b6673; --line:#d7dee6; --panel:#f4f7fb;
-    --amber:#E8890C; --amber2:#f6a52b; --cyan:#0E7490; --deep:#0b3a4a; --ok:#15803D;
-  }
-  *{box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
-  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; color:var(--ink); background:#e9edf2; padding:14px; line-height:1.6;}
-  .page{width:210mm; min-height:297mm; margin:0 auto; background:#fff; position:relative; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,.22);}
-  .pad{padding:4.5mm 12mm;}
-
-  /* ===== ヒーロー ===== */
-  .hero{background:linear-gradient(135deg,#0E7490 0%,#0b3a4a 100%); color:#fff; padding:6.5mm 12mm 5.5mm; position:relative; overflow:hidden;}
-  .hero::after{content:""; position:absolute; right:-40px; bottom:-40px; width:220px; height:220px; background:radial-gradient(circle,rgba(255,255,255,.08),transparent 70%);}
-  .brand{display:flex; align-items:center; gap:14px;}
-  .brand img{width:66px; height:66px; border-radius:16px; background:#fff; padding:3px; flex:none;}
-  .brand .nm{font-size:30px; font-weight:900; letter-spacing:.02em; line-height:1;}
-  .brand .sub{font-size:11px; letter-spacing:.28em; opacity:.85; margin-top:5px;}
-  .free{position:absolute; top:8mm; right:12mm; background:var(--amber); color:#fff; font-weight:900; font-size:15px; text-align:center; padding:9px 16px; border-radius:999px; transform:rotate(7deg); box-shadow:0 3px 10px rgba(0,0,0,.28); line-height:1.2;}
-  .catch{font-size:27px; font-weight:900; margin-top:11px; line-height:1.5; position:relative; z-index:1; letter-spacing:.01em;}
-  .catch .hl{color:var(--amber2); text-shadow:0 1px 4px rgba(0,0,0,.25);}
-  .catch .big{color:var(--amber2); font-size:1.14em; text-shadow:0 1px 4px rgba(0,0,0,.25);}
-  .lead{font-size:12px; opacity:.95; margin-top:9px; line-height:1.65; max-width:132mm; position:relative; z-index:1;}
-  .heroMecha{position:absolute; right:8mm; bottom:0; width:120px; z-index:1;}
-
-  /* ===== 0円バンド ===== */
-  .vband{display:flex; background:var(--amber); color:#fff; border-radius:12px; overflow:hidden; margin-top:-3mm; position:relative; z-index:3; box-shadow:0 4px 14px rgba(232,137,12,.35);}
-  .vband .v{flex:1; text-align:center; padding:8px 6px; border-right:1px dashed rgba(255,255,255,.5);}
-  .vband .v:last-child{border-right:none;}
-  .vband .v .z{font-size:22px; font-weight:900; line-height:1;}
-  .vband .v .z small{font-size:11px;}
-  .vband .v .l{font-size:11px; font-weight:700; opacity:.95; margin-top:2px;}
-
-  /* ===== 悩み ===== */
-  .pain{background:#fff7ed; border:1.5px solid #fcd9a8; border-radius:12px; padding:8px 13px; font-size:12px; margin-top:3.5mm;}
-  .pain b{color:#b45309;}
-
-  h2.st{font-size:15.5px; font-weight:900; color:var(--deep); border-left:6px solid var(--amber); padding-left:11px; margin:3mm 0 2mm;}
-
-  /* ===== 特長カード ===== */
-  .feat{display:grid; grid-template-columns:1fr 1fr; gap:7px;}
-  .card{border:1.5px solid var(--line); border-radius:12px; padding:8px 11px; background:#fff;}
-  .card .ic{width:28px; height:28px; border-radius:8px; background:var(--cyan); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-bottom:3px;}
-  .card h3{font-size:13.5px; font-weight:900; margin-bottom:2px;}
-  .card p{font-size:11.5px; color:var(--sub); line-height:1.5;}
-  .card.hl{background:#f2fbf4; border-color:#bfe6cb;}
-  .card.hl .ic{background:var(--ok);}
-
-  /* ===== 使い方3ステップ ===== */
-  .steps3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; margin-top:1mm;}
-  .step{border:1.5px solid var(--line); border-radius:12px; padding:8px 11px; text-align:center; background:var(--panel); position:relative;}
-  .step .no{width:26px; height:26px; border-radius:50%; background:var(--amber); color:#fff; font-weight:900; font-size:14px; display:flex; align-items:center; justify-content:center; margin:0 auto 4px;}
-  .step h4{font-size:12.5px; font-weight:900; margin-bottom:2px;}
-  .step p{font-size:10.5px; color:var(--sub); line-height:1.45;}
-
-  /* ===== CTA / QR ===== */
-  .cta{display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#0E7490,#0b3a4a); color:#fff; border-radius:16px; padding:12px 18px; margin-top:4mm;}
-  .cta .qr{width:116px; height:116px; flex:none; background:#fff; border-radius:10px; padding:6px;}
-  .cta .qr img{width:100%; height:100%;}
-  .cta .ctxt h3{font-size:19px; font-weight:900; margin-bottom:4px;}
-  .cta .ctxt p{font-size:12.5px; opacity:.95; line-height:1.65;}
-  .cta .url{display:inline-block; margin-top:6px; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); padding:5px 12px; border-radius:999px; font-weight:800; font-size:12.5px;}
-
-  .foot{margin-top:2.5mm; border-top:2px solid var(--line); padding-top:6px; font-size:11px; color:var(--sub); display:flex; justify-content:space-between; gap:10px;}
-  .foot b{color:var(--cyan);}
-
-  @media print{ body{background:#fff; padding:0;} .page{box-shadow:none; margin:0;} .noprint{display:none;} }
-  .barbtn{position:fixed; top:12px; right:12px; background:var(--amber); color:#fff; border:none; font-weight:800; font-size:14px; padding:10px 16px; border-radius:10px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.2); z-index:9;}
+  :root{--blue:#2563EB;--blue2:#1d4ed8;--ink:#1B2530;--dim:#5E6B7C;--line:#D5DDE8;--bg:#F2F5F9;--green:#16a34a;--amber:#f59e0b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans JP',sans-serif;color:var(--ink);background:#8a8f98;padding:16px}
+  .page{width:210mm;min-height:297mm;margin:0 auto 16px;background:#fff;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  .pad{padding:3mm 12mm 3mm}
+  /* hero */
+  .hero{background:linear-gradient(135deg,#2563EB 0%,#1d4ed8 55%,#1e3a8a 100%);color:#fff;padding:5.5mm 12mm 4.5mm;position:relative}
+  .hero .free{position:absolute;top:8mm;right:13mm;background:#facc15;color:#3a2a00;font-weight:900;font-size:12pt;text-align:center;padding:7px 14px;border-radius:999px;transform:rotate(6deg);box-shadow:0 3px 8px rgba(0,0,0,.25);line-height:1.25}
+  .brandrow{display:flex;align-items:center;gap:14px}
+  .brandrow img{width:60px;height:60px;border-radius:15px;background:#fff;padding:3px}
+  .brandrow .nm{font-size:28pt;font-weight:900;letter-spacing:.02em;line-height:1}
+  .brandrow .sub{font-size:9pt;letter-spacing:.25em;opacity:.85;margin-top:4px}
+  .catch{font-size:15pt;font-weight:900;margin-top:8px;line-height:1.4}
+  .catch .hl{color:#facc15}
+  .lead{font-size:9.5pt;opacity:.96;margin-top:7px;line-height:1.65}
+  .heroTags{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .heroTags span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);font-size:8pt;font-weight:700;padding:3px 9px;border-radius:999px}
+  /* section title */
+  .st{font-size:13pt;font-weight:900;color:var(--blue);border-left:6px solid var(--blue);padding-left:10px;margin:2.2mm 0 1.6mm}
+  .st.first{margin-top:1mm}
+  /* pain */
+  .pain{background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:3mm 5mm;font-size:9.5pt;line-height:1.65}
+  .pain b{color:#b45309}
+  /* features */
+  .feat{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm}
+  .card{border:1.5px solid var(--line);border-radius:12px;padding:2.5mm 3.5mm;background:var(--bg)}
+  .card .ic{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13pt;margin-bottom:3px}
+  .card h3{font-size:10.5pt;font-weight:900;margin-bottom:2px}
+  .card p{font-size:8.5pt;color:var(--dim);line-height:1.5}
+  .card.wide{grid-column:1/3}
+  .card.hl{background:#eef4ff;border-color:#c7d9fb}
+  .card.hl .ic{background:var(--green)}
+  .newtag{display:inline-block;background:var(--amber);color:#fff;font-size:7.5pt;font-weight:900;padding:1px 6px;border-radius:6px;margin-left:6px;vertical-align:middle}
+  /* flow */
+  .flow{display:flex;align-items:center;gap:6px}
+  .step{flex:1;text-align:center;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:3.5mm 2mm}
+  .step .n{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-weight:900;align-items:center;justify-content:center;margin-bottom:5px;font-size:11pt}
+  .step h4{font-size:10.5pt;font-weight:900}
+  .step p{font-size:8.5pt;color:var(--dim);margin-top:3px;line-height:1.5}
+  .arrow{color:var(--blue);font-size:16pt;font-weight:900;flex:0 0 auto}
+  /* merit */
+  .merit{display:grid;grid-template-columns:repeat(4,1fr);gap:3.5mm}
+  .mb{background:#eef4ff;border:1.5px solid #c7d9fb;border-radius:12px;padding:3mm 3mm;text-align:center}
+  .mb .big{font-size:16pt;font-weight:900;color:var(--blue);line-height:1.2}
+  .mb .t{font-size:8.5pt;font-weight:700;margin-top:3px;line-height:1.4}
+  /* who */
+  .who{display:flex;gap:6px;flex-wrap:wrap}
+  .who span{background:#fff;border:1.5px solid var(--line);border-radius:999px;font-size:9pt;font-weight:700;padding:5px 12px}
+  /* cta */
+  .cta{margin-top:3mm;display:flex;gap:6mm;align-items:center;background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;border-radius:16px;padding:3.5mm 6mm}
+  .cta .qr{background:#fff;border-radius:12px;padding:6px;flex:0 0 auto;text-align:center}
+  .cta .qr img{width:116px;height:116px;display:block}
+  .cta .qr small{display:block;color:#1e3a8a;font-weight:900;font-size:8pt;margin-top:3px}
+  .cta .txt h2{font-size:16pt;font-weight:900;line-height:1.45}
+  .cta .txt .url{font-size:10pt;margin-top:6px;word-break:break-all;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:8px;display:inline-block}
+  .cta .txt p{font-size:9pt;opacity:.92;margin-top:6px;line-height:1.6}
+  .badge{display:inline-block;background:var(--green);color:#fff;font-size:8.5pt;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:6px}
+  .price{margin-top:6mm;display:flex;gap:5mm;align-items:stretch}
+  .price .pc{flex:1;border:1.5px solid var(--line);border-radius:13px;padding:5mm;background:var(--bg)}
+  .price .pc h4{font-size:11pt;font-weight:900;color:var(--blue)}
+  .price .pc .amt{font-size:15pt;font-weight:900;margin:3px 0}
+  .price .pc p{font-size:9pt;color:var(--dim);line-height:1.6}
+  .foot{margin-top:3mm;display:flex;justify-content:space-between;align-items:center;font-size:8.7pt;color:var(--dim);border-top:1px solid var(--line);padding-top:2.2mm;gap:10px;flex-wrap:wrap}
+  .foot b{color:var(--ink)}
+  @page{ size:A4; margin:6mm }
+  @media print{ body{background:#fff;padding:0} .page{box-shadow:none;width:auto;min-height:auto;margin:0} .noprint{display:none} }
+  .noprint{position:fixed;top:8px;left:8px;background:var(--blue);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer;z-index:9;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 </style>
 </head>
 <body>
-<button class="barbtn noprint" onclick="window.print()">🖨 印刷 / PDF保存</button>
-
+<button class="noprint" onclick="print()">🖨 印刷 / PDFで保存</button>
 <div class="page">
-  <!-- ヒーロー -->
   <div class="hero">
-    <div class="free">ずっと<br>無料</div>
-    <div class="brand">
-      <img src="img/mecha-icon.png" alt="メカノAI">
+    <div class="free">本体<br>0円</div>
+    <div class="brandrow">
+      <img src="icons/icon-512.png" alt="メカノAI">
       <div>
         <div class="nm">メカノAI</div>
-        <div class="sub">MECHANO&nbsp;-&nbsp;AI</div>
+        <div class="sub">MECHANO-AI</div>
       </div>
     </div>
-    <div class="catch">車検証を<span class="hl">撮るだけ</span>。<br>整備の答えが<span class="big">その場で。</span></div>
-    <div class="lead">車検証のQRを読むだけで車両を自動認識。整備諸元・故障診断・修理手順・整備カルテを現場でその場に。仲間とデータ共有もできる、整備士のためのアシスタントです。</div>
-    <img class="heroMecha" src="img/mecha.png" alt="メカ君">
+    <div class="catch">車検証を<span class="hl">かざすだけ</span>。<br>整備の「調べる・記録する・共有する」を<span class="hl">まるごとAI化</span>。</div>
+    <div class="lead">自動車整備工場向けの現場スマホツール。車検証QRで車両を即特定し、AIが故障診断・メンテ諸元・修理手順・整備カルテまでサポート。調べた情報も作業記録も会社の全スマホへ自動共有。</div>
   </div>
 
   <div class="pad">
-    <!-- 0円バンド -->
-    <div class="vband">
-      <div class="v"><div class="z">¥0<small>／初期</small></div><div class="l">初期費用なし</div></div>
-      <div class="v"><div class="z">¥0<small>／月</small></div><div class="l">月額ずっと無料</div></div>
-      <div class="v"><div class="z">1<small>分</small></div><div class="l">すぐ使える</div></div>
-      <div class="v"><div class="z">📵</div><div class="l">オフラインOK</div></div>
+    <div class="pain first">
+      <b>“毎回ネットで諸元を検索”“見たことない故障で手が止まる”“整備記録が紙でバラバラ”“ベテランの知識が個人任せ”</b>——メカノAIはこれらを1つのアプリで解決します。
     </div>
 
-    <!-- 悩み -->
-    <div class="pain">
-      <b>その手間、まだ続けますか？</b>「オイル量・トルクを毎回調べる」「ダイアグの原因が読めない」「整備記録が紙でバラバラ」——<b>メカノAIが全部まとめて解決。</b>
-    </div>
-
-    <!-- 特長 -->
-    <h2 class="st">メカノAI でできること</h2>
+    <div class="st">できること</div>
     <div class="feat">
-      <div class="card"><div class="ic">🔧</div><h3>メンテ諸元がすぐ出る</h3><p>オイル量・締付トルクなどを車両に合わせて表示。手直しした値は消えず、会社全員で共有。</p></div>
-      <div class="card"><div class="ic">🩺</div><h3>故障診断をサポート</h3><p>ダイアグコード・症状・写真/動画から、原因と対処を高精度で回答。</p></div>
-      <div class="card"><div class="ic">🛠</div><h3>修理手順を丸ごと</h3><p>作業名を入れるだけで、取り付け位置・所要時間・部品注文リスト・手順・トルクを一気に表示。</p></div>
-      <div class="card"><div class="ic">📋</div><h3>整備カルテを共有</h3><p>手書きメモの写真をAIが自動で文字起こし。記録が会社全員に共有されます。</p></div>
-      <div class="card hl"><div class="ic">💴</div><h3>ずっと無料</h3><p>基本機能はすべて無料。AI相談も無料キーで使え、カード登録は不要です。</p></div>
-      <div class="card hl"><div class="ic">📶</div><h3>オフラインでも</h3><p>一度開いた車種データは圏外でも読み取り・表示OK。ピット内でも安心。</p></div>
+      <div class="card">
+        <div class="ic">🚗</div>
+        <h3>車検証QRで車両を即特定</h3>
+        <p>型式・車台番号・原動機型式・指定類別を自動読取。ナンバー／使用者名／車種名でも検索。手入力ゼロ。</p>
+      </div>
+      <div class="card">
+        <div class="ic">🩺</div>
+        <h3>AI故障診断（メカ君）</h3>
+        <p>ダイアグコードや症状を、文字・音声・写真・動画・会話で相談。原因候補と切り分け手順をその場で提示。</p>
+      </div>
+      <div class="card wide">
+        <div class="ic">🔧</div>
+        <h3>メンテ諸元・修理手順<span class="newtag">NEW</span></h3>
+        <p>オイル量・締付トルク・交換手順・EPB整備モード等。項目はタップで編集・保持。修理は作業名を入れるだけで<b>取り付け位置・所要時間・部品注文リスト・手順・トルクをまとめて表示</b>。実物写真もワンタップ検索。</p>
+      </div>
+      <div class="card hl wide">
+        <div class="ic">📋</div>
+        <h3>整備カルテ＋社内クラウド共有＋多店舗管理<span class="newtag">NEW</span></h3>
+        <p>車両ごとに作業記録（日付・走行・作業・部品・費用・担当・メモ）を保存。<b>手書きメモの写真をAIが読み取り自動入力</b>。調べたデータもカルテも会社全員のスマホへ<b>リアルタイム自動同期</b>。管理者はメンバー承認・多店舗管理でき、参加申請は<b>プッシュ通知</b>で届きます。</p>
+      </div>
     </div>
 
-    <!-- 使い方 -->
-    <h2 class="st">はじめ方はカンタン 3ステップ</h2>
-    <div class="steps3">
-      <div class="step"><div class="no">1</div><h4>QRを読む</h4><p>下のQRをスマホのカメラで読み取るだけ。インストール不要。</p></div>
-      <div class="step"><div class="no">2</div><h4>車検証を撮る</h4><p>車検証のQRを写すと車両情報を自動表示。</p></div>
-      <div class="step"><div class="no">3</div><h4>メカ君に聞く</h4><p>メンテ・診断・修理・カルテをその場で活用。</p></div>
+    <div class="st">導入メリット ＆ 使い方</div>
+    <div class="merit">
+      <div class="mb"><div class="big">時短</div><div class="t">調べる手間を大幅カット</div></div>
+      <div class="mb"><div class="big">標準化</div><div class="t">知識を全員で共有</div></div>
+      <div class="mb"><div class="big">記録資産化</div><div class="t">整備履歴が探せる財産に</div></div>
+      <div class="mb"><div class="big">¥0導入</div><div class="t">本体は無料で開始</div></div>
     </div>
+    <div style="margin-top:2mm;font-size:9pt;color:var(--dim);line-height:1.55"><b style="color:var(--ink)">使い方は3ステップ：</b>①車検証QRをかざす → ②メンテ／診断／修理／カルテを選ぶ → ③AIが解決、記録は社内で自動共有。</div>
 
-    <!-- CTA -->
     <div class="cta">
-      <div class="qr"><img src="img/appqr.png" alt="アプリQRコード"></div>
-      <div class="ctxt">
-        <h3>▶ 今すぐ無料でお試し</h3>
-        <p>スマホのカメラで<b>QRを読むだけ</b>。会員登録なしでも、その場で車検証スキャンをお試しいただけます。</p>
-        <span class="url">https://tomo-design.github.io/shakensho-scan/</span>
+      <div class="qr"><img id="qr" alt="QR" src="img/appqr.png"><small>スマホで読み取り</small></div>
+      <div class="txt">
+        <h2>このQRから今すぐ体験<span class="badge">登録不要・無料</span></h2>
+        <div class="url">https://tomo-design.github.io/shakensho-scan/</div>
+        <p>カメラでQRを読むだけ。ホーム画面に追加すればアプリのように使えます（インストール不要のPWA・iPhone/Android対応・オフラインでも動作）。</p>
       </div>
     </div>
 
     <div class="foot">
-      <span>メカノAI ／ 整備士のための無料アシスタント</span>
-      <span>お問い合わせ：<b>0111repair.garage@gmail.com</b></span>
+      <div><b>まず無料で</b> アプリ本体・車両特定・AI相談・メンテ諸元は¥0。<b>社内共有・多店舗導入・カスタマイズは要相談。</b></div>
+      <div>お問い合わせ・導入相談：<b>0111repair.garage@gmail.com</b></div>
     </div>
   </div>
 </div>
