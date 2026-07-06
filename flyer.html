@@ -22,42 +22,51 @@
   .brand .nm{font-size:30px; font-weight:900; letter-spacing:.02em; line-height:1;}
   .brand .sub{font-size:11px; letter-spacing:.28em; opacity:.85; margin-top:5px;}
   .free{position:absolute; top:8mm; right:12mm; background:var(--amber); color:#fff; font-weight:900; font-size:15px; text-align:center; padding:9px 16px; border-radius:999px; transform:rotate(7deg); box-shadow:0 3px 10px rgba(0,0,0,.28); line-height:1.2;}
-  .catch{font-size:21px; font-weight:900; margin-top:11px; line-height:1.4; position:relative; z-index:1;}
-  .catch .hl{color:var(--amber2);}
-  .lead{font-size:12px; opacity:.95; margin-top:7px; line-height:1.6; max-width:118mm; position:relative; z-index:1;}
+  .catch{font-size:27px; font-weight:900; margin-top:11px; line-height:1.32; position:relative; z-index:1; letter-spacing:.01em;}
+  .catch .hl{color:#0b3a4a; background:linear-gradient(transparent 55%,var(--amber2) 55%); padding:0 3px; border-radius:2px;}
+  .catch .big{color:var(--amber2); font-size:1.15em;}
+  .lead{font-size:12px; opacity:.95; margin-top:7px; line-height:1.6; max-width:116mm; position:relative; z-index:1;}
   .heroMecha{position:absolute; right:8mm; bottom:0; width:120px; z-index:1;}
 
+  /* ===== 0円バンド ===== */
+  .vband{display:flex; background:var(--amber); color:#fff; border-radius:12px; overflow:hidden; margin-top:-3mm; position:relative; z-index:3; box-shadow:0 4px 14px rgba(232,137,12,.35);}
+  .vband .v{flex:1; text-align:center; padding:8px 6px; border-right:1px dashed rgba(255,255,255,.5);}
+  .vband .v:last-child{border-right:none;}
+  .vband .v .z{font-size:22px; font-weight:900; line-height:1;}
+  .vband .v .z small{font-size:11px;}
+  .vband .v .l{font-size:11px; font-weight:700; opacity:.95; margin-top:2px;}
+
   /* ===== 悩み ===== */
-  .pain{background:#fff7ed; border:1.5px solid #fcd9a8; border-radius:12px; padding:9px 13px; font-size:12.5px; margin-top:4mm;}
+  .pain{background:#fff7ed; border:1.5px solid #fcd9a8; border-radius:12px; padding:8px 13px; font-size:12px; margin-top:3.5mm;}
   .pain b{color:#b45309;}
 
   h2.st{font-size:15.5px; font-weight:900; color:var(--deep); border-left:6px solid var(--amber); padding-left:11px; margin:3mm 0 2mm;}
 
   /* ===== 特長カード ===== */
-  .feat{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
-  .card{border:1.5px solid var(--line); border-radius:12px; padding:9px 12px; background:#fff;}
-  .card .ic{width:30px; height:30px; border-radius:9px; background:var(--cyan); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; margin-bottom:4px;}
-  .card h3{font-size:14px; font-weight:900; margin-bottom:3px;}
-  .card p{font-size:12px; color:var(--sub); line-height:1.55;}
+  .feat{display:grid; grid-template-columns:1fr 1fr; gap:7px;}
+  .card{border:1.5px solid var(--line); border-radius:12px; padding:8px 11px; background:#fff;}
+  .card .ic{width:28px; height:28px; border-radius:8px; background:var(--cyan); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; margin-bottom:3px;}
+  .card h3{font-size:13.5px; font-weight:900; margin-bottom:2px;}
+  .card p{font-size:11.5px; color:var(--sub); line-height:1.5;}
   .card.hl{background:#f2fbf4; border-color:#bfe6cb;}
   .card.hl .ic{background:var(--ok);}
 
   /* ===== 使い方3ステップ ===== */
   .steps3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; margin-top:1mm;}
-  .step{border:1.5px solid var(--line); border-radius:12px; padding:11px 12px; text-align:center; background:var(--panel); position:relative;}
-  .step .no{width:28px; height:28px; border-radius:50%; background:var(--amber); color:#fff; font-weight:900; font-size:15px; display:flex; align-items:center; justify-content:center; margin:0 auto 6px;}
-  .step h4{font-size:13px; font-weight:900; margin-bottom:2px;}
+  .step{border:1.5px solid var(--line); border-radius:12px; padding:8px 11px; text-align:center; background:var(--panel); position:relative;}
+  .step .no{width:26px; height:26px; border-radius:50%; background:var(--amber); color:#fff; font-weight:900; font-size:14px; display:flex; align-items:center; justify-content:center; margin:0 auto 4px;}
+  .step h4{font-size:12.5px; font-weight:900; margin-bottom:2px;}
   .step p{font-size:10.5px; color:var(--sub); line-height:1.45;}
 
   /* ===== CTA / QR ===== */
   .cta{display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#0E7490,#0b3a4a); color:#fff; border-radius:16px; padding:12px 18px; margin-top:4mm;}
-  .cta .qr{width:128px; height:128px; flex:none; background:#fff; border-radius:10px; padding:7px;}
+  .cta .qr{width:116px; height:116px; flex:none; background:#fff; border-radius:10px; padding:6px;}
   .cta .qr img{width:100%; height:100%;}
   .cta .ctxt h3{font-size:19px; font-weight:900; margin-bottom:4px;}
   .cta .ctxt p{font-size:12.5px; opacity:.95; line-height:1.65;}
   .cta .url{display:inline-block; margin-top:6px; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); padding:5px 12px; border-radius:999px; font-weight:800; font-size:12.5px;}
 
-  .foot{margin-top:3.5mm; border-top:2px solid var(--line); padding-top:7px; font-size:11px; color:var(--sub); display:flex; justify-content:space-between; gap:10px;}
+  .foot{margin-top:2.5mm; border-top:2px solid var(--line); padding-top:6px; font-size:11px; color:var(--sub); display:flex; justify-content:space-between; gap:10px;}
   .foot b{color:var(--cyan);}
 
   @media print{ body{background:#fff; padding:0;} .page{box-shadow:none; margin:0;} .noprint{display:none;} }
@@ -78,15 +87,23 @@
         <div class="sub">MECHANO&nbsp;-&nbsp;AI</div>
       </div>
     </div>
-    <div class="catch">車検証を<span class="hl">撮るだけ</span>。<br>整備のことは、<span class="hl">メカ君</span>が答える。</div>
-    <div class="lead">スマホで車検証のQRを読むだけで車両を自動認識。整備諸元・故障診断・修理手順・整備カルテまで、現場の「知りたい」をその場で。会社の仲間とデータ共有もできる、整備士のためのアシスタントです。</div>
+    <div class="catch">車検証を<span class="hl">撮るだけ</span>。<br>整備の答えが<span class="big">その場で。</span></div>
+    <div class="lead">車検証のQRを読むだけで車両を自動認識。整備諸元・故障診断・修理手順・整備カルテを、現場でその場で。会社の仲間とデータ共有もできる、整備士のためのアシスタント。</div>
     <img class="heroMecha" src="img/mecha.png" alt="メカ君">
   </div>
 
   <div class="pad">
+    <!-- 0円バンド -->
+    <div class="vband">
+      <div class="v"><div class="z">¥0<small>／初期</small></div><div class="l">初期費用なし</div></div>
+      <div class="v"><div class="z">¥0<small>／月</small></div><div class="l">月額ずっと無料</div></div>
+      <div class="v"><div class="z">1<small>分</small></div><div class="l">すぐ使える</div></div>
+      <div class="v"><div class="z">📵</div><div class="l">オフラインOK</div></div>
+    </div>
+
     <!-- 悩み -->
     <div class="pain">
-      <b>こんな困りごと、ありませんか？</b> 「この車のオイル量・トルク値、いちいち調べるのが手間」／「ダイアグの原因が特定しづらい」／「整備記録が紙でバラバラ」——<b>メカノAIが全部まとめて解決します。</b>
+      <b>その手間、まだ続けますか？</b>「オイル量・トルクを毎回調べる」「ダイアグの原因が読めない」「整備記録が紙でバラバラ」——<b>メカノAIが全部まとめて解決。</b>
     </div>
 
     <!-- 特長 -->
@@ -112,15 +129,15 @@
     <div class="cta">
       <div class="qr"><img src="img/appqr.png" alt="アプリQRコード"></div>
       <div class="ctxt">
-        <h3>今すぐ無料で使ってみる</h3>
-        <p>スマホのカメラでQRを読み取るだけ。会員登録なしでも、その場で車検証スキャンをお試しいただけます。</p>
+        <h3>▶ 今すぐ無料でお試し</h3>
+        <p>スマホのカメラで<b>QRを読むだけ</b>。会員登録なしでも、その場で車検証スキャンを体験できます。</p>
         <span class="url">https://tomo-design.github.io/shakensho-scan/</span>
       </div>
     </div>
 
     <div class="foot">
       <span>メカノAI ／ 整備士のための無料アシスタント</span>
-      <span>お問い合わせ：<b>banana19870729@gmail.com</b></span>
+      <span>お問い合わせ：<b>0111repair.garage@gmail.com</b></span>
     </div>
   </div>
 </div>
