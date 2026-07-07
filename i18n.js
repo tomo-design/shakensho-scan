@@ -130,7 +130,7 @@
     "このアプリを紹介（QRコード）": "Share this app (QR code)",
     "メカ君に相談機能（無料・任意）": "Ask-Mecha feature (free / optional)",
     "回答の品質モード": "Answer quality mode", "標準（速い）": "Standard (fast)", "高精度（精度重視）": "High accuracy",
-    "OCRについて": "About OCR", "データ管理": "Data management",
+    "文字読み取り機能について（OCR）": "Text recognition (OCR)", "データ管理": "Data management",
     "APIキーを取得する ↗": "Get an API key ↗", "APIキーをここに貼る": "Paste your API key here",
     "運営管理（会社・メンバー）": "Operations (companies / members)",
     "メールとパスワードを入力してください。": "Enter your email and password.",
