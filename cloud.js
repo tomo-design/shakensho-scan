@@ -141,6 +141,7 @@
 
   function renderAuthUI() {
     const inLogged = !!me;
+    if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
     show("cloudLoggedOut", !inLogged);
     show("cloudLoggedIn", inLogged);
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
@@ -329,6 +330,10 @@
   window.Cloud = {
     get active() { return !!(profile && profile.active && profile.tenantId); },
     myName() { return (profile && profile.name) || (me && me.email) || ""; },
+    myRole() { return (profile && profile.role) || ""; },
+    isLoggedIn() { return !!me; },
+    // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
+    isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
     pushVehicle(rec) {
       if (!this.active || !rec || !rec.id) return;
       db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(rec.id)).set(rec, { merge: true }).catch(() => {});

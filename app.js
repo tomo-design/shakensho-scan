@@ -2010,16 +2010,31 @@ function renderHistory() {
       dt.getFullYear() + "/" + String(dt.getMonth()+1).padStart(2,"0") + "/" + String(dt.getDate()).padStart(2,"0") +
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
-    const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
-    del.addEventListener("click", () => {
-      if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
-      localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
-      renderHistory();
-    });
-    div.append(main, del); box.appendChild(div);
+    div.appendChild(main);
+    if (isManager()) {   // 履歴の削除は管理者のみ
+      const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
+      del.addEventListener("click", () => {
+        if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
+        localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
+        renderHistory();
+      });
+      div.appendChild(del);
+    }
+    box.appendChild(div);
   });
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* 管理者権限: 未ログインの個人利用は許可、ログイン中は admin/super のみ許可(従業員は不可) */
+function isManager() { return (window.Cloud && typeof window.Cloud.isManager === "function") ? window.Cloud.isManager() : true; }
+/* 権限に応じてUIを更新(データ管理セクションの表示 / 履歴・DBの削除ボタン再描画) */
+function applyRoleUI() {
+  const mgr = isManager();
+  const dm = $("secDataMgmt"); if (dm) dm.classList.toggle("hidden", !mgr);
+  if (typeof renderHistory === "function") renderHistory();
+  if (typeof renderDBList === "function") renderDBList();
+}
+window.applyRoleUI = applyRoleUI;
 
 /* =========================================================
    DB編集
@@ -2043,7 +2058,7 @@ function renderDBList() {
     const be = document.createElement("button"); be.className = "btn btn-ghost btn-sm"; be.textContent = custom ? "編集" : "複製して編集";
     be.addEventListener("click", () => openDBForm(v, custom));
     btns.appendChild(be);
-    if (custom) {
+    if (custom && isManager()) {   // DBの削除は管理者のみ
       const bd = document.createElement("button"); bd.className = "btn btn-alert btn-sm"; bd.textContent = "削除";
       bd.addEventListener("click", () => {
         if (!confirm("「" + v.name + "」を削除しますか？")) return;
@@ -2180,13 +2195,16 @@ $("dbImportIn").addEventListener("change", async e => {
    設定
    ========================================================= */
 $("btnClearHist").addEventListener("click", () => {
+  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
   if (confirm("スキャン履歴をすべて削除しますか？")) { localStorage.removeItem(LS.hist); renderHistory(); }
 });
 $("btnClearCustom").addEventListener("click", () => {
+  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
   if (confirm("カスタム車種DBをすべて削除しますか？（内蔵DBは残ります）")) { CUSTOM_DB = []; saveCustomDB(); renderDBList(); }
 });
 /* DB内蔵データの全消去: 内蔵・カスタム・学習(諸元/定番故障)をすべて削除(履歴は残す) */
 $("btnClearDb").addEventListener("click", () => {
+  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
   if (!confirm("DB内蔵データを全消去します。\n・内蔵車種DB\n・カスタムDB\n・AIが学習した諸元/定番故障\nをすべて削除します（スキャン履歴は残ります）。よろしいですか？")) return;
   localStorage.setItem("ss_dbcleared", "1");
   localStorage.removeItem(LS.custom);
@@ -3628,6 +3646,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();
   renderDBList();
+  applyRoleUI();   // 権限に応じてデータ管理/削除ボタンを制御
   renderGeminiStat();
   renderVisionStat();
   renderCseStat();
