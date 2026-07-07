@@ -1538,8 +1538,9 @@ function editKarteInline(card, k) {
   const row = (label, el) => { const r = document.createElement("div"); r.className = "kEditRow"; const l = document.createElement("label"); l.className = "fld"; l.textContent = label; r.append(l, el); return r; };
   const inp = (type, val) => { const i = document.createElement("input"); i.type = type; if (val != null) i.value = val; return i; };
   const ta = (val, ph) => { const t = document.createElement("textarea"); t.className = "kGrow"; t.style.minHeight = "48px"; if (val) t.value = val; if (ph) t.placeholder = ph; return t; };
+  const nl = v => v ? String(v).replace(/[、,，・]\s*/g, "\n").replace(/\n{2,}/g, "\n").trim() : "";   // 区切りを改行にして見やすく
   const dDate = inp("date", k.date || ""); const dOdo = inp("number", k.odo != null ? k.odo : ""); dOdo.inputMode = "numeric";
-  const dWork = ta(k.work, "作業内容（カンマ・改行で区切ると箇条書きに）"); const dParts = ta(k.parts, "交換部品・使用材料");
+  const dWork = ta(nl(k.work), "1行に1件（作業内容）"); const dParts = ta(nl(k.parts), "1行に1件（交換部品・使用材料）");
   const dCost = inp("number", k.cost != null ? k.cost : ""); dCost.inputMode = "numeric"; const dStaff = inp("text", k.staff || "");
   const dNote = ta(k.note, "メモ");
   wrap.append(row("日付", dDate), row("走行距離(km)", dOdo), row("作業内容", dWork), row("交換部品・使用材料", dParts), row("費用(円)", dCost), row("担当者", dStaff), row("メモ", dNote));
@@ -1613,6 +1614,7 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
   try {
     const prompt = [
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",
+      "略号の展開(整備現場の頻出略号。書かれていれば正式名に展開してよい。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキオイル(ブレーキフルード), M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, バッテリ/BATT=バッテリー, プラグ=スパークプラグ, エレメント=フィルター, O/H=オーバーホール, 脱着=取り外し・取り付け。",
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
       "【最重要・厳守】メモに書かれていない情報を勝手に補完・推測・追加しないこと。特にメーカー名・銘柄・商品名・品番・数量・単位は、メモに明記されていない限り一切足さない(例: 『オイル 3.7L』とだけあれば、そのまま『オイル 3.7L』とし、メーカー名や『エンジンオイル』等の語を付け足さない)。あくまで書かれた文字をそのまま転記する。",
