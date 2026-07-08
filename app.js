@@ -3713,6 +3713,16 @@ function switchView(name) {
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
 
+/* さりげないトースト通知(数秒で自動的に消える) */
+function showToast(msg) {
+  let t = document.getElementById("appToast");
+  if (!t) { t = document.createElement("div"); t.id = "appToast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove("show"), 2800);
+}
+
 (async function init() {
   loadCustomDB();
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
@@ -3723,6 +3733,8 @@ document.querySelectorAll("#tabs button").forEach(b =>
   renderVisionStat();
   renderCseStat();
   renderAiMode();
+  // 自動更新が走った直後なら、さりげなく通知
+  try { if (sessionStorage.getItem("ss_justUpdated")) { sessionStorage.removeItem("ss_justUpdated"); showToast("最新版に更新しました（v" + APP_VER + "）"); } } catch (e) {}
   setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
     // 新バージョンを検出したら自動で反映(更新時のみ1回リロード。初回インストールでは何もしない)
@@ -3731,6 +3743,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing || !hadController) return;
       refreshing = true;
+      try { sessionStorage.setItem("ss_justUpdated", "1"); } catch (e) {}   // 更新後にさりげなく通知するため
       location.reload();
     });
     // updateViaCache:'none' … sw.js を常にネットから取得し、起動時に必ず新版を検出(古いまま固まるのを防ぐ)

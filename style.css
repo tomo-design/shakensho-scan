@@ -4,6 +4,12 @@
   --ok:#15803D; --alert:#DC2626; --cyan:#0E7490;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* さりげない更新トースト */
+#appToast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,12px);z-index:300;
+  background:rgba(27,37,48,.92);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  padding:8px 16px;border-radius:999px;box-shadow:0 3px 12px rgba(0,0,0,.25);
+  opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;max-width:88%;text-align:center}
+#appToast.show{opacity:1;transform:translate(-50%,0)}
 /* 言語トグル(小さく目立たない・右上固定) */
 #langToggle{position:fixed;top:8px;right:10px;z-index:150;background:rgba(255,255,255,.85);border:1px solid var(--line);color:var(--dim);
   font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;cursor:pointer;backdrop-filter:blur(4px);opacity:.72}
