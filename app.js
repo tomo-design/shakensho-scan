@@ -121,6 +121,14 @@ function isFiller(v) {
   if (t.length < 4) return false;
   return /^(.)\1+$/.test(t) || /^\*+$/.test(t);   // 9999999 / 0000000 / AAAAA / ***** など
 }
+/* 登録番号(ナンバー)の妥当性: 地名(漢字/かな)＋分類番号＋かな＋一連番号。数字のみ/記号のみは不可 */
+function isValidPlate(v) {
+  if (!v) return false;
+  const t = String(v).trim();
+  if (!t) return false;
+  if (/^[\d\s\-ー－]+$/.test(t)) return false;          // 数字(と区切り)だけはナンバーではない
+  return /[぀-ヿ゠-ヿ㐀-鿿一-龠]/.test(t);              // 地名(漢字)またはかなを含むこと
+}
 
 function parseYYMMDD(s) {
   if (!s || !/^\d{6}$/.test(s) || s === "999999") return null;
@@ -171,8 +179,8 @@ function parseStructured(codes) {
     }
     // 二次元コード2 (6フィールド): 登録番号・車台番号・原動機型式
     else if (f.length >= 5 && f.length <= 7) {
-      const plateRaw = f[1] || "";
-      if (/[぀-ヿ㐀-鿿Ａ-Ｚ０-９]/.test(plateRaw)) out.plate = plateRaw.replace(/[　 ]+/g, " ").trim();
+      const plateRaw = (f[1] || "").replace(/[　 ]+/g, " ").trim();
+      if (isValidPlate(plateRaw)) out.plate = plateRaw;   // 地名(漢字/かな)を含むもののみ。数字のみは不可
       const vin = zen2han(f[3] || "").toUpperCase();
       if (/^[A-Z0-9\[\]\-]{4,23}$/.test(vin) && !isFiller(vin)) out.vin = vin;
       // f[4] = 原動機型式 (位置で確定。空欄/伏字/純数字の帳票種別・フィラーは除外)
@@ -281,6 +289,7 @@ function mergeAcc(d) {
     if (!nv) continue;
     const isStr = typeof nv === "string";
     if (fillable.has(k) && isStr && isFiller(nv)) continue;                 // フィラーは無視
+    if (k === "plate" && !isValidPlate(nv)) continue;                       // 登録番号は数字のみ不可(地名を含むこと)
     if (!acc[k] || (fillable.has(k) && typeof acc[k] === "string" && isFiller(acc[k]))) acc[k] = nv;  // 空 or 既存フィラーなら採用
   }
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
@@ -685,7 +694,7 @@ function applyAiQr(o) {
   if (o.type) d.type = String(o.type).toUpperCase().trim();
   if (o.vin) d.vin = String(o.vin).toUpperCase().trim();
   if (o.engine) d.engine = String(o.engine).toUpperCase().trim();
-  if (o.plate) d.plate = String(o.plate).trim();
+  if (o.plate && isValidPlate(o.plate)) d.plate = String(o.plate).trim();
   if (o.kataShitei) d.kataShitei = String(o.kataShitei).replace(/[^0-9]/g, "");
   if (o.expiry) { const dt = new Date(o.expiry); if (!isNaN(dt.getTime())) d.expiry = dt; }
   if (o.firstRegYear && o.firstRegMonth) { const y = +o.firstRegYear, m = +o.firstRegMonth; if (y > 1980 && m >= 1 && m <= 12) d.firstReg = { year: y, month: m }; }
