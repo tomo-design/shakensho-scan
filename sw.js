@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v151";
+const CACHE = "shaken-scan-v152";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -32,11 +32,12 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", e => {
+  // ここでは skipWaiting しない。使用中に新SWが勝手に有効化→リロードして作業が飛ぶのを防ぐ。
+  // 新版は「待機」させ、起動直後(操作前)にアプリ側から明示的に適用する。
   e.waitUntil(
     caches.open(CACHE)
       // cache:"reload" でHTTPキャッシュをバイパスし、新バージョンは必ずネットワークから取得
       .then(c => Promise.allSettled(PRECACHE.map(u => c.add(new Request(u, { cache: "reload" })))))
-      .then(() => self.skipWaiting())
   );
 });
 

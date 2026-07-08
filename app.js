@@ -3737,9 +3737,10 @@ function showToast(msg) {
   try { if (sessionStorage.getItem("ss_justUpdated")) { sessionStorage.removeItem("ss_justUpdated"); showToast("最新版に更新しました（v" + APP_VER + "）"); } } catch (e) {}
   setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
   if ("serviceWorker" in navigator) {
-    // 新バージョンを検出したら自動で反映(更新時のみ1回リロード。初回インストールでは何もしない)
+    // 更新は「起動直後(操作前)」だけ適用。使用中は絶対にリロードしない(閲覧・入力が飛ぶのを防ぐ)。
     const hadController = !!navigator.serviceWorker.controller;
-    let refreshing = false;
+    let refreshing = false, startupWindow = true;
+    setTimeout(() => { startupWindow = false; }, 4000);   // 起動から数秒だけ自動適用を許可
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing || !hadController) return;
       refreshing = true;
@@ -3748,17 +3749,19 @@ function showToast(msg) {
     });
     // updateViaCache:'none' … sw.js を常にネットから取得し、起動時に必ず新版を検出(古いまま固まるのを防ぐ)
     navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+      // 前回セッションでDL済みの新版が待機していれば、この起動直後(操作前)に一度だけ適用
+      if (reg.waiting && navigator.serviceWorker.controller) { try { reg.waiting.postMessage("skipWaiting"); } catch (e) {} }
+      // 起動時に一度だけ更新チェック。今回セッション中に見つかった新版は「待機」のまま(次回起動で適用)。
+      // 起動直後の短い間に用意できた場合のみ自動適用し、以降は使用中に勝手に切り替えない。
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing; if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller && startupWindow) {
+            try { nw.postMessage("skipWaiting"); } catch (e) {}   // 起動直後だけ適用
+          }
+        });
+      });
       try { reg.update(); } catch (e) {}
-      // 待機中の新SWがあれば即時有効化(skipWaiting)して反映を早める
-      const promote = w => { if (w && w.state === "installed" && navigator.serviceWorker.controller) { try { w.postMessage("skipWaiting"); } catch (e) {} } };
-      if (reg.waiting) promote(reg.waiting);
-      reg.addEventListener("updatefound", () => { const nw = reg.installing; if (nw) nw.addEventListener("statechange", () => promote(nw)); });
-      // アプリに戻る/オンライン復帰/一定間隔で更新チェック(閉じている間に出た新版を取り込む)
-      const check = () => { try { reg.update(); } catch (e) {} };
-      document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
-      window.addEventListener("online", check);
-      window.addEventListener("focus", check);
-      setInterval(check, 60000);
     }).catch(() => {});
   }
 })();
