@@ -253,6 +253,17 @@ function decodeCanvas(canvas) {
   } catch (e) {}
   return null;
 }
+/* かすれ・低コントラストのQR向け: グレースケール+コントラスト強調(自動レベル補正) */
+function boostContrast(canvas) {
+  const c = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
+  const id = c.getImageData(0, 0, w, h), d = id.data;
+  let lo = 255, hi = 0;
+  for (let i = 0; i < d.length; i += 4) { const y = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0; d[i] = d[i + 1] = d[i + 2] = y; if (y < lo) lo = y; if (y > hi) hi = y; }
+  const range = Math.max(1, hi - lo); const gain = 255 / range;
+  // 5〜95パーセンタイル的に締めるのではなく、min-max を 0-255 に線形伸張(軽量)
+  for (let i = 0; i < d.length; i += 4) { const v = Math.max(0, Math.min(255, (d[i] - lo) * gain)); d[i] = d[i + 1] = d[i + 2] = v; }
+  c.putImageData(id, 0, 0);
+}
 
 /* ===== ライブ連続スキャン: QRと文字(OCR)を同時に自動認識して蓄積 ===== */
 let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
@@ -277,15 +288,19 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; lastScanProc = 0; lastOcrAt = 0; toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
-$("btnScanReset").addEventListener("click", () => {
+$("btnScanReset").addEventListener("click", async () => {
   resetScan();
   updateScanProgress(acc);
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
-  if (!scanning) startLiveScan(); else setScanMsg("最初から: QR・型式部分を写してください");
+  if (!scanning) { startLiveScan(); return; }
+  // 既にスキャン中でも、カメラを開き直してピント(AF)を初期化 → 失敗後に読めなくなるのを防ぐ
+  setScanMsg("カメラを再初期化中…ピントを合わせています");
+  await openCamera(null);
+  setScanMsg("最初から: QRを枠内に大きく・はっきり写してください");
 });
 
 let camList = [], camIdx = 0;
@@ -455,24 +470,35 @@ async function scanTick() {
         try { const codes = await nativeDetector.detect(video); if (codes.length) { codes.forEach(c => onLiveQr(c.rawValue)); t = "native"; } }
         catch (e) { nativeDetector = null; }
       }
-      // ネイティブで取れなかった時だけ重い解析(中央70%を実解像度で)
+      // ネイティブで取れなかった時: 複数領域を順に試す(かすれ・ピンボケ・寄り/引き対策)
       if (!t) {
-        const s = Math.floor(Math.min(vw, vh) * 0.7);
+        // 中央クロップ(実解像度)。tick毎に寄り(0.55)と標準(0.75)を交互に→どちらの距離でも当たりやすく
+        const cropF = (tickN % 2 === 0) ? 0.75 : 0.55;
+        const s = Math.floor(Math.min(vw, vh) * cropF);
         cv.width = s; cv.height = s;
         ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
         let dt = decodeCanvas(cv);
-        if (!dt && tickN % 3 === 0) { // 全面も時々
-          const cap = 1400, sc = Math.min(1, cap / Math.max(vw, vh));
+        // 取れなければ全面を高解像度(1920)で。QRが小さい/端に寄っている場合に有効
+        if (!dt) {
+          const cap = 1920, sc = Math.min(1, cap / Math.max(vw, vh));
           const w = Math.round(vw * sc), h = Math.round(vh * sc);
           cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
+          dt = decodeCanvas(cv);
+        }
+        // まだ取れず、かすれ気味の時: コントラスト強調して再挑戦(数tickに1回)
+        if (!dt && tickN % 2 === 0) {
+          const s2 = Math.floor(Math.min(vw, vh) * 0.75);
+          cv.width = s2; cv.height = s2;
+          ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
+          boostContrast(cv);
           dt = decodeCanvas(cv);
         }
         if (dt) onLiveQr(dt);
       }
     } catch (e) {}
     tickBusy = false;
-    // --- 文字認識(OCR): 重いので約1.5秒に1回、別スレッドで ---
-    if (Date.now() - lastOcrAt > 1500 && !ocrBusy) {
+    // --- 文字認識(OCR): 重いのでQR解析を優先し約2.2秒に1回、別スレッドで ---
+    if (Date.now() - lastOcrAt > 2200 && !ocrBusy) {
       lastOcrAt = Date.now(); ocrBusy = true;
       const oc = grabOcrFrame(vw, vh);
       getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
@@ -3636,6 +3662,8 @@ function switchView(name) {
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
   if (name === "diag") updateDiagVehicleHint();
   if (name === "admin" && window.CloudAdmin) window.CloudAdmin.open();
+  // 表示に切り替わった時、内容のある自動拡大欄の高さを再計算(タブ移動で縮むのを防ぐ)
+  if (typeof autoGrowAll === "function") requestAnimationFrame(autoGrowAll);
   window.scrollTo(0, 0);
 }
 document.querySelectorAll("#tabs button").forEach(b =>
