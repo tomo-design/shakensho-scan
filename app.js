@@ -288,7 +288,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
@@ -435,24 +435,29 @@ function flashScan() {
   const el = $("scanFlash"); if (!el) return;
   el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit");
 }
+let scanGrace = null;
+/* サッと1パスで確定: 全項目そろえば即、車両を識別できれば短い猶予で残りを拾って確定 */
+function finalizeScan() {
+  if (scanOkPending) return;
+  scanOkPending = true; scanning = false;
+  if (scanGrace) { clearTimeout(scanGrace); scanGrace = null; }
+  setScanMsg("✓ 読み取り完了");
+  toggle("scanOK", true);
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+  setTimeout(() => { toggle("scanOK", false); scanOkPending = false; stopLiveScan(true); }, 550);  // OKをサッと見せて即表示
+}
 function afterScanUpdate(src) {
   updateScanProgress(acc);
-  if (accComplete()) {
-    if (scanOkPending) return;
-    scanOkPending = true; scanning = false;   // 処理を止めてOK表示
-    setScanMsg("✓ 全項目そろいました");
-    toggle("scanOK", true);   // カメラ画面に大きく「OK」を表示
-    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-    setTimeout(() => { toggle("scanOK", false); scanOkPending = false; stopLiveScan(true); }, 1200);  // OKを見せてから結果表示
+  // 全項目そろえば即確定(両QRが1フレームに入れば一瞬)
+  if (accComplete()) { finalizeScan(); return; }
+  // 車両を識別できる最低情報(型式 or 車台番号)が取れたら、残りQRを拾う短い猶予後に確定
+  const enough = acc.type || acc.vin;
+  if (enough) {
+    setScanMsg("✓ 読み取り中… そのままかざしてください");
+    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && (acc.type || acc.vin)) finalizeScan(); }, 700);
     return;
   }
-  // 車台番号が揃っても指定・類別(コード3)未取得なら継続
-  if (acc.vin && !accCode3()) {
-    setScanMsg("✓ 車台番号OK。残りは右下の二次元コード3（指定・類別）を写す／完了は✓");
-    return;
-  }
-  const need = [!acc.vin && "車台番号", !acc.engine && "原動機型式", !acc.plate && "登録番号"].filter(Boolean).join("・");
-  setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3（指定・類別）") + "を写してください");
+  setScanMsg("QRを枠内に大きく写してください");
 }
 
 let lastScanProc = 0, nativeBusy = false;
