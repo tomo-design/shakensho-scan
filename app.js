@@ -690,7 +690,7 @@ function applyAiQr(o) {
   if (o.expiry) { const dt = new Date(o.expiry); if (!isNaN(dt.getTime())) d.expiry = dt; }
   if (o.firstRegYear && o.firstRegMonth) { const y = +o.firstRegYear, m = +o.firstRegMonth; if (y > 1980 && m >= 1 && m <= 12) d.firstReg = { year: y, month: m }; }
   mergeAcc(d);              // 未取得の項目だけ埋める(既存の正しい値は保持)
-  showResult(accResult(), { fromScan: true });  // AI補完した指定・類別等も履歴(DB)へ保存
+  showResult(accResult(), { fromScan: true, noAutoAi: true });  // AI補完も履歴保存。再度の自動AI解析は起動しない(ループ/画面のガタつき防止)
 }
 let aiQrDone = false;   // 同じ読取で二重解析しない
 async function runAiQrParse(fromAuto) {
@@ -1300,7 +1300,7 @@ function showResult(d, opt = {}) {
   toggle("aiQrStatus", false);
   aiQrDone = false;
   // スキャン由来で未取得項目がある時は、メカ君のQR解析を自動で開始(ワンタップ不要)
-  if (opt && opt.fromScan && current.qrRaw.length > 0 && missing) setTimeout(() => { if (!aiQrDone) runAiQrParse(true); }, 60);
+  if (opt && opt.fromScan && !opt.noAutoAi && current.qrRaw.length > 0 && missing) setTimeout(() => { if (!aiQrDone) runAiQrParse(true); }, 60);
   setText("rEngine", han(d.engine) || "—");
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
