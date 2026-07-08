@@ -2730,8 +2730,9 @@ function buildDiagPrompt(text) {
     "",
     "■原因候補（可能性が高い順）",
     "1. 原因名（一言で）",
+    "理由: なぜこの症状・DTCからこの原因を疑うのか、根拠を1文で簡潔に。",
     "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
-    "2. （同様に最大5つまで）",
+    "2. （同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
     "",
     "■最初の1手",
     "現場で最初にやるべきことを1〜2文で。",
@@ -2785,13 +2786,22 @@ function renderAiAnswer(container, text, opts) {
       list.appendChild(li);
       continue;
     }
-    // 「切り分け:」行 → 直前の項目にぶら下げてハイライト
+    // 「理由:」行 → 直前の項目に小さく端に表示(なぜ候補に挙がったか)
+    const rz = line.match(/^[・]?\s*(理由|根拠)\s*[:：]\s*(.+)$/);
+    if (rz && list && list.lastElementChild) {
+      const d = document.createElement("div");
+      d.className = "ai-reason";
+      const label = document.createElement("span"); label.className = "ai-reason-label"; label.textContent = "理由";
+      d.append(label, document.createTextNode(rz[2]));
+      list.lastElementChild.firstElementChild.appendChild(d);
+      continue;
+    }
+    // 「切り分け:」行 → 直前の項目にぶら下げ(ラベル文字は表示しない)
     const k = line.match(/^[・]?\s*(切り分け|確認|点検方法)\s*[:：]\s*(.+)$/);
     if (k && list && list.lastElementChild) {
       const d = document.createElement("div");
       d.className = "ai-check";
-      const label = document.createElement("span"); label.className = "ai-check-label"; label.textContent = "切り分け ";
-      d.append(label, k[2]);
+      d.textContent = k[2];   // 「切り分け」ラベルは付けず内容のみ
       list.lastElementChild.firstElementChild.appendChild(d);
       continue;
     }
@@ -3309,8 +3319,9 @@ function buildMediaDiagPrompt() {
     "・観察できた症状を箇条書き(判別できなければ『判別不可』)",
     "■原因候補（可能性が高い順）",
     "1. 原因名（一言で）",
+    "理由: なぜこの症状・映像からこの原因を疑うのか、根拠を1文で簡潔に。",
     "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
-    "2.（同様に最大5つまで）",
+    "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
     "■最初の1手",
     "現場で最初にやるべきことを1〜2文で。",
     ""

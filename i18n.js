@@ -89,7 +89,7 @@
       "Press “Push to talk” and describe the symptom. Mecha will answer by voice.",
     "※ 原因候補は参考情報です。最終判断は実測・実点検で。":
       "※ Possible causes are references. Make the final call with actual measurement/inspection.",
-    "考えられる原因:": "Possible causes:", "確認手順:": "Check procedure:", "切り分け・確認:": "Isolation / check:",
+    "考えられる原因:": "Possible causes:", "確認手順:": "Check procedure:", "切り分け・確認:": "Isolation / check:", "理由": "Why",
     "切り分け ": "Isolate ", "⚠ 問診内容と一致する持病:": "⚠ Known issues matching the symptoms:",
     "直接一致なし。参考: この車種の定番故障:": "No direct match. FYI, common faults for this model:",
     "🔧 メカ君が考えています…(数秒〜十数秒)": "🔧 Mecha is thinking… (a few to a dozen seconds)",
