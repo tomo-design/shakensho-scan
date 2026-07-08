@@ -2786,14 +2786,19 @@ function renderAiAnswer(container, text, opts) {
       list.appendChild(li);
       continue;
     }
-    // 「理由:」行 → 直前の項目に小さく端に表示(なぜ候補に挙がったか)
+    // 「理由:」行 → 折り畳み(タップで開閉。他を開くと現在の理由は畳む=アコーディオン)
     const rz = line.match(/^[・]?\s*(理由|根拠)\s*[:：]\s*(.+)$/);
     if (rz && list && list.lastElementChild) {
-      const d = document.createElement("div");
-      d.className = "ai-reason";
-      const label = document.createElement("span"); label.className = "ai-reason-label"; label.textContent = "理由";
-      d.append(label, document.createTextNode(rz[2]));
-      list.lastElementChild.firstElementChild.appendChild(d);
+      const wrap = document.createElement("div"); wrap.className = "ai-reason";
+      const tog = document.createElement("button"); tog.type = "button"; tog.className = "ai-reason-toggle"; tog.textContent = "理由";
+      const body = document.createElement("div"); body.className = "ai-reason-body"; body.textContent = rz[2];
+      tog.addEventListener("click", () => {
+        const willOpen = !wrap.classList.contains("open");
+        container.querySelectorAll(".ai-reason.open").forEach(el => el.classList.remove("open"));   // 他の理由を畳む
+        if (willOpen) wrap.classList.add("open");
+      });
+      wrap.append(tog, body);
+      list.lastElementChild.firstElementChild.appendChild(wrap);
       continue;
     }
     // 「切り分け:」行 → 直前の項目にぶら下げ(ラベル文字は表示しない)
