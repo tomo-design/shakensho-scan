@@ -450,11 +450,17 @@ function afterScanUpdate(src) {
   updateScanProgress(acc);
   // 全項目そろえば即確定(両QRが1フレームに入れば一瞬)
   if (accComplete()) { finalizeScan(); return; }
-  // 車両を識別できる最低情報(型式 or 車台番号)が取れたら、残りQRを拾う短い猶予後に確定
-  const enough = acc.type || acc.vin;
-  if (enough) {
+  // 安定化: 確実な読取である「車台番号(コード2)」を基準に確定。型式だけの曖昧な状態では完了しない。
+  if (acc.vin) {
     setScanMsg("✓ 読み取り中… そのままかざしてください");
-    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && (acc.type || acc.vin)) finalizeScan(); }, 700);
+    // 車台番号が取れたら短い猶予で残りQR(型式コード3)も拾って確定
+    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, 500);
+    return;
+  }
+  // 型式のみ(コード3先読み)の場合は、車台番号を待つ。長めに待っても来なければ確定(取りこぼし救済)
+  if (acc.type) {
+    setScanMsg("✓ 型式OK。車台番号側の二次元コードも枠に入れてください");
+    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && (acc.type || acc.vin)) finalizeScan(); }, 2500);
     return;
   }
   setScanMsg("QRを枠内に大きく写してください");
@@ -686,22 +692,24 @@ function applyAiQr(o) {
   mergeAcc(d);              // 未取得の項目だけ埋める(既存の正しい値は保持)
   showResult(accResult(), { fromScan: true });  // AI補完した指定・類別等も履歴(DB)へ保存
 }
-$("btnAiQr").addEventListener("click", async () => {
+let aiQrDone = false;   // 同じ読取で二重解析しない
+async function runAiQrParse(fromAuto) {
   stopFieldMic();
   if (!localStorage.getItem(LS.gemini)) {
+    if (fromAuto) return;   // 自動時はキー未設定なら静かに何もしない(ボタンで手動可)
     alert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
   const raw = (current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
-  if (!raw.length) { toggle("aiQrStatus", true); $("aiQrStatus").textContent = "QRの生データがありません(QRを読み取ってからお試しください)。"; return; }
-  toggle("aiQrStatus", true); $("aiQrStatus").textContent = "🔧 メカ君がQRデータを項目分け中…";
+  if (!raw.length) { if (!fromAuto) { toggle("aiQrStatus", true); $("aiQrStatus").textContent = "QRの生データがありません(QRを読み取ってからお試しください)。"; } return; }
+  aiQrDone = true;
+  toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "🔧 メカ君がQRデータを項目分け中…";
   setBtnLoading($("btnAiQr"), true, "メカ君が解析中…");
   try {
-    const r = await geminiAsk(buildQrParsePrompt(raw));
+    const r = await geminiAsk(buildQrParsePrompt(raw), { mode: "flash" });   // 構造抽出はflashで高速
     const obj = extractJson(r.text);
     if (!obj) throw new Error("AIの応答を解釈できませんでした。もう一度お試しください。");
     applyAiQr(obj);
-    // AIが何を抽出したかを明示(AI解析の証跡)
     const lines = [];
     if (obj.type) lines.push("型式: " + obj.type);
     if (obj.engine) lines.push("原動機型式: " + obj.engine);
@@ -711,16 +719,18 @@ $("btnAiQr").addEventListener("click", async () => {
     if (obj.expiry) lines.push("有効期限: " + obj.expiry);
     if (obj.firstRegYear && obj.firstRegMonth) lines.push("初度登録: " + obj.firstRegYear + "年" + obj.firstRegMonth + "月");
     if (obj.fuel) lines.push("燃料: " + obj.fuel);
-    const head = r.model === "cache" ? "🔧 前回のメカ君の解析結果を再利用しました" : "🔧 メカ君がQRを解析しました（" + r.model + "）";
+    const head = r.model === "cache" ? "🔧 前回のメカ君の解析結果を再利用しました" : "🔧 メカ君がQRを自動解析しました";
     toggle("aiQrParse", true); toggle("aiQrStatus", true);
     $("aiQrStatus").style.whiteSpace = "pre-wrap";
     $("aiQrStatus").textContent = head + "\n" + (lines.length ? "メカ君が読み取った内容:\n・" + lines.join("\n・") : "QRから抽出できる項目がありませんでした。");
   } catch (e) {
+    aiQrDone = false;   // 失敗時は再試行できるように
     if (e.message !== "__cancelled__") { toggle("aiQrParse", true); toggle("aiQrStatus", true); $("aiQrStatus").textContent = "⚠ " + (e.message || e); }
   } finally {
     setBtnLoading($("btnAiQr"), false);
   }
-});
+}
+$("btnAiQr").addEventListener("click", () => runAiQrParse(false));
 
 /* ---- 手動入力 (複数項目) ---- */
 $("btnManual").addEventListener("click", () => {
@@ -1282,12 +1292,15 @@ function showResult(d, opt = {}) {
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
   setText("rUser", noEmail(histEntry && histEntry.name) || "—");   // メール混入は表示しない
-  // QR生データがあり、未取得項目があればAI解析ボタンを出す
+  // QR生データがあり、未取得項目があればAI解析(自動実行・タップ不要)
   current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
   // 限定表示項目: 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
   const missing = !d.engine || !d.plate || !d.kataShitei;
   toggle("aiQrParse", current.qrRaw.length > 0 && missing);
   toggle("aiQrStatus", false);
+  aiQrDone = false;
+  // スキャン由来で未取得項目がある時は、メカ君のQR解析を自動で開始(ワンタップ不要)
+  if (opt && opt.fromScan && current.qrRaw.length > 0 && missing) setTimeout(() => { if (!aiQrDone) runAiQrParse(true); }, 60);
   setText("rEngine", han(d.engine) || "—");
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
