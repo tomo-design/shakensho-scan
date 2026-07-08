@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v148";
+const CACHE = "shaken-scan-v149";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -48,6 +48,9 @@ self.addEventListener("activate", e => {
   );
 });
 
+// アプリからの合図で待機中の新SWを即時有効化(更新を早く反映)
+self.addEventListener("message", e => { if (e.data === "skipWaiting") self.skipWaiting(); });
+
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
@@ -74,6 +77,17 @@ self.addEventListener("fetch", e => {
         if (res.ok) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
         return res;
       }).catch(() => caches.match(e.request).then(c => c || Response.error()))
+    );
+    return;
+  }
+
+  // HTML本体(ページ遷移): ネット優先 → 常に最新の画面。オフライン時のみキャッシュにフォールバック
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
+        return res;
+      }).catch(() => caches.match(e.request).then(c => c || caches.match("./index.html")))
     );
     return;
   }

@@ -3733,12 +3733,19 @@ document.querySelectorAll("#tabs button").forEach(b =>
       refreshing = true;
       location.reload();
     });
-    navigator.serviceWorker.register("sw.js").then(reg => {
+    // updateViaCache:'none' … sw.js を常にネットから取得し、起動時に必ず新版を検出(古いまま固まるのを防ぐ)
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
       try { reg.update(); } catch (e) {}
-      // アプリに戻る/オンライン復帰のたびに更新チェック(閉じている間に出た新版を取り込む)
+      // 待機中の新SWがあれば即時有効化(skipWaiting)して反映を早める
+      const promote = w => { if (w && w.state === "installed" && navigator.serviceWorker.controller) { try { w.postMessage("skipWaiting"); } catch (e) {} } };
+      if (reg.waiting) promote(reg.waiting);
+      reg.addEventListener("updatefound", () => { const nw = reg.installing; if (nw) nw.addEventListener("statechange", () => promote(nw)); });
+      // アプリに戻る/オンライン復帰/一定間隔で更新チェック(閉じている間に出た新版を取り込む)
       const check = () => { try { reg.update(); } catch (e) {} };
       document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
       window.addEventListener("online", check);
+      window.addEventListener("focus", check);
+      setInterval(check, 60000);
     }).catch(() => {});
   }
 })();
