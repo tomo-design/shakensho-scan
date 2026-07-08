@@ -288,7 +288,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; lastScanProc = 0; lastOcrAt = 0; toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
@@ -455,58 +455,54 @@ function afterScanUpdate(src) {
   setScanMsg("✓ " + src + "読取。次は" + (need ? "「" + need + "」" : "二次元コード3（指定・類別）") + "を写してください");
 }
 
-let lastScanProc = 0;
+let lastScanProc = 0, nativeBusy = false;
 async function scanTick() {
   if (!scanning) return;
-  // 重いQR解析は約180msに1回だけ実行(毎フレームだとカメラ/ズーム操作がカクつくため)
-  if (!tickBusy && video.readyState >= 2 && video.videoWidth && Date.now() - lastScanProc >= 180) {
-    lastScanProc = Date.now();
-    tickBusy = true; tickN++;
+  const ready = video.readyState >= 2 && video.videoWidth;
+  // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン)は毎フレーム連続実行 → かざした瞬間に読める
+  if (ready && nativeDetector && !nativeBusy) {
+    nativeBusy = true;
+    nativeDetector.detect(video)
+      .then(codes => { if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
+      .catch(() => { nativeDetector = null; })   // 非対応/失敗ならZXing/jsQR経路へ
+      .finally(() => { nativeBusy = false; });
+  }
+  // ② ネイティブ非対応機のみ: 重いZXing/jsQR解析を約150msに1回(複数領域+高解像度+コントラスト強調)
+  if (ready && !nativeDetector && !tickBusy && Date.now() - lastScanProc >= 150) {
+    lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
-      // --- QR: ネイティブ優先(高速)。失敗時のみZXing/jsQRで補完 ---
-      let t = null;
-      if (nativeDetector) {
-        try { const codes = await nativeDetector.detect(video); if (codes.length) { codes.forEach(c => onLiveQr(c.rawValue)); t = "native"; } }
-        catch (e) { nativeDetector = null; }
+      const cropF = (tickN % 2 === 0) ? 0.75 : 0.55;
+      const s = Math.floor(Math.min(vw, vh) * cropF);
+      cv.width = s; cv.height = s;
+      ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
+      let dt = decodeCanvas(cv);
+      if (!dt) {
+        const cap = 1920, sc = Math.min(1, cap / Math.max(vw, vh));
+        const w = Math.round(vw * sc), h = Math.round(vh * sc);
+        cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
+        dt = decodeCanvas(cv);
       }
-      // ネイティブで取れなかった時: 複数領域を順に試す(かすれ・ピンボケ・寄り/引き対策)
-      if (!t) {
-        // 中央クロップ(実解像度)。tick毎に寄り(0.55)と標準(0.75)を交互に→どちらの距離でも当たりやすく
-        const cropF = (tickN % 2 === 0) ? 0.75 : 0.55;
-        const s = Math.floor(Math.min(vw, vh) * cropF);
-        cv.width = s; cv.height = s;
-        ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
-        let dt = decodeCanvas(cv);
-        // 取れなければ全面を高解像度(1920)で。QRが小さい/端に寄っている場合に有効
-        if (!dt) {
-          const cap = 1920, sc = Math.min(1, cap / Math.max(vw, vh));
-          const w = Math.round(vw * sc), h = Math.round(vh * sc);
-          cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
-          dt = decodeCanvas(cv);
-        }
-        // まだ取れず、かすれ気味の時: コントラスト強調して再挑戦(数tickに1回)
-        if (!dt && tickN % 2 === 0) {
-          const s2 = Math.floor(Math.min(vw, vh) * 0.75);
-          cv.width = s2; cv.height = s2;
-          ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
-          boostContrast(cv);
-          dt = decodeCanvas(cv);
-        }
-        if (dt) onLiveQr(dt);
+      if (!dt && tickN % 2 === 0) {
+        const s2 = Math.floor(Math.min(vw, vh) * 0.75);
+        cv.width = s2; cv.height = s2;
+        ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
+        boostContrast(cv);
+        dt = decodeCanvas(cv);
       }
+      if (dt) onLiveQr(dt);
     } catch (e) {}
     tickBusy = false;
-    // --- 文字認識(OCR): 重いのでQR解析を優先し約2.2秒に1回、別スレッドで ---
-    if (Date.now() - lastOcrAt > 2200 && !ocrBusy) {
-      lastOcrAt = Date.now(); ocrBusy = true;
-      const oc = grabOcrFrame(vw, vh);
-      getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
-        if (!scanning) return;
-        const d = extractFromOcrText(data.text || "");
-        if (d.type || d.vin) onLiveText(d);
-      }).catch(() => {}).finally(() => { ocrBusy = false; });
-    }
+  }
+  // ③ 券面OCR(型式・車台番号の印字補完): 約2.2秒に1回、別スレッドで
+  if (ready && Date.now() - lastOcrAt > 2200 && !ocrBusy) {
+    lastOcrAt = Date.now(); ocrBusy = true;
+    const oc = grabOcrFrame(video.videoWidth, video.videoHeight);
+    getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
+      if (!scanning) return;
+      const d = extractFromOcrText(data.text || "");
+      if (d.type || d.vin) onLiveText(d);
+    }).catch(() => {}).finally(() => { ocrBusy = false; });
   }
   scanRaf = requestAnimationFrame(scanTick);
 }
