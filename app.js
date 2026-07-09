@@ -3705,6 +3705,8 @@ function switchView(name) {
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
   if (name === "diag") updateDiagVehicleHint();
+  if (name === "parts") renderCopyKata();
+  if (name === "scan") renderLastVehicle();
   if (name === "admin" && window.CloudAdmin) window.CloudAdmin.open();
   // 表示に切り替わった時、内容のある自動拡大欄の高さを再計算(タブ移動で縮むのを防ぐ)
   if (typeof autoGrowAll === "function") requestAnimationFrame(autoGrowAll);
@@ -3712,6 +3714,37 @@ function switchView(name) {
 }
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
+
+/* ヘッダーのロゴ/文字タップでホーム(スキャン画面)へ戻る */
+(() => { const h = document.querySelector("header"); if (h) { h.style.cursor = "pointer"; h.addEventListener("click", () => switchView("scan")); } })();
+
+/* 型式のハイフンより後ろ(車種記号)だけ取り出す。例 2PG-FW74HZ → FW74HZ */
+function kataSuffix(t) { const s = String(t || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return i >= 0 ? s.slice(i + 1).trim() : s; }
+/* 修理タブ: 型式(車種記号)コピー ボタンを表示 */
+function renderCopyKata() {
+  const el = $("copyKata"); if (!el) return;
+  const suffix = kataSuffix(current && current.type);
+  if (!suffix) { toggle("copyKata", false); return; }
+  el.innerHTML = '📋 型式をコピー <b>' + esc(suffix) + '</b>';
+  toggle("copyKata", true);
+  el.onclick = async () => {
+    try { await navigator.clipboard.writeText(suffix); } catch (e) {}
+    const orig = el.innerHTML; el.innerHTML = '✓ コピーしました（' + esc(suffix) + '）';
+    setTimeout(() => { el.innerHTML = orig; }, 1400);
+  };
+}
+/* ホーム: 前回の車両チップ(小さく・タップで呼び出し) */
+function renderLastVehicle() {
+  const el = $("lastVehicle"); if (!el) return;
+  const hist = ((typeof dedupeHistoryStore === "function" ? dedupeHistoryStore() : getHistory()) || []).slice();
+  hist.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));   // 最新を先頭に
+  const last = hist[0];
+  if (!last || (current && findHistEntry([last], current))) { toggle("lastVehicle", false); return; }  // 直近車両。現在表示中なら出さない
+  const label = [dispText(last.plate), dispText(last.name)].filter(Boolean).join(" / ") || dispText(last.type) || "前回の車両";
+  el.innerHTML = '🕒 前回の車両: <b>' + esc(label) + '</b> ›';
+  toggle("lastVehicle", true);
+  el.onclick = () => showResult(histToResult(last), { fromScan: false });
+}
 
 /* さりげないトースト通知(数秒で自動的に消える) */
 function showToast(msg) {
@@ -3727,6 +3760,7 @@ function showToast(msg) {
   loadCustomDB();
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();
+  renderLastVehicle();   // ホームに前回車両チップ
   renderDBList();
   applyRoleUI();   // 権限に応じてデータ管理/削除ボタンを制御
   renderGeminiStat();
