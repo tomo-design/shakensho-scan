@@ -3743,6 +3743,12 @@ function goHome() {
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   toggle("btnStart", true); toggle("btnStop", false);
   toggle("fallbackLinks", true);
+  // ホームへ戻る際、閲覧中だった車両を「前回の車両」にする。
+  // 診断/修理の作業内容は保存しておき、チップから開き直したとき復元できるようにする。
+  if (current && (current.type || current.vin || current.kataShitei)) {
+    try { saveVehWork(vehicleKey(current)); } catch (e) {}
+  }
+  current = null;
   renderLastVehicle();
   window.scrollTo(0, 0);
 }
