@@ -871,8 +871,8 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
-$("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("manualArea", true); $("manualType").focus(); });
-$("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("plateArea", true); renderPlateSearch(); });
+$("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus(); });
+$("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch(); });
 
 /* ナンバー検索 (使用者名でも引ける・部分一致) */
 function renderPlateSearch() {
