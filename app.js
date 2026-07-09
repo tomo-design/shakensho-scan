@@ -1314,9 +1314,9 @@ function showResult(d, opt = {}) {
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
-  if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブの型式コピーを更新
+  if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
-  if (typeof renderLastVehicle === "function") renderLastVehicle();  // ホームの前回車両を更新(現在の車両を除外)
+  toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
   // 型式が空で車台番号がある車両は、AIで型式を自動特定して保存 → 特定できたら再表示(DB照合を効かせる)
   if (!d.type && d.vin && localStorage.getItem(LS.gemini)) {
     inferTypeFromVin(current).then(ty => { if (ty && current && current.vin) showResult(current, { fromScan: false, noAutoAi: true }); }).catch(() => {});
@@ -3741,15 +3741,17 @@ function goHome() {
 
 /* 型式のハイフンより後ろ(車種記号)だけ取り出す。例 2PG-FW74HZ → FW74HZ */
 function kataSuffix(t) { const s = String(t || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return i >= 0 ? s.slice(i + 1).trim() : s; }
-/* 修理タブ: 型式(車種記号)コピー ボタンを表示 */
+/* 車台番号のハイフンより前(打刻の車種記号部)。例 RK5-1028429 → RK5 / NKR85Y-70123 → NKR85Y */
+function vinPrefix(v) { const s = String(v || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return (i >= 0 ? s.slice(0, i) : s).trim(); }
+/* 修理タブ: FAINES検索用に車台番号(ハイフン前)をコピー。無ければ型式(車種記号)で代替 */
 function renderCopyKata() {
   const el = $("copyKata"); if (!el) return;
-  const suffix = kataSuffix(current && current.type);
-  if (!suffix) { toggle("copyKata", false); return; }
-  el.innerHTML = '📋 <b>' + esc(suffix) + '</b> をコピー';
+  const code = vinPrefix(current && current.vin) || kataSuffix(current && current.type);
+  if (!code) { toggle("copyKata", false); return; }
+  el.innerHTML = '📋 <b>' + esc(code) + '</b> をコピー';
   toggle("copyKata", true);
   el.onclick = async () => {
-    try { await navigator.clipboard.writeText(suffix); } catch (e) {}
+    try { await navigator.clipboard.writeText(code); } catch (e) {}
     const orig = el.innerHTML; el.innerHTML = '✓ コピー';
     setTimeout(() => { el.innerHTML = orig; }, 1200);
   };
