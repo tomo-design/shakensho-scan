@@ -1317,6 +1317,10 @@ function showResult(d, opt = {}) {
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブの型式コピーを更新
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   if (typeof renderLastVehicle === "function") renderLastVehicle();  // ホームの前回車両を更新(現在の車両を除外)
+  // 型式が空で車台番号がある車両は、AIで型式を自動特定して保存 → 特定できたら再表示(DB照合を効かせる)
+  if (!d.type && d.vin && localStorage.getItem(LS.gemini)) {
+    inferTypeFromVin(current).then(ty => { if (ty && current && current.vin) showResult(current, { fromScan: false, noAutoAi: true }); }).catch(() => {});
+  }
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -3718,8 +3722,22 @@ function switchView(name) {
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
 
-/* ヘッダーのロゴ/文字タップでホーム(スキャン画面)へ戻る */
-(() => { const h = document.querySelector("header"); if (h) { h.style.cursor = "pointer"; h.addEventListener("click", () => switchView("scan")); } })();
+/* ホーム(スキャン初期画面)に戻す: 車両表示・進捗を畳み、メカ君ヒーローとスキャンボタンを出す */
+function goHome() {
+  if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
+  switchView("scan");
+  toggle("result", false);
+  toggle("mechaHero", true);
+  foldEntryAreas();
+  toggle("scanWrap", false); toggle("scanCtrls", false);
+  toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+  toggle("btnStart", true); toggle("btnStop", false);
+  toggle("fallbackLinks", true);
+  renderLastVehicle();
+  window.scrollTo(0, 0);
+}
+/* ヘッダーのロゴ/文字タップでホームへ戻る */
+(() => { const h = document.querySelector("header"); if (h) { h.style.cursor = "pointer"; h.addEventListener("click", goHome); } })();
 
 /* 型式のハイフンより後ろ(車種記号)だけ取り出す。例 2PG-FW74HZ → FW74HZ */
 function kataSuffix(t) { const s = String(t || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return i >= 0 ? s.slice(i + 1).trim() : s; }
@@ -3728,12 +3746,12 @@ function renderCopyKata() {
   const el = $("copyKata"); if (!el) return;
   const suffix = kataSuffix(current && current.type);
   if (!suffix) { toggle("copyKata", false); return; }
-  el.innerHTML = '📋 型式をコピー <b>' + esc(suffix) + '</b>';
+  el.innerHTML = '📋 <b>' + esc(suffix) + '</b> をコピー';
   toggle("copyKata", true);
   el.onclick = async () => {
     try { await navigator.clipboard.writeText(suffix); } catch (e) {}
-    const orig = el.innerHTML; el.innerHTML = '✓ コピーしました（' + esc(suffix) + '）';
-    setTimeout(() => { el.innerHTML = orig; }, 1400);
+    const orig = el.innerHTML; el.innerHTML = '✓ コピー';
+    setTimeout(() => { el.innerHTML = orig; }, 1200);
   };
 }
 /* 最近表示した車両を記録(表示のたびに更新。前回=最後に表示していた車両) */
@@ -3748,6 +3766,44 @@ function pushRecentVehicle(d) {
     arr.unshift(card);
     localStorage.setItem("ss_recentVeh", JSON.stringify(arr.slice(0, 6)));
   } catch (e) {}
+}
+/* 型式が空の車両を、車台番号(打刻)からAIで特定して自動保存する。返り値=特定できた型式 or null */
+const typeInferBusy = new Set();
+async function inferTypeFromVin(d) {
+  if (!d || d.type || !d.vin) return null;
+  if (!localStorage.getItem(LS.gemini)) return null;
+  const id = vehId(d);
+  if (typeInferBusy.has(id)) return null; typeInferBusy.add(id);
+  try {
+    const prompt = [
+      "あなたは日本の自動車整備士向けデータアドバイザーです。",
+      "次の車台番号(と分かれば原動機型式)から、この車両の『型式』(排出ガス記号-車種記号。例 2PG-FW74HZ / SKG-NKR85YN)を特定してください。",
+      "車台番号の打刻(例 NKR85-7012345 の『NKR85』)は車種記号に対応します。排ガス記号・年式まで確実でなくても、少なくとも車種記号部分は答えること。",
+      "確実に判断できない場合のみ type は空文字。憶測での断定は避ける。出力は厳密なJSONのみ: {\"type\":\"...\"}",
+      "車台番号: " + d.vin + (d.engine ? "\n原動機型式: " + d.engine : "")
+    ].join("\n");
+    const r = await geminiAsk(prompt, { mode: "flash" });
+    const obj = extractJson(r.text);
+    let ty = obj && obj.type ? String(obj.type).toUpperCase().trim() : "";
+    if (!ty || /不明|^[-\s]*$/.test(ty)) return null;
+    d.type = ty;
+    // 履歴(=車両データ)へ自動保存＋社内共有
+    const h2 = getHistory(); const e = findHistEntry(h2, d);
+    if (e) { e.type = ty; e.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(h2)); if (window.Cloud) window.Cloud.pushRecord(e); }
+    return ty;
+  } catch (e) { return null; } finally { typeInferBusy.delete(id); }
+}
+/* スキャン済み履歴のうち、型式が空で車台番号がある車両をまとめてVINから特定・保存(起動後に静かに実行) */
+async function backfillTypesFromVin() {
+  if (!localStorage.getItem(LS.gemini) || !navigator.onLine) return;
+  const targets = getHistory().filter(h => h.vin && !h.type).slice(0, 15);
+  let changed = false;
+  for (const h of targets) {
+    const ty = await inferTypeFromVin({ type: null, vin: h.vin, engine: h.engine, plate: h.plate, kataShitei: h.kataShitei, rid: h.rid });
+    if (ty) changed = true;
+    await new Promise(r => setTimeout(r, 700));   // 無料枠に配慮して間隔をあける
+  }
+  if (changed) { renderHistory(); renderLastVehicle(); }
 }
 /* ホーム: 前回の車両チップ(=現在表示中を除いた、最後に表示していた車両) */
 function renderLastVehicle() {
@@ -3778,6 +3834,7 @@ function showToast(msg) {
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();
   renderLastVehicle();   // ホームに前回車両チップ
+  setTimeout(() => { try { backfillTypesFromVin(); } catch (e) {} }, 5000);   // 型式が空の既存車両をVINから自動特定(起動後に静かに)
   renderDBList();
   applyRoleUI();   // 権限に応じてデータ管理/削除ボタンを制御
   renderGeminiStat();
