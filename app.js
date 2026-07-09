@@ -1314,6 +1314,8 @@ function showResult(d, opt = {}) {
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
+  if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブの型式コピーを更新
+  if (typeof renderLastVehicle === "function") renderLastVehicle();  // ホームの前回車両を更新(現在の車両を除外)
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -3738,8 +3740,9 @@ function renderLastVehicle() {
   const el = $("lastVehicle"); if (!el) return;
   const hist = ((typeof dedupeHistoryStore === "function" ? dedupeHistoryStore() : getHistory()) || []).slice();
   hist.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));   // 最新を先頭に
-  const last = hist[0];
-  if (!last || (current && findHistEntry([last], current))) { toggle("lastVehicle", false); return; }  // 直近車両。現在表示中なら出さない
+  // 現在表示中の車両は除外し、直近の「別の」車両を出す(前回の車両)
+  const last = hist.find(h => !(current && (current.type || current.vin || current.kataShitei) && findHistEntry([h], current)));
+  if (!last) { toggle("lastVehicle", false); return; }
   const label = [dispText(last.plate), dispText(last.name)].filter(Boolean).join(" / ") || dispText(last.type) || "前回の車両";
   el.innerHTML = '🕒 前回の車両: <b>' + esc(label) + '</b> ›';
   toggle("lastVehicle", true);
