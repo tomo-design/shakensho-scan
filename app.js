@@ -1274,19 +1274,33 @@ function jumpToStep(box, n) {
 }
 
 /* 車両が変わったら診断・修理タブの前車両データを消す(混ざり防止) */
-function resetVehicleWorkTabs() {
-  try { cancelAI(); } catch (e) {}
-  const clr = (id, hideId) => { const el = $(id); if (el) el.innerHTML = ""; if (hideId) toggle(hideId, false); };
-  const val = id => { const el = $(id); if (el) el.value = ""; };
-  // 診断タブ
-  val("diagText"); clr("diagResults");
-  // 修理について質問
-  val("qVehText"); clr("qVehResult", "qVehResult");
+/* 車両ごとの作業内容(故障診断結果・修理質問)を保持。切替時に前車両を退避し、選んだ車両の内容を復元。 */
+const vehWork = {};   // vehicleKey -> {diagText, diagNodes[], qVehText, qVehShown, qVehNodes[]}
+function saveVehWork(key) {
+  if (!key) return;
+  vehWork[key] = {
+    diagText: ($("diagText") || {}).value || "",
+    diagNodes: $("diagResults") ? [...$("diagResults").childNodes] : [],
+    qVehText: ($("qVehText") || {}).value || "",
+    qVehShown: $("qVehResult") ? !$("qVehResult").classList.contains("hidden") : false,
+    qVehNodes: $("qVehResult") ? [...$("qVehResult").childNodes] : [],
+  };
+}
+function restoreVehWork(key) {
+  const w = vehWork[key];
+  const setNodes = (id, nodes) => { const el = $(id); if (!el) return; el.innerHTML = ""; (nodes || []).forEach(n => el.appendChild(n)); };
+  if ($("diagText")) $("diagText").value = w ? w.diagText : "";
+  setNodes("diagResults", w ? w.diagNodes : []);
+  if ($("qVehText")) $("qVehText").value = w ? w.qVehText : "";
+  setNodes("qVehResult", w ? w.qVehNodes : []);
+  toggle("qVehResult", !!(w && w.qVehShown && w.qVehNodes && w.qVehNodes.length));
 }
 
 function showResult(d, opt = {}) {
-  // 別車両に切り替わったら前の車両の診断/修理結果をクリア
-  if (!current || vehicleKey(current) !== vehicleKey(d)) resetVehicleWorkTabs();
+  // 別車両に切り替わったら、前車両の作業内容を退避し、選んだ車両の内容を復元(診断・修理を保持)
+  const oldKey = current ? vehicleKey(current) : null;
+  const newKey = vehicleKey(d);
+  if (oldKey !== newKey) { try { cancelAI(); } catch (e) {} saveVehWork(oldKey); restoreVehWork(newKey); }
   current = d;
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
@@ -1317,10 +1331,6 @@ function showResult(d, opt = {}) {
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
-  // 型式が空で車台番号がある車両は、AIで型式を自動特定して保存 → 特定できたら再表示(DB照合を効かせる)
-  if (!d.type && d.vin && localStorage.getItem(LS.gemini)) {
-    inferTypeFromVin(current).then(ty => { if (ty && current && current.vin) showResult(current, { fromScan: false, noAutoAi: true }); }).catch(() => {});
-  }
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -3741,8 +3751,14 @@ function goHome() {
 
 /* 型式のハイフンより後ろ(車種記号)だけ取り出す。例 2PG-FW74HZ → FW74HZ */
 function kataSuffix(t) { const s = String(t || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return i >= 0 ? s.slice(i + 1).trim() : s; }
-/* 車台番号のハイフンより前(打刻の車種記号部)。例 RK5-1028429 → RK5 / NKR85Y-70123 → NKR85Y */
-function vinPrefix(v) { const s = String(v || "").trim(); if (!s) return ""; const i = s.indexOf("-"); return (i >= 0 ? s.slice(0, i) : s).trim(); }
+/* 車台番号のハイフンより前(打刻の車種記号部)。例 RK5-1028429 → RK5 / NKR85Y-70123 → NKR85Y
+   ハイフンが無い打刻(例 NKR85Y7012345)は、末尾の一連番号(英字の後に続く5桁以上の数字)を除いた記号部を返す */
+function vinPrefix(v) {
+  const s = String(v || "").trim(); if (!s) return "";
+  const i = s.indexOf("-"); if (i >= 0) return s.slice(0, i).trim();
+  const m = s.match(/^(.*?[A-Za-z])\d{5,}$/);   // 英字で終わる記号部 + 末尾5桁以上の数字
+  return (m ? m[1] : s).trim();
+}
 /* 修理タブ: FAINES検索用に車台番号(ハイフン前)をコピー。無ければ型式(車種記号)で代替 */
 function renderCopyKata() {
   const el = $("copyKata"); if (!el) return;
@@ -3836,7 +3852,6 @@ function showToast(msg) {
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();
   renderLastVehicle();   // ホームに前回車両チップ
-  setTimeout(() => { try { backfillTypesFromVin(); } catch (e) {} }, 5000);   // 型式が空の既存車両をVINから自動特定(起動後に静かに)
   renderDBList();
   applyRoleUI();   // 権限に応じてデータ管理/削除ボタンを制御
   renderGeminiStat();
