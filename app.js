@@ -1315,6 +1315,7 @@ function showResult(d, opt = {}) {
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブの型式コピーを更新
+  if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   if (typeof renderLastVehicle === "function") renderLastVehicle();  // ホームの前回車両を更新(現在の車両を除外)
 
   // DB照合: 型式のハイフン以降(無ければ全体)
@@ -3735,18 +3736,31 @@ function renderCopyKata() {
     setTimeout(() => { el.innerHTML = orig; }, 1400);
   };
 }
-/* ホーム: 前回の車両チップ(小さく・タップで呼び出し) */
+/* 最近表示した車両を記録(表示のたびに更新。前回=最後に表示していた車両) */
+function vehId(v) { return [(v && v.type) || "", (v && v.vin) || "", (v && v.kataShitei) || "", (v && v.plate) || ""].join("|"); }
+function pushRecentVehicle(d) {
+  if (!d || !(d.type || d.vin || d.kataShitei)) return;
+  try {
+    let arr = JSON.parse(localStorage.getItem("ss_recentVeh") || "[]");
+    const nm = (findHistEntry(getHistory(), d) || {}).name || d.name || null;
+    const card = { type: d.type || null, vin: d.vin || null, kataShitei: d.kataShitei || null, plate: d.plate || null, name: nm, rid: d.rid || null, at: Date.now() };
+    arr = arr.filter(v => vehId(v) !== vehId(card));   // 同一車両は重複させない
+    arr.unshift(card);
+    localStorage.setItem("ss_recentVeh", JSON.stringify(arr.slice(0, 6)));
+  } catch (e) {}
+}
+/* ホーム: 前回の車両チップ(=現在表示中を除いた、最後に表示していた車両) */
 function renderLastVehicle() {
   const el = $("lastVehicle"); if (!el) return;
-  const hist = ((typeof dedupeHistoryStore === "function" ? dedupeHistoryStore() : getHistory()) || []).slice();
-  hist.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));   // 最新を先頭に
-  // 現在表示中の車両は除外し、直近の「別の」車両を出す(前回の車両)
-  const last = hist.find(h => !(current && (current.type || current.vin || current.kataShitei) && findHistEntry([h], current)));
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem("ss_recentVeh") || "[]"); } catch (e) {}
+  const curId = (current && (current.type || current.vin || current.kataShitei)) ? vehId(current) : "";
+  const last = arr.find(v => vehId(v) !== curId);
   if (!last) { toggle("lastVehicle", false); return; }
   const label = [dispText(last.plate), dispText(last.name)].filter(Boolean).join(" / ") || dispText(last.type) || "前回の車両";
   el.innerHTML = '🕒 前回の車両: <b>' + esc(label) + '</b> ›';
   toggle("lastVehicle", true);
-  el.onclick = () => showResult(histToResult(last), { fromScan: false });
+  el.onclick = () => { const e2 = findHistEntry(getHistory(), last); showResult(e2 ? histToResult(e2) : last, { fromScan: false }); };
 }
 
 /* さりげないトースト通知(数秒で自動的に消える) */
