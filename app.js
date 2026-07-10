@@ -1565,10 +1565,21 @@ function saveKarteEntry(entry) {
   const t = findHistEntry(h2, current); if (!t) return;
   const list = (t.karte || []).slice();
   const idx = list.findIndex(k => k.id === entry.id);
-  if (idx >= 0) list[idx] = entry; else list.unshift(entry);
+  // 記入者(by=uid, byName=氏名)を記録。既存の編集では元の記入者を保持する。
+  if (idx >= 0) { entry.by = list[idx].by || entry.by || null; entry.byName = list[idx].byName || entry.byName || null; list[idx] = entry; }
+  else { entry.by = (window.Cloud && window.Cloud.myUid && window.Cloud.myUid()) || null; entry.byName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || entry.staff || null; list.unshift(entry); }
   t.karte = list; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
+}
+/* カルテ編集・削除の権限: 未ログイン(個人利用)=可 / 管理者=常に可 / 従業員=自分が記入した記録のみ */
+function canEditKarte(k) {
+  if (!window.Cloud || !window.Cloud.isLoggedIn || !window.Cloud.isLoggedIn()) return true;
+  if (window.Cloud.isManager && window.Cloud.isManager()) return true;
+  const uid = (window.Cloud.myUid && window.Cloud.myUid()) || "";
+  if (k && k.by) return k.by === uid;
+  // 記入者IDが無い旧データは、担当者名が自分と一致する場合のみ許可
+  return !!(k && k.byName && k.byName === (window.Cloud.myName && window.Cloud.myName()));
 }
 function renderKarte() {
   const box = $("karteList"); if (!box) return;
@@ -1583,15 +1594,18 @@ function renderKarte() {
     const metaBits = [dispText(k.date), k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(han(k.staff)) : ""].filter(Boolean);
     head.innerHTML = '<span class="kDate">' + metaBits.join(' <i class="kSep">・</i> ') + '</span>';
     const btns = document.createElement("div"); btns.className = "kBtns";
-    const edit = document.createElement("button"); edit.className = "kEdit"; edit.textContent = "編集";
-    edit.addEventListener("click", () => editKarteInline(card, k));
-    const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
-    del.addEventListener("click", () => {
-      if (!confirm("この記録を削除しますか？")) return;
-      saveKarteEntry(Object.assign({}, k, { deleted: true, at: new Date().toISOString() }));
-      renderKarte();
-    });
-    btns.append(edit, del); head.appendChild(btns);
+    if (canEditKarte(k)) {   // 記入者本人・管理者のみ 編集/削除ボタンを表示
+      const edit = document.createElement("button"); edit.className = "kEdit"; edit.textContent = "編集";
+      edit.addEventListener("click", () => editKarteInline(card, k));
+      const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
+      del.addEventListener("click", () => {
+        if (!confirm("この記録を削除しますか？")) return;
+        saveKarteEntry(Object.assign({}, k, { deleted: true, at: new Date().toISOString() }));
+        renderKarte();
+      });
+      btns.append(edit, del);
+    }
+    head.appendChild(btns);
     // 本文: 作業・部品は「、,改行」で分割して箇条書き。費用・メモは1行。
     const body = document.createElement("div"); body.className = "kBody";
     const block = (label, val) => {

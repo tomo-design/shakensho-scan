@@ -330,6 +330,7 @@
   window.Cloud = {
     get active() { return !!(profile && profile.active && profile.tenantId); },
     myName() { return (profile && profile.name) || (me && me.email) || ""; },
+    myUid() { return (me && me.uid) || ""; },
     myRole() { return (profile && profile.role) || ""; },
     isLoggedIn() { return !!me; },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
