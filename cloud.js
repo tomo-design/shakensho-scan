@@ -108,11 +108,13 @@
     const lbl = planLabel();
     const body = '<div class="foldBody">' +
       '<div class="planHead">状態: <b>' + (lbl || "未設定（無料/試用）") + '</b></div>' +
-      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPay">💳 月額プランのお支払い</button></div>' +
-      '<div class="planNote">店舗ごとの月額です。お支払い手続きは準備中（Stripeを接続予定）。お支払い後、運営側で有効化します。</div>' +
+      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPayM">💳 月額プラン</button>' +
+      '<button class="btn btn-amber btn-sm" id="btnPlanPayY">📅 年契約（お得）</button></div>' +
+      '<div class="planNote">店舗ごとの契約です。月額または年契約（まとめてお得）を選べます。お支払い手続きは準備中（Stripeを接続予定・領収書/インボイス対応）。お支払い後、運営側で有効化します。</div>' +
       '</div>';
-    box.innerHTML = '<details class="foldCard"><summary>🏢 店舗のお支払い（月額）<span class="foldTag">' + esc(lbl || "未設定") + '</span></summary>' + body + '</details>';
-    const pay = $("btnPlanPay"); if (pay) pay.onclick = () => alert("月額プランのお支払いは準備中です。\n\nStripe（直接決済・領収書/インボイス対応）を接続後、ここから手続きできるようになります。");
+    box.innerHTML = '<details class="foldCard"><summary>🏢 店舗のお支払い（月額／年契約）<span class="foldTag">' + esc(lbl || "未設定") + '</span></summary>' + body + '</details>';
+    const payM = $("btnPlanPayM"); if (payM) payM.onclick = () => alert("月額プランのお支払いは準備中です。\n\nStripe（直接決済・領収書/インボイス対応）を接続後、ここから手続きできます。");
+    const payY = $("btnPlanPayY"); if (payY) payY.onclick = () => alert("年契約のお支払いは準備中です。\n\n月額よりお得な年払いを用意予定です（Stripe接続後）。");
     show("cloudPlan", true);
   }
   /* 登録端末の一覧＋追加端末(個人) — 折り畳み。制限超過時は自動で開く。 */
@@ -496,8 +498,18 @@
     if (!box.classList.contains("hidden")) { show("cloudManageBox", false); return; }
     show("cloudManageBox", true); renderManage("cloudManageBox");
   });
-  $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => renderManage("adminBox"));
-  window.CloudAdmin = { open() { renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
+  // 運営管理者(自分)の情報を運営タブ上部に表示
+  function renderOperatorInfo() {
+    const el = $("adminOperator"); if (!el) return;
+    if (!me || !profile || profile.role !== "super") { el.innerHTML = ""; return; }
+    const who = profile.name ? esc(profile.name) : esc(me.email);
+    el.innerHTML = "<div class='opCard'><span class='opBadge'>運営管理者</span>" +
+      "<span class='opNm'>" + who + "</span>" +
+      "<div class='opMail'>" + esc(me.email) + "</div>" +
+      "<div class='opNote'>運営管理者は各店舗から独立しています。店舗のデータ共有を使う場合は、その会社に<b>従業員として別途ログイン</b>してください。</div></div>";
+  }
+  $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => { renderOperatorInfo(); renderManage("adminBox"); });
+  window.CloudAdmin = { open() { renderOperatorInfo(); renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
   async function renderManage(boxId) {
     const box = $(boxId); if (!box || !profile) return;
     box.innerHTML = "読み込み中…";
@@ -507,7 +519,8 @@
       if (profile.role === "admin") uq = uq.where("tenantId", "==", profile.tenantId);
       const us = await uq.get();
       const byTenant = {};
-      us.forEach(d => { const u = d.data(); const t = u.tenantId || "（未所属）"; (byTenant[t] = byTenant[t] || []).push({ id: d.id, u }); });
+      // 運営管理者(super)は独立。店舗のメンバー一覧には出さない(代表管理者からは見えない)
+      us.forEach(d => { const u = d.data(); if (u.role === "super") return; const t = u.tenantId || "（未所属）"; (byTenant[t] = byTenant[t] || []).push({ id: d.id, u }); });
 
       let html = "", statTids = [];
       if (profile.role === "super") {
@@ -587,7 +600,7 @@
     let btns;
     if (u.active) {
       // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
-      const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber")
+      const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
       btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");

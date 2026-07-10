@@ -355,6 +355,12 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .foldCard .foldTag{margin-left:auto;font-size:11px;font-weight:600;color:var(--dim);background:var(--panel2);border-radius:20px;padding:2px 8px}
 .foldCard .foldTag.warn{color:#fff;background:var(--alert,#e0533d)}
 .foldCard .foldBody{padding:0 12px 12px}
+/* セクション見出しごと折り畳み(クラウド同期など) */
+.foldSecSum{list-style:none;cursor:pointer;padding:12px 14px;font-size:13px;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.foldSecSum::-webkit-details-marker{display:none}
+.foldSecSum::after{content:"▾";margin-left:auto;color:var(--dim);font-size:11px;transition:transform .15s}
+.foldSec:not([open])>.foldSecSum{border-bottom:0}
+.foldSec:not([open])>.foldSecSum::after{transform:rotate(-90deg)}
 /* 管理: 名前行右端の端末枠 +/- */
 .mInfo .mTop{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .mInfo .mTop .mNm{flex:0 1 auto}
@@ -368,6 +374,13 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 /* 運営管理者の在籍行(店舗の管理対象外) */
 .mRowSuper{opacity:.75;background:var(--panel2);border-radius:8px;padding:8px 10px !important;margin-top:6px}
 .mRowSuper .mMeta{font-style:italic}
+/* 運営タブ上部の運営管理者情報 */
+.opInfo:empty{display:none}
+.opCard{border:1px solid var(--amber);border-radius:10px;padding:10px 12px;background:var(--panel);margin-top:8px}
+.opCard .opBadge{display:inline-block;background:var(--amber);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;margin-right:8px}
+.opCard .opNm{font-weight:700;font-size:14px}
+.opCard .opMail{color:var(--dim);font-size:12px;margin-top:2px;word-break:break-all}
+.opCard .opNote{color:var(--dim);font-size:11.5px;line-height:1.5;margin-top:6px}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
 /* 運営/メンバー管理 */
