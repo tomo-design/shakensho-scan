@@ -1608,8 +1608,14 @@ function renderKarte() {
       toks.forEach(t => { if (/^\d/.test(t) && name.length) { rows.push({ n: name.join(" "), q: t }); name = []; } else name.push(t); });
       if (name.length) rows.push({ n: name.join(" "), q: "" });
       if (!rows.length) return "";
+      // 見栄え: 末尾の(…)/（…）は改行して小さく別行に。ASSY等の長名は1行に収める(CSSで縮小)
+      const fmtName = n => {
+        const m = String(n).match(/^(.*?\S)\s*([（(].*[)）])\s*$/);
+        if (m) return esc(m[1]) + '<span class="kPnSub">' + esc(m[2]) + '</span>';
+        return esc(n);
+      };
       return '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">部品</span><span class="kQtyLbl">数量</span></div>' +
-        '<ul class="kItems kPartRows">' + rows.map(r => '<li><span class="kPn">' + esc(r.n) + '</span><span class="kQty">' + esc(r.q) + '</span></li>').join("") + '</ul></div>';
+        '<ul class="kItems kPartRows">' + rows.map(r => '<li><span class="kPn">' + fmtName(r.n) + '</span><span class="kQty">' + esc(r.q) + '</span></li>').join("") + '</ul></div>';
     };
     body.innerHTML = block("作業", k.work) + partsBlock(k.parts) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
@@ -3831,6 +3837,12 @@ function renderCopyKata() {
     const orig = el.innerHTML; el.innerHTML = '✓ コピー';
     setTimeout(() => { el.innerHTML = orig; }, 1200);
   };
+  // 年式(初度登録年)を横に表示(参考表示・コピー不可)
+  const yEl = $("kataYear"); if (yEl) {
+    const fr = current && current.firstReg; const yr = fr && fr.year;
+    if (yr) { yEl.textContent = "年式: " + yr + "年" + (fr.month ? "/" + fr.month + "月" : ""); toggle("kataYear", true); }
+    else toggle("kataYear", false);
+  }
 }
 /* 最近表示した車両を記録(表示のたびに更新。前回=最後に表示していた車両) */
 function vehId(v) { return [(v && v.type) || "", (v && v.vin) || "", (v && v.kataShitei) || "", (v && v.plate) || ""].join("|"); }

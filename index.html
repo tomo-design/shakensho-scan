@@ -309,12 +309,12 @@
     <div id="vehAttachList" class="hidden" style="margin-top:8px"></div>
     <input type="file" id="inVehPhoto" accept="image/*" multiple class="hidden">
     <input type="file" id="inVehPhotoCam" accept="image/*" capture="environment" class="hidden">
-    <div class="btnRow">
-      <button class="btn btn-ghost btnPick" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
+    <div class="btnRow diagRunRow">
+      <button class="btn btn-ghost btnPick btn-sm" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
       <button class="btn btn-ghost btn-sm" id="btnVehClear" style="flex:0 0 30%">クリア</button>
     </div>
     <div id="qVehResult" class="ai-answer hidden" style="margin-top:10px"></div>
-    <button type="button" id="copyKata" class="copyKata hidden"></button>
+    <div class="copyRow"><button type="button" id="copyKata" class="copyKata hidden"></button><span id="kataYear" class="kataYear hidden"></span></div>
     <a class="linkbtn" href="https://faines.jaspa.or.jp/enduser/user/login" target="_blank" rel="noopener" style="margin-top:10px">📗 FAINESで正式な整備手順・品番・トルクを確認<span class="arr">↗</span></a>
     <div class="hint" style="margin-top:10px">※ 回答・部品番号はAIの参考情報です。注文・作業前にFAINESや部品商で正式値を確認してください。</div>
   </div></section>
@@ -331,7 +331,7 @@
   </nav>
 
   <section style="margin-top:6px">
-    <h2 class="secHead"><span class="tag al">DTC</span>ダイアグコード/故障診断<span class="diagIcons inHead">
+    <h2 class="secHead"><span class="tag al">DTC</span>故障診断<span class="diagIcons inHead">
       <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
       <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
       <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
