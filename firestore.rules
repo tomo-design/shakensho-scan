@@ -23,8 +23,12 @@ service cloud.firestore {
       allow update: if request.auth.uid == uid
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin','fcmTokens','devices'])
                     && request.resource.data.get('devices', []).size() <= resource.data.get('deviceLimit', 2);
-      // 承認/無効化/有料枠(deviceLimit)の付与: super は全員、admin は自社のみ
-      allow update, delete: if isSuper() || (isAdmin() && resource.data.tenantId == myTenant());
+      // 承認/無効化: super は全員、admin は自社のみ
+      allow delete: if isSuper() || (isAdmin() && resource.data.tenantId == myTenant());
+      // 更新も同様。ただし有料枠(deviceLimit)の変更は super のみ(代表管理者=adminによる無料付与を防止)
+      allow update: if isSuper()
+                    || (isAdmin() && resource.data.tenantId == myTenant()
+                        && request.resource.data.get('deviceLimit', 2) == resource.data.get('deviceLimit', 2));
     }
 
     match /tenants/{tid} {

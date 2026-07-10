@@ -33,6 +33,27 @@
   let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
   let unsubVeh = null, unsubRec = null, unsubJoin = null;
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
+  let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
+  let planBlocked = false;     // 店舗が未払い/停止なら true
+
+  /* ---------- 店舗プラン(月額) ---------- */
+  // plan: "active"(課金中) / "trial"(試用) / "suspended"(停止)。未設定は当面「有効」とみなす(既存利用を壊さない)
+  function planActive() {
+    if (!tenantDoc) return true;                       // 情報が無ければ従来どおり有効
+    if (tenantDoc.plan === "suspended") return false;  // 明示停止
+    if (tenantDoc.paidUntil && Number(tenantDoc.paidUntil) < Date.now()) return false;  // 期限切れ
+    return true;                                        // active / trial / 未設定
+  }
+  function planLabel() {
+    if (!tenantDoc) return "";
+    const until = tenantDoc.paidUntil ? new Date(Number(tenantDoc.paidUntil)) : null;
+    const u = until ? until.toLocaleDateString("ja-JP") : "";
+    if (tenantDoc.plan === "suspended") return "⛔ 停止中";
+    if (tenantDoc.paidUntil && Number(tenantDoc.paidUntil) < Date.now()) return "⛔ 期限切れ（" + u + "）";
+    if (tenantDoc.plan === "active") return "✓ 契約中" + (u ? "（〜" + u + "）" : "");
+    if (tenantDoc.plan === "trial") return "試用中" + (u ? "（〜" + u + "）" : "");
+    return "";
+  }
 
   /* ---------- 端末制限(1従業員 無料2台/3台目以降は有料枠) ---------- */
   const FREE_DEVICE_LIMIT = 2;
@@ -78,6 +99,26 @@
       if (deviceBlocked) { const g = await ensureDeviceAllowed(me.uid); if (g.ok) { deviceBlocked = false; startSync(profile.tenantId); } }
       renderDevices(); renderAuthUI();
     } catch (e) { alert("端末の解除に失敗しました: " + (e.message || e)); }
+  }
+  /* 店舗プランの状態＋お支払い導線(決済リンクは後で差し込む) */
+  function renderPlan() {
+    const box = $("cloudPlan"); if (!box) return;
+    if (!me || !profile || !profile.active) { box.innerHTML = ""; show("cloudPlan", false); return; }
+    const isAdmin = profile.role === "admin" || profile.role === "super";
+    const lbl = planLabel();
+    let html = '<div class="planHead">店舗プラン: <b>' + (lbl || "（未設定＝無料/試用）") + '</b></div>';
+    // お支払い導線(現状は準備中スタブ。Google Play課金の導線を後で差し込む)
+    if (isAdmin) {
+      html += '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPay">💳 月額プランのお支払い</button></div>' +
+        '<div class="planNote">お支払い手続きは準備中です。有効化はしばらく運営側で対応します。</div>';
+    }
+    // 従業員向け: 追加端末(3台目〜)の購入導線(準備中スタブ)
+    html += '<div class="planBtns"><button class="btn btn-ghost btn-sm" id="btnDevBuy">➕ 追加端末（3台目〜・有料）</button></div>' +
+      '<div class="planNote">2台目までは無料です。3台目以降は追加端末の登録が必要です（お支払いは準備中）。</div>';
+    box.innerHTML = html;
+    const pay = $("btnPlanPay"); if (pay) pay.onclick = () => alert("月額プランのお支払いは準備中です。\n\n決済（Google Play課金）を接続後、ここから手続きできるようになります。");
+    const buy = $("btnDevBuy"); if (buy) buy.onclick = () => alert("追加端末の購入は準備中です。\n\n現在は「無料2台まで」。使わない端末を『解除』すれば別の端末で使えます。");
+    show("cloudPlan", true);
   }
   /* 登録端末の一覧＋制限の案内をUIに描画 */
   function renderDevices() {
@@ -201,10 +242,16 @@
         profile = doc.data();
       }
     } catch (e) { profile = null; }
+    // 店舗の契約状態を読み込む
+    deviceBlocked = false; planBlocked = false; tenantDoc = null;
+    if (profile && profile.tenantId) {
+      try { tenantDoc = (await db.collection("tenants").doc(profile.tenantId).get()).data() || null; } catch (e) { tenantDoc = null; }
+    }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) {
+      // 店舗が未払い/停止なら社内共有を止める(個人利用=ローカルは継続)
+      if (!planActive()) { planBlocked = true; renderAuthUI(); renderDevices(); return; }
       // 端末制限チェック(無料2台まで/3台目以降は有料枠が必要)。許可された端末のみ同期する。
-      deviceBlocked = false;
       const gate = await ensureDeviceAllowed(user.uid);
       renderDevices();
       if (!gate.ok) { deviceBlocked = true; renderAuthUI(); return; }   // 未許可端末は同期させない
@@ -227,7 +274,7 @@
     show("cloudLoggedIn", inLogged);
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
     show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
-    if (!inLogged) { closeForm(); show("tabAdmin", false); show("cloudDevices", false); return; }
+    if (!inLogged) { closeForm(); show("tabAdmin", false); show("cloudDevices", false); show("cloudPlan", false); return; }
     const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[profile.role] || profile.role) : "—";
     const who = profile && profile.name ? profile.name + "（" + me.email + "）" : me.email;
     if (!profile) {
@@ -243,11 +290,14 @@
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>会社の代表管理者に承認をご相談ください。再申請が必要な場合は管理者が再承認できます。";
     } else if (!profile.active) {
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
+    } else if (planBlocked) {
+      $("cloudStat").innerHTML = who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa + "<br>⛔ <b>店舗の利用契約が停止中/期限切れ</b>です（社内共有は停止／個人利用は可）。代表管理者にお支払いをご確認ください。";
     } else if (deviceBlocked) {
       $("cloudStat").innerHTML = who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa + "<br>⛔ <b>この端末は無料枠を超えています</b>（社内共有は停止中／個人利用は可）。下の端末一覧をご確認ください。";
     } else {
       $("cloudStat").innerHTML = "✓ 同期中 — " + who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
     }
+    renderPlan();
     renderDevices();
     // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
@@ -412,7 +462,7 @@
 
   /* ---------- アプリからの書き込みフック ---------- */
   window.Cloud = {
-    get active() { return !!(profile && profile.active && profile.tenantId && !deviceBlocked); },
+    get active() { return !!(profile && profile.active && profile.tenantId && !deviceBlocked && !planBlocked); },
     myName() { return (profile && profile.name) || (me && me.email) || ""; },
     myUid() { return (me && me.uid) || ""; },
     myRole() { return (profile && profile.role) || ""; },
@@ -470,6 +520,7 @@
             "<span class='mChevron'>▸</span>" +
             "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
+            btn("plan", "t", id, "プラン") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
@@ -511,16 +562,20 @@
     const fmt = ms => { const d = new Date(ms); return d.toLocaleDateString("ja-JP") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
     const reg = u.createdAt ? "登録 " + new Date(u.createdAt).toLocaleDateString("ja-JP") : "";
     const last = u.lastLogin ? "最終ログイン " + fmt(u.lastLogin) : "未ログイン";
+    const devN = Array.isArray(u.devices) ? u.devices.length : 0;
+    const devLimit = Number(u.deviceLimit) || 2;
     const info = "<div class='mInfo'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
       "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
-      "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + "</div></div>";
+      "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ 端末 " + devN + "/" + devLimit + "台</div></div>";
     let btns;
     if (u.active) {
       // 役割変更ボタンで無効化の隣を埋める(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
-      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("off", "u", id, "無効化");
+      // 追加端末枠の付与/取消(有料枠。運営=superのみ。代表管理者による不正付与を防ぐ)
+      const devBtn = (profile && profile.role === "super") ? (btn("devplus", "u", id, "端末枠+") + (devLimit > 2 ? btn("devminus", "u", id, "端末枠-") : "")) : "";
+      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + devBtn + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
@@ -561,6 +616,26 @@
       } else if (act === "demote") {
         if (!confirm("この代表管理者を従業員に降格しますか？")) return;
         await db.collection("users").doc(id).update({ role: "staff" });
+      } else if (act === "plan") {
+        // 店舗プランの設定(運営のみ)。何ヶ月分 有効にするか入力。0=停止。
+        const cur = await db.collection("tenants").doc(id).get(); const td = cur.data() || {};
+        const now = td.paidUntil && Number(td.paidUntil) > Date.now() ? Number(td.paidUntil) : Date.now();
+        const ans = (prompt("店舗「" + id + "」のプラン\n何ヶ月分 有効にしますか？（0=停止、例 1・12）", "1") || "").trim();
+        if (ans === "") return;
+        const months = parseInt(ans, 10);
+        if (isNaN(months) || months < 0) { alert("数字を入力してください。"); return; }
+        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止にしました。"); }
+        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
+      } else if (act === "devplus") {
+        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
+        const nl = (Number(u.deviceLimit) || 2) + 1;
+        await db.collection("users").doc(id).update({ deviceLimit: nl });
+        alert("端末枠を " + nl + " 台に増やしました（追加端末の支払い確認後に付与してください）。");
+      } else if (act === "devminus") {
+        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
+        const nl = Math.max(2, (Number(u.deviceLimit) || 2) - 1);
+        await db.collection("users").doc(id).update({ deviceLimit: nl });
+        alert("端末枠を " + nl + " 台にしました。");
       } else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }
       else await db.collection(col).doc(id).update({ active: false });
     } catch (e) { alert("操作失敗: " + (e.message || e)); }
