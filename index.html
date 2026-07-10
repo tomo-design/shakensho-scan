@@ -298,13 +298,12 @@
     <button class="navBtn" data-go="parts">🛠 修理</button>
     <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
-  <section><h2 class="secHead"><span class="tag cy">ASK</span>修理について質問</h2>
-    <div class="diagIcons">
+  <section><h2 class="secHead"><span class="tag cy">ASK</span>修理について質問<span class="diagIcons inHead">
       <button type="button" class="diagIco txt" id="btnVehMic" title="音声で入力">🎤</button>
       <button type="button" class="diagIco txt" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button>
       <button type="button" class="diagIco" id="btnVehPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
       <button type="button" class="diagIco" id="btnVehPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
-    </div>
+    </span></h2>
   <div class="sec-body">
     <textarea id="qVehText" class="kGrow" style="min-height:60px" placeholder="修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。"></textarea>
     <div id="vehAttachList" class="hidden" style="margin-top:8px"></div>
@@ -332,14 +331,13 @@
   </nav>
 
   <section style="margin-top:6px">
-    <h2><span class="tag al">DTC</span>ダイアグコード/故障診断</h2>
-    <div class="diagIcons">
+    <h2 class="secHead"><span class="tag al">DTC</span>ダイアグコード/故障診断<span class="diagIcons inHead">
       <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
       <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
       <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
       <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
       <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
-    </div>
+    </span></h2>
     <div class="sec-body">
       <textarea id="diagText" class="kGrow" style="min-height:60px" placeholder="ダイアグコード（例: P0401）や症状を入力。🎤音声・写真/動画の添付も可。"></textarea>
       <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
