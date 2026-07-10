@@ -1818,7 +1818,7 @@ function reconcileFluidsFromKarte(entry) {
   if (!found.length) return;
   const he = findHistEntry(getHistory(), current) || {};
   const learned = getLearned(vehicleKey(current)) || {};
-  let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => ({ k: s.k, v: s.v }));
+  let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
   const changes = [];
   found.forEach(f => {
     // 同じ油脂グループの諸元項目を探す(無ければ勝手に追加しない)
@@ -1827,7 +1827,7 @@ function reconcileFluidsFromKarte(entry) {
     const cur = parseLiters(specs[i].v);
     if (cur != null && Math.abs(cur - f.liters) < 0.001) return;   // 一致していれば変更なし
     changes.push({ k: specs[i].k, oldV: specs[i].v, newV: f.qtyStr });
-    specs[i] = { k: specs[i].k, v: f.qtyStr };
+    specs[i] = { k: specs[i].k, v: f.qtyStr, manual: true };   // 実績確定値として緑で固定(AI再読込でも上書きされない)
   });
   if (!changes.length) return;
   saveVehicleAiData(specs);                          // 履歴(DB)＋社内共有へ
