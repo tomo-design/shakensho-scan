@@ -1571,6 +1571,7 @@ function saveKarteEntry(entry) {
   t.karte = list; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
+  try { reconcileFluidsFromKarte(entry); } catch (e) {}   // 油脂類の実績量で諸元を自動更新
 }
 /* カルテ編集・削除の権限: 未ログイン(個人利用)=可 / 管理者=常に可 / 従業員=自分が記入した記録のみ */
 function canEditKarte(k) {
@@ -1783,6 +1784,59 @@ function saveVehicleAiData(specs, faults, recalls, extra) {
   if (window.Cloud) window.Cloud.pushRecord(t);   // 諸元・故障も社内共有へ
 }
 function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).join("\n"); }
+
+/* 油脂類の種別グループ(カルテ部品名・諸元項目名の両方をこのキーワードで判定) */
+const FLUID_GROUPS = [
+  { canon: "エンジンオイル", kw: ["エンジンオイル", "エンジン油", "eo", "e/o"] },
+  { canon: "ミッションオイル", kw: ["ミッションオイル", "ミッション", "トランスミッション", "ギヤオイル", "ギアオイル", "m/t", "mtオイル"] },
+  { canon: "デフオイル", kw: ["デフオイル", "デフ", "デファレンシャル", "終減速", "ディファレンシャル"] },
+  { canon: "ブレーキフルード", kw: ["ブレーキフルード", "ブレーキ液", "ブレーキオイル", "フルード"] },
+  { canon: "パワステフルード", kw: ["パワステ", "パワーステアリング", "psf", "p/s"] },
+  { canon: "クーラント", kw: ["クーラント", "冷却水", "llc", "ロングライフ", "不凍液"] },
+  { canon: "ATF", kw: ["atf", "オートマオイル"] },
+  { canon: "CVTフルード", kw: ["cvt"] },
+  { canon: "アドブルー", kw: ["アドブルー", "adblue", "尿素水"] },
+];
+const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
+function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
+function parseLiters(v) { const m = String(v || "").match(/([\d]+(?:\.\d+)?)\s*[lLｌＬ]/); return m ? parseFloat(m[1]) : null; }
+/* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
+function reconcileFluidsFromKarte(entry) {
+  if (!entry || entry.deleted || !entry.parts || !current) return;
+  // 「部品名 + 数量」に分解(数字始まりを直前の名前の数量とみなす)
+  const toks = String(entry.parts).split(/[、,，・\s]+/).map(s => han(s).trim()).filter(Boolean);
+  const rows = []; let name = [];
+  toks.forEach(t => { if (/^\d/.test(t) && name.length) { rows.push({ n: name.join(" "), q: t }); name = []; } else name.push(t); });
+  if (name.length) rows.push({ n: name.join(" "), q: "" });
+  // 油脂類 かつ L(リットル)量 のものだけ抽出
+  const found = [];
+  rows.forEach(r => {
+    const liters = parseLiters(r.q); if (liters == null) return;
+    const g = fluidGroupOf(r.n); if (!g) return;
+    found.push({ g, liters, qtyStr: (r.q).replace(/[ｌＬl]/, "L") });
+  });
+  if (!found.length) return;
+  const he = findHistEntry(getHistory(), current) || {};
+  const learned = getLearned(vehicleKey(current)) || {};
+  let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => ({ k: s.k, v: s.v }));
+  const changes = [];
+  found.forEach(f => {
+    // 同じ油脂グループの諸元項目を探す(無ければ勝手に追加しない)
+    const i = specs.findIndex(s => { const g = fluidGroupOf(s.k); return g && g.canon === f.g.canon; });
+    if (i < 0) return;
+    const cur = parseLiters(specs[i].v);
+    if (cur != null && Math.abs(cur - f.liters) < 0.001) return;   // 一致していれば変更なし
+    changes.push({ k: specs[i].k, oldV: specs[i].v, newV: f.qtyStr });
+    specs[i] = { k: specs[i].k, v: f.qtyStr };
+  });
+  if (!changes.length) return;
+  saveVehicleAiData(specs);                          // 履歴(DB)＋社内共有へ
+  setLearned(vehicleKey(current), { specs });        // この端末の記憶へ
+  // メンテ画面を開いていれば即再描画
+  const mv = document.getElementById("view-maint");
+  if (mv && mv.classList.contains("active") && typeof renderSpecs === "function") renderSpecs(specs, "learned");
+  showToast("カルテの実績で諸元を更新: " + changes.map(c => c.k + " " + c.newV).join(" / "));
+}
 function textToSpecs(text) {
   return (text || "").split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
     const i = l.search(/[:：]/);
