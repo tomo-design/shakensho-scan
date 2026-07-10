@@ -324,6 +324,10 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .diagIco.txt{font-size:24px;line-height:1}
 .diagIco.sel{outline:2px solid var(--amber)}
 .diagIco:active{transform:scale(.92)}
+/* 修理タブの写真添付: 左寄せでコンパクトに(間延びさせない) */
+.vehIcons{justify-content:flex-start;align-items:center;gap:8px;margin:8px 2px 0}
+.vehIcons .diagIco{flex:0 0 auto;width:44px}
+.vehIcoHint{font-size:12px;color:var(--dim);margin-left:2px}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
 /* 運営/メンバー管理 */
