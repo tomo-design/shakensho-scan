@@ -100,53 +100,54 @@
       renderDevices(); renderAuthUI();
     } catch (e) { alert("端末の解除に失敗しました: " + (e.message || e)); }
   }
-  /* 店舗プランの状態＋お支払い導線(決済リンクは後で差し込む) */
+  /* 店舗のお支払い(月額) — 折り畳み。代表管理者のみ表示。決済リンクは後で差し込む。 */
   function renderPlan() {
     const box = $("cloudPlan"); if (!box) return;
-    if (!me || !profile || !profile.active) { box.innerHTML = ""; show("cloudPlan", false); return; }
-    const isAdmin = profile.role === "admin" || profile.role === "super";
+    const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
+    if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
     const lbl = planLabel();
-    let html = '<div class="planHead">店舗プラン: <b>' + (lbl || "（未設定＝無料/試用）") + '</b></div>';
-    // お支払い導線(現状は準備中スタブ。Google Play課金の導線を後で差し込む)
-    if (isAdmin) {
-      html += '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPay">💳 月額プランのお支払い</button></div>' +
-        '<div class="planNote">お支払い手続きは準備中です。有効化はしばらく運営側で対応します。</div>';
-    }
-    // 従業員向け: 追加端末(3台目〜)の購入導線(準備中スタブ)
-    html += '<div class="planBtns"><button class="btn btn-ghost btn-sm" id="btnDevBuy">➕ 追加端末（3台目〜・有料）</button></div>' +
-      '<div class="planNote">2台目までは無料です。3台目以降は追加端末の登録が必要です（お支払いは準備中）。</div>';
-    box.innerHTML = html;
-    const pay = $("btnPlanPay"); if (pay) pay.onclick = () => alert("月額プランのお支払いは準備中です。\n\n決済（Google Play課金）を接続後、ここから手続きできるようになります。");
-    const buy = $("btnDevBuy"); if (buy) buy.onclick = () => alert("追加端末の購入は準備中です。\n\n現在は「無料2台まで」。使わない端末を『解除』すれば別の端末で使えます。");
+    const body = '<div class="foldBody">' +
+      '<div class="planHead">状態: <b>' + (lbl || "未設定（無料/試用）") + '</b></div>' +
+      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPay">💳 月額プランのお支払い</button></div>' +
+      '<div class="planNote">店舗ごとの月額です。お支払い手続きは準備中（Stripeを接続予定）。お支払い後、運営側で有効化します。</div>' +
+      '</div>';
+    box.innerHTML = '<details class="foldCard"><summary>🏢 店舗のお支払い（月額）<span class="foldTag">' + esc(lbl || "未設定") + '</span></summary>' + body + '</details>';
+    const pay = $("btnPlanPay"); if (pay) pay.onclick = () => alert("月額プランのお支払いは準備中です。\n\nStripe（直接決済・領収書/インボイス対応）を接続後、ここから手続きできるようになります。");
     show("cloudPlan", true);
   }
-  /* 登録端末の一覧＋制限の案内をUIに描画 */
+  /* 登録端末の一覧＋追加端末(個人) — 折り畳み。制限超過時は自動で開く。 */
   function renderDevices() {
     const box = $("cloudDevices"); if (!box) return;
     if (!me || !profile || !profile.active) { box.innerHTML = ""; show("cloudDevices", false); return; }
     const devId = getDeviceId();
     const devices = (profile.devices || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
     const limit = deviceLimitOf();
-    let html = '<div class="devHead">登録端末 <b>' + devices.length + '</b> / ' + limit + '台' + (limit > FREE_DEVICE_LIMIT ? '（無料' + FREE_DEVICE_LIMIT + '＋追加' + (limit - FREE_DEVICE_LIMIT) + '）' : '（無料枠）') + '</div>';
-    html += '<div class="devList">';
+    let body = '<div class="foldBody">';
+    body += '<div class="devHead">登録端末 <b>' + devices.length + '</b> / ' + limit + '台' + (limit > FREE_DEVICE_LIMIT ? '（無料' + FREE_DEVICE_LIMIT + '＋追加' + (limit - FREE_DEVICE_LIMIT) + '）' : '（無料枠）') + '</div>';
+    body += '<div class="devList">';
     devices.forEach(d => {
       const cur = d.id === devId;
       const dt = d.at ? new Date(d.at) : null;
       const when = dt ? (dt.getFullYear() + "/" + String(dt.getMonth() + 1).padStart(2, "0") + "/" + String(dt.getDate()).padStart(2, "0")) : "";
-      html += '<div class="devItem"><span class="devNm">' + esc(d.name || "端末") + (cur ? ' <span class="devCur">この端末</span>' : '') + '<br><span class="devWhen">最終利用: ' + when + '</span></span>' +
+      body += '<div class="devItem"><span class="devNm">' + esc(d.name || "端末") + (cur ? ' <span class="devCur">この端末</span>' : '') + '<br><span class="devWhen">最終利用: ' + when + '</span></span>' +
         '<button class="btn btn-ghost btn-sm devDel" data-id="' + esc(d.id) + '">解除</button></div>';
     });
-    html += '</div>';
+    body += '</div>';
     if (deviceBlocked) {
-      html += '<div class="devBlock">⛔ この端末は無料枠（' + FREE_DEVICE_LIMIT + '台）を超えています。<br>' +
+      body += '<div class="devBlock">⛔ この端末は無料枠（' + FREE_DEVICE_LIMIT + '台）を超えています。<br>' +
         '・上の使わない端末を「解除」すると、この端末で使えます。<br>' +
         '・端末を増やしたい場合は<b>追加端末（有料）</b>の登録が必要です（準備中）。<br>' +
         'それまでこの端末は<b>個人利用（ローカル保存）</b>で使えます（社内共有はされません）。</div>';
     }
-    box.innerHTML = html;
+    body += '<div class="planBtns"><button class="btn btn-ghost btn-sm" id="btnDevBuy">➕ 追加端末（3台目〜・有料）</button></div>' +
+      '<div class="planNote">2台目まで無料。3台目以降は追加端末の登録が必要です（お支払いは準備中）。</div>';
+    body += '</div>';
+    const tag = deviceBlocked ? ' <span class="foldTag warn">要対応</span>' : '';
+    box.innerHTML = '<details class="foldCard"' + (deviceBlocked ? ' open' : '') + '><summary>📱 登録端末（' + devices.length + '/' + limit + '台）' + tag + '</summary>' + body + '</details>';
     box.querySelectorAll(".devDel").forEach(b => b.addEventListener("click", () => {
       if (confirm("この端末の登録を解除しますか？（その端末では社内共有が使えなくなります）")) removeDevice(b.dataset.id);
     }));
+    const buy = $("btnDevBuy"); if (buy) buy.onclick = () => alert("追加端末の購入は準備中です。\n\n現在は「無料2台まで」。使わない端末を『解除』すれば別の端末で使えます。");
     show("cloudDevices", true);
   }
 
@@ -564,18 +565,23 @@
     const last = u.lastLogin ? "最終ログイン " + fmt(u.lastLogin) : "未ログイン";
     const devN = Array.isArray(u.devices) ? u.devices.length : 0;
     const devLimit = Number(u.deviceLimit) || 2;
-    const info = "<div class='mInfo'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
-      "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" +
+    // 端末枠 +/- は名前行の右端に(運営=superのみ・有効ユーザーのみ)。−は枠2超のときだけ。
+    const devCtrl = (u.active && profile && profile.role === "super")
+      ? "<span class='mDev'>" + (devLimit > 2 ? "<button class='mDevBtn' data-act='devminus' data-kind='u' data-id='" + esc(id) + "'>−</button>" : "") +
+        "<span class='mDevN'>" + devN + "/" + devLimit + "</span>" +
+        "<button class='mDevBtn' data-act='devplus' data-kind='u' data-id='" + esc(id) + "'>＋</button></span>"
+      : "";
+    const info = "<div class='mInfo'>" +
+      "<div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
+      "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" + devCtrl + "</div>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
       "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ 端末 " + devN + "/" + devLimit + "台</div></div>";
     let btns;
     if (u.active) {
-      // 役割変更ボタンで無効化の隣を埋める(staff→代表者に / admin→従業員に)。運営(super)は変更不可
+      // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に", "btn-amber")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
-      // 追加端末枠の付与/取消(有料枠。運営=superのみ。代表管理者による不正付与を防ぐ)
-      const devBtn = (profile && profile.role === "super") ? (btn("devplus", "u", id, "端末枠+") + (devLimit > 2 ? btn("devminus", "u", id, "端末枠-") : "")) : "";
-      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + devBtn + btn("off", "u", id, "無効化");
+      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
