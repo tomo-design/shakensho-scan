@@ -362,6 +362,13 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kItems{margin:0;padding:0;list-style:none}
 .karteItem .kItems li{position:relative;padding-left:15px;line-height:1.55;margin:1px 0}
 .karteItem .kItems li::before{content:"";position:absolute;left:3px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--cyan)}
+/* 部品: 部品名(左) + 数量(右) を同じ行に */
+.karteItem .kParts .kPartHead{display:flex;justify-content:space-between;align-items:baseline}
+.karteItem .kParts .kPartHead .kLbl{margin:0}
+.karteItem .kParts .kQtyLbl{color:var(--dim);font-size:11px;font-weight:700}
+.karteItem .kPartRows li{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.karteItem .kPartRows .kPn{flex:1 1 auto;min-width:0}
+.karteItem .kPartRows .kQty{flex:0 0 auto;min-width:40px;text-align:right;color:var(--cyan);font-weight:700;white-space:nowrap}
 /* 内容量で自動拡大する入力欄 */
 textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 /* カルテのその場編集 */

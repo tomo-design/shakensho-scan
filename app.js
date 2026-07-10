@@ -1600,7 +1600,18 @@ function renderKarte() {
       if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(han(String(val))) + '</div></div>';
       return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(i) + '</li>').join("") + '</ul></div>';
     };
-    body.innerHTML = block("作業", k.work) + block("部品", k.parts) +
+    // 部品は「部品名＋数量」を1行に並べ、右側に数量列を作る(数字始まりのトークンを直前の部品名の数量とみなす)
+    const partsBlock = (val) => {
+      if (!val) return "";
+      const toks = String(val).split(/[、,，・\s]+/).map(s => han(s).trim()).filter(Boolean);
+      const rows = []; let name = [];
+      toks.forEach(t => { if (/^\d/.test(t) && name.length) { rows.push({ n: name.join(" "), q: t }); name = []; } else name.push(t); });
+      if (name.length) rows.push({ n: name.join(" "), q: "" });
+      if (!rows.length) return "";
+      return '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">部品</span><span class="kQtyLbl">数量</span></div>' +
+        '<ul class="kItems kPartRows">' + rows.map(r => '<li><span class="kPn">' + esc(r.n) + '</span><span class="kQty">' + esc(r.q) + '</span></li>').join("") + '</ul></div>';
+    };
+    body.innerHTML = block("作業", k.work) + partsBlock(k.parts) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
       block("メモ", k.note);
     card.append(head, body); box.appendChild(card);
