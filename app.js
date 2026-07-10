@@ -1496,12 +1496,15 @@ function enterSpecItemEdit(item, key) {
   const row = document.createElement("div"); row.className = "specEditInline";
   const save = document.createElement("button"); save.type = "button"; save.className = "btn btn-amber btn-sm"; save.textContent = "保存";
   const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-ghost btn-sm"; cancel.textContent = "取消";
-  const del = document.createElement("button"); del.type = "button"; del.className = "btn btn-ghost btn-sm"; del.textContent = "削除";
   save.addEventListener("click", () => saveSpecItemInline(key, ik.value.trim(), iv.value.trim(), false));
   cancel.addEventListener("click", () => renderSpecs(shownSpecs, "learned"));
-  del.addEventListener("click", () => { if (confirm("この項目を削除しますか？")) saveSpecItemInline(key, "", "", true); });
   iv.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save.click(); });
-  row.append(save, cancel, del);
+  row.append(save, cancel);
+  if (isManager()) {   // 諸元の削除は管理者のみ(未ログインの個人利用も可)
+    const del = document.createElement("button"); del.type = "button"; del.className = "btn btn-ghost btn-sm"; del.textContent = "削除";
+    del.addEventListener("click", () => { if (confirm("この項目を削除しますか？")) saveSpecItemInline(key, "", "", true); });
+    row.append(del);
+  }
   item.append(ik, iv, row);
   iv.focus();
 }
