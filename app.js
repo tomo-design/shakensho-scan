@@ -931,13 +931,12 @@ $("btnVidSave").addEventListener("click", () => {
   const user = $("vidUser").value.trim();
   toggle("vidEdit", false);
   showResult(current, { fromScan: true });   // 再描画＋履歴に統合保存(自動保存)
-  if (user) { saveUserName(user); setText("rUser", user || "—"); }
+  saveUserName(user); setText("rUser", user || "—");   // 空欄なら空欄で上書き(誤入力の訂正クリアを反映)
   registerVehicleToDB();   // 保存と同時にDBの登録車種へ追加/更新
 });
 
 /* 「保存（DBに登録）」: 現在の車両をカスタムDB(登録車種一覧)へ追加/更新 */
 function escRegex(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
-function vinPrefix(v) { return v ? (v.includes("-") ? v.split("-")[0] : v) : null; }
 const VALID_MAKERS = new Set([...Object.keys(MAKER_RECALL), "other"]);
 function registerVehicleToDB(opt = {}) {
   const d = current;
@@ -1148,11 +1147,12 @@ $("btnVehClear").addEventListener("click", () => {
   cancelAI();
   $("qVehText").value = ""; autoGrow($("qVehText"));
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
+  clearVehAttachments();
 });
 $("btnVehAsk").addEventListener("click", async () => {
   stopFieldMic();
   const q = $("qVehText").value.trim();
-  if (!q) { $("qVehText").focus(); return; }
+  if (!q && !vehAttachments.length) { $("qVehText").focus(); return; }
   if (!localStorage.getItem(LS.gemini)) {
     alert("質問するには設定タブで無料のGemini APIキーを設定してください。");
     switchView("settings"); return;
@@ -1162,9 +1162,17 @@ $("btnVehAsk").addEventListener("click", async () => {
   box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が考えています…</div>';
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
-    const r = await geminiAsk(buildRepairPrompt(q));
+    const qFull = q || "添付した写真の部位について教えてください。";
+    let r;
+    if (vehAttachments.length) {   // 写真添付あり: 画像も一緒にメカ君へ送る
+      const media = [];
+      for (const a of vehAttachments) media.push({ mimeType: cleanMime(a.file.type, "image/jpeg"), data: await fileToBase64(a.file) });
+      r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
+    } else {
+      r = await geminiAsk(buildRepairPrompt(qFull));
+    }
     const obj = extractJson(r.text);
-    if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, q);
+    if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, qFull);
     else renderAiAnswer(box, (obj && obj.answer) ? obj.answer : r.text);
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -1172,10 +1180,11 @@ $("btnVehAsk").addEventListener("click", async () => {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
 });
-/* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章) */
-function buildRepairPrompt(q) {
+/* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章)。hasMedia=添付写真あり */
+function buildRepairPrompt(q, hasMedia) {
   return [
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
+    hasMedia ? "添付された写真(複数の場合あり)をよく観察し、写っている部位・部品・損傷・警告灯・漏れ・摩耗などを踏まえて回答すること。写真から部品名や作業を推定できる場合は具体的に述べる。" : "",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
     "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
     "【最重要】location・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
@@ -1587,7 +1596,7 @@ function renderKarte() {
     const body = document.createElement("div"); body.className = "kBody";
     const block = (label, val) => {
       if (!val) return "";
-      const items = String(val).split(/[、,，・\n]+/).map(s => han(s).trim()).filter(Boolean);
+      const items = String(val).split(/[、,，・\s]+/).map(s => han(s).trim()).filter(Boolean);   // 読点・カンマ・中黒・空白(全角空白含む)・改行で区切る
       if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(han(String(val))) + '</div></div>';
       return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(i) + '</li>').join("") + '</ul></div>';
     };
@@ -1942,16 +1951,18 @@ function renderRecallVin(type, vin) {
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
   head.textContent = "型式・車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
   box.appendChild(head);
-  const cols = document.createElement("div"); cols.style.cssText = "display:flex;gap:10px";
+  const cols = document.createElement("div"); cols.style.cssText = "display:flex;flex-direction:column;gap:8px";
+  // 修理タブ下部のコピー(.copyKata)と同じ見た目のピルボタン。タップでコピー。
   const mkCol = (label, val) => {
-    const c = document.createElement("div"); c.style.cssText = "flex:1 1 0;min-width:0";
-    const lab = document.createElement("div"); lab.style.cssText = "font-size:12px;color:var(--dim);margin-bottom:4px"; lab.textContent = label;
-    const r = document.createElement("div"); r.style.cssText = "display:flex;align-items:center;gap:6px";
-    const code = document.createElement("code"); code.textContent = val;
-    code.style.cssText = "font-size:15px;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-    const cp = document.createElement("button"); cp.className = "btn btn-ghost btn-sm"; cp.style.cssText = "flex:0 0 auto;padding:8px 11px"; cp.textContent = "📋"; cp.title = "コピー";
-    cp.addEventListener("click", () => { copyText(code.textContent); cp.textContent = "✓"; setTimeout(() => cp.textContent = "📋", 1200); });
-    r.append(code, cp); c.append(lab, r); return { col: c, code };
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "copyKata"; btn.style.marginTop = "0";
+    const code = document.createElement("b"); code.textContent = val;
+    btn.append(document.createTextNode("📋 " + label + ": "), code, document.createTextNode(" をコピー"));
+    btn.addEventListener("click", () => {
+      copyText(code.textContent);
+      btn.innerHTML = "✓ コピー";
+      setTimeout(() => { btn.innerHTML = ""; btn.append(document.createTextNode("📋 " + label + ": "), code, document.createTextNode(" をコピー")); }, 1200);
+    });
+    return { col: btn, code };
   };
   // 型式: 車台番号から正しい型式を特定して表示(初期は仮表示→AI/キャッシュで更新)
   const kataInit = (type && type.includes("-")) ? type : (vin ? (getCachedKata(vin) || vinPrefix(vin)) : (type || ""));
@@ -2055,7 +2066,8 @@ function saveUserName(name) {
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
   const h2 = getHistory();
   const t = findHistEntry(h2, current);
-  if (t) { t.name = noEmail(name) || null; t.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
+  // 空欄("")は「意図的に消した」印として保持し、統合時に古い名前へ戻らないようにする(null=未入力とは区別)
+  if (t) { t.name = noEmail(name); t.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
 }
 function histToResult(h) {
   return {
@@ -3430,6 +3442,35 @@ function clearDiagAttachments() {
   document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
 }
 
+/* ===== 修理タブ「修理について質問」の写真添付(複数枚・画像のみ) ===== */
+const vehAttachments = [];   // {file, url}
+[["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"]].forEach(([btn, input]) => {
+  const b = $(btn), inp = $(input); if (!b || !inp) return;
+  b.addEventListener("click", () => inp.click());
+  inp.addEventListener("change", e => {
+    const files = [...e.target.files]; e.target.value = "";
+    for (const f of files) { if ((f.type || "").startsWith("image")) { vehAttachments.push({ file: f, url: URL.createObjectURL(f) }); } }
+    renderVehAttachList();
+  });
+});
+function renderVehAttachList() {
+  const box = $("vehAttachList"); if (!box) return;
+  box.innerHTML = "";
+  vehAttachments.forEach((a, i) => {
+    const d = document.createElement("div"); d.className = "attachThumb";
+    const img = document.createElement("img"); img.src = a.url;
+    const kind = document.createElement("span"); kind.className = "axKind"; kind.textContent = "写真";
+    const del = document.createElement("button"); del.className = "axDel"; del.textContent = "×";
+    del.addEventListener("click", () => { URL.revokeObjectURL(a.url); vehAttachments.splice(i, 1); renderVehAttachList(); });
+    d.append(img, kind, del); box.appendChild(d);
+  });
+  toggle("vehAttachList", vehAttachments.length > 0);
+}
+function clearVehAttachments() {
+  vehAttachments.forEach(a => URL.revokeObjectURL(a.url));
+  vehAttachments.length = 0; renderVehAttachList();
+}
+
 /* 大きい動画をcanvas+MediaRecorderで縮小再エンコード(音声も維持。短時間クリップ向け) */
 function compressVideo(file, targetBytes) {
   return new Promise((resolve, reject) => {
@@ -3760,9 +3801,11 @@ function kataSuffix(t) { const s = String(t || "").trim(); if (!s) return ""; co
 /* 車台番号のハイフンより前(打刻の車種記号部)。例 RK5-1028429 → RK5 / NKR85Y-70123 → NKR85Y
    ハイフンが無い打刻(例 NKR85Y7012345)は、末尾の一連番号(英字の後に続く5桁以上の数字)を除いた記号部を返す */
 function vinPrefix(v) {
-  const s = String(v || "").trim(); if (!s) return "";
-  const i = s.indexOf("-"); if (i >= 0) return s.slice(0, i).trim();
-  const m = s.match(/^(.*?[A-Za-z])\d{5,}$/);   // 英字で終わる記号部 + 末尾5桁以上の数字
+  let s = String(v || "").trim(); if (!s) return "";
+  const i = s.indexOf("-"); if (i >= 0) s = s.slice(0, i).trim();   // ハイフンがあれば前半のみ
+  // FAINESの車台番号キーワード検索は「英字＋数字」までで一致する。末尾の英字・一連番号は落とす。
+  //   例: CYG60CM → CYG60 ／ NKR85Y7012345 → NKR85 ／ RK5(-1028429) → RK5
+  const m = s.match(/^([A-Za-z]+\d+)/);
   return (m ? m[1] : s).trim();
 }
 /* 修理タブ: FAINES検索用に車台番号(ハイフン前)をコピー。無ければ型式(車種記号)で代替 */

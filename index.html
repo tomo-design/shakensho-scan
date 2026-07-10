@@ -299,8 +299,15 @@
     <button class="navBtn" data-go="karte">📋 カルテ</button>
   </nav>
   <section><h2 class="secHead"><span class="tag cy">ASK</span>修理について質問<button class="btn btn-ghost btn-sm secMic" id="btnVehMic" title="音声で入力">🎤</button><button class="btn btn-ghost btn-sm secMic" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button><button class="btn btn-ghost btn-sm secClear" id="btnVehClear">クリア</button></h2>
+    <div class="diagIcons">
+      <button type="button" class="diagIco" id="btnVehPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
+      <button type="button" class="diagIco" id="btnVehPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
+    </div>
   <div class="sec-body">
-    <textarea id="qVehText" class="kGrow" style="min-height:60px" placeholder="修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話も。"></textarea>
+    <textarea id="qVehText" class="kGrow" style="min-height:60px" placeholder="修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。"></textarea>
+    <div id="vehAttachList" class="hidden" style="margin-top:8px"></div>
+    <input type="file" id="inVehPhoto" accept="image/*" multiple class="hidden">
+    <input type="file" id="inVehPhotoCam" accept="image/*" capture="environment" class="hidden">
     <div class="btnRow">
       <button class="btn btn-ghost btnPick" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
     </div>

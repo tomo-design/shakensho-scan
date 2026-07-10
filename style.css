@@ -355,11 +355,11 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kEdit{color:var(--cyan)}
 .karteItem .kDel{color:var(--dim)}
 .karteItem .kBody{padding:10px 12px;font-size:14px}
-.karteItem .kBlock{display:flex;gap:8px;padding:5px 0;border-top:1px dashed var(--line)}
+.karteItem .kBlock{display:block;padding:6px 0;border-top:1px dashed var(--line)}
 .karteItem .kBlock:first-child{border-top:none}
-.karteItem .kLbl{flex:0 0 52px;color:var(--dim);font-size:12px;font-weight:700;padding-top:1px}
-.karteItem .kVal{flex:1 1 auto;line-height:1.55}
-.karteItem .kItems{flex:1 1 auto;margin:0;padding:0;list-style:none}
+.karteItem .kLbl{display:block;color:var(--dim);font-size:11px;font-weight:700;margin-bottom:3px}
+.karteItem .kVal{line-height:1.55}
+.karteItem .kItems{margin:0;padding:0;list-style:none}
 .karteItem .kItems li{position:relative;padding-left:15px;line-height:1.55;margin:1px 0}
 .karteItem .kItems li::before{content:"";position:absolute;left:3px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--cyan)}
 /* 内容量で自動拡大する入力欄 */
