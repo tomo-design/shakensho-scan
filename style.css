@@ -329,10 +329,19 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .diagIco:active{transform:scale(.92)}
 /* ヘッダー右側に小さく収めるアイコン群(修理・診断タブ共通) */
 .secHead{flex-wrap:wrap}
-.diagIcons.inHead{margin:0 0 0 auto;flex:0 0 auto;gap:3px;justify-content:flex-end}
-.diagIcons.inHead .diagIco{flex:0 0 auto;width:30px;height:30px;border-radius:8px}
-.diagIcons.inHead .diagIco img{width:24px;height:24px}
-.diagIcons.inHead .diagIco.txt{font-size:17px}
+.diagIcons.inHead{margin:0 0 0 auto;flex:0 0 auto;gap:2px;justify-content:flex-end;flex-wrap:nowrap}
+.diagIcons.inHead .diagIco{flex:0 0 auto;width:28px;height:28px;border-radius:8px}
+.diagIcons.inHead .diagIco img{width:22px;height:22px}
+.diagIcons.inHead .diagIco.txt{font-size:16px}
+/* 登録端末の管理UI */
+#cloudDevices .devHead{font-size:12.5px;color:var(--dim);font-weight:700;margin-bottom:6px}
+#cloudDevices .devList{display:flex;flex-direction:column;gap:6px}
+#cloudDevices .devItem{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel)}
+#cloudDevices .devNm{font-size:13px;font-weight:600;line-height:1.4}
+#cloudDevices .devCur{font-size:11px;color:var(--cyan);font-weight:700;margin-left:4px}
+#cloudDevices .devWhen{font-size:11px;color:var(--dim);font-weight:400}
+#cloudDevices .devDel{flex:0 0 auto;padding:6px 12px}
+#cloudDevices .devBlock{margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--txt);background:var(--panel2);border:1px solid var(--al,#e0a);border-radius:10px;padding:10px}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
 /* 運営/メンバー管理 */

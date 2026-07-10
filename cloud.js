@@ -30,8 +30,84 @@
   const $ = id => document.getElementById(id);
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
-  let profile = null;   // {tenantId, role, active}
+  let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
   let unsubVeh = null, unsubRec = null, unsubJoin = null;
+  let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
+
+  /* ---------- 端末制限(1従業員 無料2台/3台目以降は有料枠) ---------- */
+  const FREE_DEVICE_LIMIT = 2;
+  function getDeviceId() {
+    let id = localStorage.getItem("ss_deviceId");
+    if (!id) { id = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); localStorage.setItem("ss_deviceId", id); }
+    return id;
+  }
+  function guessDeviceName() {
+    const ua = navigator.userAgent || "";
+    let os = /iPhone|iPad|iPod/.test(ua) ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac/.test(ua) ? "Mac" : "端末";
+    let br = /Edg/.test(ua) ? "Edge" : /Chrome/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : /Firefox/.test(ua) ? "Firefox" : "";
+    return (os + (br ? "・" + br : "")).trim();
+  }
+  function deviceLimitOf() { return (profile && Number(profile.deviceLimit)) || FREE_DEVICE_LIMIT; }
+  /* この端末を登録・許可判定。既登録=可 / 空き枠あり=登録して可 / 上限超=不可 */
+  async function ensureDeviceAllowed(uid) {
+    const devId = getDeviceId();
+    let devices = (profile && Array.isArray(profile.devices)) ? profile.devices.slice() : [];
+    const limit = deviceLimitOf();
+    const i = devices.findIndex(d => d && d.id === devId);
+    if (i >= 0) {   // 既に許可された端末: 最終利用日時だけ更新
+      devices[i] = Object.assign({}, devices[i], { at: Date.now(), name: devices[i].name || guessDeviceName() });
+      try { await db.collection("users").doc(uid).update({ devices }); } catch (e) {}
+      if (profile) profile.devices = devices;
+      return { ok: true, devices, limit };
+    }
+    if (devices.length < limit) {   // 空き枠あり: 登録
+      devices.push({ id: devId, name: guessDeviceName(), at: Date.now() });
+      try { await db.collection("users").doc(uid).update({ devices }); if (profile) profile.devices = devices; return { ok: true, devices, limit }; }
+      catch (e) { return { ok: false, devices: (profile && profile.devices) || [], limit, err: e }; }
+    }
+    return { ok: false, devices, limit };   // 上限超過(有料枠が必要)
+  }
+  /* 端末の登録解除(枠を空ける)。本人のみ。 */
+  async function removeDevice(devId) {
+    if (!me) return;
+    const devices = ((profile && profile.devices) || []).filter(d => d && d.id !== devId);
+    try {
+      await db.collection("users").doc(me.uid).update({ devices });
+      if (profile) profile.devices = devices;
+      // 自分の端末を外して枠が空いたら、この端末を再登録して同期を再開
+      if (deviceBlocked) { const g = await ensureDeviceAllowed(me.uid); if (g.ok) { deviceBlocked = false; startSync(profile.tenantId); } }
+      renderDevices(); renderAuthUI();
+    } catch (e) { alert("端末の解除に失敗しました: " + (e.message || e)); }
+  }
+  /* 登録端末の一覧＋制限の案内をUIに描画 */
+  function renderDevices() {
+    const box = $("cloudDevices"); if (!box) return;
+    if (!me || !profile || !profile.active) { box.innerHTML = ""; show("cloudDevices", false); return; }
+    const devId = getDeviceId();
+    const devices = (profile.devices || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+    const limit = deviceLimitOf();
+    let html = '<div class="devHead">登録端末 <b>' + devices.length + '</b> / ' + limit + '台' + (limit > FREE_DEVICE_LIMIT ? '（無料' + FREE_DEVICE_LIMIT + '＋追加' + (limit - FREE_DEVICE_LIMIT) + '）' : '（無料枠）') + '</div>';
+    html += '<div class="devList">';
+    devices.forEach(d => {
+      const cur = d.id === devId;
+      const dt = d.at ? new Date(d.at) : null;
+      const when = dt ? (dt.getFullYear() + "/" + String(dt.getMonth() + 1).padStart(2, "0") + "/" + String(dt.getDate()).padStart(2, "0")) : "";
+      html += '<div class="devItem"><span class="devNm">' + esc(d.name || "端末") + (cur ? ' <span class="devCur">この端末</span>' : '') + '<br><span class="devWhen">最終利用: ' + when + '</span></span>' +
+        '<button class="btn btn-ghost btn-sm devDel" data-id="' + esc(d.id) + '">解除</button></div>';
+    });
+    html += '</div>';
+    if (deviceBlocked) {
+      html += '<div class="devBlock">⛔ この端末は無料枠（' + FREE_DEVICE_LIMIT + '台）を超えています。<br>' +
+        '・上の使わない端末を「解除」すると、この端末で使えます。<br>' +
+        '・端末を増やしたい場合は<b>追加端末（有料）</b>の登録が必要です（準備中）。<br>' +
+        'それまでこの端末は<b>個人利用（ローカル保存）</b>で使えます（社内共有はされません）。</div>';
+    }
+    box.innerHTML = html;
+    box.querySelectorAll(".devDel").forEach(b => b.addEventListener("click", () => {
+      if (confirm("この端末の登録を解除しますか？（その端末では社内共有が使えなくなります）")) removeDevice(b.dataset.id);
+    }));
+    show("cloudDevices", true);
+  }
 
   /* ---------- 認証フロー(モード選択 → フォーム出現) ---------- */
   let cloudMode = "login";
@@ -127,6 +203,11 @@
     } catch (e) { profile = null; }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) {
+      // 端末制限チェック(無料2台まで/3台目以降は有料枠が必要)。許可された端末のみ同期する。
+      deviceBlocked = false;
+      const gate = await ensureDeviceAllowed(user.uid);
+      renderDevices();
+      if (!gate.ok) { deviceBlocked = true; renderAuthUI(); return; }   // 未許可端末は同期させない
       // 最終ログイン日時を記録(管理画面に表示)
       try { db.collection("users").doc(user.uid).set({ lastLogin: Date.now() }, { merge: true }); } catch (e) {}
       startSync(profile.tenantId);
@@ -146,7 +227,7 @@
     show("cloudLoggedIn", inLogged);
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
     show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
-    if (!inLogged) { closeForm(); show("tabAdmin", false); return; }
+    if (!inLogged) { closeForm(); show("tabAdmin", false); show("cloudDevices", false); return; }
     const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[profile.role] || profile.role) : "—";
     const who = profile && profile.name ? profile.name + "（" + me.email + "）" : me.email;
     if (!profile) {
@@ -162,9 +243,12 @@
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>会社の代表管理者に承認をご相談ください。再申請が必要な場合は管理者が再承認できます。";
     } else if (!profile.active) {
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
+    } else if (deviceBlocked) {
+      $("cloudStat").innerHTML = who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa + "<br>⛔ <b>この端末は無料枠を超えています</b>（社内共有は停止中／個人利用は可）。下の端末一覧をご確認ください。";
     } else {
       $("cloudStat").innerHTML = "✓ 同期中 — " + who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
     }
+    renderDevices();
     // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
@@ -328,7 +412,7 @@
 
   /* ---------- アプリからの書き込みフック ---------- */
   window.Cloud = {
-    get active() { return !!(profile && profile.active && profile.tenantId); },
+    get active() { return !!(profile && profile.active && profile.tenantId && !deviceBlocked); },
     myName() { return (profile && profile.name) || (me && me.email) || ""; },
     myUid() { return (me && me.uid) || ""; },
     myRole() { return (profile && profile.role) || ""; },
