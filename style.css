@@ -365,6 +365,9 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 /* 管理: 操作ボタンを小さめに */
 .mBtns .btn{min-height:32px;padding:5px 8px;font-size:12px;border-radius:8px}
 .mTenantHead .btn{min-height:28px;padding:3px 8px;font-size:11.5px;flex:0 0 auto}
+/* 運営管理者の在籍行(店舗の管理対象外) */
+.mRowSuper{opacity:.75;background:var(--panel2);border-radius:8px;padding:8px 10px !important;margin-top:6px}
+.mRowSuper .mMeta{font-style:italic}
 /* 追加相談の小アイコン行も同じ見た目 */
 .fuIcons{display:flex;gap:6px;justify-content:space-between;margin:8px 0}
 /* 運営/メンバー管理 */

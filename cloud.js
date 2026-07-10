@@ -553,12 +553,20 @@
   function btn(act, kind, id, label, cls) { return "<button class='btn " + (cls || "btn-ghost") + " btn-sm' data-act='" + act + "' data-kind='" + kind + "' data-id='" + esc(id) + "'>" + label + "</button>"; }
   function membersHtml(list) {
     if (!list || !list.length) return "<div class='mStat'>メンバーなし</div>";
-    // 代表管理者を先頭に
-    list.sort((a, b) => (b.u.role === "admin" || b.u.role === "super" ? 1 : 0) - (a.u.role === "admin" || a.u.role === "super" ? 1 : 0));
+    // 代表管理者を先頭、従業員、運営管理者(在籍表示)は末尾に
+    const rank = r => r === "admin" ? 2 : r === "super" ? 0 : 1;
+    list.sort((a, b) => rank(b.u.role) - rank(a.u.role));
     return list.map(x => userRow(x.id, x.u)).join("");
   }
   function userRow(id, u) {
     const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
+    // 運営管理者(super)は店舗の管理対象ではない。操作ボタン無しで「在籍」だけ表示(誤って無効化されない)
+    if (u.role === "super") {
+      const infoS = "<div class='mInfo'><div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span><span class='mRole adm'>運営管理者</span></div>" +
+        (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
+        "<div class='mMeta'>運営（この店舗にはデータ共有のため在籍）</div></div>";
+      return "<div class='mRow mRowSuper'>" + infoS + "</div>";
+    }
     const isAdmin = u.role === "admin" || u.role === "super";
     const fmt = ms => { const d = new Date(ms); return d.toLocaleDateString("ja-JP") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
     const reg = u.createdAt ? "登録 " + new Date(u.createdAt).toLocaleDateString("ja-JP") : "";
