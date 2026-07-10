@@ -443,8 +443,8 @@ ol.ai-list li.hasTools>div{cursor:pointer}
 .mInfo .mRole{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--panel2);color:var(--dim);margin-left:6px}
 .mInfo .mRole.adm{background:var(--amber);color:#fff}
 .mInfo .mMail{color:var(--dim);font-size:11px;word-break:break-all}
-.mBtns{display:flex;gap:6px;flex:1 1 100%;width:100%}
-.mBtns .btn{white-space:nowrap;flex:1 1 0}
+.mBtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:6px;width:100%}
+.mBtns .btn{white-space:nowrap;min-width:0;padding-left:8px;padding-right:8px}
 /* 折りたたみセクションの見出し(summary)をh2風に */
 .secSummary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--txt);padding:14px 16px}
 .secSummary::-webkit-details-marker{display:none}
