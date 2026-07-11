@@ -14,9 +14,9 @@
     messagingSenderId: "126560659288",
     appId: "1:126560659288:web:627b913aef320e7e76a72d"
   };
-  // このメールでログインした人は自動で「運営管理者(super)」になる(ログイン用・変更は firestore.rules も要修正)
-  const OWNER_EMAIL = "banana19870729@gmail.com";
-  // 利用者に見せる運営の問い合わせ先メール(表示用。ログイン用のOWNER_EMAILとは別)
+  // このメールでログインした人は自動で「運営管理者(super)」になる(ログイン用・変更時は firestore.rules も要修正)
+  const OWNER_EMAIL = "mechanoai.123@gmail.com";
+  // 利用者に見せる運営の問い合わせ先メール(表示用)
   const OPERATOR_EMAIL = "mechanoai.123@gmail.com";
   // 申し込み(プラン選択・購入)ページのURL。決済サイト(Stripe等)を用意したらここに設定。
   // 空のあいだは「準備中」を表示する。事業所IDを付けて開き、支払い完了で運営に通知が届く設定にする。
