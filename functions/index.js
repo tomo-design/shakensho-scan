@@ -66,15 +66,22 @@ exports.notifyJoin = functions.firestore
 
 /* =========================================================================
    AIプロキシ + Stripe自動有効化 (プロキシ方式: 鍵はサーバー内のみ。契約中の店舗だけ利用可)
-   設定(デプロイ前に一度だけ):
-     firebase functions:config:set gemini.key="AIza..." vision.key="AIza..." \
-       stripe.secret="sk_live_or_test..." stripe.wh="whsec_..." \
-       stripe.price_month="price_..." stripe.price_year="price_..." \
-       app.url="https://tomo-design.github.io/shakensho-scan/"
+   設定: functions/.env に鍵を記入する(.env.example を参照。.envはgit管理しない)。
    デプロイ: firebase deploy --only functions
    ========================================================================= */
 const REGION = "asia-northeast1";
-const cfg = () => functions.config();
+// 秘密情報は functions/.env から process.env に読み込まれる(Firebaseが自動ロード)
+const cfg = () => ({
+  gemini: { key: process.env.GEMINI_KEY },
+  vision: { key: process.env.VISION_KEY },
+  stripe: {
+    secret: process.env.STRIPE_SECRET,
+    wh: process.env.STRIPE_WH,
+    price_month: process.env.STRIPE_PRICE_MONTH,
+    price_year: process.env.STRIPE_PRICE_YEAR,
+  },
+  app: { url: process.env.APP_URL },
+});
 
 /* 呼び出し元が「有効なアカウント かつ 契約中の店舗」か検証。違えばHttpsErrorを投げる。 */
 async function requirePaidTenant(context) {

@@ -1,0 +1,12 @@
+# 秘密情報（絶対にコミットしない）
+functions/.env
+functions/.env.*
+!functions/.env.example
+
+# 依存関係
+functions/node_modules/
+node_modules/
+
+# ログ・一時ファイル
+*.log
+.DS_Store
