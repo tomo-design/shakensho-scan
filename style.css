@@ -366,7 +366,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .signupBtns{display:flex;gap:6px;flex:0 0 auto}
 /* 折り畳みカード(店舗支払い・端末) */
 .foldCard{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
-.foldCard>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.foldCard>summary{list-style:none;cursor:pointer;padding:12px 14px;font-size:13px;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
 .foldCard>summary::-webkit-details-marker{display:none}
 .foldCard>summary::before{content:"▸";color:var(--dim);font-size:11px;transition:transform .15s}
 .foldCard[open]>summary::before{transform:rotate(90deg)}

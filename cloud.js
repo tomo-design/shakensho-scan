@@ -14,8 +14,10 @@
     messagingSenderId: "126560659288",
     appId: "1:126560659288:web:627b913aef320e7e76a72d"
   };
-  // このメールでログインした人は自動で「運営管理者(super)」になる(あなた専用・コンソール操作不要)
+  // このメールでログインした人は自動で「運営管理者(super)」になる(ログイン用・変更は firestore.rules も要修正)
   const OWNER_EMAIL = "banana19870729@gmail.com";
+  // 利用者に見せる運営の問い合わせ先メール(表示用。ログイン用のOWNER_EMAILとは別)
+  const OPERATOR_EMAIL = "mechanoai.123@gmail.com";
   // 申し込み(プラン選択・購入)ページのURL。決済サイト(Stripe等)を用意したらここに設定。
   // 空のあいだは「準備中」を表示する。事業所IDを付けて開き、支払い完了で運営に通知が届く設定にする。
   const SIGNUP_URL = "";   // 例: "https://buy.stripe.com/xxxx"
@@ -132,7 +134,7 @@
       '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると、そのアドレス宛に<b>請求書をお送りします</b>（運営に申込が届きます）。お支払い後に有効化されます。</div>' +
       '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
       '</div>';
-    box.innerHTML = '<section><details class="foldCard"><summary>🏢 契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
+    box.innerHTML = '<section><details class="foldCard"><summary>契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
     const su = $("btnPlanSignup"); if (su) su.onclick = () => {
       const f = $("signupForm"); if (f) { f.classList.toggle("hidden"); const em = $("signupEmail"); if (em && !em.value) em.value = me.email || ""; }
     };
@@ -148,7 +150,7 @@
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {
       if (CANCEL_URL) window.open(CANCEL_URL, "_blank", "noopener");
-      else alert("解約をご希望の場合は、運営（" + OWNER_EMAIL + "）までご連絡ください。\n次回更新日以降の請求が停止されます（データはしばらく保持）。");
+      else alert("解約をご希望の場合は、運営（" + OPERATOR_EMAIL + "）までご連絡ください。\n次回更新日以降の請求が停止されます（データはしばらく保持）。");
     };
     show("cloudPlan", true);
   }
