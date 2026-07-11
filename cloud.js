@@ -16,6 +16,10 @@
   };
   // このメールでログインした人は自動で「運営管理者(super)」になる(あなた専用・コンソール操作不要)
   const OWNER_EMAIL = "banana19870729@gmail.com";
+  // 申し込み(プラン選択・購入)ページのURL。決済サイト(Stripe等)を用意したらここに設定。
+  // 空のあいだは「準備中」を表示する。事業所IDを付けて開き、支払い完了で運営に通知が届く設定にする。
+  const SIGNUP_URL = "";   // 例: "https://buy.stripe.com/xxxx"
+  const CANCEL_URL = "";   // 解約(サブスク管理)ページ。空なら問い合わせ導線。
   if (typeof firebase === "undefined") { console.warn("Firebase未読込(オフライン等)。クラウド同期はスキップ"); return; }
 
   let auth, db;
@@ -107,14 +111,27 @@
     if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
     const lbl = planLabel();
     const body = '<div class="foldBody">' +
-      '<div class="planHead">状態: <b>' + (lbl || "未設定（無料/試用）") + '</b></div>' +
-      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanPayM">💳 月額プラン</button>' +
-      '<button class="btn btn-amber btn-sm" id="btnPlanPayY">📅 年契約（お得）</button></div>' +
-      '<div class="planNote">店舗ごとの契約です。月額または年契約（まとめてお得）を選べます。お支払い手続きは準備中（Stripeを接続予定・領収書/インボイス対応）。お支払い後、運営側で有効化します。</div>' +
+      '<div class="planHead">現在の状態: <b>' + (lbl || "未契約（無料/試用）") + '</b></div>' +
+      '<div class="planPerk"><div class="planPerkTtl">契約の特典</div><ul class="planPerkList">' +
+        '<li>車両データ・車種DB・整備カルテを<b>社内の全端末で自動共有</b></li>' +
+        '<li>従業員は<b>何人でも参加OK</b>（1人2端末まで無料）</li>' +
+        '<li>車検証スキャン・メカ君AI・整備カルテを<b>フル機能</b>で利用</li>' +
+        '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
+      '</ul></div>' +
+      '<div class="planTerm">契約期間: <b>月額</b>（毎月更新）または <b>年契約</b>（まとめてお得）。申込ページで選べます。<br>領収書・適格請求書（インボイス）に対応。</div>' +
+      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanSignup">📝 申し込みはこちらから ↗</button></div>' +
+      '<div class="planNote">「申し込みはこちらから」を押すと、<b>別サイトのプラン選択・購入画面</b>が開きます。お支払いが完了すると<b>運営に連絡が届き、有効化</b>されます。</div>' +
+      '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
       '</div>';
-    box.innerHTML = '<details class="foldCard"><summary>🏢 店舗のお支払い（月額／年契約）<span class="foldTag">' + esc(lbl || "未設定") + '</span></summary>' + body + '</details>';
-    const payM = $("btnPlanPayM"); if (payM) payM.onclick = () => alert("月額プランのお支払いは準備中です。\n\nStripe（直接決済・領収書/インボイス対応）を接続後、ここから手続きできます。");
-    const payY = $("btnPlanPayY"); if (payY) payY.onclick = () => alert("年契約のお支払いは準備中です。\n\n月額よりお得な年払いを用意予定です（Stripe接続後）。");
+    box.innerHTML = '<section><details class="foldCard"><summary>🏢 契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
+    const su = $("btnPlanSignup"); if (su) su.onclick = () => {
+      if (SIGNUP_URL) { const url = SIGNUP_URL + (SIGNUP_URL.includes("?") ? "&" : "?") + "tenant=" + encodeURIComponent(profile.tenantId || ""); window.open(url, "_blank", "noopener"); }
+      else alert("お申し込みページは準備中です。\n\n決済サイト（Stripe等）を用意後、ここから外部のプラン選択・購入画面に進めるようになります。");
+    };
+    const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {
+      if (CANCEL_URL) window.open(CANCEL_URL, "_blank", "noopener");
+      else alert("解約をご希望の場合は、運営（" + OWNER_EMAIL + "）までご連絡ください。\n次回更新日以降の請求が停止されます（データはしばらく保持）。");
+    };
     show("cloudPlan", true);
   }
   /* 登録端末の一覧＋追加端末(個人) — 折り畳み。制限超過時は自動で開く。 */

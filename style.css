@@ -346,6 +346,12 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .planHead{font-size:13px;font-weight:700;margin-bottom:6px}
 .planBtns{display:flex;gap:8px;margin:6px 0 2px;flex-wrap:wrap}
 .planNote{font-size:11.5px;color:var(--dim);line-height:1.5}
+.planPerk{margin:6px 0 8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.planPerkTtl{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px}
+.planPerkList{margin:0;padding-left:18px;font-size:12.5px;line-height:1.7}
+.planTerm{font-size:12.5px;line-height:1.6;margin:6px 0}
+.planCancel{margin-top:8px}
+.planCancel .textlink{font-size:12px;color:var(--dim)}
 /* 折り畳みカード(店舗支払い・端末) */
 .foldCard{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
 .foldCard>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
