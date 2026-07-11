@@ -374,11 +374,10 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .foldCard .foldTag.warn{color:#fff;background:var(--alert,#e0533d)}
 .foldCard .foldBody{padding:0 12px 12px}
 /* セクション見出しごと折り畳み(クラウド同期など) */
-.foldSecSum{list-style:none;cursor:pointer;padding:12px 14px;font-size:13px;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.foldSecSum{list-style:none;cursor:pointer;padding:14px 16px;font-size:15px;font-weight:700;color:var(--txt);display:flex;align-items:center;gap:8px}
 .foldSecSum::-webkit-details-marker{display:none}
-.foldSecSum::after{content:"▾";margin-left:auto;color:var(--dim);font-size:11px;transition:transform .15s}
-.foldSec:not([open])>.foldSecSum{border-bottom:0}
-.foldSec:not([open])>.foldSecSum::after{transform:rotate(-90deg)}
+.foldSecSum::after{content:"▾";margin-left:auto;color:var(--dim);font-size:13px}
+.foldSec[open]>.foldSecSum::after{content:"▴"}
 /* 管理: 名前行右端の端末枠 +/- */
 .mInfo .mTop{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .mInfo .mTop .mNm{flex:0 1 auto}

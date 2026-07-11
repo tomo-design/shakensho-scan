@@ -112,7 +112,7 @@
     const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
     if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
     const lbl = planLabel();
-    const body = '<div class="foldBody">' +
+    const body = '<div class="sec-body">' +
       '<div class="planHead">現在の状態: <b>' + (lbl || "未契約（無料/試用）") + '</b></div>' +
       '<div class="planPerk"><div class="planPerkTtl">契約の特典</div><ul class="planPerkList">' +
         '<li>車両データ・車種DB・整備カルテを<b>社内の全端末で自動共有</b></li>' +
@@ -134,7 +134,7 @@
       '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると、そのアドレス宛に<b>請求書をお送りします</b>（運営に申込が届きます）。お支払い後に有効化されます。</div>' +
       '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
       '</div>';
-    box.innerHTML = '<section><details class="foldCard"><summary>契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
+    box.innerHTML = '<section><details><summary class="secSummary">契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
     const su = $("btnPlanSignup"); if (su) su.onclick = () => {
       const f = $("signupForm"); if (f) { f.classList.toggle("hidden"); const em = $("signupEmail"); if (em && !em.value) em.value = me.email || ""; }
     };
