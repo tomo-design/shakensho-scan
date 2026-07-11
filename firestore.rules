@@ -31,6 +31,12 @@ service cloud.firestore {
                         && request.resource.data.get('deviceLimit', 2) == resource.data.get('deviceLimit', 2));
     }
 
+    // 契約の申し込み(請求書送付先メール等)。所属者が自社分を作成、運営が閲覧/更新。
+    match /signups/{id} {
+      allow create: if meActive() && request.resource.data.tenantId == myTenant();
+      allow read, update, delete: if isSuper();
+    }
+
     match /tenants/{tid} {
       allow read: if signedIn();
       allow create: if signedIn() && (request.resource.data.active == false || isOwner());

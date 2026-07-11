@@ -352,6 +352,18 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .planTerm{font-size:12.5px;line-height:1.6;margin:6px 0}
 .planCancel{margin-top:8px}
 .planCancel .textlink{font-size:12px;color:var(--dim)}
+.signupForm{margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.signupForm input[type=email]{width:100%}
+.signupRadio{display:inline-flex;align-items:center;gap:4px;margin-right:14px;font-size:13px}
+/* 運営: 契約申し込み一覧 */
+.signupBox{border:1px solid var(--amber);border-radius:10px;padding:10px;margin-top:8px;background:var(--panel)}
+.signupTtl{font-size:13px;font-weight:700;margin-bottom:6px}
+.signupItem{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.signupItem:first-of-type{border-top:0}
+.signupInfo{font-size:13px;line-height:1.5;min-width:0}
+.signupMail{color:var(--cyan);font-weight:700;font-size:12.5px;word-break:break-all}
+.signupMeta{color:var(--dim);font-size:11px}
+.signupBtns{display:flex;gap:6px;flex:0 0 auto}
 /* 折り畳みカード(店舗支払い・端末) */
 .foldCard{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
 .foldCard>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}

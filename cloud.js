@@ -119,14 +119,32 @@
         '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
       '</ul></div>' +
       '<div class="planTerm">契約期間: <b>月額</b>（毎月更新）または <b>年契約</b>（まとめてお得）。申込ページで選べます。<br>領収書・適格請求書（インボイス）に対応。</div>' +
-      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanSignup">📝 申し込みはこちらから ↗</button></div>' +
-      '<div class="planNote">「申し込みはこちらから」を押すと、<b>別サイトのプラン選択・購入画面</b>が開きます。お支払いが完了すると<b>運営に連絡が届き、有効化</b>されます。</div>' +
+      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanSignup">📝 申し込みはこちらから</button></div>' +
+      '<div id="signupForm" class="signupForm hidden">' +
+        '<label class="fld">請求書の送付先メールアドレス</label>' +
+        '<input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email">' +
+        '<div class="fld" style="margin-top:8px">ご希望のプラン</div>' +
+        '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（お得）</label>' +
+        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">送信（請求書を受け取る）</button></div>' +
+        '<div id="signupStat" class="planNote"></div>' +
+      '</div>' +
+      '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると、そのアドレス宛に<b>請求書をお送りします</b>（運営に申込が届きます）。お支払い後に有効化されます。</div>' +
       '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
       '</div>';
     box.innerHTML = '<section><details class="foldCard"><summary>🏢 契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
     const su = $("btnPlanSignup"); if (su) su.onclick = () => {
-      if (SIGNUP_URL) { const url = SIGNUP_URL + (SIGNUP_URL.includes("?") ? "&" : "?") + "tenant=" + encodeURIComponent(profile.tenantId || ""); window.open(url, "_blank", "noopener"); }
-      else alert("お申し込みページは準備中です。\n\n決済サイト（Stripe等）を用意後、ここから外部のプラン選択・購入画面に進めるようになります。");
+      const f = $("signupForm"); if (f) { f.classList.toggle("hidden"); const em = $("signupEmail"); if (em && !em.value) em.value = me.email || ""; }
+    };
+    const send = $("btnSignupSend"); if (send) send.onclick = async () => {
+      const em = ($("signupEmail").value || "").trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $("signupStat").textContent = "⚠ 正しいメールアドレスを入力してください。"; return; }
+      const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
+      send.disabled = true; $("signupStat").textContent = "送信中…";
+      try {
+        await db.collection("signups").add({ tenantId: profile.tenantId, email: em, plan: planPref, requestedBy: me.uid, byName: profile.name || me.email, at: Date.now(), status: "requested" });
+        $("signupStat").innerHTML = "✓ 申し込みを受け付けました。<b>" + esc(em) + "</b> 宛に請求書をお送りします。お支払い確認後に有効化されます。";
+      } catch (e) { send.disabled = false; $("signupStat").textContent = "⚠ 送信に失敗しました: " + (e.message || e); }
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {
       if (CANCEL_URL) window.open(CANCEL_URL, "_blank", "noopener");
@@ -525,8 +543,34 @@
       "<div class='opMail'>" + esc(me.email) + "</div>" +
       "<div class='opNote'>運営管理者は各店舗から独立しています。店舗のデータ共有を使う場合は、その会社に<b>従業員として別途ログイン</b>してください。</div></div>";
   }
-  $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => { renderOperatorInfo(); renderManage("adminBox"); });
-  window.CloudAdmin = { open() { renderOperatorInfo(); renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
+  // 契約申し込み(請求書送付先)の一覧。運営が請求書発行→対応完了にする。
+  async function renderSignups() {
+    const el = $("adminSignups"); if (!el) return;
+    if (!me || !profile || profile.role !== "super") { el.innerHTML = ""; return; }
+    el.innerHTML = "";
+    let docs = [];
+    try { const s = await db.collection("signups").where("status", "==", "requested").get(); docs = s.docs; } catch (e) { el.innerHTML = "<div class='hint'>申し込みの取得に失敗: " + esc(e.message || e) + "</div>"; return; }
+    if (!docs.length) return;
+    const planJa = p => p === "yearly" ? "年契約" : "月額";
+    let html = "<div class='signupBox'><div class='signupTtl'>🔔 契約の申し込み <b>" + docs.length + "件</b></div>";
+    docs.forEach(d => {
+      const s = d.data();
+      const when = s.at ? new Date(s.at).toLocaleDateString("ja-JP") : "";
+      html += "<div class='signupItem'><div class='signupInfo'><b>" + esc(s.tenantId || "") + "</b> ／ " + esc(planJa(s.plan)) +
+        "<div class='signupMail'>" + esc(s.email || "") + "</div>" +
+        "<div class='signupMeta'>" + esc(s.byName || "") + " ・ " + esc(when) + "</div></div>" +
+        "<div class='signupBtns'><a class='btn btn-ghost btn-sm' href='mailto:" + esc(s.email) + "?subject=" + encodeURIComponent("【メカノAI】ご契約の請求書") + "'>メール</a>" +
+        "<button class='btn btn-ghost btn-sm' data-done='" + d.id + "'>対応完了</button></div></div>";
+    });
+    html += "</div>";
+    el.innerHTML = html;
+    el.querySelectorAll("[data-done]").forEach(b => b.addEventListener("click", async () => {
+      try { await db.collection("signups").doc(b.dataset.done).update({ status: "done", handledAt: Date.now() }); renderSignups(); }
+      catch (e) { alert("更新失敗: " + (e.message || e)); }
+    }));
+  }
+  $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); });
+  window.CloudAdmin = { open() { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
   async function renderManage(boxId) {
     const box = $(boxId); if (!box || !profile) return;
     box.innerHTML = "読み込み中…";
