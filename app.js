@@ -17,6 +17,8 @@ async function appVerDisplay() {
   return "v" + APP_VER;
 }
 const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", aimode: "ss_aimode" };
+/* AIが使えるか: 自分のGeminiキーがある or 契約中の店舗(サーバー経由=鍵不要)。*/
+function aiOK() { return !!localStorage.getItem(LS.gemini) || !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()); }
 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
@@ -728,7 +730,7 @@ function applyAiQr(o) {
 let aiQrDone = false;   // 同じ読取で二重解析しない
 async function runAiQrParse(fromAuto) {
   stopFieldMic();
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     if (fromAuto) return;   // 自動時はキー未設定なら静かに何もしない(ボタンで手動可)
     alert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
@@ -820,11 +822,19 @@ function loadTesseract() {
   return tesseractReady;
 }
 /* OCR入口: 高精度OCR(Cloud Vision)がON+キー設定済みならVision、無ければ無料Tesseract */
-function visionEnabled() { return localStorage.getItem("ss_usevision") === "1" && !!localStorage.getItem("ss_visionkey"); }
+function visionEnabled() {
+  if (localStorage.getItem("ss_usevision") === "1" && !!localStorage.getItem("ss_visionkey")) return true;
+  return !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady());   // 契約店舗はサーバー経由で高精度OCR
+}
 async function ocrCloudVision(file) {
   const key = localStorage.getItem("ss_visionkey");
-  if (!key) throw new Error("Cloud Vision APIキー未設定");
   const data = await fileToBase64(file);
+  // ローカル鍵が無くても契約中の店舗はサーバー(visionOcr)経由でOCR
+  if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
+    const d = await window.Cloud.callFn("visionOcr", { imageBase64: data });
+    return (d && d.text) || "";
+  }
+  if (!key) throw new Error("Cloud Vision APIキー未設定");
   const res = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(key), {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ requests: [{ image: { content: data }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] })
@@ -1021,7 +1031,7 @@ function goVehiclePage(name) {
   window.scrollTo(0, 0);
   if (name === "maint") {
     // 諸元が無い車両のときだけ自動でAI解析(保存済み/内蔵データがあればAIを使わない=消費節約)
-    if (localStorage.getItem(LS.gemini) && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
+    if (aiOK() && shownSpecs.length === 0 && !$("specAiBox").textContent.trim()) $("btnSpecAI").click();
   }
   // 診断・部品はタブを開いた時点では入力欄にフォーカスしない(自動でキーボードが出るのを防ぐ)
 }
@@ -1092,7 +1102,7 @@ $("btnPartsGo") && $("btnPartsGo").addEventListener("click", async () => {
   const part = $("partName").value.trim();
   if (!part) { $("partName").focus(); return; }
   if (!vehicleKey(current)) { alert("先に車両を読み込んでください(車台番号や型式が必要です)。"); return; }
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     toggle("partsResult", true);
     $("partsResult").innerHTML = '<div class="hint">部品の洗い出しにはAI（無料Geminiキー）の設定が必要です。設定タブで登録してください。</div>';
     return;
@@ -1131,7 +1141,7 @@ $("btnPartsLoc") && $("btnPartsLoc").addEventListener("click", async () => {
   const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
     + encodeURIComponent(q) + '&tbm=isch">🔍 実物の取り付け位置をWebの画像で探す<span class="arr">↗</span></a>';
   const box = $("partsLoc"); toggle("partsLoc", true);
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     box.innerHTML = '<div class="hint">AIの解説には無料Geminiキー設定が必要です（設定タブ）。Web画像リンクはそのまま使えます。</div>' + linkHtml;
     return;
   }
@@ -1177,7 +1187,7 @@ $("btnVehAsk").addEventListener("click", async () => {
   stopFieldMic();
   const q = $("qVehText").value.trim();
   if (!q && !vehAttachments.length) { $("qVehText").focus(); return; }
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("質問するには設定タブで無料のGemini APIキーを設定してください。");
     switchView("settings"); return;
   }
@@ -1735,7 +1745,7 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
 $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
   if (!vehicleKey(current)) { alert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
@@ -1972,7 +1982,7 @@ async function gotoRepairFromText(rawText, kind) {
   switchView("parts"); window.scrollTo(0, 0);
   const inp = $("partName");
   let part = rawText;
-  if (localStorage.getItem(LS.gemini)) {
+  if (aiOK()) {
     inp.value = "🔧 部品を特定中…";
     try {
       const lead = kind === "fault"
@@ -1993,7 +2003,7 @@ async function gotoInspection(text) {
   setText("inspectTarget", "点検対象: " + text);
   const box = $("inspectResult"); box.textContent = "🔧 メカ君が点検手順を調べています…(数秒〜十数秒)";
   $("secInspect").scrollIntoView({ behavior: "smooth" });
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     box.textContent = "点検手順のAI調査には設定タブで無料Geminiキーが必要です。"; return;
   }
   try {
@@ -2747,6 +2757,13 @@ async function geminiAsk(prompt, opts) {
     const cached = aiCacheGet(ck);
     if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   }
+  // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
+  if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
+    const d = await window.Cloud.callFn("mecha", { prompt, mode });
+    const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
+    if (!r.text) throw new Error("AIから回答が得られませんでした");
+    aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
+  }
   let lastErr = null;
   aiAbort = new AbortController();   // クリアで中断できるように
   for (const model of GEMINI_MODELS[mode]) {
@@ -2983,7 +3000,7 @@ function attachStepFigure(li, div, stepText) {
     const q = ((currentVehicleFacts().model || current.type || "") + " " + stepText).trim();
     const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
       + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
-    if (!localStorage.getItem(LS.gemini)) { fig.innerHTML = linkHtml; return; }
+    if (!aiOK()) { fig.innerHTML = linkHtml; return; }
     try {
       // ①「実物の特徴」を文章で正確に洗い出す(実写知識で図の精度を上げる。失敗しても続行)
       let refDesc = "";
@@ -3134,7 +3151,7 @@ async function geminiStepFigure(stepText) {
 let diagAiBusy = false;
 async function runDiagAI(text) {
   const box = $("diagResults");
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     const { sec, body } = diagSection("", "AI", "AI診断を使うには");
     const p = document.createElement("div");
     p.className = "hint";
@@ -3315,7 +3332,7 @@ function buildSpecPrompt() {
 }
 async function runSpecAI(srcBtn) {
   stopFieldMic();
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings");
     return;
@@ -3367,7 +3384,7 @@ $("btnSpecReload").addEventListener("click", () => runSpecAI($("btnSpecReload"))
 /* 項目ごとに最新値だけ取り直す(右上の🔄) */
 async function refreshSpecItem(key, btn) {
   stopFieldMic();
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings"); return;
   }
@@ -3429,6 +3446,12 @@ const GEMINI_MEDIA_MODELS = {
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
+  // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
+  if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: getAiMode(), media });
+    if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
+    throw new Error("AIから回答が得られませんでした");
+  }
   if (!key) throw new Error("Gemini APIキーが未設定です。");
   let lastErr = null;
   for (const model of GEMINI_MEDIA_MODELS[getAiMode()]) {
@@ -3638,7 +3661,7 @@ function compressVideo(file, targetBytes) {
 
 let diagMediaBusy = false;
 async function diagMediaAnalyze() {
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
@@ -3737,7 +3760,7 @@ wireFieldMic("btnKarteMic", "kWork", "🎤");
 let voiceRec = null, voiceHistory = [], voiceActive = false;
 /* 音声会話セクションを開く。呼び出し元(診断/質問)の直下へ移動して表示 */
 function openVoiceChat(afterEl) {
-  if (!localStorage.getItem(LS.gemini)) {
+  if (!aiOK()) {
     alert("音声会話には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
@@ -4025,6 +4048,13 @@ function showToast(msg) {
   renderVisionStat();
   renderCseStat();
   renderAiMode();
+  // Stripe決済から戻ってきた時のお礼(?paid=1)。プラン有効化は数秒後にサーバー側で反映される。
+  try {
+    if (/[?&]paid=1/.test(location.search)) {
+      showToast("お支払いありがとうございます。数秒後に契約が有効になります。");
+      history.replaceState(null, "", location.pathname);
+    }
+  } catch (e) {}
   // 表示バージョンは Service Worker のキャッシュ番号(shaken-scan-vNNN)から自動取得(二重管理を避ける)
   appVerDisplay().then(ver => {
     if (sessionStorage.getItem("ss_justUpdated")) { sessionStorage.removeItem("ss_justUpdated"); showToast("最新版に更新しました（" + ver + "）"); }

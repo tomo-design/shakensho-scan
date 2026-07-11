@@ -24,9 +24,11 @@
   const CANCEL_URL = "";   // 解約(サブスク管理)ページ。空なら問い合わせ導線。
   if (typeof firebase === "undefined") { console.warn("Firebase未読込(オフライン等)。クラウド同期はスキップ"); return; }
 
-  let auth, db;
+  let auth, db, fns = null;
   try { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
   catch (e) { console.warn("Firebase初期化失敗", e); return; }
+  // Cloud Functions(AIプロキシ/決済)。関数はasia-northeast1にデプロイ。未読込でもアプリは動く。
+  try { if (firebase.functions) fns = firebase.app().functions("asia-northeast1"); } catch (e) { fns = null; }
   // ログイン状態を端末に永続化(自動ログアウトを防ぐ)。サインイン前に必ず確定させる
   const persistReady = (async () => {
     try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
@@ -131,7 +133,7 @@
         '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">送信（請求書を受け取る）</button></div>' +
         '<div id="signupStat" class="planNote"></div>' +
       '</div>' +
-      '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると、そのアドレス宛に<b>請求書をお送りします</b>（運営に申込が届きます）。お支払い後に有効化されます。</div>' +
+      '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると<b>お支払い（カード／請求書）の手続き</b>に進みます。お支払いが確認できると<b>自動で契約が有効</b>になります。</div>' +
       '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
       '</div>';
     box.innerHTML = '<section><details><summary class="secSummary">契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
@@ -142,7 +144,18 @@
       const em = ($("signupEmail").value || "").trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $("signupStat").textContent = "⚠ 正しいメールアドレスを入力してください。"; return; }
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
-      send.disabled = true; $("signupStat").textContent = "送信中…";
+      send.disabled = true; $("signupStat").textContent = "手続きページを準備中…";
+      // 決済が接続済みなら Stripe Checkout(カード決済/請求書自動発行)へ遷移。未接続なら申込を記録(半自動)。
+      if (fns) {
+        try {
+          const r = await fns.httpsCallable("createCheckout")({ plan: planPref, email: em });
+          if (r && r.data && r.data.url) { window.location.href = r.data.url; return; }
+          throw new Error("URLが取得できませんでした");
+        } catch (e) {
+          send.disabled = false; $("signupStat").textContent = "⚠ 決済ページに進めませんでした: " + (e.message || e);
+          return;
+        }
+      }
       try {
         await db.collection("signups").add({ tenantId: profile.tenantId, email: em, plan: planPref, requestedBy: me.uid, byName: profile.name || me.email, at: Date.now(), status: "requested" });
         $("signupStat").innerHTML = "✓ 申し込みを受け付けました。<b>" + esc(em) + "</b> 宛に請求書をお送りします。お支払い確認後に有効化されます。";
@@ -509,6 +522,15 @@
     isLoggedIn() { return !!me; },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
+    // AIプロキシが使えるか(契約中の店舗＋関数読込済み)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
+    aiReady() { return !!(fns && this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
+    // Functions呼び出し(mecha/visionOcr/createCheckout)。失敗はそのままthrow。
+    async callFn(name, payload) {
+      if (!fns) throw new Error("サーバー機能が利用できません");
+      const r = await fns.httpsCallable(name)(payload || {});
+      return r.data;
+    },
+    fnsReady() { return !!fns; },
     pushVehicle(rec) {
       if (!this.active || !rec || !rec.id) return;
       db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(rec.id)).set(rec, { merge: true }).catch(() => {});
