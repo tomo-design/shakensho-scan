@@ -534,8 +534,8 @@
             "<span class='mChevron'>▸</span>" +
             "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
-            btn("plan", "t", id, "プラン") +
-            (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</div>" +
+            "<span class='mtBtns'>" + btn("plan", "t", id, "プラン") +
+            (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
             membersHtml(byTenant[id]) + "</div></div>";

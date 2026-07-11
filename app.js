@@ -332,6 +332,18 @@ async function startLiveScan() {
 /* カメラを開く(deviceId指定可)。AF/ズーム/ライト/レンズ一覧を設定 */
 async function openCamera(deviceId) {
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  // 指定が無ければ、前回ユーザーが選んだ「接写に強いレンズ」を優先(ラベルで照合)。
+  // これで機種ごとに毎回カメラ切替をしなくて済む。初回は環境カメラ(背面)を使う。
+  if (!deviceId) {
+    try {
+      const savedLabel = localStorage.getItem("ss_camLabel");
+      if (savedLabel) {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const m = devs.find(d => d.kind === "videoinput" && d.label === savedLabel);
+        if (m) deviceId = m.deviceId;
+      }
+    } catch (e) {}
+  }
   const base = deviceId
     ? { deviceId: { exact: deviceId } }
     : { facingMode: { ideal: "environment" } };
@@ -377,7 +389,10 @@ $("btnCamSwitch").addEventListener("click", async () => {
   camIdx = (camIdx + 1) % camList.length;
   setScanMsg("カメラを切り替えました（" + (camIdx + 1) + "/" + camList.length + "）…ピントを確認");
   const ok = await openCamera(camList[camIdx].deviceId);
-  if (!ok) setScanMsg("このカメラは使えませんでした。もう一度切替を");
+  if (ok) {
+    // 選んだレンズを記憶(次回から自動でこのレンズを使う=毎回の切替が不要に)
+    try { const lbl = camList[camIdx].label || (liveStream.getVideoTracks()[0] || {}).label; if (lbl) localStorage.setItem("ss_camLabel", lbl); } catch (e) {}
+  } else setScanMsg("このカメラは使えませんでした。もう一度切替を");
 });
 
 /* ズーム調整 */
