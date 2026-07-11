@@ -322,7 +322,7 @@
       const rb = $("cloudRecover");
       if (rb) rb.onclick = async () => {
         const nm = (prompt("氏名を入力してください") || "").trim(); if (!nm) return;
-        const tid = (prompt("事業所IDを入力してください（例: marukouseibi）") || "").toLowerCase().replace(/[^a-z0-9_-]/g, ""); if (!tid) return;
+        const tid = (prompt("事業所IDを入力してください（例: sakuragarage）") || "").toLowerCase().replace(/[^a-z0-9_-]/g, ""); if (!tid) return;
         try { await db.collection("users").doc(me.uid).set({ name: nm, email: me.email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() }); alert("再申請しました。管理者の承認をお待ちください。"); location.reload(); }
         catch (e) { alert("失敗: " + (e.message || e)); }
       };
