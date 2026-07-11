@@ -7,6 +7,15 @@
    ========================================================= */
 
 const APP_VER = "1.0.0";
+/* 表示バージョン: Service Worker のキャッシュ名(shaken-scan-vNNN)から取得。無ければ APP_VER。 */
+async function appVerDisplay() {
+  try {
+    const keys = await caches.keys();
+    const nums = keys.map(k => (String(k).match(/shaken-scan-v(\d+)/) || [])[1]).filter(Boolean).map(Number);
+    if (nums.length) return "v" + Math.max(...nums);
+  } catch (e) {}
+  return "v" + APP_VER;
+}
 const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", aimode: "ss_aimode" };
 
 const $ = id => document.getElementById(id);
@@ -2397,7 +2406,7 @@ $("btnClearDb").addEventListener("click", () => {
   localStorage.removeItem("ss_learnedspecs");
   CUSTOM_DB = []; BUILTIN_DB = [];
   renderDBList();
-  setText("verNote", "メカノAI v" + APP_VER + " ／ DBデータを全消去しました。スキャンやAI調査で再び蓄積されます。");
+  appVerDisplay().then(ver => setText("verNote", "メカノAI " + ver + " ／ DBデータを全消去しました。スキャンやAI調査で再び蓄積されます。"));
   alert("DB内蔵データを全消去しました。");
 });
 
@@ -4016,9 +4025,11 @@ function showToast(msg) {
   renderVisionStat();
   renderCseStat();
   renderAiMode();
-  // 自動更新が走った直後なら、さりげなく通知
-  try { if (sessionStorage.getItem("ss_justUpdated")) { sessionStorage.removeItem("ss_justUpdated"); showToast("最新版に更新しました（v" + APP_VER + "）"); } } catch (e) {}
-  setText("verNote", "メカノAI v" + APP_VER + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
+  // 表示バージョンは Service Worker のキャッシュ番号(shaken-scan-vNNN)から自動取得(二重管理を避ける)
+  appVerDisplay().then(ver => {
+    if (sessionStorage.getItem("ss_justUpdated")) { sessionStorage.removeItem("ss_justUpdated"); showToast("最新版に更新しました（" + ver + "）"); }
+    setText("verNote", "メカノAI " + ver + " ／ 内蔵DB " + BUILTIN_DB.length + "車種 ＋ カスタム " + CUSTOM_DB.length + "車種。データはすべてこの端末内に保存されます。");
+  });
   if ("serviceWorker" in navigator) {
     // 更新は「起動直後(操作前)」だけ適用。使用中は絶対にリロードしない(閲覧・入力が飛ぶのを防ぐ)。
     const hadController = !!navigator.serviceWorker.controller;
