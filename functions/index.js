@@ -187,7 +187,7 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
       client_reference_id: u.tenantId,
       metadata: { tenantId: u.tenantId },
       subscription_data: { metadata: { tenantId: u.tenantId } },
-      invoice_creation: { enabled: true },
+      // subscription モードでは請求書は自動作成されるため invoice_creation は指定しない
     });
     return res.json({ url: session.url });
   } catch (e) {
