@@ -24,11 +24,10 @@
   const CANCEL_URL = "";   // 解約(サブスク管理)ページ。空なら問い合わせ導線。
   if (typeof firebase === "undefined") { console.warn("Firebase未読込(オフライン等)。クラウド同期はスキップ"); return; }
 
-  let auth, db, fns = null;
+  let auth, db;
+  const FN_REGION = "asia-northeast1";   // Cloud Functions のリージョン(AIプロキシ/決済)
   try { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
   catch (e) { console.warn("Firebase初期化失敗", e); return; }
-  // Cloud Functions(AIプロキシ/決済)。関数はasia-northeast1にデプロイ。未読込でもアプリは動く。
-  try { if (firebase.functions) fns = firebase.app().functions("asia-northeast1"); } catch (e) { fns = null; }
   // ログイン状態を端末に永続化(自動ログアウトを防ぐ)。サインイン前に必ず確定させる
   const persistReady = (async () => {
     try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
@@ -145,21 +144,14 @@
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $("signupStat").textContent = "⚠ 正しいメールアドレスを入力してください。"; return; }
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
       send.disabled = true; $("signupStat").textContent = "手続きページを準備中…";
-      // 決済が接続済みなら Stripe Checkout(カード決済/請求書自動発行)へ遷移。未接続なら申込を記録(半自動)。
-      if (fns) {
-        try {
-          const r = await fns.httpsCallable("createCheckout")({ plan: planPref, email: em });
-          if (r && r.data && r.data.url) { window.location.href = r.data.url; return; }
-          throw new Error("URLが取得できませんでした");
-        } catch (e) {
-          send.disabled = false; $("signupStat").textContent = "⚠ 決済ページに進めませんでした: " + (e.message || e);
-          return;
-        }
-      }
+      // Stripe Checkout(カード決済/請求書自動発行)へ遷移。
       try {
-        await db.collection("signups").add({ tenantId: profile.tenantId, email: em, plan: planPref, requestedBy: me.uid, byName: profile.name || me.email, at: Date.now(), status: "requested" });
-        $("signupStat").innerHTML = "✓ 申し込みを受け付けました。<b>" + esc(em) + "</b> 宛に請求書をお送りします。お支払い確認後に有効化されます。";
-      } catch (e) { send.disabled = false; $("signupStat").textContent = "⚠ 送信に失敗しました: " + (e.message || e); }
+        const d = await window.Cloud.callFn("createCheckout", { plan: planPref, email: em });
+        if (d && d.url) { window.location.href = d.url; return; }
+        throw new Error("URLが取得できませんでした");
+      } catch (e) {
+        send.disabled = false; $("signupStat").textContent = "⚠ 決済ページに進めませんでした: " + (e.message || e);
+      }
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {
       if (CANCEL_URL) window.open(CANCEL_URL, "_blank", "noopener");
@@ -522,15 +514,22 @@
     isLoggedIn() { return !!me; },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
-    // AIプロキシが使えるか(契約中の店舗＋関数読込済み)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
-    aiReady() { return !!(fns && this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
-    // Functions呼び出し(mecha/visionOcr/createCheckout)。失敗はそのままthrow。
+    // AIプロキシが使えるか(契約中の店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
+    aiReady() { return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
+    // Functions呼び出し(mecha/visionOcr/createCheckout)を通常HTTP+IDトークンで実行(callableは使わない)。
     async callFn(name, payload) {
-      if (!fns) throw new Error("サーバー機能が利用できません");
-      const r = await fns.httpsCallable(name)(payload || {});
-      return r.data;
+      if (!me) throw new Error("ログインが必要です。");
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/" + name, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+        body: JSON.stringify(payload || {}),
+      });
+      let data = {}; try { data = await r.json(); } catch (e) {}
+      if (!r.ok) throw new Error((data && data.error) || ("サーバーエラー " + r.status));
+      return data;
     },
-    fnsReady() { return !!fns; },
+    fnsReady() { return true; },
     pushVehicle(rec) {
       if (!this.active || !rec || !rec.id) return;
       db.collection("tenants").doc(profile.tenantId).collection("vehicles").doc(String(rec.id)).set(rec, { merge: true }).catch(() => {});
