@@ -144,13 +144,18 @@
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $("signupStat").textContent = "⚠ 正しいメールアドレスを入力してください。"; return; }
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
       send.disabled = true; $("signupStat").textContent = "手続きページを準備中…";
-      // Stripe Checkout(カード決済/請求書自動発行)へ遷移。
+      // 請求書を作成・メール送付。請求書ページ(カード/銀行振込/コンビニ選択可)へ遷移。
       try {
         const d = await window.Cloud.callFn("createCheckout", { plan: planPref, email: em });
-        if (d && d.url) { window.location.href = d.url; return; }
-        throw new Error("URLが取得できませんでした");
+        if (d && d.url) {
+          $("signupStat").innerHTML = "✓ <b>" + esc(em) + "</b> 宛に請求書をメールしました。支払い画面を開きます…";
+          setTimeout(() => { window.location.href = d.url; }, 800);
+          return;
+        }
+        if (d && d.invoiceSent) { $("signupStat").innerHTML = "✓ <b>" + esc(em) + "</b> 宛に請求書をメールしました。メール内のリンクからカード／銀行振込／コンビニでお支払いください。"; return; }
+        throw new Error("請求書URLが取得できませんでした");
       } catch (e) {
-        send.disabled = false; $("signupStat").textContent = "⚠ 決済ページに進めませんでした: " + (e.message || e);
+        send.disabled = false; $("signupStat").textContent = "⚠ 請求書の送付に失敗しました: " + (e.message || e);
       }
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {

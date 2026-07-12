@@ -176,22 +176,42 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   const stripe = require("stripe")(cfg().stripe.secret);
   const priceId = (data.plan === "yearly") ? cfg().stripe.price_year : cfg().stripe.price_month;
   if (!priceId) return res.status(500).json({ error: "価格(Price)が未設定です。" });
-  const appUrl = (cfg().app && cfg().app.url) || "https://tomo-design.github.io/shakensho-scan/";
+  const email = data.email || u.email;
+  const tid = u.tenantId;
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: appUrl + "?paid=1",
-      cancel_url: appUrl,
-      customer_email: data.email || u.email,
-      client_reference_id: u.tenantId,
-      metadata: { tenantId: u.tenantId },
-      subscription_data: { metadata: { tenantId: u.tenantId } },
-      // subscription モードでは請求書は自動作成されるため invoice_creation は指定しない
+    // 顧客(Customer)を用意(店舗ごとに再利用)
+    const tRef = db.collection("tenants").doc(tid);
+    const tData = (await tRef.get()).data() || {};
+    let customerId = tData.stripeCustomerId;
+    if (customerId) { try { await stripe.customers.update(customerId, { email: email }); } catch (e) { customerId = null; } }
+    if (!customerId) {
+      const c = await stripe.customers.create({ email: email, metadata: { tenantId: tid } });
+      customerId = c.id;
+      await tRef.set({ stripeCustomerId: customerId }, { merge: true });
+    }
+    // 請求書送付方式のサブスク。請求書ページでカード/銀行振込/コンビニを選べる。
+    const sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      collection_method: "send_invoice",
+      days_until_due: 14,
+      metadata: { tenantId: tid },
+      payment_settings: {
+        payment_method_types: ["card", "konbini", "customer_balance"],
+        save_default_payment_method: "on_subscription",
+        payment_method_options: {
+          customer_balance: { bank_transfer: { type: "jp_bank_transfer" }, funding_type: "bank_transfer" },
+        },
+      },
+      expand: ["latest_invoice"],
     });
-    return res.json({ url: session.url });
+    let inv = sub.latest_invoice;
+    if (inv && inv.status === "draft") { try { inv = await stripe.invoices.finalizeInvoice(inv.id); } catch (e) {} }
+    if (inv && inv.id) { try { await stripe.invoices.sendInvoice(inv.id); } catch (e) {} }   // メール送付
+    const url = inv && (inv.hosted_invoice_url || null);
+    return res.json({ url: url, invoiceSent: true });
   } catch (e) {
-    return res.status(500).json({ error: "決済ページの作成に失敗: " + (e.message || e) });
+    return res.status(500).json({ error: "請求書の作成に失敗: " + (e.message || e) });
   }
 });
 
@@ -216,9 +236,23 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       if (o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); until = sub.current_period_end * 1000; } catch (e) {} }
       await setPlan(tid, true, until);
     } else if (event.type === "invoice.paid") {
-      const tid = o.subscription_details && o.subscription_details.metadata && o.subscription_details.metadata.tenantId;
+      // 支払い確定(カードは即時、コンビニ/銀行振込は入金後)で契約を有効化
+      let tid = (o.subscription_details && o.subscription_details.metadata && o.subscription_details.metadata.tenantId) || (o.metadata && o.metadata.tenantId);
+      if (!tid && o.subscription) { try { tid = (await stripe.subscriptions.retrieve(o.subscription)).metadata.tenantId; } catch (e) {} }
       let until = null; try { until = o.lines.data[0].period.end * 1000; } catch (e) {}
       if (tid) await setPlan(tid, true, until);
+      // カードで支払われた場合は、次回以降を自動更新(自動引き落とし)に切り替える
+      try {
+        if (o.subscription && o.payment_intent) {
+          const pi = await stripe.paymentIntents.retrieve(o.payment_intent);
+          if (pi && pi.payment_method) {
+            const pm = await stripe.paymentMethods.retrieve(pi.payment_method);
+            if (pm && pm.type === "card") {
+              await stripe.subscriptions.update(o.subscription, { collection_method: "charge_automatically", default_payment_method: pi.payment_method });
+            }
+          }
+        }
+      } catch (e) { console.error("自動更新切替エラー", e); }
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       const tid = o.metadata && o.metadata.tenantId;
       const active = o.status === "active" || o.status === "trialing";
