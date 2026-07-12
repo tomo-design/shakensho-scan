@@ -215,6 +215,34 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   }
 });
 
+/* 解約(自動): POST {} → 現契約を期間終了で自動キャンセル。代表管理者のみ。
+   cancel_at_period_end=true にするので、支払い済み期間の終了まで利用可→その後 webhook で自動停止。 */
+exports.cancelPlan = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const u = (await db.collection("users").doc(uid).get()).data();
+  if (!u || !u.tenantId) return res.status(403).json({ error: "所属がありません。" });
+  if (!(u.role === "admin" || u.role === "super")) return res.status(403).json({ error: "代表管理者のみ手続きできます。" });
+  const tRef = db.collection("tenants").doc(u.tenantId);
+  const tData = (await tRef.get()).data() || {};
+  const customerId = tData.stripeCustomerId;
+  if (!customerId) return res.status(400).json({ error: "契約情報が見つかりません。" });
+  const stripe = require("stripe")(cfg().stripe.secret);
+  try {
+    const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+    const active = (subs.data || []).find((s) => s.status === "active" || s.status === "trialing" || s.status === "past_due" || s.status === "unpaid");
+    if (!active) return res.status(400).json({ error: "有効な契約が見つかりません。" });
+    const updated = await stripe.subscriptions.update(active.id, { cancel_at_period_end: true });
+    const until = updated.current_period_end ? updated.current_period_end * 1000 : null;
+    return res.json({ ok: true, until: until });
+  } catch (e) {
+    return res.status(500).json({ error: "解約に失敗: " + (e.message || e) });
+  }
+});
+
 /* Stripe Webhook: 支払い成功で店舗プランを自動ON / 解約・失効で停止。
    Stripeダッシュボードで stripeWebhook のURLをエンドポイント登録し、署名シークレットを stripe.wh に設定する。 */
 exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res) => {

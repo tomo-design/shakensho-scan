@@ -42,6 +42,7 @@
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
   let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
   let planBlocked = false;     // 店舗が未払い/停止なら true
+  let planPageshowBound = false; // 支払いページから戻った時のリセット用リスナ登録済みフラグ
 
   /* ---------- 店舗プラン(月額) ---------- */
   // plan: "active"(課金中) / "trial"(試用) / "suspended"(停止)。未設定は当面「有効」とみなす(既存利用を壊さない)
@@ -113,6 +114,7 @@
     const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
     if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
     const lbl = planLabel();
+    const canCancel = !!(tenantDoc && tenantDoc.plan === "active");
     const body = '<div class="sec-body">' +
       '<div class="planHead">現在の状態: <b>' + (lbl || "未契約（無料/試用）") + '</b></div>' +
       '<div class="planPerk"><div class="planPerkTtl">契約の特典</div><ul class="planPerkList">' +
@@ -121,47 +123,41 @@
         '<li>車検証スキャン・メカ君AI・整備カルテを<b>フル機能</b>で利用</li>' +
         '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
       '</ul></div>' +
-      '<div class="planTerm">契約期間: <b>月額</b>（毎月更新）または <b>年契約</b>（まとめてお得）。申込ページで選べます。<br>領収書・適格請求書（インボイス）に対応。</div>' +
-      '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnPlanSignup">📝 申し込みはこちらから</button></div>' +
-      '<div id="signupForm" class="signupForm hidden">' +
-        '<label class="fld">請求書の送付先メールアドレス</label>' +
-        '<input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email">' +
-        '<div class="fld" style="margin-top:8px">ご希望のプラン</div>' +
+      '<div class="planTerm">契約期間: <b>月額</b>（毎月更新）または <b>年契約</b>（まとめてお得）。<br>領収書・適格請求書（インボイス）に対応。</div>' +
+      '<div class="signupForm">' +
+        '<div class="fld">ご希望のプラン</div>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（お得）</label>' +
-        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">送信（請求書を受け取る）</button></div>' +
+        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 申し込み・お支払いへ進む</button></div>' +
         '<div id="signupStat" class="planNote"></div>' +
       '</div>' +
-      '<div class="planNote">「申し込みはこちらから」を押すとメール入力欄が出ます。送信すると<b>お支払い（カード／請求書）の手続き</b>に進みます。お支払いが確認できると<b>自動で契約が有効</b>になります。</div>' +
-      '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約について</button></div>' +
+      '<div class="planNote">プランを選んで押すと<b>お支払いページ（カード／銀行振込／コンビニ）</b>が開きます。お支払いが確認できると<b>自動で契約が有効</b>になります。</div>' +
+      (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する（自動）</button></div>' : '') +
       '</div>';
-    box.innerHTML = '<section><details><summary class="secSummary">契約・解約<span class="foldTag">' + esc(lbl || "未契約") + '</span></summary>' + body + '</details></section>';
-    const su = $("btnPlanSignup"); if (su) su.onclick = () => {
-      const f = $("signupForm"); if (f) { f.classList.toggle("hidden"); const em = $("signupEmail"); if (em && !em.value) em.value = me.email || ""; }
-    };
+    box.innerHTML = '<section><details><summary class="secSummary">契約・解約</summary>' + body + '</details></section>';
     const send = $("btnSignupSend"); if (send) send.onclick = async () => {
-      const em = ($("signupEmail").value || "").trim();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $("signupStat").textContent = "⚠ 正しいメールアドレスを入力してください。"; return; }
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
-      send.disabled = true; $("signupStat").textContent = "手続きページを準備中…";
-      // 請求書を作成・メール送付。請求書ページ(カード/銀行振込/コンビニ選択可)へ遷移。
+      send.disabled = true; $("signupStat").textContent = "お支払いページを準備中…";
+      // 請求書(お支払いページ)を作成。カード/銀行振込/コンビニを選べるページへ遷移。
       try {
-        const d = await window.Cloud.callFn("createCheckout", { plan: planPref, email: em });
-        if (d && d.url) {
-          $("signupStat").innerHTML = "✓ <b>" + esc(em) + "</b> 宛に請求書をメールしました。支払い画面を開きます…";
-          setTimeout(() => { window.location.href = d.url; }, 800);
-          return;
-        }
-        if (d && d.invoiceSent) { $("signupStat").innerHTML = "✓ <b>" + esc(em) + "</b> 宛に請求書をメールしました。メール内のリンクからカード／銀行振込／コンビニでお支払いください。"; return; }
-        throw new Error("請求書URLが取得できませんでした");
+        const d = await window.Cloud.callFn("createCheckout", { plan: planPref, email: me.email || "" });
+        if (d && d.url) { $("signupStat").textContent = "お支払いページを開きます…"; window.location.href = d.url; return; }
+        if (d && d.invoiceSent) { $("signupStat").innerHTML = "✓ 請求書メールを送りました。メール内のリンクからお支払いください。"; send.disabled = false; return; }
+        throw new Error("お支払いページを取得できませんでした");
       } catch (e) {
-        send.disabled = false; $("signupStat").textContent = "⚠ 請求書の送付に失敗しました: " + (e.message || e);
+        send.disabled = false; $("signupStat").textContent = "⚠ 手続きに失敗しました: " + (e.message || e);
       }
     };
-    const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => {
-      if (CANCEL_URL) window.open(CANCEL_URL, "_blank", "noopener");
-      else alert("解約をご希望の場合は、運営（" + OPERATOR_EMAIL + "）までご連絡ください。\n次回更新日以降の請求が停止されます（データはしばらく保持）。");
+    const cx = $("btnPlanCancel"); if (cx) cx.onclick = async () => {
+      if (!confirm("解約しますか？\n現在の契約期間の終了日まで利用でき、その後は自動で停止します（追加の請求はありません）。")) return;
+      cx.disabled = true; const st = $("signupStat"); if (st) st.textContent = "解約手続き中…";
+      try {
+        const d = await window.Cloud.callFn("cancelPlan", {});
+        if (st) st.textContent = "✓ 解約を受け付けました。" + (d && d.until ? new Date(d.until).toLocaleDateString("ja-JP") + " まで利用できます。" : "次回更新日以降の請求は停止されます。");
+      } catch (e) { cx.disabled = false; if (st) st.textContent = "⚠ 解約に失敗しました: " + (e.message || e); }
     };
+    // 支払いページから戻った(bfcache)とき、進行中表示を確実にリセット
+    if (!planPageshowBound) { planPageshowBound = true; window.addEventListener("pageshow", e => { if (e.persisted && me && profile) renderPlan(); }); }
     show("cloudPlan", true);
   }
   /* 登録端末の一覧＋追加端末(個人) — 折り畳み。制限超過時は自動で開く。 */
