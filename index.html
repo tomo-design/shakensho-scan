@@ -32,7 +32,13 @@
 <div id="view-scan" class="view active">
 
   <div id="mechaHero">
-    <img src="img/hero.png" alt="メカ君">
+    <div class="heroWrap">
+      <img src="img/hero.png" alt="メカ君">
+      <div id="heroBtns">
+        <button class="heroBtn" id="lnkShowOcr" type="button">全体を撮影</button>
+        <button class="heroBtn" id="lnkShowManual" type="button">手動入力</button>
+      </div>
+    </div>
   </div>
 
   <div id="scanWrap" class="hidden">
@@ -66,9 +72,7 @@
   <input type="file" id="qrPhotoIn" accept="image/*" capture="environment" class="hidden">
   <!-- フォールバック(普段は控えめなリンクのみ) -->
   <div class="linkrow" id="fallbackLinks">
-    <button class="textlink" id="lnkShowOcr" type="button">📸 写真で読み取り</button>
     <button class="textlink" id="lnkShowPlate" type="button">車両検索</button>
-    <button class="textlink" id="lnkShowManual" type="button">型式を直接入力</button>
   </div>
   <button type="button" id="lastVehicle" class="lastVeh hidden"></button>
 

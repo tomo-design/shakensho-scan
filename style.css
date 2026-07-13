@@ -43,7 +43,12 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .mascot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:50% 6%;flex:none}
 .mascot-mini{width:64px;height:auto;margin-bottom:6px}
 #mechaHero{display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
+#mechaHero .heroWrap{position:relative;display:inline-block;max-width:100%}
 #mechaHero img{width:min(88%,360px);height:auto;display:block}
+/* hero画像右側の空きスペースに重ねる小さな2段ボタン(全体を撮影/手動入力) */
+#heroBtns{position:absolute;right:2%;top:52%;width:44%;display:flex;flex-direction:column;gap:8px}
+.heroBtn{font-size:13px;font-weight:700;padding:9px 6px;border-radius:11px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 5px rgba(0,0,0,.15);cursor:pointer;line-height:1.15;white-space:nowrap}
+.heroBtn:active{transform:translateY(1px)}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
 header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Chakra Petch'}
