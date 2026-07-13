@@ -961,6 +961,7 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
+$("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click(); });
 $("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus(); });
 $("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch(); });
 
