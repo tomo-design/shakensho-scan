@@ -154,11 +154,12 @@ exports.visionOcr = functions.region(REGION).https.onRequest(async (req, res) =>
   if (!key) return res.status(500).json({ error: "サーバーのVisionキーが未設定です。" });
   const r = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(key), {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ requests: [{ image: { content: (req.body && req.body.imageBase64) || "" }, features: [{ type: "TEXT_DETECTION" }] }] }),
+    body: JSON.stringify({ requests: [{ image: { content: (req.body && req.body.imageBase64) || "" }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }], imageContext: { languageHints: ["ja", "en"] } }] }),
   });
   if (!r.ok) return res.status(502).json({ error: "OCRエラー (" + r.status + ")" });
   const j = await r.json();
-  const text = (((j.responses || [])[0] || {}).fullTextAnnotation || {}).text || "";
+  const r0 = (j.responses || [])[0] || {};
+  const text = (r0.fullTextAnnotation && r0.fullTextAnnotation.text) || ((r0.textAnnotations || [])[0] || {}).description || "";
   return res.json({ text: text });
 });
 

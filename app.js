@@ -727,6 +727,44 @@ function applyAiQr(o) {
   mergeAcc(d);              // 未取得の項目だけ埋める(既存の正しい値は保持)
   showResult(accResult(), { fromScan: true, noAutoAi: true });  // AI補完も履歴保存。再度の自動AI解析は起動しない(ループ/画面のガタつき防止)
 }
+/* ===== 写真(車検証)をAI Vision(メカ君)で直接読み取る = 最高精度のフォールバック =====
+   QRが読めない/印字が擦れている車検証でも、画像を理解して各項目を構造化抽出する。 */
+function buildPhotoReadPrompt() {
+  return [
+    "あなたは日本の自動車検査証(車検証)を読み取る精密OCRエンジンです。",
+    "添付は整備士が撮影した車検証(紙 または 電子車検証の閲覧アプリ画面)の写真です。記載事項を正確に読み取ってください。",
+    "重要(取り違え防止・桁数と文字種で必ず検証すること):",
+    "・型式(type): 排出ガス等の識別記号+ハイフン+英数字。例 3BA-GK5 / 2PG-FW74HZ。",
+    "・車台番号(vin): 英数字(+ハイフン)。例 GK5-1234567 / FW74HZ-510123。",
+    "・原動機の型式(engine): 短い英数字。例 L15B / N04C / 2NR。",
+    "・登録番号(plate): 地名(漢字)+分類番号+ひらがな+一連番号。例 品川 500 あ 12-34。地名を必ず含める。",
+    "・kataShitei: 『型式指定番号(最大5桁)＋類別区分番号(最大4桁)』の連結数字。現行車は9桁/旧車は7桁。大型・特装・輸入車には無い(null)。原動機型式や帳票番号を入れない。",
+    "読み取れない項目はnull。推測や9999等のダミーで埋めない。英数字は半角・大文字。日付は西暦。",
+    "出力は厳密なJSONのみ(前後に文章・コードフェンス不要)。キーは以下:",
+    '{"type":型式, "vin":車台番号, "engine":原動機型式, "plate":登録番号, "kataShitei":型式指定番号類別区分番号(数字のみ連結), "expiry":有効期間満了日(YYYY-MM-DD), "firstRegYear":初度登録の西暦年(数値), "firstRegMonth":初度登録の月(数値), "name":使用者の氏名又は名称, "model":車名(メーカー)}',
+  ].join("\n");
+}
+/* 画像を長辺maxDimまで縮小しJPEG base64化(通信量削減・AI精度は維持) */
+async function fileToJpegBase64(file, maxDim, quality) {
+  try {
+    const img = await loadImageEl(file);
+    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    const sc = Math.min(1, (maxDim || 1800) / Math.max(w, h));
+    w = Math.max(1, Math.round(w * sc)); h = Math.max(1, Math.round(h * sc));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    const durl = c.toDataURL("image/jpeg", quality || 0.85);
+    const i = durl.indexOf("base64,");
+    return i >= 0 ? durl.slice(i + 7) : durl.slice(durl.indexOf(",") + 1);
+  } catch (e) { return await fileToBase64(file); }   // 変換失敗時は原本を送る
+}
+async function readShakenPhotoAI(file) {
+  const data = await fileToJpegBase64(file, 1800, 0.85);
+  const r = await geminiAskMedia(buildPhotoReadPrompt(), [{ mimeType: "image/jpeg", data }]);
+  const obj = extractJson(r.text);
+  if (!obj) throw new Error("AIの応答を解釈できませんでした");
+  return obj;
+}
 let aiQrDone = false;   // 同じ読取で二重解析しない
 async function runAiQrParse(fromAuto) {
   stopFieldMic();
@@ -791,9 +829,27 @@ ocrIn.addEventListener("change", async e => {
   ocrIn.value = "";
   toggle("ocrBox", true);
   $("ocrPreview").src = URL.createObjectURL(file);
-  $("ocrStatus").innerHTML = "Tesseract OCR を準備中…(初回はモデル取得に少し時間がかかります)";
+  if (scanComplete) resetScan();
+  // ① AI Vision(メカ君)が使えるなら、写真から全項目を高精度で直接読み取る(最優先)
+  if (aiOK()) {
+    $("ocrStatus").innerHTML = "🤖 メカ君が車検証を読み取り中…（高精度）";
+    try {
+      const obj = await readShakenPhotoAI(file);
+      if (obj && (obj.type || obj.vin || obj.plate || obj.engine || obj.kataShitei)) {
+        applyAiQr(obj);   // 既存の項目マージ＋結果表示を再利用(型式/車台/原動機/登録番号/指定類別/有効期限/初度登録)
+        if (obj.name) { try { const nm = String(obj.name).trim(); if (nm) { saveUserName(nm); setText("rUser", nm); } } catch (_) {} }
+        const parts = [acc.type, acc.vin].filter(Boolean).join(" / ");
+        $("ocrStatus").innerHTML = "✓ メカ君が読み取りました（" + (parts || "各項目") + "）。誤りがあれば各項目をタップして修正できます。";
+        return;
+      }
+      $("ocrStatus").innerHTML = "AIが項目を特定できませんでした。通常OCRで再挑戦します…";
+    } catch (err) {
+      $("ocrStatus").innerHTML = "AI読み取りに失敗（" + (err.message || err) + "）→ 通常OCRに切替…";
+    }
+  }
+  // ② フォールバック: OCR(Cloud Vision / 無料Tesseract) + 正規表現抽出
   try {
-    if (scanComplete) resetScan();
+    if (!aiOK()) $("ocrStatus").innerHTML = "OCR を準備中…(初回はモデル取得に少し時間がかかります)";
     const text = await ocrTesseract(file);
     const d = extractFromOcrText(text);
     mergeAcc({ type: d.type, vin: d.vin, raw: d.rawCandidates });
