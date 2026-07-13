@@ -963,7 +963,10 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
 $("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click(); });
 $("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus(); });
-$("lnkShowPlate").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch(); });
+$("lnkShowPlate").addEventListener("click", () => {
+  if (!$("plateArea").classList.contains("hidden")) { toggle("plateArea", false); return; }   // 再タップで閉じる
+  foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch();
+});
 
 /* ナンバー検索 (使用者名でも引ける・部分一致) */
 function renderPlateSearch() {
