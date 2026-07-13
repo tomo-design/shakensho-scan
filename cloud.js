@@ -123,7 +123,6 @@
         '<li>車検証スキャン・メカ君AI・整備カルテを<b>フル機能</b>で利用</li>' +
         '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
       '</ul></div>' +
-      '<div class="planTerm">契約期間: <b>月額</b>（毎月更新）または <b>年契約</b>（まとめてお得）。<br>領収書・適格請求書（インボイス）に対応。</div>' +
       '<div class="signupForm">' +
         '<div class="fld">ご希望のプラン</div>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
@@ -131,8 +130,7 @@
         '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 申し込み・お支払いへ進む</button></div>' +
         '<div id="signupStat" class="planNote"></div>' +
       '</div>' +
-      '<div class="planNote">プランを選んで押すと<b>お支払いページ（カード／銀行振込／コンビニ）</b>が開きます。お支払いが確認できると<b>自動で契約が有効</b>になります。</div>' +
-      (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する（自動）</button></div>' : '') +
+      (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する</button></div>' : '') +
       '</div>';
     box.innerHTML = '<section><details><summary class="secSummary">契約・解約</summary>' + body + '</details></section>';
     const send = $("btnSignupSend"); if (send) send.onclick = async () => {
