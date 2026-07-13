@@ -42,11 +42,12 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .lamp{width:12px;height:12px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);flex:none}
 .mascot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:50% 6%;flex:none}
 .mascot-mini{width:64px;height:auto;margin-bottom:6px}
-#mechaHero{display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
+#mechaHero{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
 #mechaHero .heroWrap{position:relative;display:inline-block;max-width:100%;transform:translateX(16px)}
 #mechaHero img{width:min(88%,360px);height:auto;display:block}
-/* hero画像右側の空きスペースに重ねる小さな2段ボタン(全体を撮影/手動入力) */
-#heroBtns{position:absolute;right:2%;top:68%;width:40%;display:flex;flex-direction:column;gap:10px}
+/* hero画像右側の空きスペースに重ねる小さな2段ボタン(全体を撮影/手動入力)。
+   right:0 でページ本文の右端=スキャンボタンの右端に揃える(画像のtranslateXの影響を受けない) */
+#heroBtns{position:absolute;right:0;top:66%;width:42%;display:flex;flex-direction:column;gap:10px}
 .heroBtn{font-size:11.5px;font-weight:700;padding:6px 5px;border-radius:9px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 5px rgba(0,0,0,.15);cursor:pointer;line-height:1.15;white-space:nowrap}
 .heroBtn:active{transform:translateY(1px)}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
