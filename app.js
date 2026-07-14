@@ -823,7 +823,7 @@ $("btnManual").addEventListener("click", () => {
    OCRフォールバック (Tesseract.js / Google Vision)
    ========================================================= */
 const ocrIn = $("ocrIn");
-$("btnOcr").addEventListener("click", () => ocrIn.click());
+const _btnOcr = $("btnOcr"); if (_btnOcr) _btnOcr.addEventListener("click", () => ocrIn.click());
 ocrIn.addEventListener("change", async e => {
   const file = e.target.files[0]; if (!file) return;
   ocrIn.value = "";
@@ -832,7 +832,7 @@ ocrIn.addEventListener("change", async e => {
   if (scanComplete) resetScan();
   // ① AI Vision(メカ君)が使えるなら、写真から全項目を高精度で直接読み取る(最優先)
   if (aiOK()) {
-    $("ocrStatus").innerHTML = "🤖 メカ君が車検証を読み取り中…（高精度）";
+    $("ocrStatus").innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が車検証を読み取り中…（高精度）';
     try {
       const obj = await readShakenPhotoAI(file);
       if (obj && (obj.type || obj.vin || obj.plate || obj.engine || obj.kataShitei)) {
@@ -1346,7 +1346,14 @@ function renderRepairAnswer(box, obj, q) {
     bar.append(copy, share); list.appendChild(bar);
     box.appendChild(list);
   }
-  // ④ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
+  // ④ この作業で使うソケット・メガネのサイズだけを集約表示(その他の工具は載せない)
+  const wrenchSizes = extractWrenchSizes(obj.steps);
+  if (wrenchSizes.length) {
+    sec("必要なソケット・メガネ");
+    const p = document.createElement("div"); p.className = "ai-p wrenchSizes"; p.textContent = wrenchSizes.join("　・　");
+    box.appendChild(p);
+  }
+  // ⑤ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
     sec("交換手順");
     const ol = document.createElement("ol"); ol.className = "guide-steps ai-list";
@@ -1369,6 +1376,26 @@ function renderRepairAnswer(box, obj, q) {
   // ⑤ 締付トルク・特殊工具
   if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.torque)); box.appendChild(p); }
   if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
+}
+/* 交換手順の各工具リストから、ソケット(コマ)・メガネ・スパナのサイズだけを抽出(重複除去)。
+   その他の工具(ドライバー・プライヤー等)は対象外。 */
+function extractWrenchSizes(steps) {
+  const set = new Set();
+  (Array.isArray(steps) ? steps : []).forEach(s => {
+    const tools = (s && Array.isArray(s.tools)) ? s.tools : [];
+    tools.forEach(t => {
+      const str = han(String(t || ""));
+      // ソケット/コマ/メガネ/スパナ/ボックスレンチ に付くmmサイズ
+      if (/(ソケット|コマ|メガネ|スパナ|ボックス)/.test(str)) {
+        (str.match(/\d{1,2}(?:\.\d)?\s*mm/gi) || []).forEach(m => set.add(m.replace(/\s+/g, "").toUpperCase().replace("MM", "mm")));
+      }
+      // ヘックス(六角)・トルクスは番手で
+      let m;
+      if ((m = str.match(/(?:ヘックス|HEX|六角)[^0-9]{0,4}(\d{1,2})/i))) set.add("HEX" + m[1]);
+      if ((m = str.match(/(?:トルクス|TORX|T)\s?(\d{2})/i))) set.add("T" + m[1]);
+    });
+  });
+  return [...set];
 }
 function jumpToStep(box, n) {
   const li = box.querySelector("#rstep-" + n); if (!li) return;
@@ -1908,9 +1935,12 @@ function reconcileFluidsFromKarte(entry) {
   // 油脂類 かつ L(リットル)量 のものだけ抽出
   const found = [];
   rows.forEach(r => {
-    const liters = parseLiters(r.q); if (liters == null) return;
-    const g = fluidGroupOf(r.n); if (!g) return;
-    found.push({ g, liters, qtyStr: (r.q).replace(/[ｌＬl]/, "L") });
+    const g = fluidGroupOf(r.n); if (!g) return;                                  // 油脂類のみ
+    // 「4.5L」等はもちろん、単位なしの数字「4.5」も油脂類なら L(リットル)量として扱う
+    let liters = parseLiters(r.q);
+    if (liters == null && /^\d+(?:\.\d+)?$/.test(r.q)) liters = parseFloat(r.q);
+    if (liters == null) return;
+    found.push({ g, liters, qtyStr: liters + "L" });
   });
   if (!found.length) return;
   const he = findHistEntry(getHistory(), current) || {};
@@ -1918,9 +1948,14 @@ function reconcileFluidsFromKarte(entry) {
   let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
   const changes = [];
   found.forEach(f => {
-    // 同じ油脂グループの諸元項目を探す(無ければ勝手に追加しない)
+    // 同じ油脂グループの諸元項目を探す
     const i = specs.findIndex(s => { const g = fluidGroupOf(s.k); return g && g.canon === f.g.canon; });
-    if (i < 0) return;
+    if (i < 0) {
+      // 諸元に該当項目が無ければ、カルテ実績から新規追加(緑=手動確定)
+      specs.push({ k: f.g.canon + "量", v: f.qtyStr, manual: true });
+      changes.push({ k: f.g.canon + "量", oldV: "", newV: f.qtyStr });
+      return;
+    }
     const cur = parseLiters(specs[i].v);
     if (cur != null && Math.abs(cur - f.liters) < 0.001) return;   // 一致していれば変更なし
     changes.push({ k: specs[i].k, oldV: specs[i].v, newV: f.qtyStr });
@@ -3377,15 +3412,15 @@ function buildSpecPrompt() {
     "あなたは日本の自動車整備士向けのデータアドバイザーです。",
     "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
-    "【要確認の書き方】確信が持てない値は理由や説明を付けず『（要確認）』とだけ書くこと。長い但し書きは不要。",
-    "【曖昧禁止・最重要】『オイルパンの仕様により異なる』『A又はB』『A〜B』のような曖昧な逃げは禁止。車台番号・原動機型式から特定して確定値を出すこと。値が交換条件で変わる場合のみ『値＋条件』を簡潔に書く(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。",
-    "【締付トルク】範囲(550〜650)ではなく、必ず『規定値±公差』の形にすること。例: ホイールナット『600±50 N·m』。",
-    "【締付トルクは網羅的に】その車両に存在する主要な締付トルクは、確定値または信頼できる代表値が出せるものは省略せず必ず specs に含めること。対象: ホイールナット、アクスルシャフト(ハブ)ナット／ドライブシャフト(ハブ)ナット、ブレーキキャリパー取付、ドレンボルト(エンジン/ミッション/デフ)。アクスルシャフト(ハブ)ナットはリジッドアクスル・FR・4WD・トラック等ほぼ全車に存在するので、値が分かるなら必ず載せる。ただし値がまったく分からず『（要確認）』としか書けない項目は、無理に作らず省略すること(値の無い『（要確認）』だけの行は出さない)。",
+    "【正確性が最優先・創作厳禁】確証のある値だけを記載すること。曖昧な記憶や推測で数値を作らない。特にオイル量・冷却水量・各種容量・締付トルクは車種・型式・年式で大きく異なり、間違った値は重大な整備ミスにつながる。確信が持てない値は数値を書かず『（要確認）』とだけ書く(長い但し書き不要)。「たぶん」「一般的に」で数字を埋めるのは禁止。",
+    "【要確認は恥ではない】不確かなら堂々と『（要確認）』にしてよい。曖昧な逃げ(『A又はB』『A〜B』『仕様により異なる』)より、確証がなければ『（要確認）』の方が良い。確証のある値がある場合のみ、値が交換条件で変わるなら『値＋条件』を簡潔に(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。",
+    "【締付トルク】確証がある場合のみ『規定値±公差』の形で(例: ホイールナット『600±50 N·m』)。確証が無ければその項目は省略するか『（要確認）』。範囲(550〜650)や創作値は不可。",
+    "【網羅より正確】確証のある値だけを載せ、無理に項目数を増やさない。値がまったく分からない項目(値が『（要確認）』だけになる行)は出さないこと。",
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
-    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。specsには『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』を必ず含めること(不明なら要確認)。上記以外も整備で重要なものがあれば追加してよい。faultsは既知の弱点・定番トラブルを具体的に。",
+    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』は、確証があれば含める(不確かなら無理に出さない)。整備で重要かつ確証のある項目のみ追加してよい。faultsは確証のある既知の弱点・定番トラブルのみ具体的に(創作しない)。",
     "",
     "■対象車両: " + vehicleDesc()
   ].join("\n");
@@ -3966,7 +4001,11 @@ function switchView(name) {
   window.scrollTo(0, 0);
 }
 document.querySelectorAll("#tabs button").forEach(b =>
-  b.addEventListener("click", () => switchView(b.dataset.view)));
+  b.addEventListener("click", () => {
+    // 下部「スキャン」タブ: 車両表示中に押したらホーム(3つの入口=カメラ/全体を撮影/手動入力)へ戻す
+    if (b.dataset.view === "scan" && !$("result").classList.contains("hidden")) { goHome(); return; }
+    switchView(b.dataset.view);
+  }));
 
 /* ホーム(スキャン初期画面)に戻す: 車両表示・進捗を畳み、メカ君ヒーローとスキャンボタンを出す */
 function goHome() {
