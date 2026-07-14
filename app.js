@@ -2847,14 +2847,14 @@ async function geminiAsk(prompt, opts) {
   const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
   const key = localStorage.getItem(LS.gemini);
   // キャッシュ命中なら無料枠を消費せず即返す(noCache指定時は最新を取得)
-  const ck = mode + ":" + hashStr(prompt);
+  const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
   if (!opts.noCache) {
     const cached = aiCacheGet(ck);
     if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   }
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
@@ -2876,10 +2876,10 @@ async function geminiAsk(prompt, opts) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: aiAbort.signal,
-          body: JSON.stringify({
+          body: JSON.stringify(Object.assign({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: genCfg
-          })
+          }, opts.search ? { tools: [{ google_search: {} }] } : {}))
         });
       if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); continue; } // 下位モデルで再試行
@@ -3412,10 +3412,9 @@ function buildSpecPrompt() {
     "あなたは日本の自動車整備士向けのデータアドバイザーです。",
     "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
-    "【正確性が最優先・創作厳禁】確証のある値だけを記載すること。曖昧な記憶や推測で数値を作らない。特にオイル量・冷却水量・各種容量・締付トルクは車種・型式・年式で大きく異なり、間違った値は重大な整備ミスにつながる。確信が持てない値は数値を書かず『（要確認）』とだけ書く(長い但し書き不要)。「たぶん」「一般的に」で数字を埋めるのは禁止。",
-    "【要確認は恥ではない】不確かなら堂々と『（要確認）』にしてよい。曖昧な逃げ(『A又はB』『A〜B』『仕様により異なる』)より、確証がなければ『（要確認）』の方が良い。確証のある値がある場合のみ、値が交換条件で変わるなら『値＋条件』を簡潔に(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。",
-    "【締付トルク】確証がある場合のみ『規定値±公差』の形で(例: ホイールナット『600±50 N·m』)。確証が無ければその項目は省略するか『（要確認）』。範囲(550〜650)や創作値は不可。",
-    "【網羅より正確】確証のある値だけを載せ、無理に項目数を増やさない。値がまったく分からない項目(値が『（要確認）』だけになる行)は出さないこと。",
+    "【必ず調べてから答える】記憶や勘で数値を出さない。付与されたGoogle検索ツールを使い、メーカー公式諸元・整備解説・信頼できる情報源で、この車種・型式・原動機・年式に固有の実際の値を確認してから答えること。オイル量・冷却水量・各種容量・締付トルクは車種差が大きいので必ず裏取りする。",
+    "【値は具体的に出す・安易な要確認は禁止】検索して得られた実値を、できる限り具体的な数値で書くこと。少し調べれば分かる値を『（要確認）』で済ませない。値が交換条件で変わるなら『値＋条件』(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。締付トルクは『規定値±公差』(例: ホイールナット『600±50 N·m』)。範囲だけ(550〜650)や創作値は不可。",
+    "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明なら創作せず要確認にする。",
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
@@ -3442,8 +3441,9 @@ async function runSpecAI(srcBtn) {
   const btn = srcBtn || $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
   const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
   try {
-    // 諸元: 初回は標準(速い)、「最新に更新」の再取得時は高精度(思考ON)
-    const r = await geminiAsk(buildSpecPrompt(), { noCache: force, mode: force ? "pro" : "flash" });
+    // 諸元は正確性最優先: 高精度(pro/思考ON)＋Google検索グラウンディングで実データから取得。
+    // 車両ごとに一度取得すれば学習キャッシュに保存され次回はAI不要(コストは初回のみ)。
+    const r = await geminiAsk(buildSpecPrompt(), { noCache: force, mode: "pro", search: true });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {

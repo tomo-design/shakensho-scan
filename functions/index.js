@@ -126,11 +126,14 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   for (const model of models) {
     const gc = { temperature: 0.2, maxOutputTokens: 16384 };
     if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+    const reqBody = { contents: [{ parts }], generationConfig: gc };
+    // Google検索グラウンディング(実データから回答=諸元などの正確性向上)。指定時のみ付与
+    if (data.search) reqBody.tools = [{ google_search: {} }];
     let r;
     try {
       r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: gc }),
+        body: JSON.stringify(reqBody),
       });
     } catch (e) { lastErr = "network"; continue; }
     if (r.status === 404 || r.status === 429) { lastErr = "model " + model + " " + r.status; continue; }
