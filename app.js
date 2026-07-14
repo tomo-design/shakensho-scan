@@ -962,7 +962,10 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
 $("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click(); });
-$("lnkShowManual").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus(); });
+$("lnkShowManual").addEventListener("click", () => {
+  if (!$("manualArea").classList.contains("hidden")) { toggle("manualArea", false); return; }   // 再タップで閉じる
+  foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus();
+});
 $("lnkShowPlate").addEventListener("click", () => {
   if (!$("plateArea").classList.contains("hidden")) { toggle("plateArea", false); return; }   // 再タップで閉じる
   foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch();
@@ -1009,6 +1012,12 @@ $("lnkFixRead").addEventListener("click", () => {
 });
 $("btnVidCancel").addEventListener("click", () => toggle("vidEdit", false));
 $("lnkRawChips").addEventListener("click", () => { toggle("secRaw", true); $("secRaw").scrollIntoView({ behavior: "smooth" }); });
+{ const b = $("btnCopyQrRaw"); if (b) b.addEventListener("click", async () => {
+  const raw = (current && current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
+  const txt = raw.length ? raw.join("\n") : "(QR生データなし)";
+  try { await navigator.clipboard.writeText(txt); b.textContent = "✓ コピーしました"; setTimeout(() => b.textContent = "🔎 QR生データをコピー（不具合報告用）", 1600); }
+  catch (e) { alert(txt); }
+}); }
 $("btnVidSave").addEventListener("click", () => {
   const uc = id => $(id).value.trim().toUpperCase();
   current.type = uc("vidType") || null;
