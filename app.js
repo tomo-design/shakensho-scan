@@ -28,6 +28,17 @@ const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
 const noEmail = s => (isEmailLike(s) ? "" : s);
 /* 全角数字→半角(表示用) */
 const han = s => String(s == null ? "" : s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+/* AI(グラウンディング)が混ぜる引用マーカー・英語注釈を除去して読みやすくする。
+   例: 「540〜590 N·m [cite: 17 (from previous search)]」→「540〜590 N·m」 */
+const cleanCite = s => String(s == null ? "" : s)
+  .replace(/\[\s*cite[^\]]*\]/gi, "")                       // [cite: 17 (from previous search), 29 ...]
+  .replace(/【[^】]*(?:cite|search)[^】]*】/gi, "")           // 全角括弧版
+  .replace(/\((?:from\s+)?previous\s+search[^)]*\)/gi, "")   // (from previous search)
+  .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")             // 裸の [17] / [17, 29, 36]
+  .replace(/[ \t]{2,}/g, " ")
+  .replace(/\s+([、。,.，])/g, "$1")
+  .replace(/[\s、,，]+$/g, "")
+  .trim();
 /* 表示用: 全角英数字・記号→半角、全角スペース→半角、連続スペースを1つに整える(履歴などの見栄え統一) */
 const dispText = s => String(s == null ? "" : s)
   .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))   // 全角ASCII(英数字・記号)→半角
@@ -1590,10 +1601,10 @@ function renderSpecs(specs, source) {
   shownSpecs.forEach(s => {
     const item = document.createElement("div"); item.className = "specItem";
     if (s.manual) item.classList.add("specManual");
-    const k = document.createElement("div"); k.className = "specK"; k.textContent = han(s.k);
+    const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
     const v = document.createElement("div"); v.className = "specV";
-    // 「／」区切りや改行を行分けして見やすく表示
-    v.innerHTML = esc(han(s.v)).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
+    // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
+    v.innerHTML = esc(cleanCite(han(s.v))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
     const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
@@ -3426,6 +3437,7 @@ function buildSpecPrompt() {
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明なら創作せず要確認にする。",
     "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
+    "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』は、確証があれば含める(不確かなら無理に出さない)。整備で重要かつ確証のある項目のみ追加してよい。faultsは確証のある既知の弱点・定番トラブルのみ具体的に(創作しない)。",
@@ -3456,9 +3468,9 @@ async function runSpecAI(srcBtn) {
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
-      specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: String(s.k).trim(), v: String(s.v || "").trim() })) : [];
-      faults = Array.isArray(obj.faults) ? obj.faults.map(x => String(x).trim()).filter(Boolean) : [];
-      recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => String(x).trim()).filter(Boolean) : [];
+      specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(String(s.k)), v: cleanCite(String(s.v || "")) })).filter(s => s.k && s.v) : [];
+      faults = Array.isArray(obj.faults) ? obj.faults.map(x => cleanCite(String(x))).filter(Boolean) : [];
+      recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => cleanCite(String(x))).filter(Boolean) : [];
       model = obj.model ? String(obj.model).trim() : "";
       maker = obj.maker ? String(obj.maker).trim().toLowerCase() : "";
     }
