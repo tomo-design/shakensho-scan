@@ -333,7 +333,7 @@ async function startLiveScan() {
     $("qrPhotoStatus").innerHTML = "カメラを起動できませんでした（権限・対応状況をご確認ください）。<br>下の「写真で1枚ずつ撮影」もお試しください。";
     return;
   }
-  toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true);
+  toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true); toggle("btnStopRow", true);
   toggle("scanActions", true);
   updateScanProgress(acc);
   setScanMsg("自動で読み取り中… 車検証のQRを枠内に大きく写してください");
@@ -433,7 +433,7 @@ function stopLiveScan(show) {
   scanning = false;
   if (scanRaf) cancelAnimationFrame(scanRaf);
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
-  toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnTorch", false);
+  toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false); toggle("btnTorch", false);
   if (show && (acc.type || acc.vin || acc.plate || acc.engine)) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
 }
 const setScanMsg = t => setText("scanMsg", t);
@@ -962,10 +962,10 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
 $("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click(); });
-$("lnkShowManual").addEventListener("click", () => {
+{ const lm = $("lnkShowManual"); if (lm) lm.addEventListener("click", () => {
   if (!$("manualArea").classList.contains("hidden")) { toggle("manualArea", false); return; }   // 再タップで閉じる
   foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus();
-});
+}); }
 $("lnkShowPlate").addEventListener("click", () => {
   if (!$("plateArea").classList.contains("hidden")) { toggle("plateArea", false); return; }   // 再タップで閉じる
   foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch();
@@ -4025,7 +4025,7 @@ function goHome() {
   foldEntryAreas();
   toggle("scanWrap", false); toggle("scanCtrls", false);
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
-  toggle("btnStart", true); toggle("btnStop", false);
+  toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false);
   toggle("fallbackLinks", true);
   // ホームへ戻る際、閲覧中だった車両を「前回の車両」にする。
   // 診断/修理の作業内容は保存しておき、チップから開き直したとき復元できるようにする。

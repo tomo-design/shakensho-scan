@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v204";
+const CACHE = "shaken-scan-v205";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -22,6 +22,7 @@ const PRECACHE = [
   "./lib/zxing.js",
   "./img/mecha.png",
   "./img/hero.png",
+  "./img/メカ君説明2.png",
   "./img/thinking.png",
   "./img/kangae.png",
   "./img/speak.png",
