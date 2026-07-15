@@ -96,6 +96,48 @@ async function uidFromReq(req) {
   if (!m) return null;
   try { return (await admin.auth().verifyIdToken(m[1])).uid; } catch (e) { return null; }
 }
+// テナント(店舗)ごとの利用上限。.envで上書き可(未設定はこの既定値)。赤字防止の安全弁。
+const usageLimits = () => ({
+  dayMecha: +(process.env.LIMIT_DAY_MECHA || 400),
+  monthMecha: +(process.env.LIMIT_MONTH_MECHA || 6000),
+  dayVision: +(process.env.LIMIT_DAY_VISION || 400),
+  monthVision: +(process.env.LIMIT_MONTH_VISION || 6000),
+});
+// 日次・月次カウントを記録しつつ上限判定。ok=falseなら上限超過。運営(super)は対象外。
+// 記録先: usage/{tenantId} (Firestoreコンソールで各店舗の利用回数を確認できる=モニタリング)
+async function enforceUsage(tid, kind, role) {
+  if (role === "super") return { ok: true };   // 運営アカウントは制限しない
+  const db = admin.firestore();
+  const ref = db.collection("usage").doc(tid);
+  const jst = new Date(Date.now() + 9 * 3600 * 1000);   // 日本時間で日次リセット
+  const day = jst.toISOString().slice(0, 10);           // YYYY-MM-DD
+  const month = day.slice(0, 7);                         // YYYY-MM
+  const L = usageLimits();
+  const dKey = kind === "vision" ? "dVision" : "dMecha";
+  const mKey = kind === "vision" ? "mVision" : "mMecha";
+  const dLimit = kind === "vision" ? L.dayVision : L.dayMecha;
+  const mLimit = kind === "vision" ? L.monthVision : L.monthMecha;
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const u = snap.exists ? snap.data() : {};
+      if (u.day !== day) { u.day = day; u.dMecha = 0; u.dVision = 0; }        // 日が変われば日次リセット
+      if (u.month !== month) { u.month = month; u.mMecha = 0; u.mVision = 0; } // 月が変われば月次リセット
+      if ((u[dKey] || 0) >= dLimit) return { ok: false, scope: "day", limit: dLimit };
+      if ((u[mKey] || 0) >= mLimit) return { ok: false, scope: "month", limit: mLimit };
+      u[dKey] = (u[dKey] || 0) + 1;
+      u[mKey] = (u[mKey] || 0) + 1;
+      u.updatedAt = Date.now();
+      tx.set(ref, u, { merge: true });
+      return { ok: true, used: u[dKey], dLimit };
+    });
+  } catch (e) { console.error("usage計測エラー", e); return { ok: true }; }   // 計測失敗時はブロックしない(サービス優先)
+}
+function usageErrMsg(cap) {
+  const scope = cap.scope === "day" ? "本日" : "今月";
+  return scope + "のAI利用上限（" + cap.limit + "回）に達しました。時間をおいて再度お試しください（上限は運営で調整できます）。";
+}
+
 // 有効アカウント＋契約中の店舗か検証。NGなら {err:[status,msg]} を返す。
 async function checkPaid(uid) {
   if (!uid) return { err: [401, "ログインが必要です。"] };
@@ -117,6 +159,8 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
   const key = cfg().gemini && cfg().gemini.key;
   if (!key) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
+  const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);
+  if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const mode = data.mode === "pro" ? "pro" : "flash";
   const models = mode === "pro" ? ["gemini-2.5-pro", "gemini-2.5-flash"] : ["gemini-2.5-flash", "gemini-2.0-flash-lite"];
@@ -155,6 +199,8 @@ exports.visionOcr = functions.region(REGION).https.onRequest(async (req, res) =>
   if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
   const key = cfg().vision && cfg().vision.key;
   if (!key) return res.status(500).json({ error: "サーバーのVisionキーが未設定です。" });
+  const cap = await enforceUsage(g.tid, "vision", g.u && g.u.role);
+  if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const r = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(key), {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ requests: [{ image: { content: (req.body && req.body.imageBase64) || "" }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }], imageContext: { languageHints: ["ja", "en"] } }] }),
