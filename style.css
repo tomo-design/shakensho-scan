@@ -34,7 +34,7 @@
 #langPick button{background:#fff;color:#1B2530;border:0;border-radius:999px;font-size:12.5px;font-weight:700;padding:5px 14px;cursor:pointer}
 #langPick button:active{transform:scale(.96)}
 html,body{background:var(--bg);color:var(--txt);font-family:'Noto Sans JP',sans-serif;min-height:100%}
-body{max-width:560px;margin:0 auto;padding:0 14px 130px;position:relative}
+body{max-width:560px;margin:0 auto;padding:0 14px 130px;position:relative;overflow-x:hidden}
 .mono{font-family:'Chakra Petch','Noto Sans JP',monospace}
 
 /* header */
@@ -43,9 +43,10 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .mascot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:50% 6%;flex:none}
 .mascot-mini{width:64px;height:auto;margin-bottom:6px}
 #mechaHero{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
-#mechaHero .heroWrap{position:relative;display:inline-block;max-width:100%;transform:translateX(16px)}
-#mechaHero img{width:min(98%,430px);height:auto;display:block}
-#heroBtns{position:absolute;right:0;top:64%;width:46%;display:flex;flex-direction:column;gap:11px}
+#mechaHero{overflow:visible}
+#mechaHero .heroWrap{position:relative;display:inline-block;max-width:none;transform:translateX(-26px)}
+#mechaHero img{width:min(112%,500px);height:auto;display:block}
+#heroBtns{position:absolute;right:0;top:62%;width:46%;display:flex;flex-direction:column;gap:11px}
 .heroBtn{font-size:14px;font-weight:700;padding:11px 8px;border-radius:11px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;line-height:1.15;white-space:nowrap}
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
