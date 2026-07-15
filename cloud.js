@@ -448,7 +448,7 @@
   /* ---------- プッシュ通知(FCM): 管理者はワンタップ許可のみ。設定作業は不要 ----------
      ↓ 運営(あなた)が一度だけ Firebase Console → Cloud Messaging → ウェブプッシュ証明書 で
        「鍵ペアを生成」して得られる公開鍵(VAPID)をここに貼るだけ。 */
-  const VAPID_KEY = "PASTE_YOUR_WEB_PUSH_VAPID_PUBLIC_KEY_HERE";
+  const VAPID_KEY = "BJyKrW5kitDImGcvoRr9UGJ1_yU4miwENlSbcuf_uBilFohE3lC8J1BGOW2lHADFYGvm23XQhyeE-CGxeHk6Qtw";
   async function registerPush() {
     try {
       if (!(profile && (profile.role === "admin" || profile.role === "super"))) return;   // 通知対象は管理者のみ
