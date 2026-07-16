@@ -447,6 +447,7 @@ function stopLiveScan(show) {
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
   toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false); toggle("btnTorch", false);
   if (show && (acc.type || acc.vin || acc.plate || acc.engine)) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
+  else { toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false); }   // キャンセル時は進捗・やり直しを完全に閉じる
 }
 const setScanMsg = t => setText("scanMsg", t);
 
@@ -974,7 +975,11 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
-$("lnkShowOcr").addEventListener("click", () => { foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click(); });
+$("lnkShowOcr").addEventListener("click", () => {
+  if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);   // QRモードを止める(起動したまま残らないように)
+  toggle("scanProgress", false); toggle("scanActions", false);            // 未取得・やり直しを閉じる
+  foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click();
+});
 { const lm = $("lnkShowManual"); if (lm) lm.addEventListener("click", () => {
   if (!$("manualArea").classList.contains("hidden")) { toggle("manualArea", false); return; }   // 再タップで閉じる
   foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus();
