@@ -51,9 +51,9 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .heroBtn{font-size:14px;font-weight:700;padding:11px 8px;border-radius:11px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;line-height:1.15;white-space:nowrap}
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-/* カメラ画面内の模擬QR(2つ・複数まとめてスキャン可を示唆) */
-#multiQrHint.inCam{position:absolute;top:12px;left:0;right:0;display:flex;justify-content:center;gap:12px;pointer-events:none;z-index:3}
-#multiQrHint .qrMini{width:30px;height:30px;border:1px solid rgba(255,255,255,.6);border-radius:4px;background:#fff;display:block;opacity:.9}
+/* カメラ画面中央の模擬QR(2つ横並び・うっすら透過。複数まとめてスキャン可を示唆) */
+#multiQrHint{display:flex;gap:22px;opacity:.3;pointer-events:none}
+#multiQrHint .qrMini{width:96px;height:96px;display:block}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
 header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Chakra Petch'}
