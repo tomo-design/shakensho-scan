@@ -1046,7 +1046,8 @@ $("btnVidSave").addEventListener("click", () => {
   if (typeof acc !== "undefined") ["type", "engine", "vin", "plate", "kataShitei", "firstReg", "expiry"].forEach(k => acc[k] = current[k]);
   const user = $("vidUser").value.trim();
   toggle("vidEdit", false);
-  showResult(current, { fromScan: true });   // 再描画＋履歴に統合保存(自動保存)
+  // 手動修正後は自動AI-QR解析を起動しない(空白訂正がキャッシュのAI結果で元に戻るのを防ぐ)
+  showResult(current, { fromScan: true, noAutoAi: true });   // 再描画＋履歴に統合保存(自動保存)
   saveUserName(user); setText("rUser", user || "—");   // 空欄なら空欄で上書き(誤入力の訂正クリアを反映)
   registerVehicleToDB();   // 保存と同時にDBの登録車種へ追加/更新
 });
