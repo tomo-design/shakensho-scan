@@ -347,6 +347,7 @@ async function startLiveScan() {
   }
   toggle("scanWrap", true); toggle("scanCtrls", true); toggle("btnStart", false); toggle("btnStop", true); toggle("btnStopRow", true);
   toggle("scanActions", true);
+  toggle("mechaHero", false); document.body.classList.add("scanningNow");   // スキャン中はメカ君を隠しカメラを画面中央へ
   updateScanProgress(acc);
   setScanMsg("自動で読み取り中… 車検証のQRを枠内に大きく写してください");
   scanning = true; tickBusy = false; tickN = 0; lastOcrAt = 0; scanTick();
@@ -446,8 +447,9 @@ function stopLiveScan(show) {
   if (scanRaf) cancelAnimationFrame(scanRaf);
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
   toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false); toggle("btnTorch", false);
+  document.body.classList.remove("scanningNow");   // カメラ中央表示を解除
   if (show && (acc.type || acc.vin || acc.plate || acc.engine)) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
-  else { toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false); }   // キャンセル時は進捗・やり直しを完全に閉じる
+  else { toggle("mechaHero", true); toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false); }   // キャンセル時はメカ君を戻し進捗・やり直しを閉じる
 }
 const setScanMsg = t => setText("scanMsg", t);
 
@@ -4053,6 +4055,7 @@ function goHome() {
   toggle("scanWrap", false); toggle("scanCtrls", false);
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false);
+  document.body.classList.remove("scanningNow");
   toggle("fallbackLinks", true);
   // ホームへ戻る際、閲覧中だった車両を「前回の車両」にする。
   // 診断/修理の作業内容は保存しておき、チップから開き直したとき復元できるようにする。
