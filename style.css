@@ -51,12 +51,6 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .heroBtn{font-size:14px;font-weight:700;padding:11px 8px;border-radius:11px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;line-height:1.15;white-space:nowrap}
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-/* 「QRは2〜3個まとめて写せる」案内(カメラ画面内の上部に表示) */
-#multiQrHint{display:flex;flex-direction:column;align-items:center;gap:6px}
-#multiQrHint .mqRow{display:flex;gap:12px}
-#multiQrHint .qrMini{width:30px;height:30px;border:1px solid rgba(255,255,255,.6);border-radius:4px;background:#fff;display:block}
-#multiQrHint .mqCap{font-size:12px;color:#fff;font-weight:700;background:rgba(20,28,40,.72);padding:3px 12px;border-radius:999px;backdrop-filter:blur(2px)}
-#multiQrHint.inCam{position:absolute;top:12px;left:0;right:0;pointer-events:none;z-index:3}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
 header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Chakra Petch'}

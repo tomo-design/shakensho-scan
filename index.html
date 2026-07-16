@@ -42,33 +42,9 @@
     </div>
   </div>
 
-  <!-- 「QRは2〜3個まとめて写せる」ことを伝える案内(薄い模擬QR) -->
-  <svg width="0" height="0" aria-hidden="true" style="position:absolute"><symbol id="qrGlyph" viewBox="0 0 25 25">
-    <rect width="25" height="25" fill="#fff"/>
-    <g fill="#1B2530"><rect x="0" y="0" width="7" height="7"/><rect x="18" y="0" width="7" height="7"/><rect x="0" y="18" width="7" height="7"/></g>
-    <g fill="#fff"><rect x="1" y="1" width="5" height="5"/><rect x="19" y="1" width="5" height="5"/><rect x="1" y="19" width="5" height="5"/></g>
-    <g fill="#1B2530"><rect x="2" y="2" width="3" height="3"/><rect x="20" y="2" width="3" height="3"/><rect x="2" y="20" width="3" height="3"/>
-      <rect x="9" y="2" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="15" y="2" width="1" height="1"/>
-      <rect x="2" y="9" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/>
-      <rect x="9" y="9" width="1" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="13" y="12" width="1" height="1"/><rect x="10" y="14" width="1" height="1"/>
-      <rect x="15" y="9" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/>
-      <rect x="9" y="20" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="13" y="24" width="1" height="1"/>
-      <rect x="20" y="9" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="19" y="14" width="1" height="1"/>
-      <rect x="16" y="18" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="20" y="22" width="1" height="1"/><rect x="22" y="19" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/>
-      <rect x="9" y="4" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/></g>
-  </symbol></svg>
-
   <div id="scanWrap" class="hidden">
     <video id="video" playsinline muted></video>
     <div id="scanOverlay">
-      <div id="multiQrHint" class="inCam">
-        <div class="mqRow">
-          <svg class="qrMini" width="30" height="30" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
-          <svg class="qrMini" width="30" height="30" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
-          <svg class="qrMini" width="30" height="30" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
-        </div>
-        <div class="mqCap">QRは <b>2〜3個まとめて</b> 写してもOK</div>
-      </div>
       <div class="reticle"><b></b></div>
     </div>
     <div id="scanFlash"></div>
