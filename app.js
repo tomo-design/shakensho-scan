@@ -320,7 +320,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 $("btnStop").addEventListener("click", () => stopLiveScan(true));
@@ -468,10 +468,17 @@ function onLiveQr(data) {
   mergeAcc(parsePayloads(payloads));
   afterScanUpdate("QR");
 }
-/* 文字(OCR)検出時 */
+/* 文字(OCR)検出時。壁の模様・影などの誤検出を防ぐため、
+   同じ値が2回連続で読めた項目だけを採用する(1回だけの値は捨てる)。QRは正確なので対象外。 */
+let lastOcrCand = { type: null, vin: null };
 function onLiveText(d) {
+  const use = {};
+  if (d.type && d.type === lastOcrCand.type) use.type = d.type;   // 前回と一致した型式のみ採用
+  if (d.vin && d.vin === lastOcrCand.vin) use.vin = d.vin;        // 前回と一致した車台番号のみ採用
+  lastOcrCand = { type: d.type || null, vin: d.vin || null };
+  if (!use.type && !use.vin) return;                              // 初回や不一致(ノイズ)は無視
   const before = acc.type + "|" + acc.vin + "|" + acc.engine;
-  mergeAcc(d);
+  mergeAcc(use);
   if (acc.type + "|" + acc.vin + "|" + acc.engine !== before) {
     if (navigator.vibrate) navigator.vibrate(40);
     flashScan();
