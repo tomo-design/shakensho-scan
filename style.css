@@ -7,9 +7,10 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* さりげない更新トースト */
 #appToast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,12px);z-index:300;
-  background:rgba(27,37,48,.92);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
-  padding:8px 16px;border-radius:999px;box-shadow:0 3px 12px rgba(0,0,0,.25);
-  opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;max-width:88%;text-align:center}
+  background:rgba(27,37,48,.94);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  padding:10px 16px;border-radius:14px;box-shadow:0 3px 12px rgba(0,0,0,.25);line-height:1.5;
+  white-space:pre-line;text-align:left;
+  opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;max-width:82%}
 #appToast.show{opacity:1;transform:translate(-50%,0)}
 /* 言語トグル(小さく目立たない・ヘッダー上。固定ではなくスクロールで一緒に流れ、ナビと被らない) */
 #langToggle{position:absolute;top:12px;right:2px;z-index:150;background:rgba(255,255,255,.85);border:1px solid var(--line);color:var(--dim);

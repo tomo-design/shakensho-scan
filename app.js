@@ -2004,7 +2004,9 @@ function reconcileFluidsFromKarte(entry) {
   // メンテ画面を開いていれば即再描画
   const mv = document.getElementById("view-maint");
   if (mv && mv.classList.contains("active") && typeof renderSpecs === "function") renderSpecs(specs, "learned");
-  showToast("カルテの実績で諸元を更新: " + changes.map(c => c.k + " " + c.newV).join(" / "));
+  // 表示は簡潔に。括弧書き(例:「デフオイル（デファレンシャルオイル）」)や末尾「量」を落として重複を防ぐ
+  const shortK = k => String(k).replace(/[（(].*?[）)]/g, "").replace(/量$/, "").trim();
+  showToast("諸元を更新しました\n" + changes.map(c => "・" + shortK(c.k) + " " + c.newV).join("\n"));
 }
 function textToSpecs(text) {
   return (text || "").split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
