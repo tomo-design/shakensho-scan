@@ -355,6 +355,7 @@ async function rescanNow() {
   setScanMsg("再スキャン中: QRを枠内に大きく・はっきり写してください");
 }
 $("btnStop").addEventListener("click", rescanNow);
+$("scanBack").addEventListener("click", goHome);   // スキャン中の「戻る」→ ホームへ
 
 let camList = [], camIdx = 0;
 
