@@ -2887,9 +2887,10 @@ function cseReady() { return !!(localStorage.getItem("ss_cse_key") && localStora
 function renderCseStat() {
   const el = $("cseStat"); if (!el) return;
   const corp = cseCorp(), own = !!(localStorage.getItem("ss_cse_key") && localStorage.getItem("ss_cse_cx"));
-  // 契約中は運営のキーで動くため、取得手順・入力欄を隠して「設定不要」と案内
+  // 契約中は運営のキーで動くため手順を隠して「設定不要」と案内。
+  // ただし自前キーが登録済みなら、修正・削除できるよう入力欄は残す。
   toggle("cseCorpNote", corp);
-  toggle("cseSetup", !corp);
+  toggle("cseSetup", !corp || own);
   el.textContent = corp ? "✓ ご契約中 — 部品名タップで実写画像を表示します（設定不要）。"
     : own ? "✓ 設定済み — 部品名タップで実写画像を表示します。"
     : "未設定 — 「Web画像で探す」リンクのみ使えます。";
@@ -2904,10 +2905,13 @@ $("btnCseSave") && $("btnCseSave").addEventListener("click", () => {
 /* Google Custom Search で画像を検索(CORS対応のJSON API)。結果配列[{thumb,link,ctx,title}] */
 async function googleImageSearch(query, num) {
   const key = localStorage.getItem("ss_cse_key"), cx = localStorage.getItem("ss_cse_cx");
-  // 自前キーが無く契約中なら、サーバー(運営のキー)経由で検索 → 契約と同時に使える
-  if ((!key || !cx) && cseCorp()) {
-    const d = await window.Cloud.callFn("imageSearch", { q: query, num: num || 3 });
-    return Array.isArray(d && d.items) ? d.items.filter(x => x && x.thumb) : [];
+  // 契約中はサーバー(運営のキー)経由を優先 → 「設定不要」の案内どおりに動く。
+  // 失敗しても自前キーがあればそちらで再試行する。
+  if (cseCorp()) {
+    try {
+      const d = await window.Cloud.callFn("imageSearch", { q: query, num: num || 3 });
+      return Array.isArray(d && d.items) ? d.items.filter(x => x && x.thumb) : [];
+    } catch (e) { if (!key || !cx) throw e; }
   }
   if (!key || !cx) return [];
   const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + (num || 3) +
@@ -2922,7 +2926,7 @@ async function googleImageSearch(query, num) {
     else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|does not have the access/.test(r)) msg = "「Custom Search API」がまだ有効になっていません。設定→部品の実写画像の案内から『Custom Search APIを有効にする』を押してください。";
     else if (res.status === 403 && /referer|referrer|blocked|not authorized/.test(r)) msg = "APIキーに利用制限がかかっています。キーの制限を『なし』にするか、このサイトを許可してください。";
     else if (res.status === 400 && /invalid.*key|api key not valid/.test(r)) msg = "APIキーが正しくありません。②のキーを貼り直してください。";
-    else if (res.status === 400 && (/invalid.*cx|invalid value/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(cx)が正しくありません。①のIDを貼り直してください。";
+    else if (res.status === 400 && (/invalid.*cx|invalid value|invalid argument/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(①)が正しくないようです。Programmable Search Engineの「検索エンジンID」を貼り直し、その検索エンジンで『画像検索』がオンか確認してください。";
     else msg = "画像検索エラー(" + res.status + ")" + (reason ? "：" + reason : "");
     const err = new Error(msg); err.userMsg = msg; throw err;
   }

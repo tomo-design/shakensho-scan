@@ -429,9 +429,9 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .foldCard .foldTag.warn{color:#fff;background:var(--alert,#e0533d)}
 .foldCard .foldBody{padding:0 12px 12px}
 /* セクション見出しごと折り畳み(クラウド同期など) */
-.foldSecSum{list-style:none;cursor:pointer;padding:14px 16px;font-size:15px;font-weight:700;color:var(--txt);display:flex;align-items:center;gap:8px}
+.foldSecSum{list-style:none;cursor:pointer;padding:14px 34px;font-size:15px;font-weight:700;color:var(--txt);display:flex;align-items:center;justify-content:center;gap:8px;position:relative;text-align:center}
 .foldSecSum::-webkit-details-marker{display:none}
-.foldSecSum::after{content:"▾";margin-left:auto;color:var(--dim);font-size:13px}
+.foldSecSum::after{content:"▾";position:absolute;right:16px;color:var(--dim);font-size:13px}
 .foldSec[open]>.foldSecSum::after{content:"▴"}
 /* 管理: 名前行右端の端末枠 +/- */
 .mInfo .mTop{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -562,9 +562,10 @@ ol.ai-list li.hasTools>div{cursor:pointer}
 .mBtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:6px;width:100%}
 .mBtns .btn{white-space:nowrap;min-width:0;padding-left:8px;padding-right:8px}
 /* 折りたたみセクションの見出し(summary)をh2風に */
-.secSummary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--txt);padding:14px 16px}
+/* 見出しは中央寄せ。開閉マーカー(▾)はレイアウトに影響しないよう右端に絶対配置 */
+.secSummary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700;color:var(--txt);padding:14px 34px;position:relative;text-align:center}
 .secSummary::-webkit-details-marker{display:none}
-.secSummary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:13px}
+.secSummary::after{content:"▾";position:absolute;right:16px;color:var(--dim);font-size:13px}
 details[open] > .secSummary::after{content:"▴"}
 /* セクション見出しの右端にマイク＋クリア(マイクはクリアの左) */
 .secHead{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
