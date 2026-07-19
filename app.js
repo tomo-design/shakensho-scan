@@ -1397,11 +1397,21 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      const nm = document.createElement("span"); nm.className = "orderName" + (o.step ? " jump" : ""); nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      if (o.step) { nm.title = "手順" + o.step + "へ"; nm.addEventListener("click", () => jumpToStep(box, o.step)); }
+      const nm = document.createElement("span"); nm.className = "orderName pic"; nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
+      nm.title = "タップで部品画像";
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
+      // 手順へのジャンプは小さなリンクとして残す(画像表示に譲る)
+      if (o.step) {
+        const jp = document.createElement("span"); jp.className = "orderStepLink"; jp.textContent = "手順" + o.step + "へ";
+        jp.addEventListener("click", e => { e.stopPropagation(); jumpToStep(box, o.step); });
+        row.appendChild(jp);
+      }
       list.appendChild(row);
+      // 部品名タップで実物画像パネルを開閉(初回のみ取得)
+      const pane = document.createElement("div"); pane.className = "partPic hidden";
+      list.appendChild(pane);
+      attachPartPicture(nm, pane, o.name);
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
@@ -3150,6 +3160,35 @@ function renderAiAnswer(container, text, opts) {
     p.className = "ai-p"; p.textContent = line;
     container.appendChild(p);
   }
+}
+
+/* 部品注文リストの部品名タップで、実物画像を下に開閉(初回のみ取得)。
+   CSE(画像検索キー)設定済み→実写サムネ、未設定→Web画像検索リンクのみ。 */
+function attachPartPicture(nameEl, pane, partName) {
+  let loaded = false;
+  nameEl.addEventListener("click", async () => {
+    const open = pane.classList.toggle("hidden") === false;
+    if (!open || loaded) return;
+    loaded = true;
+    const car = (currentVehicleFacts().model || (current && current.type) || "").trim();
+    const q = (car + " " + han(partName) + " 部品").trim();
+    const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
+      + encodeURIComponent(q) + '&tbm=isch">🔍 Web画像でもっと探す<span class="arr">↗</span></a>';
+    if (!cseReady()) {
+      pane.innerHTML = '<div class="partPicNote">実写画像を表示するには、設定タブで画像検索キーの登録が必要です。</div>' + linkHtml;
+      return;
+    }
+    pane.innerHTML = '<div class="partPicNote">画像を探しています…</div>';
+    try {
+      const imgs = await googleImageSearch(q, 3);
+      if (!imgs.length) { pane.innerHTML = '<div class="partPicNote">画像が見つかりませんでした。</div>' + linkHtml; return; }
+      pane.innerHTML = '<div class="partPicRow">' + imgs.map(im =>
+        '<a href="' + esc(im.ctx) + '" target="_blank" rel="noopener"><img src="' + esc(im.thumb) + '" alt="' + esc(partName) + '" loading="lazy"></a>'
+      ).join("") + '</div><div class="partPicCap">' + esc(han(partName)) + '（Web画像・参考）</div>' + linkHtml;
+    } catch (e) {
+      pane.innerHTML = '<div class="partPicNote">' + esc((e && e.userMsg) || "画像を取得できませんでした。") + '</div>' + linkHtml;
+    }
+  });
 }
 
 /* 手順の li をタップ可能にして、参考図(メカ君の図解＋画像検索)を下に開く */

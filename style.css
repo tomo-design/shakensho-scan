@@ -521,6 +521,15 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .orderRow:first-child{border-top:0}
 .orderName{font-size:15px;font-weight:700;color:var(--txt);min-width:0}
 .orderName.jump{color:var(--amber);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+/* 部品名タップ→実物画像 */
+.orderName.pic{color:var(--amber);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.orderStepLink{font-size:11px;color:var(--dim);text-decoration:underline;cursor:pointer;white-space:nowrap;align-self:center}
+.partPic{padding:8px 0 10px}
+.partPicRow{display:flex;gap:8px;overflow-x:auto}
+.partPicRow a{flex:0 0 auto;display:block}
+.partPicRow img{width:104px;height:104px;object-fit:cover;border:1px solid var(--line);border-radius:10px;background:#fff}
+.partPicCap{font-size:11px;color:var(--dim);margin-top:5px}
+.partPicNote{font-size:12px;color:var(--dim);line-height:1.6}
 .orderMeta{font-size:12px;color:var(--dim);margin-left:auto;white-space:nowrap;opacity:.7;align-self:center}
 .ai-h.orderHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .orderHead .orderLegend{font-size:10px;font-weight:600;color:var(--dim);opacity:.75;letter-spacing:0}
