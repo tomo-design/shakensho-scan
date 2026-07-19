@@ -25,7 +25,12 @@ const $ = id => document.getElementById(id);
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
-function applyAppMode() { document.body.classList.toggle("personalMode", getAppMode() === "personal"); }
+function applyAppMode() {
+  const personal = getAppMode() === "personal";
+  document.body.classList.toggle("personalMode", personal);
+  // 個人版はAPIキーが前提。キー設定を自動で開いて見つけやすく
+  if (personal) { const f = $("secAiKeyFold"); if (f) f.open = true; }
+}
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
 /* メールアドレスらしい文字列か(使用者名・車種名へのメール混入対策) */
@@ -2795,6 +2800,12 @@ document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", 
   localStorage.setItem(LS.aimode, b.dataset.mode);
   renderAiMode();
 }));
+
+// 個人モードのバナー「APIキーの設定へ」→ キー設定を開いてスクロール
+$("btnJumpKey") && $("btnJumpKey").addEventListener("click", () => {
+  const f = $("secAiKeyFold"); if (f) f.open = true;
+  const s = $("secAiKey"); if (s) s.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 function renderGeminiStat() {
   const has = !!localStorage.getItem(LS.gemini);

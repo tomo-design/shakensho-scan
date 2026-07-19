@@ -14,6 +14,14 @@ body.personalMode #secCloudSync,body.personalMode #cloudPlan{display:none!import
   padding:7px 0;border-radius:7px;cursor:pointer}
 .modeSwitch button.on{background:var(--amber);color:#fff;box-shadow:0 1px 4px rgba(37,99,235,.3)}
 .modeSwitchNote{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
+/* 個人モードのAPIキー案内バナー(既定は非表示、個人モードのみ表示) */
+#personalKeyBanner{display:none}
+body.personalMode #personalKeyBanner{display:block;margin:14px 0 0;padding:12px 14px;
+  background:linear-gradient(180deg,#EAF6FA,#DCEEF5);border:1px solid #9FCEDD;border-radius:12px}
+.keyBannerTtl{font-weight:800;font-size:14px;color:var(--cyan)}
+.keyBannerBody{font-size:12px;color:var(--txt);margin-top:5px;line-height:1.6}
+/* 個人モードではキー設定セクションを強調 */
+body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;padding:2px 10px;background:var(--panel)}
 /* さりげない更新トースト */
 #appToast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,12px);z-index:300;
   background:rgba(27,37,48,.94);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;

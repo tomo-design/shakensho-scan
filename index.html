@@ -475,6 +475,12 @@
 
 <!-- ============ VIEW: SETTINGS ============ -->
 <div id="view-settings" class="view">
+  <!-- 個人モードのみ表示: 自分のAPIキーで動くことを最初に案内 -->
+  <div id="personalKeyBanner" class="keyBanner">
+    <div class="keyBannerTtl">🔑 このアプリはご自身のAPIキーで動きます</div>
+    <div class="keyBannerBody">下の「メカ君に相談機能」でGoogleの<b>無料APIキー</b>を取得して貼ると、AI機能が使えます（カード登録不要）。</div>
+    <button class="btn btn-cyan btn-sm" id="btnJumpKey" style="margin-top:8px">APIキーの設定へ ↓</button>
+  </div>
   <section id="secCloudSync" style="margin-top:14px">
     <details class="foldSec" open>
     <summary class="foldSecSum">クラウド同期（社内共有）</summary>
@@ -544,8 +550,8 @@
     </details>
   </section>
 
-  <section>
-    <details>
+  <section id="secAiKey">
+    <details id="secAiKeyFold">
       <summary class="secSummary">メカ君に相談機能（無料・任意）</summary>
       <div class="sec-body">
         <p class="hint">Gemini APIキー（<b>無料・カード登録不要</b>）を設定すると「メカ君に相談」が使えます。下のボタンで取得して貼るだけ。</p>
