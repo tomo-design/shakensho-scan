@@ -227,16 +227,18 @@ function parseStructured(codes) {
 /* ---- 従来ヒューリスティック(維持・フォールバック) ----
    exclude: 原動機型式など「型式候補にしてはいけない」値の集合 */
 function parseHeuristic(fields, exclude = new Set()) {
-  let type = null, vin = null, plate = null;
+  let type = null, vin = null, plate = null, engine = null;
   for (const f of fields) {
     const u = zen2han(f).toUpperCase();
     if (!vin && /^[A-Z0-9]{2,8}-[0-9]{5,8}$/.test(u)) { vin = u; continue; }
-    // ハイフン付き型式(排ガス記号-車種記号)はエンジン型式と紛れないので除外対象外
+    // ハイフン付き型式(排ガス記号-車種記号)は型式として確実(エンジン型式と紛れない)
     if (!type && /^[0-9A-Z]{2,4}-[A-Z][A-Z0-9]{2,8}$/.test(u) && !/^[0-9]+$/.test(u.split("-")[1])) { type = u; continue; }
-    if (!type && !exclude.has(u) && /^[A-Z]{1,4}[0-9]{1,3}[A-Z0-9]{0,4}$/.test(u) && u.length <= 9) { type = u; continue; }
-    if (!plate && /[぀-ヿ㐀-鿿]/.test(f) && f.length <= 12) plate = f;
+    if (!plate && /[぀-ヿ㐀-鿿]/.test(f) && f.length <= 12) { plate = f; continue; }
+    // 単独の短い英数字コード(K6A / EF / 3SZ 等)は原動機型式とみなす。
+    // ※ 型式(車種)には入れない → 型式は車台番号の接頭辞 or コード3で確定させる(原動機型式の誤混入を防止)
+    if (!engine && !exclude.has(u) && /^[A-Z0-9]{2,7}$/.test(u) && /[A-Z]/.test(u) && !/^\d+$/.test(u)) { engine = u; continue; }
   }
-  return { type, vin, plate };
+  return { type, vin, plate, engine };
 }
 
 function parsePayloads(payloadSet) {
@@ -247,15 +249,23 @@ function parsePayloads(payloadSet) {
   const rawFields = [];
   list.forEach(p => p.split("/").forEach(f => { f = f.trim(); if (f) rawFields.push(f); }));
   const uniq = [...new Set(rawFields)];
-  // 原動機型式は型式候補から除外(誤って型式欄に入るのを防ぐ)
-  const exclude = new Set([s.engine, s.vin].filter(Boolean).map(x => zen2han(x).toUpperCase()));
+  // 型式・車台番号・原動機型式(確定済み)はヒューリスティックの再判定から除外
+  const exclude = new Set([s.engine, s.vin, s.type].filter(Boolean).map(x => zen2han(x).toUpperCase()));
   const h = parseHeuristic(uniq, exclude);
 
+  // 型式は コード3(f[5]) 優先 → 無ければ車台番号の接頭辞(例 MK21S-149973 → MK21S) → ハイフン付き型式
+  const vinVal = s.vin || h.vin || null;
+  const vinPref = vinVal ? (vinVal.match(/^([A-Z0-9]{2,8})-\d{3,8}$/) || [])[1] : null;
+  let type   = s.type || vinPref || h.type || null;
+  let engine = s.engine || h.engine || null;
+  // 誤混入是正: 原動機型式が型式欄に入っていたら車台番号接頭辞へ差し替え(無ければ空)
+  if (type && engine && type === engine) type = vinPref || null;
+
   return {
-    type:     s.type   || h.type   || null,
-    vin:      s.vin    || h.vin    || null,
+    type:     type,
+    vin:      vinVal,
     plate:    s.plate  || h.plate  || null,
-    engine:   s.engine || null,
+    engine:   engine,
     expiry:   s.expiry || null,
     firstReg: s.firstReg || null,
     kataShitei: s.kataShitei || null,
