@@ -569,7 +569,6 @@
         "<button data-mode='corp' class='" + (mode === "corp" ? "on" : "") + "'>法人モード</button>" +
         "<button data-mode='personal' class='" + (mode === "personal" ? "on" : "") + "'>個人モード</button>" +
       "</div>" +
-      "<div class='modeSwitchNote'>個人モードでは「クラウド同期」「契約・解約」を非表示にします（BYOK・単独端末向け）。この端末の表示だけが切り替わります。</div>" +
       "</div>";
     const sw = $("appModeSw");
     if (sw) sw.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
