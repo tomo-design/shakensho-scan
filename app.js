@@ -1411,12 +1411,6 @@ function renderRepairAnswer(box, obj, q) {
       nm.title = "タップで部品画像";
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
-      // 手順へのジャンプは小さなリンクとして残す(画像表示に譲る)
-      if (o.step) {
-        const jp = document.createElement("span"); jp.className = "orderStepLink"; jp.textContent = "手順" + o.step + "へ";
-        jp.addEventListener("click", e => { e.stopPropagation(); jumpToStep(box, o.step); });
-        row.appendChild(jp);
-      }
       list.appendChild(row);
       // 部品名タップで実物画像パネルを開閉(初回のみ取得)
       const pane = document.createElement("div"); pane.className = "partPic hidden";
@@ -2887,10 +2881,18 @@ $("useVision").addEventListener("change", () => {
 });
 
 /* ---- Google Programmable Search(実写画像) 設定 ---- */
-function cseReady() { return !!(localStorage.getItem("ss_cse_key") && localStorage.getItem("ss_cse_cx")); }
+/* 契約中の店舗はサーバー経由(運営のキー)で使えるため、自前キーの設定は不要 */
+function cseCorp() { return !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()); }
+function cseReady() { return !!(localStorage.getItem("ss_cse_key") && localStorage.getItem("ss_cse_cx")) || cseCorp(); }
 function renderCseStat() {
   const el = $("cseStat"); if (!el) return;
-  el.textContent = cseReady() ? "✓ 設定済み — 取り付け位置に実写画像を表示します。" : "未設定 — 「Web画像で探す」リンクのみ使えます。";
+  const corp = cseCorp(), own = !!(localStorage.getItem("ss_cse_key") && localStorage.getItem("ss_cse_cx"));
+  // 契約中は運営のキーで動くため、取得手順・入力欄を隠して「設定不要」と案内
+  toggle("cseCorpNote", corp);
+  toggle("cseSetup", !corp);
+  el.textContent = corp ? "✓ ご契約中 — 部品名タップで実写画像を表示します（設定不要）。"
+    : own ? "✓ 設定済み — 部品名タップで実写画像を表示します。"
+    : "未設定 — 「Web画像で探す」リンクのみ使えます。";
 }
 $("btnCseSave") && $("btnCseSave").addEventListener("click", () => {
   const key = $("cseKey").value.trim(), cx = $("cseCx").value.trim();
@@ -2902,6 +2904,11 @@ $("btnCseSave") && $("btnCseSave").addEventListener("click", () => {
 /* Google Custom Search で画像を検索(CORS対応のJSON API)。結果配列[{thumb,link,ctx,title}] */
 async function googleImageSearch(query, num) {
   const key = localStorage.getItem("ss_cse_key"), cx = localStorage.getItem("ss_cse_cx");
+  // 自前キーが無く契約中なら、サーバー(運営のキー)経由で検索 → 契約と同時に使える
+  if ((!key || !cx) && cseCorp()) {
+    const d = await window.Cloud.callFn("imageSearch", { q: query, num: num || 3 });
+    return Array.isArray(d && d.items) ? d.items.filter(x => x && x.thumb) : [];
+  }
   if (!key || !cx) return [];
   const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + (num || 3) +
     "&key=" + encodeURIComponent(key) + "&cx=" + encodeURIComponent(cx) + "&q=" + encodeURIComponent(query);
@@ -3539,12 +3546,13 @@ function buildSpecPrompt() {
     "【必ず調べてから答える】記憶や勘で数値を出さない。付与されたGoogle検索ツールを使い、メーカー公式諸元・整備解説・信頼できる情報源で、この車種・型式・原動機・年式に固有の実際の値を確認してから答えること。オイル量・冷却水量・各種容量・締付トルクは車種差が大きいので必ず裏取りする。",
     "【値は具体的に出す・安易な要確認は禁止】検索して得られた実値を、できる限り具体的な数値で書くこと。少し調べれば分かる値を『（要確認）』で済ませない。値が交換条件で変わるなら『値＋条件』(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。締付トルクは『規定値±公差』(例: ホイールナット『600±50 N·m』)。範囲だけ(550〜650)や創作値は不可。",
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明なら創作せず要確認にする。",
-    "リコールは事実が不確かなものを断定しないこと。代表的な届出が思い当たればその内容を1件1文で挙げ(必要なら「要確認」付き)、心当たりが無ければrecallsは空配列にすること。",
+    "【リコールも必ず検索して調べる】記憶や心当たりで書かない。Google検索で『国土交通省 リコール届出情報』やメーカー公式のリコール・改善対策・サービスキャンペーン情報を、この型式・車種・年式で実際に調べること。見つかった届出は『年月・対象部位・不具合内容・対策』が分かる形で1件1文にまとめる(最大5件、新しい順)。検索しても該当が確認できなければrecallsは空配列にし、憶測で埋めない。",
+    "【定番故障も検索して裏取り】faultsも記憶頼みにせず、この車種・型式の整備事例・故障事例・不具合報告を検索し、実際に多発が確認できた症状のみを書く。症状だけでなく『原因部位』と『出やすい時期(走行距離・年式)』が分かれば併記する。創作・一般論(どの車にも言える話)は不可。確認できなければ空配列でよい。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
-    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』は、確証があれば含める(不確かなら無理に出さない)。整備で重要かつ確証のある項目のみ追加してよい。faultsは確証のある既知の弱点・定番トラブルのみ具体的に(創作しない)。",
+    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』は、確証があれば含める(不確かなら無理に出さない)。整備で重要かつ確証のある項目のみ追加してよい。",
     "",
     "■対象車両: " + vehicleDesc()
   ].join("\n");

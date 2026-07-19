@@ -74,6 +74,7 @@ const REGION = "asia-northeast1";
 const cfg = () => ({
   gemini: { key: process.env.GEMINI_KEY },
   vision: { key: process.env.VISION_KEY },
+  cse: { key: process.env.CSE_KEY, cx: process.env.CSE_CX },
   stripe: {
     secret: process.env.STRIPE_SECRET,
     wh: process.env.STRIPE_WH,
@@ -102,6 +103,8 @@ const usageLimits = () => ({
   monthMecha: +(process.env.LIMIT_MONTH_MECHA || 6000),
   dayVision: +(process.env.LIMIT_DAY_VISION || 400),
   monthVision: +(process.env.LIMIT_MONTH_VISION || 6000),
+  dayImage: +(process.env.LIMIT_DAY_IMAGE || 100),
+  monthImage: +(process.env.LIMIT_MONTH_IMAGE || 2000),
 });
 // 日次・月次カウントを記録しつつ上限判定。ok=falseなら上限超過。運営(super)は対象外。
 // 記録先: usage/{tenantId} (Firestoreコンソールで各店舗の利用回数を確認できる=モニタリング)
@@ -113,10 +116,10 @@ async function enforceUsage(tid, kind, role) {
   const day = jst.toISOString().slice(0, 10);           // YYYY-MM-DD
   const month = day.slice(0, 7);                         // YYYY-MM
   const L = usageLimits();
-  const dKey = kind === "vision" ? "dVision" : "dMecha";
-  const mKey = kind === "vision" ? "mVision" : "mMecha";
-  const dLimit = kind === "vision" ? L.dayVision : L.dayMecha;
-  const mLimit = kind === "vision" ? L.monthVision : L.monthMecha;
+  const dKey = kind === "vision" ? "dVision" : kind === "image" ? "dImage" : "dMecha";
+  const mKey = kind === "vision" ? "mVision" : kind === "image" ? "mImage" : "mMecha";
+  const dLimit = kind === "vision" ? L.dayVision : kind === "image" ? L.dayImage : L.dayMecha;
+  const mLimit = kind === "vision" ? L.monthVision : kind === "image" ? L.monthImage : L.monthMecha;
   try {
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
@@ -210,6 +213,40 @@ exports.visionOcr = functions.region(REGION).https.onRequest(async (req, res) =>
   const r0 = (j.responses || [])[0] || {};
   const text = (r0.fullTextAnnotation && r0.fullTextAnnotation.text) || ((r0.textAnnotations || [])[0] || {}).description || "";
   return res.json({ text: text });
+});
+
+/* 部品の実写画像検索(Google Custom Search): POST {q, num} → {items:[{thumb,link,ctx,title}]}。
+   契約中の店舗は自前キー不要で使える(運営のキーをサーバー側で使用)。 */
+exports.imageSearch = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const g = await checkPaid(await uidFromReq(req));
+  if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
+  const c = cfg().cse || {};
+  if (!c.key || !c.cx) return res.status(500).json({ error: "サーバーの画像検索キーが未設定です。" });
+  const cap = await enforceUsage(g.tid, "image", g.u && g.u.role);
+  if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
+  const q = String((req.body && req.body.q) || "").slice(0, 200);
+  if (!q) return res.json({ items: [] });
+  const num = Math.min(Math.max(parseInt((req.body && req.body.num) || 3, 10) || 3, 1), 10);
+  const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + num +
+    "&key=" + encodeURIComponent(c.key) + "&cx=" + encodeURIComponent(c.cx) + "&q=" + encodeURIComponent(q);
+  let r;
+  try { r = await fetch(url); } catch (e) { return res.status(502).json({ error: "画像検索に接続できませんでした。" }); }
+  if (!r.ok) {
+    let reason = "";
+    try { const ej = await r.json(); reason = (ej.error && ej.error.message) || ""; } catch (_) {}
+    if (r.status === 429 || /quota|rate limit/i.test(reason)) return res.status(429).json({ error: "本日の画像検索の上限に達しました。明日また使えます。" });
+    return res.status(502).json({ error: "画像検索エラー (" + r.status + ")" });
+  }
+  const j = await r.json();
+  const items = (j.items || []).map((it) => ({
+    thumb: (it.image && it.image.thumbnailLink) || it.link,
+    link: it.link,
+    ctx: (it.image && it.image.contextLink) || it.link,
+    title: it.title || "",
+  })).filter((x) => x.thumb);
+  return res.json({ items: items });
 });
 
 /* Stripe Checkout セッション作成: POST {plan:"monthly"|"yearly", email} → {url}。代表管理者のみ。 */
