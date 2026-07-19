@@ -505,6 +505,7 @@ let scanGrace = null;
 /* サッと1パスで確定: 全項目そろえば即、車両を識別できれば短い猶予で残りを拾って確定 */
 function finalizeScan() {
   if (scanOkPending) return;
+  if (!acc.vin) return;   // 車台番号が無ければ「✓完了」を出さない(誤OK防止の最後の砦)
   scanOkPending = true; scanning = false;
   if (scanGrace) { clearTimeout(scanGrace); scanGrace = null; }
   setScanMsg("✓ 読み取り完了");
@@ -523,10 +524,10 @@ function afterScanUpdate(src) {
     if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, 500);
     return;
   }
-  // 型式のみ(コード3先読み)の場合は、車台番号を待つ。長めに待っても来なければ確定(取りこぼし救済)
+  // 型式のみ(コード3先読み)の場合は、車台番号(コード2)を必須として待ち続ける。
+  // ここで勝手に完了させない → 車台番号 未検出のまま「✓読み取り完了」を出さないため(誤OK防止)。
   if (acc.type) {
-    setScanMsg("✓ 型式OK。車台番号側の二次元コードも枠に入れてください");
-    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && (acc.type || acc.vin)) finalizeScan(); }, 2500);
+    setScanMsg("あと少し: 車台番号側の二次元コード(コード2)も枠に入れてください");
     return;
   }
   setScanMsg("QRを枠内に大きく写してください");
