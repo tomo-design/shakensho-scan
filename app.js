@@ -49,6 +49,13 @@ const cleanCite = s => String(s == null ? "" : s)
   .replace(/\s+([、。,.，])/g, "$1")
   .replace(/[\s、,，]+$/g, "")
   .trim();
+/* 検索グラウンディング有効時に混入する引用マーカーを、オブジェクト内の全文字列から再帰的に除去 */
+function cleanCiteDeep(v) {
+  if (typeof v === "string") return cleanCite(v);
+  if (Array.isArray(v)) return v.map(cleanCiteDeep);
+  if (v && typeof v === "object") { const o = {}; for (const k in v) o[k] = cleanCiteDeep(v[k]); return o; }
+  return v;
+}
 /* 表示用: 全角英数字・記号→半角、全角スペース→半角、連続スペースを1つに整える(履歴などの見栄え統一) */
 const dispText = s => String(s == null ? "" : s)
   .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))   // 全角ASCII(英数字・記号)→半角
@@ -1331,9 +1338,10 @@ $("btnVehAsk").addEventListener("click", async () => {
       for (const a of vehAttachments) media.push({ mimeType: cleanMime(a.file.type, "image/jpeg"), data: await fileToBase64(a.file) });
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
-      r = await geminiAsk(buildRepairPrompt(qFull));
+      // 工具サイズ・トルクを実際に調べさせるため、Google検索グラウンディング＋高精度モードで問い合わせる
+      r = await geminiAsk(buildRepairPrompt(qFull), { mode: "pro", search: true });
     }
-    const obj = extractJson(r.text);
+    const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, qFull);
     else renderAiAnswer(box, (obj && obj.answer) ? obj.answer : r.text);
   } catch (e) {
@@ -1348,14 +1356,16 @@ function buildRepairPrompt(q, hasMedia) {
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     hasMedia ? "添付された写真(複数の場合あり)をよく観察し、写っている部位・部品・損傷・警告灯・漏れ・摩耗などを踏まえて回答すること。写真から部品名や作業を推定できる場合は具体的に述べる。" : "",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
-    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(要確認可、無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
     "【最重要】location・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
     "steps は安全確保→取り外し→取り付け→確認の順。各stepは {text:手順文, tools:その手順で使う工具・計測器の配列}。部品名は該当手順のtextにも登場させる。",
-    "toolsは具体的に。ソケット(コマ)は必ずサイズ明記(例『ラチェット＋14mmソケット』『17mmソケット』)、メガネ/スパナもサイズ明記(例『12mmメガネレンチ』)、ヘックス/トルクスも番手明記。サイズが車種で不確かなら『(要確認)』を付ける。",
-    "toolsにトルクレンチが含まれる手順では、その工具名の直後にその締結部の規定トルク値も併記する(例『トルクレンチ(締付 108N·m・要確認)』)。値が不確かなら(要確認)を付ける。",
-    "確信が持てない点は「（要確認）」。年式・グレード差は明記。トルクは整備書(FAINES)で確認を促す。",
+    "toolsは具体的に。ソケット(コマ)・メガネ・スパナは必ず実寸サイズ(mm)を明記(例『ラチェット＋14mmソケット』『12mmメガネレンチ』)、ヘックス/トルクスも番手明記(例『T30トルクス』『6mmヘックス』)。",
+    "【工具サイズは必ず調べてから答える】ボルト・ナットの二面幅サイズは、対象車両の整備要領書・部品情報・整備事例・分解レポート等をGoogle検索で実際に調べ、その車両の実サイズを書くこと。『サイズ要確認』『適合サイズを確認』のような逃げの表現は禁止。調べれば分かることを調べずに濁さない。",
+    "toolsにトルクレンチが含まれる手順では、その工具名の直後にその締結部の規定トルク値も併記する(例『トルクレンチ(締付 108N·m)』)。トルク値も検索で調べて具体値を書く。",
+    "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明な場合のみ要確認とし、創作はしない。",
+    "年式・グレードでサイズが異なる場合は、どの年式・グレードの値かを明記して具体値を書く。トルクは整備書(FAINES)での最終確認を促す。",
     "■対象車両: " + vehicleDesc(),
     "■質問/作業: " + q,
     (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
@@ -1441,12 +1451,11 @@ function renderRepairAnswer(box, obj, q) {
       const li = document.createElement("li"); li.id = "rstep-" + (i + 1); li.className = "hasTools";
       const d = document.createElement("div");
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = han(text); d.appendChild(t);
-      const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = tools.length ? "🔧 タップで工具" : ""; d.appendChild(hint);
       const toolBox = document.createElement("div"); toolBox.className = "stepTools hidden";
       toolBox.innerHTML = tools.length ? '<b>使う工具:</b> ' + tools.map(x => esc(han(String(x)))).join(" ・ ") : "この手順の工具情報はありません。";
       d.appendChild(toolBox);
       li.appendChild(d);
-      d.addEventListener("click", () => { hint.textContent = toolBox.classList.toggle("hidden") ? (tools.length ? "🔧 タップで工具" : "") : "🔧 工具を隠す"; });
+      d.addEventListener("click", () => { toolBox.classList.toggle("hidden"); });   // 案内文言は出さずタップで開閉のみ
       ol.appendChild(li);
     });
     box.appendChild(ol);
