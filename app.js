@@ -339,7 +339,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = 0; lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 /* 再スキャン: 状態を初期化しカメラを開き直す(検出が固まった時の確実な復帰手段) */
@@ -484,8 +484,9 @@ $("btnTorch").addEventListener("click", async () => {
 
 /* QR検出時 */
 function onLiveQr(data) {
-  if (!data || payloads.has(data)) return;
+  if (!data || payloads.has(data)) return;   // 同じQRの再読は無視(進捗にならない)
   payloads.add(data);
+  lastNewDataAt = Date.now();   // 新しいQRを取得 → 進捗あり(直後は少しZXingを休ませる)
   if (navigator.vibrate) navigator.vibrate(50);
   flashScan();   // 読み取れた瞬間に緑フラッシュ(見える化)
   mergeAcc(parsePayloads(payloads));
@@ -545,7 +546,7 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
-let lastScanProc = 0, nativeBusy = false, lastNativeOkAt = 0;
+let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0;
 async function scanTick() {
   if (!scanning) return;
   const ready = video.readyState >= 2 && video.videoWidth;
@@ -558,13 +559,14 @@ async function scanTick() {
       nativeDetector.detect(video),
       new Promise((_, rej) => setTimeout(() => rej(0), 700)),
     ])
-      .then(codes => { if (scanning && codes && codes.length) { lastNativeOkAt = Date.now(); codes.forEach(c => onLiveQr(c.rawValue)); } })
+      .then(codes => { if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
       .catch(() => {})            // タイムアウト/失敗は無視(nativeは残す)
       .finally(() => { nativeBusy = false; });
   }
-  // ② ZXing/jsQR を併走。ネイティブ未対応 or 直近1.2秒ネイティブで読めていない(固まり/QR未検出)時に実行。
-  //    → ネイティブが固まっても検出が止まらない(復帰用の常時フォールバック)。
-  if (ready && !tickBusy && Date.now() - lastScanProc >= 200 && Date.now() - lastNativeOkAt > 1200) {
+  // ② ZXing/jsQR を併走。「進捗が無い(=新しいデータが増えていない)」間は常に実行。
+  //    → ネイティブが簡単な方のQRを再読し続けても、難しい方のQRにZXing(コントラスト強調等)で本気を出す。
+  //    → ネイティブが固まっても検出が止まらない(常時フォールバック)。
+  if (ready && !tickBusy && Date.now() - lastScanProc >= 200 && Date.now() - lastNewDataAt > 500) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
