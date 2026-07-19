@@ -545,23 +545,26 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
-let lastScanProc = 0, nativeBusy = false, nativeBusyAt = 0;
+let lastScanProc = 0, nativeBusy = false, lastNativeOkAt = 0;
 async function scanTick() {
   if (!scanning) return;
   const ready = video.readyState >= 2 && video.videoWidth;
-  // ネイティブ検出のハング復帰: 一部端末でdetect()のPromiseが返らず固まると検出が二度と動かなくなる。
-  // 1.5秒応答が無ければフラグを解除しZXing/jsQR経路へ切替(＝読み取り不能状態を自動回復)。
-  if (nativeBusy && Date.now() - nativeBusyAt > 1500) { nativeBusy = false; nativeDetector = null; }
-  // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン)は毎フレーム連続実行 → かざした瞬間に読める
+  // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン) → かざした瞬間に読める。
+  //    一部端末でdetect()のPromiseが返らず固まる対策として700msでタイムアウト。
+  //    ※nativeDetectorは殺さない(次フレームで再挑戦)。固まっても下の②ZXingが確実に拾う。
   if (ready && nativeDetector && !nativeBusy) {
-    nativeBusy = true; nativeBusyAt = Date.now();
-    nativeDetector.detect(video)
-      .then(codes => { if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
-      .catch(() => { nativeDetector = null; })   // 非対応/失敗ならZXing/jsQR経路へ
+    nativeBusy = true;
+    Promise.race([
+      nativeDetector.detect(video),
+      new Promise((_, rej) => setTimeout(() => rej(0), 700)),
+    ])
+      .then(codes => { if (scanning && codes && codes.length) { lastNativeOkAt = Date.now(); codes.forEach(c => onLiveQr(c.rawValue)); } })
+      .catch(() => {})            // タイムアウト/失敗は無視(nativeは残す)
       .finally(() => { nativeBusy = false; });
   }
-  // ② ネイティブ非対応機のみ: 重いZXing/jsQR解析を約150msに1回(複数領域+高解像度+コントラスト強調)
-  if (ready && !nativeDetector && !tickBusy && Date.now() - lastScanProc >= 150) {
+  // ② ZXing/jsQR を併走。ネイティブ未対応 or 直近1.2秒ネイティブで読めていない(固まり/QR未検出)時に実行。
+  //    → ネイティブが固まっても検出が止まらない(復帰用の常時フォールバック)。
+  if (ready && !tickBusy && Date.now() - lastScanProc >= 200 && Date.now() - lastNativeOkAt > 1200) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
