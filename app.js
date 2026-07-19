@@ -342,22 +342,24 @@ function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.typ
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
-$("btnStop").addEventListener("click", () => stopLiveScan(true));
-$("btnScanReset").addEventListener("click", async () => {
+/* 再スキャン: 状態を初期化しカメラを開き直す(検出が固まった時の確実な復帰手段) */
+async function rescanNow() {
   resetScan();
   updateScanProgress(acc);
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   if (!scanning) { startLiveScan(); return; }
-  // 既にスキャン中でも、カメラを開き直してピント(AF)を初期化 → 失敗後に読めなくなるのを防ぐ
+  // スキャン中でもカメラを開き直してピント(AF)・検出状態を初期化 → 失敗後に読めなくなるのを防ぐ
   setScanMsg("カメラを再初期化中…ピントを合わせています");
+  nativeBusy = false; tickBusy = false; ocrBusy = false;   // 固まったフラグを解除
   await openCamera(null);
-  setScanMsg("最初から: QRを枠内に大きく・はっきり写してください");
-});
+  setScanMsg("再スキャン中: QRを枠内に大きく・はっきり写してください");
+}
+$("btnStop").addEventListener("click", rescanNow);
 
 let camList = [], camIdx = 0;
 
 async function startLiveScan() {
-  if (scanComplete) resetScan();
+  resetScan();   // 新規スキャンは必ず状態を初期化(固まったフラグ・前回データの持ち越しを防ぐ)
   const ok = await openCamera(null);
   if (!ok) {
     toggle("qrPhotoStatus", true);
@@ -543,13 +545,16 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
-let lastScanProc = 0, nativeBusy = false;
+let lastScanProc = 0, nativeBusy = false, nativeBusyAt = 0;
 async function scanTick() {
   if (!scanning) return;
   const ready = video.readyState >= 2 && video.videoWidth;
+  // ネイティブ検出のハング復帰: 一部端末でdetect()のPromiseが返らず固まると検出が二度と動かなくなる。
+  // 1.5秒応答が無ければフラグを解除しZXing/jsQR経路へ切替(＝読み取り不能状態を自動回復)。
+  if (nativeBusy && Date.now() - nativeBusyAt > 1500) { nativeBusy = false; nativeDetector = null; }
   // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン)は毎フレーム連続実行 → かざした瞬間に読める
   if (ready && nativeDetector && !nativeBusy) {
-    nativeBusy = true;
+    nativeBusy = true; nativeBusyAt = Date.now();
     nativeDetector.detect(video)
       .then(codes => { if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
       .catch(() => { nativeDetector = null; })   // 非対応/失敗ならZXing/jsQR経路へ

@@ -70,7 +70,7 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 /* カメラ画面中央の模擬QR(2つ横並び・うっすら透過。複数まとめてスキャン可を示唆) */
-#multiQrHint{display:flex;gap:22px;opacity:.3;pointer-events:none}
+#multiQrHint{display:flex;gap:64px;opacity:.3;pointer-events:none}
 #multiQrHint .qrMini{width:96px;height:96px;display:block}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
@@ -121,6 +121,9 @@ body.scanningNow #scanWrap{margin-top:11vh}
 button{font-family:inherit;border:0;cursor:pointer}
 .btn{flex:1;padding:16px 10px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:.04em;min-height:52px}
 .btn-amber{background:var(--amber);color:#fff}
+/* 再スキャン: 白背景・タップで青へ変化 */
+.btn-rescan{background:#fff;color:var(--txt);border:1px solid var(--line)}
+.btn-rescan:active{background:var(--amber);color:#fff;border-color:var(--amber)}
 .btn-ghost{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
 .btn-alert{background:var(--alert);color:#fff}
 .btn-cyan{background:var(--cyan);color:#fff}
