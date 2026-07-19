@@ -561,10 +561,21 @@
     const el = $("adminOperator"); if (!el) return;
     if (!me || !profile || profile.role !== "super") { el.innerHTML = ""; return; }
     const who = profile.name ? esc(profile.name) : esc(me.email);
+    const mode = (window.getAppMode && window.getAppMode()) || "corp";
     el.innerHTML = "<div class='opCard'><span class='opBadge'>運営管理者</span>" +
       "<span class='opNm'>" + who + "</span>" +
       "<div class='opMail'>" + esc(me.email) + "</div>" +
-      "<div class='opNote'>運営管理者は各店舗から独立しています。店舗のデータ共有を使う場合は、その会社に<b>従業員として別途ログイン</b>してください。</div></div>";
+      "<div class='modeSwitch' id='appModeSw'>" +
+        "<button data-mode='corp' class='" + (mode === "corp" ? "on" : "") + "'>法人モード</button>" +
+        "<button data-mode='personal' class='" + (mode === "personal" ? "on" : "") + "'>個人モード</button>" +
+      "</div>" +
+      "<div class='modeSwitchNote'>個人モードでは「クラウド同期」「契約・解約」を非表示にします（BYOK・単独端末向け）。この端末の表示だけが切り替わります。</div>" +
+      "</div>";
+    const sw = $("appModeSw");
+    if (sw) sw.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+      if (window.setAppMode) window.setAppMode(b.dataset.mode);
+      renderOperatorInfo();   // スイッチの選択状態を更新
+    }));
   }
   // 契約申し込み(請求書送付先)の一覧。運営が請求書発行→対応完了にする。
   async function renderSignups() {

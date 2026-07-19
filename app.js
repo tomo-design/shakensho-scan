@@ -23,6 +23,10 @@ function aiOK() { return !!localStorage.getItem(LS.gemini) || !!(window.Cloud &&
 
 const $ = id => document.getElementById(id);
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
+/* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
+function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
+function applyAppMode() { document.body.classList.toggle("personalMode", getAppMode() === "personal"); }
+function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
 /* メールアドレスらしい文字列か(使用者名・車種名へのメール混入対策) */
 const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
@@ -4178,6 +4182,7 @@ function showToast(msg) {
 }
 
 (async function init() {
+  applyAppMode();   // 個人/法人モードを反映(同期・契約タブの表示切替)
   loadCustomDB();
   await Promise.all([loadBuiltinDB(), loadDiagDB()]);
   renderHistory();

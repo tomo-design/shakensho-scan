@@ -5,6 +5,15 @@
   --ok:#15803D; --alert:#DC2626; --cyan:#0E7490;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* 個人モード: クラウド同期・契約/解約を非表示(BYOK・単独端末で使う個人版) */
+body.personalMode #secCloudSync,body.personalMode #cloudPlan{display:none!important}
+/* 個人/法人 切替スイッチ(運営管理ページ) */
+.modeSwitch{display:flex;gap:6px;margin-top:10px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:4px}
+.modeSwitch button{flex:1;border:0;background:transparent;color:var(--dim);font-size:12.5px;font-weight:700;
+  padding:7px 0;border-radius:7px;cursor:pointer}
+.modeSwitch button.on{background:var(--amber);color:#fff;box-shadow:0 1px 4px rgba(37,99,235,.3)}
+.modeSwitchNote{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
 /* さりげない更新トースト */
 #appToast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,12px);z-index:300;
   background:rgba(27,37,48,.94);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
