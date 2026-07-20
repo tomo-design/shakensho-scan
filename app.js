@@ -4086,8 +4086,11 @@ function speak(text) {
 /* 連続する同一フレーズの重複を1回に圧縮(音声認識の重複バグ対策) */
 function dedupRepeats(s) {
   s = String(s || "").replace(/\s+/g, " ").trim();
-  let prev;
-  do { prev = s; s = s.replace(/(.{3,}?)\1+/g, "$1"); } while (s !== prev);
+  // 正規表現(.{3,}?)\1+ は長文で破滅的バックトラック→主スレッド停止(端末フリーズ)を招く。
+  // 長すぎる入力には適用せず、反復回数も上限を設けて必ず有限時間で返す。
+  if (s.length > 2000) return s;
+  let prev, guard = 0;
+  do { prev = s; s = s.replace(/(.{3,}?)\1+/g, "$1"); } while (s !== prev && ++guard < 20);
   return s;
 }
 let voiceListening = false, voiceAccum = "", voiceSessionFinal = "";
@@ -4219,6 +4222,15 @@ function goHome() {
   renderLastVehicle();
   window.scrollTo(0, 0);
 }
+/* iOS対策: カメラ起動中にアプリを背面化/画面ロックするとWKWebViewが固まることがある。
+   非表示になったらライブスキャンを止めカメラ・OCRワーカーを解放する(復帰後は再スキャンで再開)。 */
+function suspendScanForBackground() {
+  try { if (typeof scanning !== "undefined" && scanning) stopLiveScan(false); } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) suspendScanForBackground(); });
+window.addEventListener("pagehide", suspendScanForBackground);
+window.addEventListener("freeze", suspendScanForBackground);   // Page Lifecycle API(対応端末)
+
 /* ヘッダーのロゴ/文字タップでホームへ戻る */
 (() => { const h = document.querySelector("header"); if (h) { h.style.cursor = "pointer"; h.addEventListener("click", goHome); } })();
 
