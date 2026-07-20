@@ -325,6 +325,7 @@ function boostContrast(canvas) {
 /* ===== ライブ連続スキャン: QRと文字(OCR)を同時に自動認識して蓄積 ===== */
 let scanComplete = false;   // 直前に車両を確定表示したか(次の開始で新規)
 let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN = 0, lastHitAt = 0, scanOkPending = false;
+let scanStartAt = 0;   // スキャン開始時刻(開始直後に重い処理を走らせないため)
 
 /* 統合アキュムレータ: QR・OCR・手動のどれからでも項目を埋めていく */
 function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, raw: [] }; }
@@ -379,7 +380,9 @@ async function startLiveScan() {
   toggle("mechaHero", false); document.body.classList.add("scanningNow");   // スキャン中はメカ君を隠しカメラを画面中央へ
   updateScanProgress(acc);
   setScanMsg("自動で読み取り中… 車検証のQRを枠内に大きく写してください");
-  scanning = true; tickBusy = false; tickN = 0; lastOcrAt = 0; scanTick();
+  scanning = true; tickBusy = false; tickN = 0;
+  scanStartAt = Date.now(); lastOcrAt = Date.now();   // 開始直後は重いOCRを走らせない(固まり防止)
+  scanTick();
 }
 
 /* カメラを開く(deviceId指定可)。AF/ズーム/ライト/レンズ一覧を設定 */
@@ -557,15 +560,16 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
-let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0;
+let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0, lastNativeAt = 0;
 async function scanTick() {
   if (!scanning) return;
   const ready = video.readyState >= 2 && video.videoWidth;
   // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン) → かざした瞬間に読める。
   //    一部端末でdetect()のPromiseが返らず固まる対策として700msでタイムアウト。
   //    ※nativeDetectorは殺さない(次フレームで再挑戦)。固まっても下の②ZXingが確実に拾う。
-  if (ready && nativeDetector && !nativeBusy) {
-    nativeBusy = true;
+  // 毎フレーム連続で叩くとメインスレッドが飽和する端末があるため約80ms間隔に制限(体感は即時のまま)
+  if (ready && nativeDetector && !nativeBusy && Date.now() - lastNativeAt >= 80) {
+    nativeBusy = true; lastNativeAt = Date.now();
     Promise.race([
       nativeDetector.detect(video),
       new Promise((_, rej) => setTimeout(() => rej(0), 700)),
@@ -606,7 +610,10 @@ async function scanTick() {
     tickBusy = false;
   }
   // ③ 券面OCR(型式・車台番号の印字補完): 約2.2秒に1回、別スレッドで
-  if (ready && Date.now() - lastOcrAt > (IS_IOS ? 3500 : 2200) && !ocrBusy) {
+  // 券面OCRはメインスレッドで重い前処理(全画素ループ)を伴うため、
+  // ①開始から5秒間は動かさない ②QRで既に確定できていれば動かさない → 開始直後の固まりを防ぐ
+  if (ready && !accComplete() && Date.now() - scanStartAt > 5000 &&
+      Date.now() - lastOcrAt > (IS_IOS ? 3500 : 2600) && !ocrBusy) {
     lastOcrAt = Date.now(); ocrBusy = true;
     const oc = grabOcrFrame(video.videoWidth, video.videoHeight);
     getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
