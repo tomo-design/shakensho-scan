@@ -475,6 +475,9 @@ function stopLiveScan(show) {
   scanning = false;
   if (scanRaf) cancelAnimationFrame(scanRaf);
   if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  // 解析用の重いリソースを解放(iOSのメモリ上限で画面が固まるのを防ぐ)
+  releaseOcrWorker();
+  try { cv.width = cv.height = 1; ocrCv.width = ocrCv.height = 1; } catch (e) {}
   toggle("scanWrap", false); toggle("scanCtrls", false); toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false); toggle("btnTorch", false);
   document.body.classList.remove("scanningNow");   // カメラ中央表示を解除
   if (show && (acc.type || acc.vin || acc.plate || acc.engine)) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
@@ -584,7 +587,7 @@ async function scanTick() {
       ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
       let dt = decodeCanvas(cv);
       if (!dt) {
-        const cap = 1920, sc = Math.min(1, cap / Math.max(vw, vh));
+        const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(vw, vh));   // iOSは解析解像度を抑えて固まりを防ぐ
         const w = Math.round(vw * sc), h = Math.round(vh * sc);
         cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
         dt = decodeCanvas(cv);
@@ -601,7 +604,7 @@ async function scanTick() {
     tickBusy = false;
   }
   // ③ 券面OCR(型式・車台番号の印字補完): 約2.2秒に1回、別スレッドで
-  if (ready && Date.now() - lastOcrAt > 2200 && !ocrBusy) {
+  if (ready && Date.now() - lastOcrAt > (IS_IOS ? 3500 : 2200) && !ocrBusy) {
     lastOcrAt = Date.now(); ocrBusy = true;
     const oc = grabOcrFrame(video.videoWidth, video.videoHeight);
     getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
@@ -616,12 +619,21 @@ async function scanTick() {
 /* ===== ライブOCR用: フレーム切り出し + 前処理(グレースケール+大津二値化) ===== */
 const ocrCv = document.createElement("canvas"), ocrCtx = ocrCv.getContext("2d", { willReadFrequently: true });
 let ocrWorker = null, ocrWorkerReady = null, ocrBusy = false, lastOcrAt = 0;
+/* iOS(Safari)はBarcodeDetector非対応で常に重いZXing経路になり、タブのメモリ上限も厳しい。
+   解析解像度を落とし、使い終わったOCRワーカーを解放して「画面が固まる」を防ぐ。 */
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+/* ライブスキャン終了時にTesseractワーカーを解放(常駐するとメモリを圧迫し続ける) */
+function releaseOcrWorker() {
+  const w = ocrWorker; ocrWorker = null; ocrWorkerReady = null; ocrBusy = false;
+  if (w && w.terminate) { try { w.terminate(); } catch (e) {} }
+}
 
 function grabOcrFrame(vw, vh) {
   // 中央の横長帯(型式・車台番号の行が来やすい)を高解像度で取り、前処理して返す
   const sw = Math.floor(vw * 0.92), sh = Math.floor(vh * 0.55);
   const sx = (vw - sw) >> 1, sy = (vh - sh) >> 1;
-  const targetW = 1500, sc = targetW / sw;
+  const targetW = IS_IOS ? 1100 : 1500, sc = targetW / sw;   // iOSはメモリ節約のため縮小
   ocrCv.width = targetW; ocrCv.height = Math.round(sh * sc);
   ocrCtx.drawImage(video, sx, sy, sw, sh, 0, 0, ocrCv.width, ocrCv.height);
   return preprocessOcr(ocrCv);
