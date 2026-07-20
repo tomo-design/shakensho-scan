@@ -2933,7 +2933,15 @@ async function googleImageSearch(query, num) {
     try {
       const d = await window.Cloud.callFn("imageSearch", { q: query, num: num || 3 });
       return Array.isArray(d && d.items) ? d.items.filter(x => x && x.thumb) : [];
-    } catch (e) { if (!key || !cx) throw e; }
+    } catch (e) {
+      // 契約経由(サーバー=運営のキー)で失敗。自前キーが無ければ、どのキーが原因か明示して投げる。
+      if (!key || !cx) {
+        e.userMsg = "【契約経由（運営のキー）で失敗】" + (e.userMsg || e.message || "画像検索に失敗しました") +
+          "\n※これはこの端末で設定したキーではなく、運営側のキーの問題です（運営側でCustom Search APIの有効化・デプロイが必要）。";
+        throw e;
+      }
+      // 自前キーがある場合は下でそちらを使って再試行する
+    }
   }
   if (!key || !cx) return [];
   const url = "https://www.googleapis.com/customsearch/v1?searchType=image&safe=active&num=" + (num || 3) +
