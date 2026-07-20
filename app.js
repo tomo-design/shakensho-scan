@@ -560,16 +560,16 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
-let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0, lastNativeAt = 0;
+let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0;
 async function scanTick() {
   if (!scanning) return;
   const ready = video.readyState >= 2 && video.videoWidth;
   // ① ネイティブ検出(BarcodeDetector=端末カメラと同じエンジン) → かざした瞬間に読める。
   //    一部端末でdetect()のPromiseが返らず固まる対策として700msでタイムアウト。
   //    ※nativeDetectorは殺さない(次フレームで再挑戦)。固まっても下の②ZXingが確実に拾う。
-  // 毎フレーム連続で叩くとメインスレッドが飽和する端末があるため約80ms間隔に制限(体感は即時のまま)
-  if (ready && nativeDetector && !nativeBusy && Date.now() - lastNativeAt >= 80) {
-    nativeBusy = true; lastNativeAt = Date.now();
+  // ネイティブ検出は毎フレーム全力で回す(精度最優先)。nativeBusyで多重起動は防いでおり負荷は増えない。
+  if (ready && nativeDetector && !nativeBusy) {
+    nativeBusy = true;
     Promise.race([
       nativeDetector.detect(video),
       new Promise((_, rej) => setTimeout(() => rej(0), 700)),
@@ -578,9 +578,9 @@ async function scanTick() {
       .catch(() => {})            // タイムアウト/失敗は無視(nativeは残す)
       .finally(() => { nativeBusy = false; });
   }
-  // ② ZXing/jsQR(重い同期解析)は保険。ネイティブが使える端末では「進捗が2秒止まった時だけ」に絞る。
+  // ② ZXing/jsQR(重い同期解析)は保険。ネイティブが使える端末では「進捗が1.2秒止まった時だけ」に絞る。
   //    常時走らせるとメインスレッドを塞ぎ、スキャン開始直後に画面が固まるため。
-  const zxWait = nativeDetector ? 2000 : 500;
+  const zxWait = nativeDetector ? 1200 : 500;
   const zxThrottle = nativeDetector ? 400 : 200;
   if (ready && !tickBusy && Date.now() - lastScanProc >= zxThrottle && Date.now() - lastNewDataAt > zxWait) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
@@ -591,14 +591,15 @@ async function scanTick() {
       cv.width = s; cv.height = s;
       ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
       let dt = decodeCanvas(cv);
-      // 高解像度パスは最も重い。ネイティブ検出が無い端末(iOS等)のみ実行して負荷を抑える
-      if (!dt && !nativeDetector) {
-        const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(vw, vh));   // iOSは解析解像度を抑えて固まりを防ぐ
+      // 高解像度パス(最も重い)。この②ブロック自体がネイティブ機では「2秒読めない時だけ」なので、
+      // 発動時は全端末で本気を出して難しいQRを拾う(=精度向上)。iOSのみ解像度は控えめに。
+      if (!dt) {
+        const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(vw, vh));
         const w = Math.round(vw * sc), h = Math.round(vh * sc);
         cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
         dt = decodeCanvas(cv);
       }
-      if (!dt && !nativeDetector && tickN % 2 === 0) {   // 全画素ループのコントラスト強調も同様に限定
+      if (!dt && tickN % 2 === 0) {   // コントラスト強調(全画素ループ)も発動時は全端末で実行
         const s2 = Math.floor(Math.min(vw, vh) * 0.75);
         cv.width = s2; cv.height = s2;
         ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
@@ -2949,7 +2950,8 @@ async function googleImageSearch(query, num) {
       // それをそのまま案内に出す(=キーが実際に属するプロジェクトが分かる)。
       const proj = (reason.match(/project\s+(\d{6,})/i) || [])[1] || "";
       enableUrl = (reason.match(/https:\/\/console\.[^\s"')]+/i) || [])[0] ||
-        (proj ? "https://console.cloud.google.com/apis/api/customsearch.googleapis.com/overview?project=" + proj : "");
+        (proj ? "https://console.cloud.google.com/apis/api/customsearch.googleapis.com/overview?project=" + proj
+              : "https://console.cloud.google.com/apis/library/customsearch.googleapis.com");   // 番号不明でも有効化ページへ
       msg = "「Custom Search API」がこのAPIキーのプロジェクト" + (proj ? "（番号: " + proj + "）" : "") + "で有効になっていません。\n" +
         "下のボタンから、そのプロジェクトの画面を直接開いて「有効にする」を押してください。\n" +
         "※すでに有効なのにこの表示が出る場合は、APIキー側の「APIの制限」でCustom Search APIが許可されていない可能性があります（キーの制限を『なし』にするか、Custom Search APIを許可）。";
