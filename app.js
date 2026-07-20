@@ -2923,7 +2923,7 @@ async function googleImageSearch(query, num) {
     const r = reason.toLowerCase();
     let msg;
     if (res.status === 429 || /quota|rate limit/.test(r)) msg = "本日の無料枠(100回)を使い切りました。明日また使えます。";
-    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|does not have the access/.test(r)) msg = "「Custom Search API」がまだ有効になっていません。設定→部品の実写画像の案内から『Custom Search APIを有効にする』を押してください。";
+    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|does not have the access/.test(r)) msg = "「Custom Search API」が有効になっていません。よくある原因は『APIキーを作ったプロジェクト』と『APIを有効にしたプロジェクト』が違うことです。STEP2とSTEP3で画面右上のプロジェクト名が同じか確認してください（有効化の直後は反映に数分かかることもあります）。";
     else if (res.status === 403 && /referer|referrer|blocked|not authorized/.test(r)) msg = "APIキーに利用制限がかかっています。キーの制限を『なし』にするか、このサイトを許可してください。";
     else if (res.status === 400 && /invalid.*key|api key not valid/.test(r)) msg = "APIキーが正しくありません。②のキーを貼り直してください。";
     else if (res.status === 400 && (/invalid.*cx|invalid value|invalid argument/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(①)が正しくないようです。Programmable Search Engineの「検索エンジンID」を貼り直し、その検索エンジンで『画像検索』がオンか確認してください。";
@@ -3187,6 +3187,11 @@ function renderAiAnswer(container, text, opts) {
 function attachPartPicture(nameEl, pane, partName) {
   let loaded = false;
   nameEl.addEventListener("click", async () => {
+    // アコーディオン: 同じリスト内で他に開いている画像パネルは閉じる
+    const willOpen = pane.classList.contains("hidden");
+    if (willOpen && pane.parentNode) {
+      pane.parentNode.querySelectorAll(".partPic").forEach(p => { if (p !== pane) p.classList.add("hidden"); });
+    }
     const open = pane.classList.toggle("hidden") === false;
     if (!open || loaded) return;
     loaded = true;

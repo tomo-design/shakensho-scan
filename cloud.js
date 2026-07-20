@@ -95,6 +95,22 @@
       try { await db.collection("users").doc(uid).update({ devices }); if (profile) profile.devices = devices; return { ok: true, devices, limit }; }
       catch (e) { return { ok: false, devices: (profile && profile.devices) || [], limit, err: e }; }
     }
+    // 再インストール救済: アプリを完全削除するとlocalStorageのdeviceIdが消え、同じ実機でも
+    // 「新しい端末」として枠を消費してしまう。枠が満杯なら、同じ端末名で最も古い枠を引き継ぐ。
+    // (枠の総数は変わらないので上限の意味は保たれる)
+    const nm = guessDeviceName();
+    const same = devices
+      .map((d, idx) => ({ d, idx }))
+      .filter(x => x.d && x.d.name === nm)
+      .sort((a, b) => (a.d.at || 0) - (b.d.at || 0));
+    if (same.length) {
+      devices[same[0].idx] = { id: devId, name: nm, at: Date.now() };
+      try {
+        await db.collection("users").doc(uid).update({ devices });
+        if (profile) profile.devices = devices;
+        return { ok: true, devices, limit, reclaimed: true };
+      } catch (e) { return { ok: false, devices, limit, err: e }; }
+    }
     return { ok: false, devices, limit };   // 上限超過(有料枠が必要)
   }
   /* 端末の登録解除(枠を空ける)。本人のみ。 */
