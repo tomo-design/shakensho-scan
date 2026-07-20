@@ -346,7 +346,7 @@ function mergeAcc(d) {
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
 function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = 0; lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 /* 再スキャン: 状態を初期化しカメラを開き直す(検出が固まった時の確実な復帰手段) */
@@ -574,10 +574,11 @@ async function scanTick() {
       .catch(() => {})            // タイムアウト/失敗は無視(nativeは残す)
       .finally(() => { nativeBusy = false; });
   }
-  // ② ZXing/jsQR を併走。「進捗が無い(=新しいデータが増えていない)」間は常に実行。
-  //    → ネイティブが簡単な方のQRを再読し続けても、難しい方のQRにZXing(コントラスト強調等)で本気を出す。
-  //    → ネイティブが固まっても検出が止まらない(常時フォールバック)。
-  if (ready && !tickBusy && Date.now() - lastScanProc >= 200 && Date.now() - lastNewDataAt > 500) {
+  // ② ZXing/jsQR(重い同期解析)は保険。ネイティブが使える端末では「進捗が2秒止まった時だけ」に絞る。
+  //    常時走らせるとメインスレッドを塞ぎ、スキャン開始直後に画面が固まるため。
+  const zxWait = nativeDetector ? 2000 : 500;
+  const zxThrottle = nativeDetector ? 400 : 200;
+  if (ready && !tickBusy && Date.now() - lastScanProc >= zxThrottle && Date.now() - lastNewDataAt > zxWait) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
@@ -586,13 +587,14 @@ async function scanTick() {
       cv.width = s; cv.height = s;
       ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
       let dt = decodeCanvas(cv);
-      if (!dt) {
+      // 高解像度パスは最も重い。ネイティブ検出が無い端末(iOS等)のみ実行して負荷を抑える
+      if (!dt && !nativeDetector) {
         const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(vw, vh));   // iOSは解析解像度を抑えて固まりを防ぐ
         const w = Math.round(vw * sc), h = Math.round(vh * sc);
         cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
         dt = decodeCanvas(cv);
       }
-      if (!dt && tickN % 2 === 0) {
+      if (!dt && !nativeDetector && tickN % 2 === 0) {   // 全画素ループのコントラスト強調も同様に限定
         const s2 = Math.floor(Math.min(vw, vh) * 0.75);
         cv.width = s2; cv.height = s2;
         ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
