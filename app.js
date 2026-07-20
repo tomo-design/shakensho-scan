@@ -2943,9 +2943,18 @@ async function googleImageSearch(query, num) {
     let reason = "";
     try { const ej = await res.json(); reason = (ej.error && ej.error.message) || ""; } catch (_) {}
     const r = reason.toLowerCase();
-    let msg, enableUrl = "";
+    let msg, enableUrl = "", fixUrl = "", fixLabel = "";
     if (res.status === 429 || /quota|rate limit/.test(r)) msg = "本日の無料枠(100回)を使い切りました。明日また使えます。";
-    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|does not have the access|blocked/.test(r)) {
+    else if (/does not have the access|not have access|access to custom search/.test(r)) {
+      // このメッセージ(プロジェクト番号なし)は「有効化」ではなく“APIキーのAPI制限”が原因のことが多い。
+      fixUrl = "https://console.cloud.google.com/apis/credentials";
+      fixLabel = "APIキーの設定を開く（APIの制限を直す）↗";
+      msg = "このAPIキーが Custom Search API を使う権限を持っていません。多くの場合、原因は次のどちらかです。\n" +
+        "① APIキーの「APIの制限」でCustom Search APIが許可されていない → 下のボタンからキーを開き、「APIの制限」を『キーを制限しない』にするか、許可APIにCustom Search APIを追加。\n" +
+        "② Custom Search APIを有効にしたプロジェクトと、このキーのプロジェクトが違う → 両方を同じプロジェクトに揃える。\n" +
+        "（設定変更後、反映に数分かかることがあります）";
+    }
+    else if (/has not been used|is disabled|not been enabled|api.*not.*enabled|blocked/.test(r)) {
       // Googleは「project 123456789 で有効化せよ」とプロジェクト番号付きURLを返す。
       // それをそのまま案内に出す(=キーが実際に属するプロジェクトが分かる)。
       const proj = (reason.match(/project\s+(\d{6,})/i) || [])[1] || "";
@@ -2960,7 +2969,7 @@ async function googleImageSearch(query, num) {
     else if (res.status === 400 && /invalid.*key|api key not valid/.test(r)) msg = "APIキーが正しくありません。②のキーを貼り直してください。";
     else if (res.status === 400 && (/invalid.*cx|invalid value|invalid argument/.test(r) || !localStorage.getItem("ss_cse_cx"))) msg = "検索エンジンID(①)が正しくないようです。Programmable Search Engineの「検索エンジンID」を貼り直し、その検索エンジンで『画像検索』がオンか確認してください。";
     else msg = "画像検索エラー(" + res.status + ")" + (reason ? "：" + reason : "");
-    const err = new Error(msg); err.userMsg = msg; err.enableUrl = enableUrl; err.raw = reason; throw err;
+    const err = new Error(msg); err.userMsg = msg; err.enableUrl = enableUrl; err.fixUrl = fixUrl; err.fixLabel = fixLabel; err.raw = reason; throw err;
   }
   const j = await res.json();
   return (j.items || []).map(it => ({
@@ -3243,10 +3252,13 @@ function attachPartPicture(nameEl, pane, partName) {
         '<a href="' + esc(im.ctx) + '" target="_blank" rel="noopener"><img src="' + esc(im.thumb) + '" alt="' + esc(partName) + '" loading="lazy"></a>'
       ).join("") + '</div><div class="partPicCap">' + esc(han(partName)) + '（Web画像・参考）</div>' + linkHtml;
     } catch (e) {
-      // 有効化が必要な場合は、Googleが示した「そのAPIキーのプロジェクト」へ直接飛べるボタンを出す
-      const fix = (e && e.enableUrl)
-        ? '<a class="btn btn-cyan btnWide" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(e.enableUrl) + '">このプロジェクトでCustom Search APIを有効にする ↗</a>'
-        : "";
+      // 原因に応じたワンタップの修正ボタンを出す(キー制限の修正 or プロジェクトの有効化)
+      const fix =
+        (e && e.fixUrl)
+          ? '<a class="btn btn-cyan btnWide" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(e.fixUrl) + '">' + esc(e.fixLabel || "APIキーの設定を開く ↗") + '</a>'
+          : (e && e.enableUrl)
+            ? '<a class="btn btn-cyan btnWide" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(e.enableUrl) + '">このプロジェクトでCustom Search APIを有効にする ↗</a>'
+            : "";
       const raw = (e && e.raw) ? '<div class="partPicNote" style="margin-top:6px;opacity:.7;word-break:break-all">Googleからの応答: ' + esc(e.raw) + '</div>' : "";
       pane.innerHTML = '<div class="partPicNote" style="white-space:pre-line">' + esc((e && e.userMsg) || "画像を取得できませんでした。") + '</div>' + fix + raw + linkHtml;
     }
