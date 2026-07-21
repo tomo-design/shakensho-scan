@@ -7,6 +7,9 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 個人モード: クラウド同期・契約/解約を非表示(BYOK・単独端末で使う個人版) */
 body.personalMode #secCloudSync,body.personalMode #cloudPlan{display:none!important}
+/* 法人版はAIがサーバー(契約)側のキーで動くため、個人用APIキーの設定は不要。
+   メカ君相談(Gemini)・文字読み取り(Vision)の設定は個人モードのときだけ表示する。 */
+body:not(.personalMode) #secAiKey,body:not(.personalMode) #secVisionKey{display:none!important}
 /* 個人/法人 切替スイッチ(運営管理ページ) */
 .modeSwitch{display:flex;gap:6px;margin-top:10px;background:var(--panel2);border:1px solid var(--line);
   border-radius:10px;padding:4px}
