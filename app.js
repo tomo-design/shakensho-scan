@@ -38,6 +38,14 @@ const isEmailLike = s => typeof s === "string" && /\S+@\S+\.\S+/.test(s);
 const noEmail = s => (isEmailLike(s) ? "" : s);
 /* 全角数字→半角(表示用) */
 const han = s => String(s == null ? "" : s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+/* 数値+単位や「N・m」を途中で改行させない。
+   ・全角中黒(・U+30FB)は日本語で改行可能位置なので、単位の中黒は半角中黒(·)に置換
+   ・数値と単位の間の空白は非改行スペース(NBSP)に置換 */
+function keepUnit(s) {
+  return String(s == null ? "" : s)
+    .replace(/N\s*[・･·]\s*[mｍ]/gi, "N·m")   // ニュートンメートルは1かたまりに
+    .replace(/(\d(?:[.．]\d+)?)\s+(N·m|Nm|mm|cm|km|ml|kgf|kg|L|°C|rpm|kPa|MPa|bar|V|A)\b/gi, "$1 $2");
+}
 /* AI(グラウンディング)が混ぜる引用マーカー・英語注釈を除去して読みやすくする。
    例: 「540〜590 N·m [cite: 17 (from previous search)]」→「540〜590 N·m」 */
 const cleanCite = s => String(s == null ? "" : s)
@@ -1477,7 +1485,7 @@ function renderRepairAnswer(box, obj, q) {
     box.appendChild(ol);
   }
   // ⑤ 締付トルク・特殊工具
-  if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.torque)); box.appendChild(p); }
+  if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = keepUnit(han(String(obj.torque))); box.appendChild(p); }
   if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
 }
 /* 交換手順の各工具リストから、ソケット(コマ)・メガネ・スパナのサイズだけを抽出(重複除去)。
@@ -1687,7 +1695,7 @@ function renderSpecs(specs, source) {
     const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
     const v = document.createElement("div"); v.className = "specV";
     // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
-    v.innerHTML = esc(cleanCite(han(s.v))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
+    v.innerHTML = esc(keepUnit(cleanCite(han(s.v)))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
     const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
@@ -1838,9 +1846,10 @@ function renderKarte() {
     const body = document.createElement("div"); body.className = "kBody";
     const block = (label, val) => {
       if (!val) return "";
-      const items = String(val).split(/[、,，・\s]+/).map(s => han(s).trim()).filter(Boolean);   // 読点・カンマ・中黒・空白(全角空白含む)・改行で区切る
-      if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(han(String(val))) + '</div></div>';
-      return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(i) + '</li>').join("") + '</ul></div>';
+      // 区切りは「改行・読点・カンマ」のみ。スペース/中黒(・)では分割しない(N・mや空けた表記を壊さない)
+      const items = String(val).split(/[、,，\n]+/).map(s => han(s).trim()).filter(Boolean);
+      if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(keepUnit(han(String(val)))) + '</div></div>';
+      return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(keepUnit(i)) + '</li>').join("") + '</ul></div>';
     };
     // 部品は「部品名＋数量」を1行に並べ、右側に数量列を作る(数字始まりのトークンを直前の部品名の数量とみなす)
     const partsBlock = (val) => {
@@ -1872,7 +1881,7 @@ function editKarteInline(card, k) {
   const row = (label, el) => { const r = document.createElement("div"); r.className = "kEditRow"; const l = document.createElement("label"); l.className = "fld"; l.textContent = label; r.append(l, el); return r; };
   const inp = (type, val) => { const i = document.createElement("input"); i.type = type; if (val != null) i.value = val; return i; };
   const ta = (val, ph) => { const t = document.createElement("textarea"); t.className = "kGrow"; t.style.minHeight = "48px"; if (val) t.value = val; if (ph) t.placeholder = ph; return t; };
-  const nl = v => v ? String(v).replace(/[、,，・]\s*/g, "\n").replace(/\n{2,}/g, "\n").trim() : "";   // 区切りを改行にして見やすく
+  const nl = v => v ? String(v).replace(/[、,，]\s*/g, "\n").replace(/\n{2,}/g, "\n").trim() : "";   // 区切り(読点・カンマ)を改行に。中黒(・)は単位で使うため分割しない
   const dDate = inp("date", k.date || ""); const dOdo = inp("number", k.odo != null ? k.odo : ""); dOdo.inputMode = "numeric";
   const dWork = ta(nl(k.work), "1行に1件（作業内容）"); const dParts = ta(nl(k.parts), "1行に1件（交換部品・使用材料）");
   const dCost = inp("number", k.cost != null ? k.cost : ""); dCost.inputMode = "numeric"; const dStaff = inp("text", k.staff || "");
