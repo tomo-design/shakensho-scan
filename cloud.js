@@ -241,7 +241,7 @@
   $("lnkResetPw") && $("lnkResetPw").addEventListener("click", async () => {
     const email = ($("cloudEmail").value || "").trim() || (prompt("再設定メールを送るメールアドレスを入力") || "").trim();
     if (!email) return;
-    try { await auth.sendPasswordResetEmail(email); $("cloudAuthStat").textContent = "✓ " + email + " に再設定メールを送りました。受信箱をご確認ください。"; }
+    try { await auth.sendPasswordResetEmail(email); $("cloudAuthStat").innerHTML = "✓ " + esc(email) + " に再設定メールを送りました。<br><b>数分待っても届かない場合は「迷惑メール」フォルダをご確認ください</b>（差出人 noreply@mecanoai.firebaseapp.com）。それでも無い場合はメールアドレスの綴りをご確認ください。"; }
     catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
   });
   /* 完全自動同期: リアルタイム購読に加え、アプリ復帰/オンライン復帰の度に取りこぼしを自動同期 */
@@ -266,7 +266,19 @@
     }
     try {
       await persistReady;
-      const cred = await auth.createUserWithEmailAndPassword(email, pw);
+      let cred;
+      try {
+        cred = await auth.createUserWithEmailAndPassword(email, pw);
+      } catch (ce) {
+        // 既にアカウントがある(却下後の再申請など)。従業員参加なら、そのパスワードでログインして再申請する。
+        if (!isNewCompany && ce && ce.code && ce.code.includes("email-already-in-use")) {
+          try { cred = await auth.signInWithEmailAndPassword(email, pw); }
+          catch (se) {
+            $("cloudAuthStat").innerHTML = "このメールは登録済みです。<b>パスワードが正しければ再申請できます</b>（もう一度お試しを）。<br>パスワードが分からない場合は下の「パスワードを忘れた（再設定メール）」から再設定してください。";
+            return;
+          }
+        } else throw ce;
+      }
       const uid = cred.user.uid;
       if (isNewCompany) {
         await db.collection("tenants").doc(tid).set({ name: tid, adminName: name, active: false, createdAt: Date.now() }, { merge: true });
@@ -348,7 +360,12 @@
         catch (e) { alert("失敗: " + (e.message || e)); }
       };
     } else if (profile.rejected) {
-      $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>会社の代表管理者に承認をご相談ください。再申請が必要な場合は管理者が再承認できます。";
+      $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>下のボタンで再申請できます（会社の代表管理者の承認をお待ちください）。<br><button class='btn btn-amber btn-sm' id='cloudReapply' style='margin-top:8px'>もう一度 参加を申請する</button>";
+      const rab = $("cloudReapply");
+      if (rab) rab.onclick = async () => {
+        try { await db.collection("users").doc(me.uid).set({ active: false, rejected: false }, { merge: true }); alert("再申請しました。管理者の承認をお待ちください。"); }
+        catch (e) { alert("失敗: " + (e.message || e)); }
+      };
     } else if (!profile.active) {
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
     } else if (planBlocked) {

@@ -1429,15 +1429,15 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      const nm = document.createElement("span"); nm.className = "orderName pic"; nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      nm.title = "タップで部品画像";
+      // 部品名タップで、その部品のWeb画像検索を新しいタブで開く(設定不要)
+      const pq = ((currentVehicleFacts().model || (current && current.type) || "") + " " + han(o.name) + " 部品").trim();
+      const nm = document.createElement("a"); nm.className = "orderName pic"; nm.target = "_blank"; nm.rel = "noopener";
+      nm.href = "https://www.google.com/search?q=" + encodeURIComponent(pq) + "&tbm=isch";
+      nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
+      nm.title = "タップでWeb画像検索";
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 部品名タップで実物画像パネルを開閉(初回のみ取得)
-      const pane = document.createElement("div"); pane.className = "partPic hidden";
-      list.appendChild(pane);
-      attachPartPicture(nm, pane, o.name);
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
