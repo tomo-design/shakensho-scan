@@ -559,8 +559,11 @@ ol.ai-list li.hasTools>div{cursor:pointer}
 .mInfo .mRole{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--panel2);color:var(--dim);margin-left:6px}
 .mInfo .mRole.adm{background:var(--amber);color:#fff}
 .mInfo .mMail{color:var(--dim);font-size:11px;word-break:break-all}
-.mBtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:6px;width:100%}
-.mBtns .btn{white-space:nowrap;min-width:0;padding-left:8px;padding-right:8px}
+/* 操作ボタンは横1列。収まらない分は横スクロール(折り返して2段にならないように) */
+.mBtns{display:flex;flex-wrap:nowrap;gap:6px;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.mBtns::-webkit-scrollbar{height:4px}
+.mBtns::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.mBtns .btn{white-space:nowrap;flex:0 0 auto;padding-left:10px;padding-right:10px}
 /* 折りたたみセクションの見出し(summary)をh2風に */
 /* 見出しは中央寄せ。開閉マーカー(▾)はレイアウトに影響しないよう右端に絶対配置 */
 .secSummary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700;color:var(--txt);padding:14px 34px;position:relative;text-align:center}
