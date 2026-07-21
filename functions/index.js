@@ -249,6 +249,43 @@ exports.imageSearch = functions.region(REGION).https.onRequest(async (req, res) 
   return res.json({ items: items });
 });
 
+/* メンバーの一時パスワード発行: POST {targetUid} → {password}。
+   代表管理者(admin)は自店舗のメンバーのみ、運営(super)は全員に対して実行可。
+   メール配信に依存せず、その場でパスワードを再設定して管理者に知らせる(＝忘れた+メール来ない を解決)。 */
+exports.setMemberPassword = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(uid).get()).data();
+  if (!me || me.active !== true) return res.status(403).json({ error: "有効なアカウントではありません。" });
+  const isSuper = me.role === "super";
+  const isAdmin = me.role === "admin";
+  if (!isSuper && !isAdmin) return res.status(403).json({ error: "代表管理者または運営のみ実行できます。" });
+  const targetUid = String((req.body && req.body.targetUid) || "");
+  if (!targetUid) return res.status(400).json({ error: "対象ユーザーが指定されていません。" });
+  if (targetUid === uid) return res.status(400).json({ error: "自分自身には発行できません。ログイン中の方はアプリの「パスワードを忘れた」をご利用ください。" });
+  const target = (await db.collection("users").doc(targetUid).get()).data();
+  if (!target) return res.status(404).json({ error: "対象ユーザーが見つかりません。" });
+  // 代表管理者は「同じ店舗のメンバー」に限定。運営(super)への操作は不可(運営は対象外)。
+  if (!isSuper) {
+    if (target.tenantId !== me.tenantId) return res.status(403).json({ error: "自分の店舗のメンバーのみ対象にできます。" });
+    if (target.role === "super") return res.status(403).json({ error: "この相手には実行できません。" });
+  }
+  // 読みやすい一時パスワードを生成(紛らわしい文字は除外)
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let pw = "";
+  for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  try {
+    await admin.auth().updateUser(targetUid, { password: pw });
+    await db.collection("users").doc(targetUid).set({ pwResetAt: Date.now(), pwResetBy: uid }, { merge: true });
+    return res.json({ password: pw });
+  } catch (e) {
+    return res.status(500).json({ error: "パスワード発行に失敗しました: " + (e.message || String(e)) });
+  }
+});
+
 /* Stripe Checkout セッション作成: POST {plan:"monthly"|"yearly", email} → {url}。代表管理者のみ。 */
 exports.createCheckout = functions.region(REGION).https.onRequest(async (req, res) => {
   setCors(res);

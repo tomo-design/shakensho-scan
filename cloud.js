@@ -729,7 +729,7 @@
       // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
-      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("off", "u", id, "無効化");
+      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
@@ -747,6 +747,18 @@
   async function manageAction(kind, id, act) {
     try {
       const col = kind === "t" ? "tenants" : "users";
+      if (act === "pwreset") {
+        // その場で一時パスワードを発行(サーバーで再設定)。メール配信に依存しない復旧手段。
+        const doc = await db.collection("users").doc(id).get(); const u = doc.data() || {};
+        if (!confirm("「" + (u.name || u.email || id) + "」の一時パスワードを発行しますか？\n（今のパスワードは無効になります。発行後に画面へ表示します）")) return;
+        try {
+          const d = await window.Cloud.callFn("setMemberPassword", { targetUid: id });
+          if (d && d.password) {
+            prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
+          } else { alert("発行に失敗しました。"); }
+        } catch (e) { alert("発行に失敗: " + (e.message || e)); }
+        return;
+      }
       if (act === "rename") {
         const doc = await db.collection("users").doc(id).get(); const u = doc.data() || {};
         const nn = (prompt("新しい氏名を入力してください", u.name || "") || "").trim();
