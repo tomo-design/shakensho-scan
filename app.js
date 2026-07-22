@@ -2246,10 +2246,33 @@ async function gotoInspection(text) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   }
 }
+/* 定番故障の重複除去: 言い換えただけの同一内容(2〜3件重複)をまとめる。
+   正規化(記号・空白を除く)＋2-gramの類似度で判定し、より詳しい(長い)方を残す。 */
+function dedupFaults(list) {
+  // 記号除去＋末尾の飾り言葉(症状/不調/傾向 等)を落として「主題」で比較しやすくする
+  const norm = s => String(s || "").replace(/[\s、。，,.・「」『』（）()\/／:：;；!！?？…\-–—~〜]/g, "").toLowerCase()
+    .replace(/(という|による|といった)?(症状|不具合|不調|トラブル|故障|傾向|現象|問題|事例)(が(発生|多い|出る|見られる)?する?ことがある|が多い|が出る|になる|になりやすい)?$/g, "");
+  const bigrams = s => { const g = new Set(); for (let i = 0; i < s.length - 1; i++) g.add(s.slice(i, i + 2)); if (s.length === 1) g.add(s); return g; };
+  const sim = (a, b) => { if (!a.size || !b.size) return 0; let inter = 0; for (const x of a) if (b.has(x)) inter++; return inter / (a.size + b.size - inter); };
+  const out = [], keys = [];
+  (list || []).forEach(item => {
+    const n = norm(item); if (!n) return;
+    const bg = bigrams(n);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (n === k.n || n.includes(k.n) || k.n.includes(n) || sim(bg, k.bg) >= 0.5) {
+        if (String(item).length > String(out[i]).length) { out[i] = item; keys[i] = { n, bg }; }   // 詳しい方を残す
+        return;
+      }
+    }
+    out.push(item); keys.push({ n, bg });
+  });
+  return out;
+}
 /* 定番故障・持病の一覧(タップ機能なし) */
 function renderFaultList(faults) {
   const ul = $("faultList"); ul.innerHTML = "";
-  (faults || []).forEach(t => {
+  dedupFaults(faults || []).forEach(t => {
     const li = document.createElement("li"); li.textContent = t;
     ul.appendChild(li);
   });
@@ -3640,6 +3663,7 @@ function buildSpecPrompt() {
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明なら創作せず要確認にする。",
     "【リコールも必ず検索して調べる】記憶や心当たりで書かない。Google検索で『国土交通省 リコール届出情報』やメーカー公式のリコール・改善対策・サービスキャンペーン情報を、この型式・車種・年式で実際に調べること。見つかった届出は『年月・対象部位・不具合内容・対策』が分かる形で1件1文にまとめる(最大5件、新しい順)。検索しても該当が確認できなければrecallsは空配列にし、憶測で埋めない。",
     "【定番故障も検索して裏取り】faultsも記憶頼みにせず、この車種・型式の整備事例・故障事例・不具合報告を検索し、実際に多発が確認できた症状のみを書く。症状だけでなく『原因部位』と『出やすい時期(走行距離・年式)』が分かれば併記する。創作・一般論(どの車にも言える話)は不可。確認できなければ空配列でよい。",
+    "【重複禁止】faultsは1つの症状につき1件だけ。同じ内容を言い換えただけ・表現違いの重複は絶対に入れない(例『オイル漏れ』と『オイルにじみ』を別々に出さず1件に統合)。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
@@ -3675,7 +3699,7 @@ async function runSpecAI(srcBtn) {
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
       specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(String(s.k)), v: cleanCite(String(s.v || "")) })).filter(s => s.k && s.v) : [];
-      faults = Array.isArray(obj.faults) ? obj.faults.map(x => cleanCite(String(x))).filter(Boolean) : [];
+      faults = dedupFaults(Array.isArray(obj.faults) ? obj.faults.map(x => cleanCite(String(x))).filter(Boolean) : []);   // 言い換え重複を除去して保存
       recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => cleanCite(String(x))).filter(Boolean) : [];
       model = obj.model ? String(obj.model).trim() : "";
       maker = obj.maker ? String(obj.maker).trim().toLowerCase() : "";
