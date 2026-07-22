@@ -176,14 +176,20 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     // Google検索グラウンディング(実データから回答=諸元などの正確性向上)。指定時のみ付与
     if (data.search) reqBody.tools = [{ google_search: {} }];
-    let r;
-    try {
-      r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reqBody),
-      });
-    } catch (e) { lastErr = "network"; continue; }
-    if (r.status === 404 || r.status === 429) { lastErr = "model " + model + " " + r.status; continue; }
+    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
+    let r, retried = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reqBody),
+        });
+      } catch (e) { lastErr = "network"; r = null; break; }
+      if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); retried = true; continue; }
+      break;
+    }
+    if (!r) continue;   // network例外は次のモデルへ
+    if (r.status === 404 || r.status === 429 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok) return res.status(502).json({ error: "AI応答エラー (" + r.status + ")" });
     const j = await r.json();
     const cand = j.candidates && j.candidates[0];

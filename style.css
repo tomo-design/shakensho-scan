@@ -258,6 +258,9 @@ label.fld:first-child{margin-top:0}
 .ai-h{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--txt);margin:16px 0 8px;padding:8px 12px;background:var(--panel2);border-left:4px solid var(--amber);border-radius:8px}
 .ai-h:first-child{margin-top:2px}
 .ai-cause{font-weight:700;font-size:15px;line-height:1.6}
+/* 手順: 見出し(太字)と本文(通常ウェイト)を分けて読みやすく */
+.stepHead{font-weight:800;font-size:15px;line-height:1.5}
+.stepBody{font-weight:400;font-size:14.5px;line-height:1.7;margin-top:4px}
 .ai-check{margin-top:5px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:7px 10px;border-radius:0}
 .ai-check-label{color:var(--cyan);font-weight:700;font-size:11px;letter-spacing:.1em;margin-right:4px}
 /* 候補の「理由」: 折り畳み(タップで開閉・1つだけ開く) */

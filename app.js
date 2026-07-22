@@ -1474,7 +1474,15 @@ function renderRepairAnswer(box, obj, q) {
       const tools = (s && s.tools && s.tools.length) ? s.tools : [];
       const li = document.createElement("li"); li.id = "rstep-" + (i + 1); li.className = "hasTools";
       const d = document.createElement("div");
-      const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = han(text); d.appendChild(t);
+      const t = document.createElement("div"); t.className = "ai-cause";
+      // 「番号. 見出し: 本文」を見出し(太字)と本文(通常)に分けて読みやすく
+      const hm = han(text).match(/^\s*(\d+[.．]\s*)?([^：:]{1,40})[：:]\s*([\s\S]+)$/);
+      if (hm) {
+        const head = document.createElement("div"); head.className = "stepHead"; head.textContent = (hm[1] || "") + hm[2];
+        const bodyEl = document.createElement("div"); bodyEl.className = "stepBody"; bodyEl.textContent = hm[3];
+        t.append(head, bodyEl);
+      } else { t.textContent = han(text); }
+      d.appendChild(t);
       const toolBox = document.createElement("div"); toolBox.className = "stepTools hidden";
       toolBox.innerHTML = tools.length ? '<b>使う工具:</b> ' + tools.map(x => esc(han(String(x)))).join(" ・ ") : "この手順の工具情報はありません。";
       d.appendChild(toolBox);
@@ -3026,41 +3034,50 @@ async function geminiAsk(prompt, opts) {
   let lastErr = null;
   aiAbort = new AbortController();   // クリアで中断できるように
   for (const model of GEMINI_MODELS[mode]) {
-    try {
-      // 思考トークンと本文が両方収まるよう上限は大きめに確保
-      const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
-      // 2.5系の思考トークン制御: 標準(flash)は思考OFF=0で高速化、高精度(pro)は-1で自動調整
-      if (model.startsWith("gemini-2.5")) {
-        // flash-lite/2.0系はもともと高速。gemini-2.5-flash/proは思考が重いのでモードで切替
-        genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+    // 過負荷(503/500)は一時的なので、下位(無料)モデルへ落とす前に同じモデルで最大3回リトライ。
+    // これで「高精度モードが一瞬の混雑で無料版に切り替わる」のを防ぐ。
+    let dropToNext = false;
+    for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
+      try {
+        // 思考トークンと本文が両方収まるよう上限は大きめに確保
+        const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+        // 2.5系の思考トークン制御: 標準(flash)は思考OFF=0で高速化、高精度(pro)は-1で自動調整
+        if (model.startsWith("gemini-2.5")) {
+          genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+        }
+        const res = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: aiAbort.signal,
+            body: JSON.stringify(Object.assign({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: genCfg
+            }, opts.search ? { tools: [{ google_search: {} }] } : {}))
+          });
+        if (res.status === 404) { lastErr = new Error(model + " は利用不可"); break; }   // 次のモデルへ
+        if (res.status === 503 || res.status === 500) {
+          lastErr = new Error("AIが混雑しています (" + res.status + ")。");
+          if (attempt < 2) { await new Promise(r => setTimeout(r, 900 * (attempt + 1))); continue; }   // 同じモデルで再試行
+          break;   // 3回だめなら次のモデルへ
+        }
+        if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); break; } // 下位モデルで再試行
+        if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+        if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
+        const j = await res.json();
+        const cand = j.candidates?.[0];
+        // 思考パート(thought:true)を除いた本文のみ結合
+        const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
+        if (!text) throw new Error("AIから回答が得られませんでした");
+        const r = { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+        aiCacheSet(ck, { text: r.text, truncated: r.truncated });
+        return r;
+      } catch (e) {
+        if (e && e.name === "AbortError") throw new Error("__cancelled__");   // クリアで中断
+        if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
+        lastErr = e; dropToNext = true;   // 例外は次のモデルへ
       }
-      const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: aiAbort.signal,
-          body: JSON.stringify(Object.assign({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: genCfg
-          }, opts.search ? { tools: [{ google_search: {} }] } : {}))
-        });
-      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); continue; } // 下位モデルで再試行
-      if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
-      if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
-      const j = await res.json();
-      const cand = j.candidates?.[0];
-      // 思考パート(thought:true)を除いた本文のみ結合
-      const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
-      if (!text) throw new Error("AIから回答が得られませんでした");
-      const r = { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
-      aiCacheSet(ck, { text: r.text, truncated: r.truncated });
-      return r;
-    } catch (e) {
-      if (e && e.name === "AbortError") throw new Error("__cancelled__");   // クリアで中断
-      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
-      lastErr = e;
     }
   }
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
@@ -3627,7 +3644,9 @@ function buildSpecPrompt() {
     "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
-    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。『デフオイル（デファレンシャルオイル）』『車台番号の打刻位置』『エンジン型式の打刻位置』は、確証があれば含める(不確かなら無理に出さない)。整備で重要かつ確証のある項目のみ追加してよい。",
+    "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト(ドライブシャフト/ハブ)締付トルク ⑥車台番号の打刻位置 ⑦エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
+    "ただし、その車両に構造上存在しない項目(例: FF車のデフオイル、CVT車のミッションオイル量など)は無理に出さなくてよい。存在するのに見つからない場合のみ最終手段として（要確認）とする。",
+    "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。整備で重要かつ確証のある項目は上記以外も追加してよい。",
     "",
     "■対象車両: " + vehicleDesc()
   ].join("\n");
@@ -3758,30 +3777,38 @@ async function geminiAskMedia(prompt, media) {
   if (!key) throw new Error("Gemini APIキーが未設定です。");
   let lastErr = null;
   for (const model of GEMINI_MEDIA_MODELS[getAiMode()]) {
-    try {
-      const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
-      if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
-      const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
-      const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
-      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／標準モードにする等をお試しください。"); continue; }
-      if (res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
-      if (res.status === 400) {   // 400は次モデルでも試す(モデル非対応やサイズ等の切り分け)
-        let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch (e) {}
-        lastErr = new Error("送信できませんでした(" + model + "): " + (detail || "動画が大きすぎる可能性。10〜15秒に短く／低画質でお試しを"));
-        continue;
+    let dropToNext = false;
+    for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
+      try {
+        const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+        if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
+        const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
+        const res = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
+        if (res.status === 404) { lastErr = new Error(model + " は利用不可"); break; }
+        if (res.status === 503 || res.status === 500) {   // 過負荷は少し待って同モデルで再試行(無料版へ落とす前に)
+          lastErr = new Error("AIが混雑しています (" + res.status + ")。");
+          if (attempt < 2) { await new Promise(r => setTimeout(r, 900 * (attempt + 1))); continue; }
+          break;   // 3回だめなら次のモデルへ
+        }
+        if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／標準モードにする等をお試しください。"); break; }
+        if (res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+        if (res.status === 400) {   // 400は次モデルでも試す(モデル非対応やサイズ等の切り分け)
+          let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch (e) {}
+          lastErr = new Error("送信できませんでした(" + model + "): " + (detail || "動画が大きすぎる可能性。10〜15秒に短く／低画質でお試しを"));
+          break;
+        }
+        if (!res.ok) { lastErr = new Error("AI応答エラー (" + res.status + ")"); break; }
+        const j = await res.json();
+        const cand = j.candidates?.[0];
+        const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
+        if (!text) throw new Error("AIから回答が得られませんでした");
+        return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+      } catch (e) {
+        if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
+        lastErr = e; dropToNext = true;
       }
-      if (!res.ok) { lastErr = new Error("AI応答エラー (" + res.status + ")"); continue; }
-      const j = await res.json();
-      const cand = j.candidates?.[0];
-      const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
-      if (!text) throw new Error("AIから回答が得られませんでした");
-      return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
-    } catch (e) {
-      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
-      lastErr = e;
     }
   }
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
