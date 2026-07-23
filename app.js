@@ -3285,7 +3285,7 @@ function renderAiAnswer(container, text, opts) {
     if (n) {
       if (!list) { list = document.createElement("ol"); list.className = "guide-steps ai-list"; container.appendChild(list); }
       const li = document.createElement("li");
-      const div = document.createElement("div");
+      const div = document.createElement("div"); div.className = "ai-item";
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
       div.appendChild(t);
       if (opts.illustrate) attachStepFigure(li, div, n[2]);   // タップで参考図を表示
