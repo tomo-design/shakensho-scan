@@ -3703,9 +3703,26 @@ function vehicleDesc() {
   if (current.vin) parts.push("車台番号 " + current.vin);
   return parts.length ? parts.join(" / ") : "不明";
 }
-/* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON) */
-function buildSpecPrompt() {
-  return [
+/* 必須諸元7項目。学習キャッシュに揃っていれば再取得(＝課金)しない判定に使う */
+const SPEC_REQUIRED = [
+  { name: "エンジンオイル量", test: k => /エンジンオイル/.test(k) },
+  { name: "ミッションオイル量", test: k => /(ミッション|トランスミッション|ATF|CVT|MTF|ギヤオイル|ギアオイル)/.test(k) },
+  { name: "デフオイル量", test: k => /(デフ|デファレンシャル)/.test(k) },
+  { name: "ホイールナット締付トルク", test: k => /ホイールナット/.test(k) },
+  { name: "リアアクスルシャフト締付トルク", test: k => /(アクスル|ドライブシャフト|ハブナット)/.test(k) },
+  { name: "車台番号の打刻位置", test: k => /車台番号/.test(k) && /打刻|位置/.test(k) },
+  { name: "エンジン型式の打刻位置", test: k => /(エンジン型式|原動機)/.test(k) && /打刻|位置/.test(k) },
+];
+/* 既知の諸元(specs)に照らして、まだ揃っていない必須項目名の配列を返す */
+function missingRequiredSpecs(specs) {
+  const keys = (specs || []).map(s => String(s.k || ""));
+  return SPEC_REQUIRED.filter(r => !keys.some(k => r.test(k))).map(r => r.name);
+}
+/* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON)。
+   known: 既に判明している値(再検索させない)。missOnly: 今回補完したい不足項目名。 */
+function buildSpecPrompt(known, missOnly) {
+  const partial = Array.isArray(missOnly) && missOnly.length && Array.isArray(known) && known.length;
+  const head = [
     "あなたは日本の自動車整備士向けのデータアドバイザーです。",
     "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
@@ -3722,9 +3739,19 @@ function buildSpecPrompt() {
     "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト(ドライブシャフト/ハブ)締付トルク ⑥車台番号の打刻位置 ⑦エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
     "ただし、その車両に構造上存在しない項目(例: FF車のデフオイル、CVT車のミッションオイル量など)は無理に出さなくてよい。存在するのに見つからない場合のみ最終手段として（要確認）とする。",
     "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。整備で重要かつ確証のある項目は上記以外も追加してよい。",
-    "",
-    "■対象車両: " + vehicleDesc()
-  ].join("\n");
+    ""
+  ];
+  // 部分補完モード: 既知の値は再検索させず、不足項目だけを検索して埋めさせる(検索コスト削減)
+  if (partial) {
+    head.push(
+      "【重要・コスト削減】次の値は既に判明済みです。これらは再検索せず、specsにそのまま含めて返すこと(値を変えない):",
+      known.map(s => "・" + s.k + " = " + s.v).join("\n"),
+      "今回あなたが検索して新たに埋めるのは、次の『不足項目』だけです(既知項目は検索禁止): " + missOnly.join("、"),
+      "出力のspecsには『既知の値＋今回埋めた不足項目』の両方を含めること。faults・recallsも既に分かっていれば無理に再検索しなくてよい。"
+    );
+  }
+  head.push("■対象車両: " + vehicleDesc());
+  return head.join("\n");
 }
 async function runSpecAI(srcBtn) {
   stopFieldMic();
@@ -3738,14 +3765,37 @@ async function runSpecAI(srcBtn) {
     if (!confirm("最新のAI結果で諸元を取り直します。手動で訂正した項目はそのまま保持します。よろしいですか？")) return;
   }
   const box = $("specAiBox");
+  const btn = srcBtn || $("btnSpecAI");
+  const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
+
+  // ★コスト削減: 同じ型式の学習データが既にあり必須項目も揃っていれば、APIを一切叩かず記憶データを表示。
+  //   検索グラウンディング(高額)を回避。取り直したい時は「最新に更新」ボタン(force)を使う。
+  const lk = vehicleKey(current);
+  const cached = getLearned(lk) || {};
+  const cachedSpecs = Array.isArray(cached.specs) ? cached.specs : [];
+  const missReq = missingRequiredSpecs(cachedSpecs);
+  if (!force && cachedSpecs.length && !missReq.length) {
+    const specs = mergeKeepManual(cachedSpecs.slice(), shownSpecs);
+    toggle("specAiBox", false);
+    renderSpecs(specs, "learned");
+    const cf = dedupFaults(Array.isArray(cached.faults) ? cached.faults : []);
+    if (cf.length) { renderFaultList(cf); toggle("secFault", true); }
+    renderRecalls(Array.isArray(cached.recalls) ? cached.recalls : []);
+    showToast("この型式の記憶データを表示しました（AI未使用）");
+    return;
+  }
+
   toggle("specAiBox", true);
   box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
-  const btn = srcBtn || $("btnSpecAI"); setBtnLoading(btn, true, "メカ君が調べ中…");
-  const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
+  setBtnLoading(btn, true, "メカ君が調べ中…");
   try {
-    // 諸元は正確性最優先: 高精度(pro/思考ON)＋Google検索グラウンディングで実データから取得。
-    // 車両ごとに一度取得すれば学習キャッシュに保存され次回はAI不要(コストは初回のみ)。
-    const r = await geminiAsk(buildSpecPrompt(), { noCache: force, mode: "pro", search: true });
+    // 諸元は正確性最優先: 高精度(pro/思考ON)。
+    // ★検索グラウンディング(高額)は「必須項目が不足している時だけ」ON。
+    //   既知の値がある部分補完では、既知分を渡して不足項目のみ検索させる。
+    const partial = !force && cachedSpecs.length > 0;                 // 一部だけ判明済み → 不足のみ補完
+    const needSearch = force ? true : (missReq.length > 0);           // 必須が欠けている時のみ検索
+    const prompt = partial ? buildSpecPrompt(cachedSpecs, missReq) : buildSpecPrompt();
+    const r = await geminiAsk(prompt, { noCache: force, mode: "pro", search: needSearch });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
@@ -3760,6 +3810,11 @@ async function runSpecAI(srcBtn) {
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
     // 手動修正済みの項目はAI結果で消さずに保持
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
+    // 部分補完で今回faults/recallsを再取得しなかった場合は、既存の記憶を消さず引き継ぐ
+    if (partial && !faults.length && Array.isArray(cached.faults)) faults = cached.faults;
+    if (partial && !recalls.length && Array.isArray(cached.recalls)) recalls = cached.recalls;
+    if (partial && !model && cached.model) model = cached.model;
+    if (partial && !maker && cached.maker) maker = cached.maker;
     // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
     setLearned(vehicleKey(current), { specs, faults, recalls, model, maker });
     saveVehicleAiData(specs, faults, recalls, { model, maker });
