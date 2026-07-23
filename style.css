@@ -591,8 +591,12 @@ details[open] > .secSummary::after{content:"▴"}
 /* 音声会話: メカ君の発言アイコン */
 .vcMsg.mecha .vcIco{width:22px;height:22px;vertical-align:middle;margin-right:6px}
 /* クリック可能な原因候補・故障 */
-.inspectGuideLink{display:inline-block;margin-top:6px;font-size:12px;color:var(--cyan);text-decoration:none;font-weight:700}
-.inspectGuideLink:active{opacity:.6}
+/* 原因候補ごとの点検手引書 */
+.manualWrap{margin-top:8px}
+.manualBtn{background:var(--cyan);color:#fff;border:0;border-radius:8px;font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
+.manualBtn:active{opacity:.8}
+.manualPane{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.manualPane.hidden{display:none}
 .ai-cause.clk,.flat li.clk{cursor:pointer}
 .ai-cause.clk:active,.flat li.clk:active{opacity:.6}
 .flat li.clk{color:var(--cyan);text-decoration:underline dotted}

@@ -3219,6 +3219,48 @@ function buildDiagPrompt(text) {
   return lines.join("\n");
 }
 
+/* 原因候補に「点検手引書」ボタンを付ける。タップでその候補を確定/除外する点検手順をAIが生成(初回のみ・折り畳み)。
+   基本操作の解説ではなく、その原因を解決に導く具体的な点検を出す。 */
+function buildInspectManualPrompt(cause, kirikake) {
+  return [
+    "あなたは経験豊富な整備士『メカ君』。指定された『疑う原因』を、実車で確定または除外するための点検手引書を作成する。",
+    "対象車両: " + (typeof vehicleDesc === "function" ? vehicleDesc() : ""),
+    lastDiagInput ? "現在の症状・問診: " + lastDiagInput : "",
+    "疑う原因: " + cause,
+    kirikake ? "想定される切り分けの方針: " + kirikake : "",
+    "この原因かどうかを見極める点検を、その車両に即して順を追って具体的に解説する。各ステップに必ず含める: ①どこを(部位・端子・コネクタ番号が分かれば) ②何を使って(工具・テスター等) ③どう点検・測定するか ④正常値/判定の目安(具体的な数値) ⑤結果の見方(正常なら次へ／この値・状態ならこの原因で確定)。",
+    "一般的なテスターの使い方の説明に終始せず、『この原因を解決に導く』流れにする。専門用語には短い補足を付ける。",
+    "最後に『この原因だった場合の対処・交換すべき部品』を1行で。",
+    "出力は番号付きの点検手順のみ(前置き・免責・Markdown記号・引用マーカーは書かない)。",
+    (window.APP_LANG === "en" ? "Answer in natural technical English." : "")
+  ].filter(Boolean).join("\n");
+}
+function attachInspectManual(itemDiv, cause) {
+  const wrap = document.createElement("div"); wrap.className = "manualWrap";
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "manualBtn"; btn.textContent = "📖 点検手引書を作る";
+  const pane = document.createElement("div"); pane.className = "manualPane hidden";
+  wrap.append(btn, pane); itemDiv.appendChild(wrap);
+  let loaded = false, loading = false;
+  btn.addEventListener("click", async () => {
+    const open = pane.classList.toggle("hidden") === false;
+    btn.textContent = open ? "📖 点検手引書を閉じる" : (loaded ? "📖 点検手引書を開く" : "📖 点検手引書を作る");
+    if (!open || loaded || loading) return;
+    if (!aiOK()) { pane.textContent = "点検手引書の生成には設定タブでGemini APIキーが必要です。"; return; }
+    loading = true;
+    pane.innerHTML = '<div class="hint">🔧 メカ君がこの原因の点検手引書を作成中…(数秒〜十数秒)</div>';
+    try {
+      const li = itemDiv.parentElement;   // 候補の<li>
+      const kirikake = (li && li.dataset && li.dataset.kirikake) || "";
+      const r = await geminiAsk(buildInspectManualPrompt(cause, kirikake), { mode: "pro" });
+      pane.innerHTML = "";
+      renderAiAnswer(pane, cleanCite(r.text));   // 番号付き手順として整形表示
+      loaded = true;
+    } catch (e) {
+      pane.innerHTML = '<div class="hint">⚠ ' + esc(e.message === "__cancelled__" ? "中断しました" : (e.message || "作成できませんでした")) + '</div>';
+    } finally { loading = false; }
+  });
+}
+
 /* AI回答テキストを構造化して見やすく描画 */
 function renderAiAnswer(container, text, opts) {
   opts = opts || {};
@@ -3247,6 +3289,7 @@ function renderAiAnswer(container, text, opts) {
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
       div.appendChild(t);
       if (opts.illustrate) attachStepFigure(li, div, n[2]);   // タップで参考図を表示
+      if (opts.linkCauses) attachInspectManual(div, n[2]);    // 診断の各原因候補に「点検手引書」を生成できるボタン
       li.appendChild(div);
       list.appendChild(li);
       continue;
@@ -3272,11 +3315,9 @@ function renderAiAnswer(container, text, opts) {
       const d = document.createElement("div");
       d.className = "ai-check";
       d.textContent = k[2];   // 「切り分け」ラベルは付けず内容のみ
-      // 導通/電圧/抵抗など「やり方」を知りたい時に開ける点検ガイドへのリンク
-      const g = document.createElement("a"); g.className = "inspectGuideLink"; g.href = "inspect-guide.html"; g.target = "_blank"; g.rel = "noopener";
-      g.textContent = "📖 点検のやり方ガイド ↗";
-      d.appendChild(g);
-      list.lastElementChild.firstElementChild.appendChild(d);
+      // この候補の手引書生成に切り分け内容も渡せるよう保持
+      const li0 = list.lastElementChild; if (li0) li0.dataset.kirikake = k[2];
+      li0.firstElementChild.appendChild(d);
       continue;
     }
     // 箇条書き・通常文
@@ -3497,7 +3538,9 @@ async function geminiStepFigure(stepText) {
 
 /* 「解析する」から自動実行されるAI診断 (キー未設定なら案内カードのみ) */
 let diagAiBusy = false;
+let lastDiagInput = "";   // 直近の診断入力(症状/DTC)。原因候補ごとの点検手引書生成に使う
 async function runDiagAI(text) {
+  lastDiagInput = text || "";
   const box = $("diagResults");
   if (!aiOK()) {
     const { sec, body } = diagSection("", "AI", "AI診断を使うには");
@@ -3619,6 +3662,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
       } else {
         r = await geminiAsk(prompt, { mode: "pro" });   // 故障診断は常に高精度(思考ON)
       }
+      lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
       renderAiAnswer(ans, r.text, { linkCauses: true });
       // さらに追い相談できるよう、回答の下に次の相談欄を連鎖
       appendAiFollowup(body, origText + " / " + tried, r.text);
@@ -4049,6 +4093,7 @@ async function diagMediaAnalyze() {
     const box = $("diagResults");
     const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
     const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
+    lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
     renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
