@@ -588,8 +588,8 @@ async function scanTick() {
   }
   // ② ZXing/jsQR(重い同期解析)は保険。ネイティブが使える端末では「進捗が1.2秒止まった時だけ」に絞る。
   //    常時走らせるとメインスレッドを塞ぎ、スキャン開始直後に画面が固まるため。
-  const zxWait = nativeDetector ? 1200 : 500;
-  const zxThrottle = nativeDetector ? 400 : 200;
+  const zxWait = nativeDetector ? 800 : 400;   // ネイティブで読めない難QRに、少し早く高精度ZXingを併走させる
+  const zxThrottle = nativeDetector ? 350 : 200;
   if (ready && !tickBusy && Date.now() - lastScanProc >= zxThrottle && Date.now() - lastNewDataAt > zxWait) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
@@ -1959,12 +1959,13 @@ $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
   $("kPhotoIn").click();
 });
 $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
-  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  const files = Array.from(e.target.files || []); e.target.value = ""; if (!files.length) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
-  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真を読み取っています…(数十秒かかる場合があります)';
+  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真' + (files.length > 1 ? files.length + "枚" : "") + 'を読み取っています…(数十秒かかる場合があります)';
   try {
     const prompt = [
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",
+      files.length > 1 ? "画像は複数枚ありますが、すべて同じ1件の整備作業に関するメモです。全ての画像の内容を統合して、1つのカルテにまとめて返してください(項目ごとに全画像の情報を合わせる。部品は全画像分を列挙)。" : "",
       "略号の展開(整備現場の頻出略号。書かれていれば正式名に展開してよい。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキオイル(ブレーキフルード), M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, バッテリ/BATT=バッテリー, プラグ=スパークプラグ, エレメント=フィルター, O/H=オーバーホール, 脱着=取り外し・取り付け。",
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
@@ -1972,7 +1973,8 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
       "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
     ].join("\n");
-    const media = [{ mimeType: cleanMime(file.type, "image/jpeg"), data: await fileToBase64(file) }];
+    const media = [];
+    for (const f of files) media.push({ mimeType: cleanMime(f.type, "image/jpeg"), data: await fileToBase64(f) });
     const r = await geminiAskMedia(prompt, media);
     const obj = extractJson(r.text) || {};
     openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
@@ -1983,7 +1985,7 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
     if (obj.staff) $("kStaff").value = String(obj.staff).trim();
     if (obj.note) $("kNote").value = String(obj.note).trim();
-    st.textContent = "✓ 読み取りました。内容を確認・修正して保存してください。";
+    st.textContent = "✓ 写真" + (files.length > 1 ? files.length + "枚を統合して" : "を") + "読み取りました。内容を確認・修正して保存してください。";
   } catch (err) {
     st.textContent = "⚠ " + (err.message === "__cancelled__" ? "中断しました" : (err.message || "写真を読み取れませんでした")) + "（手入力・音声入力もできます）";
   }
@@ -2871,9 +2873,10 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
    ========================================================= */
 /* モード別モデル候補 (上から順に試行。無料枠上限・未提供時は次へフォールバック) */
 const GEMINI_MODELS = {
-  // 1.5系はGoogleが廃止のため除外。lite系は無料枠が広くフォールバックに有効
-  flash: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
-  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+  // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
+  // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
+  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+  pro: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -3269,6 +3272,10 @@ function renderAiAnswer(container, text, opts) {
       const d = document.createElement("div");
       d.className = "ai-check";
       d.textContent = k[2];   // 「切り分け」ラベルは付けず内容のみ
+      // 導通/電圧/抵抗など「やり方」を知りたい時に開ける点検ガイドへのリンク
+      const g = document.createElement("a"); g.className = "inspectGuideLink"; g.href = "inspect-guide.html"; g.target = "_blank"; g.rel = "noopener";
+      g.textContent = "📖 点検のやり方ガイド ↗";
+      d.appendChild(g);
       list.lastElementChild.firstElementChild.appendChild(d);
       continue;
     }
@@ -3787,8 +3794,9 @@ function cleanMime(m, fallback) {
 /* 動画(＋プロンプト)をGeminiに送って解析。textのみ版geminiAskと別系統(キャッシュなし) */
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
-  flash: ["gemini-2.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+  // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
+  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);

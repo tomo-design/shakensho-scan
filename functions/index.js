@@ -166,7 +166,10 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const mode = data.mode === "pro" ? "pro" : "flash";
-  const models = mode === "pro" ? ["gemini-2.5-pro", "gemini-2.5-flash"] : ["gemini-2.5-flash", "gemini-2.0-flash-lite"];
+  // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
+  const models = mode === "pro"
+    ? ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash"]
+    : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash-lite"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   let lastErr = "";
