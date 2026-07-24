@@ -676,19 +676,7 @@
             "<div class='mBody hidden'>" + membersHtml(byTenant[t]) + "</div></div>";
         });
       } else {
-        // admin: 自店舗のAI有料利用スイッチ + メンバー
-        let myT = {}; try { myT = (await db.collection("tenants").doc(profile.tenantId).get()).data() || {}; } catch (e) {}
-        let usage = {}; try { usage = (await db.collection("usage").doc(profile.tenantId).get()).data() || {}; } catch (e) {}
-        const on = !!myT.aiPaidFallback;
-        const jstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-        const exhausted = usage.freeExhaustedDay === jstDay;
-        const paidToday = usage.dPaid || 0;
-        html += "<div class='mTenant'><div class='mBody'><div class='aiPaidCard'>" +
-          "<div class='aiPaidTtl'>AIの有料利用（無料枠の超過分だけ課金）</div>" +
-          "<div class='aiPaidState'>現在: <b class='" + (on ? "on" : "off") + "'>" + (on ? "⚡ ON（超過分は有料で継続）" : "無料のみ（超過で停止）") + "</b></div>" +
-          "<div class='aiPaidState'>本日の無料枠: <b>" + (exhausted ? "使い切り" : "残あり") + "</b>" + (paidToday ? " ／ 有料 本日 " + paidToday + " 回" : "") + "</div>" +
-          "<div class='aiPaidNote'>切り替えは運営（メカノAI運営）のみ変更できます。変更をご希望の場合は運営へご連絡ください。</div>" +
-          "</div></div></div>";
+        // admin: 自店舗のメンバーのみ(AI有料/無料の状態は運営専用のため非表示)
         html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId]) + "</div></div>";
       }
       box.innerHTML = html || "メンバーがいません。";
