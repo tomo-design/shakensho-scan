@@ -662,6 +662,7 @@
             "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
             "<span class='mtBtns'>" + btn("plan", "t", id, "プラン") +
+            btn("paidai", "t", id, t.aiPaidFallback ? "⚡有料ON" : "無料のみ", t.aiPaidFallback ? "btn-amber" : "btn-ghost") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
@@ -675,7 +676,20 @@
             "<div class='mBody hidden'>" + membersHtml(byTenant[t]) + "</div></div>";
         });
       } else {
-        // admin: 自社のメンバーのみ(1社なので常に開いた状態)
+        // admin: 自店舗のAI有料利用スイッチ + メンバー
+        let myT = {}; try { myT = (await db.collection("tenants").doc(profile.tenantId).get()).data() || {}; } catch (e) {}
+        let usage = {}; try { usage = (await db.collection("usage").doc(profile.tenantId).get()).data() || {}; } catch (e) {}
+        const on = !!myT.aiPaidFallback;
+        const jstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const exhausted = usage.freeExhaustedDay === jstDay;
+        const paidToday = usage.dPaid || 0;
+        html += "<div class='mTenant'><div class='mBody'><div class='aiPaidCard'>" +
+          "<div class='aiPaidTtl'>AIの有料利用（無料枠の超過分だけ課金）</div>" +
+          "<div class='aiPaidState'>現在: <b class='" + (on ? "on" : "off") + "'>" + (on ? "⚡ ON（超過分は有料で継続）" : "無料のみ（超過で停止）") + "</b></div>" +
+          "<div class='aiPaidState'>本日の無料枠: <b>" + (exhausted ? "使い切り" : "残あり") + "</b>" + (paidToday ? " ／ 有料 本日 " + paidToday + " 回" : "") + "</div>" +
+          "<div>" + btn("paidai", "t", profile.tenantId, on ? "OFFにする" : "ONにする", on ? "btn-ghost" : "btn-amber") + "</div>" +
+          "<div class='aiPaidNote'>無料キーを先に使い、使い切った分だけ有料キーで自動継続します。</div>" +
+          "</div></div></div>";
         html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId]) + "</div></div>";
       }
       box.innerHTML = html || "メンバーがいません。";
@@ -736,12 +750,18 @@
   async function fillTenantStats(tid) {
     const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
     try {
-      const [v, r, u] = await Promise.all([
+      const [v, r, u, usage] = await Promise.all([
         db.collection("tenants").doc(tid).collection("vehicles").get().then(s => s.size).catch(() => "?"),
         db.collection("tenants").doc(tid).collection("records").get().then(s => s.size).catch(() => "?"),
         db.collection("users").where("tenantId", "==", tid).get().then(s => s.size).catch(() => "?"),
+        db.collection("usage").doc(tid).get().then(s => s.data() || {}).catch(() => ({})),
       ]);
-      el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台";
+      const jstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      let ai = "";
+      if (usage.dMecha) ai += " ／ 🤖 AI本日 " + usage.dMecha + "回";
+      if (usage.freeExhaustedDay === jstDay) ai += " ／ ⚠無料枠 使い切り";
+      if (usage.dPaid) ai += " ／ ⚡有料 本日 " + usage.dPaid + "回";
+      el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台" + ai;
     } catch (e) { el.textContent = "利用状況の取得に失敗"; }
   }
   async function manageAction(kind, id, act) {
@@ -757,6 +777,15 @@
             prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
           } else { alert("発行に失敗しました。"); }
         } catch (e) { alert("発行に失敗: " + (e.message || e)); }
+        return;
+      }
+      if (act === "paidai") {
+        // 有料フォールバック(無料枠を超えた分だけ有料キーで継続)の店舗ごとON/OFF
+        const cur = (await db.collection("tenants").doc(id).get()).data() || {};
+        const turnOn = !cur.aiPaidFallback;
+        if (turnOn && !confirm("店舗「" + id + "」で『有料利用（無料枠を超えた分だけ課金）』をONにします。\n無料枠を使い切ると自動で有料キーに切り替わり、超過分に課金が発生します。よろしいですか？")) return;
+        await db.collection("tenants").doc(id).set({ aiPaidFallback: turnOn }, { merge: true });
+        alert(turnOn ? "有料利用をONにしました（無料枠の超過分のみ課金）。" : "有料利用をOFFにしました（無料枠のみ・超過で停止）。");
         return;
       }
       if (act === "rename") {

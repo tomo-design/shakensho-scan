@@ -40,11 +40,20 @@ service cloud.firestore {
     match /tenants/{tid} {
       allow read: if signedIn();
       allow create: if signedIn() && (request.resource.data.active == false || isOwner());
-      allow update, delete: if isSuper();
+      allow delete: if isSuper();
+      // 更新は super は全項目。admin は自店舗の「AI有料利用フラグ(aiPaidFallback)」だけ変更可。
+      allow update: if isSuper()
+                    || (isAdmin() && tid == myTenant()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiPaidFallback']));
     }
 
     match /tenants/{tid}/{coll}/{doc} {
       allow read, write: if meActive() && (myTenant() == tid || isSuper());
+    }
+
+    // AI利用回数の記録(サーバーがAdmin SDKで書き込む)。閲覧は運営 or 自店舗の代表管理者のみ。
+    match /usage/{tid} {
+      allow read: if isSuper() || (isAdmin() && tid == myTenant());
     }
   }
 }

@@ -72,7 +72,8 @@ exports.notifyJoin = functions.firestore
 const REGION = "asia-northeast1";
 // 秘密情報は functions/.env から process.env に読み込まれる(Firebaseが自動ロード)
 const cfg = () => ({
-  gemini: { key: process.env.GEMINI_KEY },
+  gemini: { key: process.env.GEMINI_KEY },              // 無料キー(課金リンクなしのプロジェクト)
+  geminiPaid: { key: process.env.GEMINI_KEY_PAID },     // 有料キー(課金リンクありのプロジェクト。無料枠超過分の受け皿)
   vision: { key: process.env.VISION_KEY },
   cse: { key: process.env.CSE_KEY, cx: process.env.CSE_CX },
   stripe: {
@@ -154,15 +155,74 @@ async function checkPaid(uid) {
   return { u: u, t: t, tid: u.tenantId };
 }
 
-/* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media:[{mimeType,data}]} → {text, truncated} */
+/* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
+async function callGeminiModels(key, models, parts, mode, search) {
+  let lastErr = "", quota = false;
+  for (const model of models) {
+    const gc = { temperature: 0.2, maxOutputTokens: 16384 };
+    if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+    const reqBody = { contents: [{ parts }], generationConfig: gc };
+    if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
+    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
+    let r = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
+        });
+      } catch (e) { lastErr = "network"; r = null; break; }
+      if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); continue; }
+      break;
+    }
+    if (!r) continue;                                  // network例外は次のモデルへ
+    if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }   // 無料枠切れ(要フォールバック)
+    if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
+    if (!r.ok) return { httpErr: r.status };
+    const j = await r.json();
+    const cand = j.candidates && j.candidates[0];
+    const text = ((cand && cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
+    if (!text) { lastErr = "empty"; continue; }
+    return { text: text, truncated: cand.finishReason === "MAX_TOKENS" };
+  }
+  return { failed: true, quota: quota, lastErr: lastErr };
+}
+/* 有料キーで実行した回数を usage/{tid} に記録(管理画面で目視できるように) */
+async function bumpPaidUsage(tid) {
+  try {
+    const db = admin.firestore();
+    const ref = db.collection("usage").doc(tid);
+    const jst = new Date(Date.now() + 9 * 3600 * 1000);
+    const day = jst.toISOString().slice(0, 10), month = day.slice(0, 7);
+    await db.runTransaction(async (tx) => {
+      const s = await tx.get(ref); const u = s.exists ? s.data() : {};
+      if (u.pDay !== day) { u.pDay = day; u.dPaid = 0; }
+      if (u.pMonth !== month) { u.pMonth = month; u.mPaid = 0; }
+      u.dPaid = (u.dPaid || 0) + 1; u.mPaid = (u.mPaid || 0) + 1;
+      u.lastPaidAt = Date.now();
+      tx.set(ref, u, { merge: true });
+    });
+  } catch (e) {}
+}
+/* 無料枠を使い切った事実を記録(管理画面で目視できるように) */
+async function markFreeExhausted(tid) {
+  try {
+    const jst = new Date(Date.now() + 9 * 3600 * 1000);
+    const day = jst.toISOString().slice(0, 10);
+    await admin.firestore().collection("usage").doc(tid).set({ freeExhaustedDay: day, freeExhaustedAt: Date.now() }, { merge: true });
+  } catch (e) {}
+}
+
+/* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media, search} → {text, truncated, tier, freeExhausted}
+   無料キーを先に使い、無料枠を使い切ったら(=429)、その店舗が「有料利用ON(aiPaidFallback)」なら有料キーで継続。 */
 exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   const g = await checkPaid(await uidFromReq(req));
   if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
-  const key = cfg().gemini && cfg().gemini.key;
-  if (!key) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
-  const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);
+  const freeKey = cfg().gemini && cfg().gemini.key;
+  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  if (!freeKey) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
+  const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);   // 店舗ごとの回数上限(赤字防止の最終弁)
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const mode = data.mode === "pro" ? "pro" : "flash";
@@ -172,35 +232,35 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash-lite"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
-  let lastErr = "";
-  for (const model of models) {
-    const gc = { temperature: 0.2, maxOutputTokens: 16384 };
-    if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
-    const reqBody = { contents: [{ parts }], generationConfig: gc };
-    // Google検索グラウンディング(実データから回答=諸元などの正確性向上)。指定時のみ付与
-    if (data.search) reqBody.tools = [{ google_search: {} }];
-    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
-    let r, retried = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(reqBody),
-        });
-      } catch (e) { lastErr = "network"; r = null; break; }
-      if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); retried = true; continue; }
-      break;
+
+  const allowPaid = !!(g.t && g.t.aiPaidFallback === true && paidKey);   // この店舗が有料利用ON かつ 有料キー有り
+
+  // ① まず無料キー
+  let out = await callGeminiModels(freeKey, models, parts, mode, data.search);
+  let tier = "free", freeExhausted = false;
+  if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+  if (out.failed && out.quota) {
+    // ② 無料枠を使い切った
+    freeExhausted = true;
+    await markFreeExhausted(g.tid);
+    if (allowPaid) {
+      // 有料キーで継続(超過分のみ課金)
+      out = await callGeminiModels(paidKey, models, parts, mode, data.search);
+      tier = "paid";
+      if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+      if (out.failed) {
+        if (out.quota) return res.status(429).json({ error: "無料枠・有料枠ともに上限に達しました。時間をおいて再度お試しください。", freeExhausted: true });
+        return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
+      }
+      await bumpPaidUsage(g.tid);
+    } else {
+      // 有料利用OFF → 無料枠切れを通知して停止
+      return res.status(429).json({ error: "本日の無料AI枠を使い切りました。続けるには運営管理で『有料利用（超過分のみ課金）』をONにしてください。", freeExhausted: true });
     }
-    if (!r) continue;   // network例外は次のモデルへ
-    if (r.status === 404 || r.status === 429 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
-    if (!r.ok) return res.status(502).json({ error: "AI応答エラー (" + r.status + ")" });
-    const j = await r.json();
-    const cand = j.candidates && j.candidates[0];
-    const text = ((cand && cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
-    if (!text) { lastErr = "empty"; continue; }
-    return res.json({ text: text, truncated: cand.finishReason === "MAX_TOKENS" });
+  } else if (out.failed) {
+    return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
   }
-  return res.status(502).json({ error: "AIから回答が得られませんでした (" + lastErr + ")" });
+  return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted });
 });
 
 /* Cloud Vision OCR プロキシ: POST {imageBase64} → {text} */

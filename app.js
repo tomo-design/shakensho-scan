@@ -3040,6 +3040,13 @@ function cancelAI() {
   if (typeof partsBusy !== "undefined") partsBusy = false; if (typeof vehAskBusy !== "undefined") vehAskBusy = false;
   ["btnDiagRun", "btnPartsGo", "btnSpecAI", "btnSpecReload", "btnVehAsk", "btnAiQr"].forEach(id => { const b = $(id); if (b) setBtnLoading(b, false); });
 }
+/* 無料枠を使い切ったことをユーザーに通知(セッション中1回)。tier="paid"なら有料で継続、それ以外は停止済み。 */
+let _freeExhaustNotified = false;
+function notifyFreeExhausted(tier) {
+  if (_freeExhaustNotified) return; _freeExhaustNotified = true;
+  if (tier === "paid") showToast("⚡ 無料AI枠を使い切ったため、有料（超過分のみ課金）に切り替えて継続中です。");
+  else showToast("⚠ 本日の無料AI枠を使い切りました。");
+}
 async function geminiAsk(prompt, opts) {
   opts = opts || {};
   const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
@@ -3055,6 +3062,7 @@ async function geminiAsk(prompt, opts) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
+    if (d && d.freeExhausted) notifyFreeExhausted(d.tier);   // 無料枠切れを通知(有料継続 or 停止)
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
   }
   let lastErr = null;
@@ -3902,6 +3910,7 @@ async function geminiAskMedia(prompt, media) {
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode: getAiMode(), media });
+    if (d && d.freeExhausted) notifyFreeExhausted(d.tier);   // 無料枠切れを通知
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
     throw new Error("AIから回答が得られませんでした");
   }
