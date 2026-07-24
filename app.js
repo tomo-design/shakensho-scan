@@ -3718,6 +3718,22 @@ function missingRequiredSpecs(specs) {
   const keys = (specs || []).map(s => String(s.k || ""));
   return SPEC_REQUIRED.filter(r => !keys.some(k => r.test(k))).map(r => r.name);
 }
+/* 社内共有DB(mergedDB=内蔵+同期カスタム)から、この車両の型式に一致するレコードを返す。
+   別メンバー/別端末が既に取得・保存した諸元をここから再利用し、無駄な再検索(課金)を防ぐ。 */
+function companyRecordFor(d) {
+  d = d || current; if (!d) return null;
+  let hit = null;
+  if (d.type) { const code = (d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase(); hit = findVehicle(code); }
+  if (d.vin) { const byVin = CUSTOM_DB.find(x => x.vin && x.vin === d.vin); if (byVin) hit = byVin; }
+  return hit;
+}
+/* specsリストを統合(キー名重複は先勝ち=aを優先) */
+function mergeSpecLists(a, b) {
+  const out = (a || []).slice();
+  const keys = new Set(out.map(s => String(s.k)));
+  (b || []).forEach(s => { if (s && s.k && !keys.has(String(s.k))) { out.push(s); keys.add(String(s.k)); } });
+  return out;
+}
 /* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON)。
    known: 既に判明している値(再検索させない)。missOnly: 今回補完したい不足項目名。 */
 function buildSpecPrompt(known, missOnly) {
@@ -3768,19 +3784,25 @@ async function runSpecAI(srcBtn) {
   const btn = srcBtn || $("btnSpecAI");
   const force = srcBtn && srcBtn.id === "btnSpecReload";   // 「最新に更新」はキャッシュを使わず再取得
 
-  // ★コスト削減: 同じ型式の学習データが既にあり必須項目も揃っていれば、APIを一切叩かず記憶データを表示。
-  //   検索グラウンディング(高額)を回避。取り直したい時は「最新に更新」ボタン(force)を使う。
+  // ★コスト削減: 同じ型式の既存データ(この端末の学習＋社内共有DB)が揃っていれば、APIを一切叩かず表示。
+  //   別メンバーが取得済みの型式は再検索しない=検索グラウンディング(高額)を会社全体で1回に集約。
+  //   取り直したい時は「最新に更新」ボタン(force)を使う。
   const lk = vehicleKey(current);
   const cached = getLearned(lk) || {};
   const cachedSpecs = Array.isArray(cached.specs) ? cached.specs : [];
-  const missReq = missingRequiredSpecs(cachedSpecs);
-  if (!force && cachedSpecs.length && !missReq.length) {
-    const specs = mergeKeepManual(cachedSpecs.slice(), shownSpecs);
+  const hit = companyRecordFor(current);                                   // 社内共有DBの同型式レコード
+  const hitSpecs = (hit && Array.isArray(hit.specs)) ? hit.specs : [];
+  const known = mergeSpecLists(cachedSpecs, hitSpecs);                     // 端末学習＋社内共有を統合
+  const missReq = missingRequiredSpecs(known);
+  if (!force && known.length && !missReq.length) {
+    const specs = mergeKeepManual(known.slice(), shownSpecs);
+    const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
+    const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
     toggle("specAiBox", false);
     renderSpecs(specs, "learned");
-    const cf = dedupFaults(Array.isArray(cached.faults) ? cached.faults : []);
     if (cf.length) { renderFaultList(cf); toggle("secFault", true); }
-    renderRecalls(Array.isArray(cached.recalls) ? cached.recalls : []);
+    renderRecalls(rc);
+    setLearned(lk, { specs, faults: cf, recalls: rc });                   // この端末にも記憶し次回さらに高速化
     showToast("この型式の記憶データを表示しました（AI未使用）");
     return;
   }
@@ -3792,9 +3814,9 @@ async function runSpecAI(srcBtn) {
     // 諸元は正確性最優先: 高精度(pro/思考ON)。
     // ★検索グラウンディング(高額)は「必須項目が不足している時だけ」ON。
     //   既知の値がある部分補完では、既知分を渡して不足項目のみ検索させる。
-    const partial = !force && cachedSpecs.length > 0;                 // 一部だけ判明済み → 不足のみ補完
+    const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
     const needSearch = force ? true : (missReq.length > 0);           // 必須が欠けている時のみ検索
-    const prompt = partial ? buildSpecPrompt(cachedSpecs, missReq) : buildSpecPrompt();
+    const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
     const r = await geminiAsk(prompt, { noCache: force, mode: "pro", search: needSearch });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
@@ -3811,10 +3833,10 @@ async function runSpecAI(srcBtn) {
     // 手動修正済みの項目はAI結果で消さずに保持
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
     // 部分補完で今回faults/recallsを再取得しなかった場合は、既存の記憶を消さず引き継ぐ
-    if (partial && !faults.length && Array.isArray(cached.faults)) faults = cached.faults;
-    if (partial && !recalls.length && Array.isArray(cached.recalls)) recalls = cached.recalls;
-    if (partial && !model && cached.model) model = cached.model;
-    if (partial && !maker && cached.maker) maker = cached.maker;
+    if (partial && !faults.length) faults = dedupFaults([...(cached.faults || []), ...((hit && hit.faults) || [])]);
+    if (partial && !recalls.length) recalls = (cached.recalls && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
+    if (partial && !model) model = cached.model || (hit && hit.name) || "";
+    if (partial && !maker) maker = cached.maker || (hit && hit.maker) || "";
     // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
     setLearned(vehicleKey(current), { specs, faults, recalls, model, maker });
     saveVehicleAiData(specs, faults, recalls, { model, maker });
