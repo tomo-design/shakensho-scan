@@ -3846,20 +3846,8 @@ async function runSpecAI(srcBtn) {
     // 既知(端末学習＋社内DB)とも統合してから、手動修正を尊重
     specs = mergeSpecLists(specs, known);
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
-    // ★(A) 必須項目がまだ欠けていれば、不足分だけ1回だけ追い取得(検索あり)。新型式の初回のみ発生し以後はキャッシュ。
-    const stillMiss = missingRequiredSpecs(specs);
-    if (stillMiss.length) {
-      box.textContent = "🔧 不足している必須項目（" + stillMiss.join("・") + "）を追加で確認中…";
-      try {
-        const r2 = await geminiAsk(buildSpecPrompt(specs, stillMiss), { noCache: true, mode: "pro", search: true, maxTokens: 32768 });
-        const o2 = extractJson(r2.text);
-        if (o2 && Array.isArray(o2.specs)) {
-          const add = o2.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(String(s.k)), v: cleanCite(String(s.v || "")) })).filter(s => s.k && s.v);
-          if (add.length) specs = mergeKeepManual(mergeSpecLists(specs, add), shownSpecs);
-        }
-        if (o2 && Array.isArray(o2.faults) && o2.faults.length && !faults.length) faults = dedupFaults(o2.faults.map(x => cleanCite(String(x))).filter(Boolean));
-      } catch (e) { /* 追い取得の失敗は無視(取れた分で続行) */ }
-    }
+    // ※以前ここで「不足項目の追い取得(Pro+検索を追加でもう1回)」をしていたが、無料枠の1日消費を倍増させ枠切れを
+    //   早めていたため廃止。諸元取得は1回のみに戻す(不足項目は各項目右上の🔄で個別に補完できる)。
     // 部分補完で今回faults/recallsを再取得しなかった場合は、既存の記憶を消さず引き継ぐ
     if (partial && !faults.length) faults = dedupFaults([...(cached.faults || []), ...((hit && hit.faults) || [])]);
     if (partial && !recalls.length) recalls = (cached.recalls && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
