@@ -156,10 +156,10 @@ async function checkPaid(uid) {
 }
 
 /* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
-async function callGeminiModels(key, models, parts, mode, search) {
+async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
   let lastErr = "", quota = false;
   for (const model of models) {
-    const gc = { temperature: 0.2, maxOutputTokens: 16384 };
+    const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
     if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
@@ -242,11 +242,12 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash-lite"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
+  const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
 
   const allowPaid = !!(g.t && g.t.aiPaidFallback === true && paidKey);   // この店舗が有料利用ON かつ 有料キー有り
 
   // ① まず無料キー
-  let out = await callGeminiModels(freeKey, models, parts, mode, data.search);
+  let out = await callGeminiModels(freeKey, models, parts, mode, data.search, maxTokens);
   let tier = "free", freeExhausted = false;
   if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
   if (out.failed && out.quota) {
@@ -255,7 +256,7 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     await markFreeExhausted(g.tid);
     if (allowPaid) {
       // 有料キーで継続(超過分のみ課金)
-      out = await callGeminiModels(paidKey, models, parts, mode, data.search);
+      out = await callGeminiModels(paidKey, models, parts, mode, data.search, maxTokens);
       tier = "paid";
       if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
       if (out.failed) {

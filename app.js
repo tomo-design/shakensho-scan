@@ -1176,6 +1176,7 @@ function registerVehicleToDB(opt = {}) {
     user: user || rec.user || null,
     faults: faults.length ? faults : (rec.faults || []),
     specs: specs.length ? specs : (rec.specs || []),
+    specDone: learned.specDone || rec.specDone || false,   // 一度AI取得済み=他メンバーも再検索しない歯止め
     notes: rec.notes || "",
     updatedAt: Date.now(),   // 同期時に古いクラウドで上書きされないよう更新時刻を記録
   });
@@ -3052,7 +3053,7 @@ async function geminiAsk(prompt, opts) {
   }
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search, maxTokens: opts.maxTokens || 0 });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
@@ -3065,8 +3066,8 @@ async function geminiAsk(prompt, opts) {
     let dropToNext = false;
     for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
       try {
-        // 思考トークンと本文が両方収まるよう上限は大きめに確保
-        const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+        // 思考トークンと本文が両方収まるよう上限は大きめに確保(諸元など長いJSONは opts.maxTokens で拡張)
+        const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
         // 2.5系の思考トークン制御: 標準(flash)は思考OFF=0で高速化、高精度(pro)は-1で自動調整
         if (model.startsWith("gemini-2.5")) {
           genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
@@ -3753,6 +3754,7 @@ function buildSpecPrompt(known, missOnly) {
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト(ドライブシャフト/ハブ)締付トルク ⑥車台番号の打刻位置 ⑦エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
+    "【必須7項目は必ず1行ずつ出す】上記①〜⑦は、その車両に存在する限り必ずspecsに個別の行として含めること。特に②ミッションオイル量・③デフオイル量・⑤リアアクスル/ハブ締付トルクの出し忘れが多い。トラック等の大型車ではこれらは通常存在するので省略しないこと。",
     "ただし、その車両に構造上存在しない項目(例: FF車のデフオイル、CVT車のミッションオイル量など)は無理に出さなくてよい。存在するのに見つからない場合のみ最終手段として（要確認）とする。",
     "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。整備で重要かつ確証のある項目は上記以外も追加してよい。",
     ""
@@ -3794,7 +3796,9 @@ async function runSpecAI(srcBtn) {
   const hitSpecs = (hit && Array.isArray(hit.specs)) ? hit.specs : [];
   const known = mergeSpecLists(cachedSpecs, hitSpecs);                     // 端末学習＋社内共有を統合
   const missReq = missingRequiredSpecs(known);
-  if (!force && known.length && !missReq.length) {
+  // 取得済みフラグ: 一度きちんと取得した型式は、必須が一部埋まらなくても再検索しない(課金の歯止め)。
+  const attemptedBefore = !!(cached.specDone || (hit && hit.specDone));
+  if (!force && known.length && (!missReq.length || attemptedBefore)) {
     const specs = mergeKeepManual(known.slice(), shownSpecs);
     const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
     const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
@@ -3817,7 +3821,8 @@ async function runSpecAI(srcBtn) {
     const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
     const needSearch = force ? true : (missReq.length > 0);           // 必須が欠けている時のみ検索
     const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
-    const r = await geminiAsk(prompt, { noCache: force, mode: "pro", search: needSearch });
+    // maxTokens拡張: 諸元JSONが思考トークンで途中切れ(後半の項目欠落)しないよう出力上限を上げる
+    const r = await geminiAsk(prompt, { noCache: force, mode: "pro", search: needSearch, maxTokens: 32768 });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
@@ -3830,15 +3835,30 @@ async function runSpecAI(srcBtn) {
     // JSONで取れない時はテキストを諸元へフォールバック分解
     if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
-    // 手動修正済みの項目はAI結果で消さずに保持
+    // 既知(端末学習＋社内DB)とも統合してから、手動修正を尊重
+    specs = mergeSpecLists(specs, known);
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
+    // ★(A) 必須項目がまだ欠けていれば、不足分だけ1回だけ追い取得(検索あり)。新型式の初回のみ発生し以後はキャッシュ。
+    const stillMiss = missingRequiredSpecs(specs);
+    if (stillMiss.length) {
+      box.textContent = "🔧 不足している必須項目（" + stillMiss.join("・") + "）を追加で確認中…";
+      try {
+        const r2 = await geminiAsk(buildSpecPrompt(specs, stillMiss), { noCache: true, mode: "pro", search: true, maxTokens: 32768 });
+        const o2 = extractJson(r2.text);
+        if (o2 && Array.isArray(o2.specs)) {
+          const add = o2.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(String(s.k)), v: cleanCite(String(s.v || "")) })).filter(s => s.k && s.v);
+          if (add.length) specs = mergeKeepManual(mergeSpecLists(specs, add), shownSpecs);
+        }
+        if (o2 && Array.isArray(o2.faults) && o2.faults.length && !faults.length) faults = dedupFaults(o2.faults.map(x => cleanCite(String(x))).filter(Boolean));
+      } catch (e) { /* 追い取得の失敗は無視(取れた分で続行) */ }
+    }
     // 部分補完で今回faults/recallsを再取得しなかった場合は、既存の記憶を消さず引き継ぐ
     if (partial && !faults.length) faults = dedupFaults([...(cached.faults || []), ...((hit && hit.faults) || [])]);
     if (partial && !recalls.length) recalls = (cached.recalls && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
     if (partial && !model) model = cached.model || (hit && hit.name) || "";
     if (partial && !maker) maker = cached.maker || (hit && hit.maker) || "";
-    // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要
-    setLearned(vehicleKey(current), { specs, faults, recalls, model, maker });
+    // DB(車両レコード)＋学習キーへ自動保存 → 次回はAI不要。specDone=一度取得済み(以後は再検索しない歯止め)
+    setLearned(vehicleKey(current), { specs, faults, recalls, model, maker, specDone: true });
     saveVehicleAiData(specs, faults, recalls, { model, maker });
     registerVehicleToDB({ silent: true });   // 諸元・故障・車種名・メーカーをDB登録車種へ自動反映
     // 表示: 諸元は表で、定番故障/持病はFAULTセクション、リコールはRECALLセクションへ
