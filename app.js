@@ -3058,7 +3058,7 @@ async function geminiAsk(prompt, opts) {
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
   }
-  let lastErr = null;
+  let lastErr = null, waited429 = false;   // waited429: 429の短時間待ちは全体で1回だけ
   aiAbort = new AbortController();   // クリアで中断できるように
   for (const model of GEMINI_MODELS[mode]) {
     // 過負荷(503/500)は一時的なので、下位(無料)モデルへ落とす前に同じモデルで最大3回リトライ。
@@ -3089,7 +3089,15 @@ async function geminiAsk(prompt, opts) {
           if (attempt < 2) { await new Promise(r => setTimeout(r, 900 * (attempt + 1))); continue; }   // 同じモデルで再試行
           break;   // 3回だめなら次のモデルへ
         }
-        if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); break; } // 下位モデルで再試行
+        if (res.status === 429) {
+          // RPM(1分制限)の一時的429なら、retryDelay(例12s)だけ待って同じモデルで再試行(全体で1回)。日次枯渇や長い待ちは次モデルへ。
+          if (!waited429 && attempt < 2) {
+            let delay = 0;
+            try { const ej = await res.json(); const ri = ((ej.error && ej.error.details) || []).find(d => String(d["@type"] || "").indexOf("RetryInfo") >= 0); if (ri && ri.retryDelay) delay = parseInt(ri.retryDelay, 10) || 0; } catch (e) {}
+            if (delay > 0 && delay <= 20) { waited429 = true; await new Promise(r => setTimeout(r, (delay + 1) * 1000)); continue; }
+          }
+          lastErr = new Error("無料枠の上限に達しました。1分待つ／設定で標準モードにする／日本時間の夕方(米国0時)のリセットを待つ、をお試しください。"); break;
+        }
         if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
         if (!res.ok) throw new Error("AI応答エラー (" + res.status + ")");
         const j = await res.json();

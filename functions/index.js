@@ -157,13 +157,13 @@ async function checkPaid(uid) {
 
 /* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
 async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
-  let lastErr = "", quota = false;
+  let lastErr = "", quota = false, waited429 = false;   // waited429: 429の短時間待ちは全体で1回だけ
   for (const model of models) {
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
     if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
-    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
+    // 過負荷(503/500)は一時的。429の多くは「1分あたり(RPM)」の一時制限なので、retryDelayが短ければ待って再試行。
     let r = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -172,10 +172,16 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
         });
       } catch (e) { lastErr = "network"; r = null; break; }
       if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); continue; }
+      if (r.status === 429 && !waited429) {
+        // RPM(1分制限)なら retryDelay(例:12s) だけ待って同じモデルで再試行。日次枯渇や長い待ちは待たず次へ。
+        let delay = 0;
+        try { const ej = await r.json(); const ri = ((ej.error && ej.error.details) || []).find((d) => String(d["@type"] || "").indexOf("RetryInfo") >= 0); if (ri && ri.retryDelay) delay = parseInt(ri.retryDelay, 10) || 0; } catch (e) {}
+        if (delay > 0 && delay <= 20) { waited429 = true; lastErr = "rpm429/" + delay + "s"; await new Promise((rs) => setTimeout(rs, (delay + 1) * 1000)); continue; }
+      }
       break;
     }
     if (!r) continue;                                  // network例外は次のモデルへ
-    if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }   // 無料枠切れ(要フォールバック)
+    if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }   // 待っても無駄(日次枯渇等)→ 次モデル/フォールバックへ
     if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok) return { httpErr: r.status };
     const j = await r.json();
