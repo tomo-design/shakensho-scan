@@ -41,10 +41,8 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn() && (request.resource.data.active == false || isOwner());
       allow delete: if isSuper();
-      // 更新は super は全項目。admin は自店舗の「AI有料利用フラグ(aiPaidFallback)」だけ変更可。
-      allow update: if isSuper()
-                    || (isAdmin() && tid == myTenant()
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiPaidFallback']));
+      // 更新は運営(super)のみ。有料/無料の切り替え(aiPaidFallback)も運営だけが変更可。
+      allow update: if isSuper();
     }
 
     match /tenants/{tid}/{coll}/{doc} {

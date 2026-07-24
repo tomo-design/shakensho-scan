@@ -687,8 +687,7 @@
           "<div class='aiPaidTtl'>AIの有料利用（無料枠の超過分だけ課金）</div>" +
           "<div class='aiPaidState'>現在: <b class='" + (on ? "on" : "off") + "'>" + (on ? "⚡ ON（超過分は有料で継続）" : "無料のみ（超過で停止）") + "</b></div>" +
           "<div class='aiPaidState'>本日の無料枠: <b>" + (exhausted ? "使い切り" : "残あり") + "</b>" + (paidToday ? " ／ 有料 本日 " + paidToday + " 回" : "") + "</div>" +
-          "<div>" + btn("paidai", "t", profile.tenantId, on ? "OFFにする" : "ONにする", on ? "btn-ghost" : "btn-amber") + "</div>" +
-          "<div class='aiPaidNote'>無料キーを先に使い、使い切った分だけ有料キーで自動継続します。</div>" +
+          "<div class='aiPaidNote'>切り替えは運営（メカノAI運営）のみ変更できます。変更をご希望の場合は運営へご連絡ください。</div>" +
           "</div></div></div>";
         html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId]) + "</div></div>";
       }
