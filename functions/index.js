@@ -254,8 +254,8 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
       }
       await bumpPaidUsage(g.tid);
     } else {
-      // 有料利用OFF → 無料枠切れを通知して停止
-      return res.status(429).json({ error: "本日の無料AI枠を使い切りました。続けるには運営管理で『有料利用（超過分のみ課金）』をONにしてください。", freeExhausted: true });
+      // 有料利用OFF → 枠切れだが、現場には専用メッセージを出さず通常のAIエラーに統一(freeExhaustedは管理用に返す)
+      return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
     }
   } else if (out.failed) {
     return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
