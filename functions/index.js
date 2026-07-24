@@ -211,6 +211,16 @@ async function markFreeExhausted(tid) {
     await admin.firestore().collection("usage").doc(tid).set({ freeExhaustedDay: day, freeExhaustedAt: Date.now() }, { merge: true });
   } catch (e) {}
 }
+/* 無料枠が復活(無料キーで成功)したら「使い切り」フラグを消す。以前の使い切り記録が残っている時だけ書き込む。 */
+async function clearFreeExhausted(tid) {
+  try {
+    const db = admin.firestore();
+    const ref = db.collection("usage").doc(tid);
+    const cur = (await ref.get()).data() || {};
+    if (!cur.freeExhaustedDay) return;   // 元々立っていなければ何もしない(無駄書き込み回避)
+    await ref.set({ freeExhaustedDay: admin.firestore.FieldValue.delete(), freeExhaustedAt: admin.firestore.FieldValue.delete() }, { merge: true });
+  } catch (e) {}
+}
 
 /* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media, search} → {text, truncated, tier, freeExhausted}
    無料キーを先に使い、無料枠を使い切ったら(=429)、その店舗が「有料利用ON(aiPaidFallback)」なら有料キーで継続。 */
@@ -260,6 +270,8 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   } else if (out.failed) {
     return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
   }
+  // 無料キーで通った＝無料枠が復活している → 「使い切り」表示を解除(管理画面のバッジが自動で消える)
+  if (tier === "free") clearFreeExhausted(g.tid);
   return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted });
 });
 
