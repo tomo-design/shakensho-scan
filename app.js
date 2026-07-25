@@ -2877,8 +2877,8 @@ const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
   // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
-  flash: ["gemini-flash-latest", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-3.6-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -3935,8 +3935,8 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
