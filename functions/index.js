@@ -241,8 +241,8 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   const mode = data.mode === "pro" ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   const models = mode === "pro"
-    ? ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash"]
-    : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash-lite"];
+    ? ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"]
+    : ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)

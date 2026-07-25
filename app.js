@@ -2876,8 +2876,9 @@ function renderDiagResults(dtcs, symptoms, vf, text) {
 const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
-  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
-  pro: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+  // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
+  flash: ["gemini-flash-latest", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -3823,14 +3824,16 @@ async function runSpecAI(srcBtn) {
   box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
   setBtnLoading(btn, true, "メカ君が調べ中…");
   try {
-    // 諸元は正確性最優先: 高精度(pro/思考ON)。
-    // ★検索グラウンディング(高額)は「必須項目が不足している時だけ」ON。
-    //   既知の値がある部分補完では、既知分を渡して不足項目のみ検索させる。
+    // ★方針: 初回取得は「無料」(3系Flash・検索なし=AIの知識で回答)。
+    //   「最新に更新」(force)の時だけ「3 Pro＋検索グラウンディング(正確・要課金)」で取り直す。
     const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
-    const needSearch = force ? true : (missReq.length > 0);           // 必須が欠けている時のみ検索
     const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
-    // maxTokens拡張: 諸元JSONが思考トークンで途中切れ(後半の項目欠落)しないよう出力上限を上げる
-    const r = await geminiAsk(prompt, { noCache: force, mode: "pro", search: needSearch, maxTokens: 32768 });
+    const r = await geminiAsk(prompt, {
+      noCache: force,
+      mode: force ? "pro" : "flash",     // 初回=Flash(無料) / 最新に更新=Pro(正確)
+      search: force,                     // 検索グラウンディングは「最新に更新」時のみ(課金機能)
+      maxTokens: 32768                   // 諸元JSONの途中切れ防止
+    });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
@@ -3891,7 +3894,7 @@ async function refreshSpecItem(key, btn) {
       "■対象車両: " + vehicleDesc(),
       "■知りたい項目: " + key
     ].join("\n");
-    const r = await geminiAsk(prompt, { noCache: true, mode: "pro" });   // 項目の再取得は高精度
+    const r = await geminiAsk(prompt, { noCache: true, mode: "pro", search: true });   // 単独更新=3 Pro＋検索で正確に取り直す
     const obj = extractJson(r.text);
     const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
     if (!nv) return;
@@ -3932,8 +3935,8 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
