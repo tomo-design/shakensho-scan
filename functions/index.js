@@ -72,8 +72,10 @@ exports.notifyJoin = functions.firestore
 const REGION = "asia-northeast1";
 // 秘密情報は functions/.env から process.env に読み込まれる(Firebaseが自動ロード)
 const cfg = () => ({
-  gemini: { key: process.env.GEMINI_KEY },              // 無料キー(課金リンクなしのプロジェクト)
-  geminiPaid: { key: process.env.GEMINI_KEY_PAID },     // 有料キー(課金リンクありのプロジェクト。無料枠超過分の受け皿)
+  gemini: { key: process.env.GEMINI_KEY },              // 無料キー(1本目・後方互換)
+  // 無料キーのプール: GEMINI_KEY, GEMINI_KEY_2..5 を順番に使い、枠切れ(429)なら次のキーへ。実質 無料枠×本数。
+  geminiFree: [process.env.GEMINI_KEY, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3, process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5].filter(Boolean),
+  geminiPaid: { key: process.env.GEMINI_KEY_PAID },     // 有料キー(全無料キーが枠切れした時の受け皿。任意)
   vision: { key: process.env.VISION_KEY },
   cse: { key: process.env.CSE_KEY, cx: process.env.CSE_CX },
   stripe: {
@@ -157,13 +159,14 @@ async function checkPaid(uid) {
 
 /* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
 async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
-  let lastErr = "", quota = false, waited429 = false;   // waited429: 429の短時間待ちは全体で1回だけ
+  let lastErr = "", quota = false;
   for (const model of models) {
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
     if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
-    // 過負荷(503/500)は一時的。429の多くは「1分あたり(RPM)」の一時制限なので、retryDelayが短ければ待って再試行。
+    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
+    // 429(枠切れ)は待たずに即failで返す → 呼び出し側が「次の無料キー」へ素早く切り替える。
     let r = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -172,16 +175,10 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
         });
       } catch (e) { lastErr = "network"; r = null; break; }
       if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); continue; }
-      if (r.status === 429 && !waited429) {
-        // RPM(1分制限)なら retryDelay(例:12s) だけ待って同じモデルで再試行。日次枯渇や長い待ちは待たず次へ。
-        let delay = 0;
-        try { const ej = await r.json(); const ri = ((ej.error && ej.error.details) || []).find((d) => String(d["@type"] || "").indexOf("RetryInfo") >= 0); if (ri && ri.retryDelay) delay = parseInt(ri.retryDelay, 10) || 0; } catch (e) {}
-        if (delay > 0 && delay <= 20) { waited429 = true; lastErr = "rpm429/" + delay + "s"; await new Promise((rs) => setTimeout(rs, (delay + 1) * 1000)); continue; }
-      }
       break;
     }
     if (!r) continue;                                  // network例外は次のモデルへ
-    if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }   // 待っても無駄(日次枯渇等)→ 次モデル/フォールバックへ
+    if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }   // 枠切れ → 次モデル/次キーへ
     if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok) return { httpErr: r.status };
     const j = await r.json();
@@ -235,9 +232,9 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   if (req.method === "OPTIONS") return res.status(204).send("");
   const g = await checkPaid(await uidFromReq(req));
   if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
-  const freeKey = cfg().gemini && cfg().gemini.key;
+  const freeKeys = cfg().geminiFree || [];               // 無料キーのプール(GEMINI_KEY, _2.._5)
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
-  if (!freeKey) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
+  if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);   // 店舗ごとの回数上限(赤字防止の最終弁)
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
@@ -252,12 +249,21 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
 
   const allowPaid = !!(g.t && g.t.aiPaidFallback === true && paidKey);   // この店舗が有料利用ON かつ 有料キー有り
 
-  // ① まず無料キー
-  let out = await callGeminiModels(freeKey, models, parts, mode, data.search, maxTokens);
+  // ① 無料キーを順番に試す(1本が枠切れ=429なら次のキーへ)。実質 無料枠×本数。
+  //    ランダムな開始位置で負荷を分散(いつも1本目に集中しない)。
+  let out = { failed: true, quota: true };
+  const start = Math.floor(Math.random() * freeKeys.length);
+  for (let i = 0; i < freeKeys.length; i++) {
+    const key = freeKeys[(start + i) % freeKeys.length];
+    out = await callGeminiModels(key, models, parts, mode, data.search, maxTokens);
+    if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+    if (!out.failed) break;          // どれかで成功
+    if (!out.quota) break;           // 枠切れ以外の失敗はキーを替えても直らない → 中断
+    // 枠切れ(429) → 次の無料キーへ
+  }
   let tier = "free", freeExhausted = false;
-  if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
   if (out.failed && out.quota) {
-    // ② 無料枠を使い切った
+    // ② 全ての無料キーが枠切れ
     freeExhausted = true;
     await markFreeExhausted(g.tid);
     if (allowPaid) {
@@ -277,7 +283,7 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   } else if (out.failed) {
     return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
   }
-  // 無料キーで通った＝無料枠が復活している → 「使い切り」表示を解除(管理画面のバッジが自動で消える)
+  // 無料キーで通った＝無料枠に余裕あり → 「使い切り」表示を解除(管理画面のバッジが自動で消える)
   if (tier === "free") clearFreeExhausted(g.tid);
   return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted });
 });
