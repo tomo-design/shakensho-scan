@@ -549,6 +549,8 @@
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
     // AIプロキシが使えるか(契約中の店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
     aiReady() { return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
+    // この店舗が「有料利用ON(運営管理のトグル)」か。真ならPro＋検索の正確モードを使う。
+    aiPaidOn() { return !!(tenantDoc && tenantDoc.aiPaidFallback === true); },
     // Functions呼び出し(mecha/visionOcr/createCheckout)を通常HTTP+IDトークンで実行(callableは使わない)。
     async callFn(name, payload) {
       if (!me) throw new Error("ログインが必要です。");

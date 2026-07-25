@@ -1349,13 +1349,11 @@ $("btnVehClear").addEventListener("click", () => {
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
   clearVehAttachments();
 });
-let lastVehQ = "";   // 直近の修理質問(精査ボタンで再問い合わせに使う)
-$("btnVehAsk").addEventListener("click", () => runVehAsk(false));
-/* accurate=false: 初回は無料(最新Flash・検索なし)。accurate=true: Pro＋検索で精査。
-   presetQ 指定時はテキスト欄でなくその質問を使う(精査ボタン用)。 */
-async function runVehAsk(accurate, presetQ) {
+$("btnVehAsk").addEventListener("click", () => runVehAsk());
+/* 精度は運営管理のトグルで切替: 有料ON(Cloud.aiPaidOn)=Pro＋検索(正確)、OFF=無料Flash(検索なし)。 */
+async function runVehAsk() {
   stopFieldMic();
-  const q = (presetQ != null ? presetQ : $("qVehText").value).trim();
+  const q = $("qVehText").value.trim();
   if (!q && !vehAttachments.length) { $("qVehText").focus(); return; }
   if (!aiOK()) {
     alert("質問するには設定タブで無料のGemini APIキーを設定してください。");
@@ -1367,26 +1365,18 @@ async function runVehAsk(accurate, presetQ) {
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
     const qFull = q || "添付した写真の部位について教えてください。";
-    lastVehQ = qFull;
+    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
     let r;
     if (vehAttachments.length) {   // 写真添付あり: 画像も一緒にメカ君へ送る(検索なし)
       const media = [];
       for (const a of vehAttachments) media.push({ mimeType: cleanMime(a.file.type, "image/jpeg"), data: await fileToBase64(a.file) });
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
-      // 初回=無料Flash(検索なし)。精査(accurate)時のみPro＋Google検索でトルク・工具サイズ等を裏取り。
       r = await geminiAsk(buildRepairPrompt(qFull), { mode: accurate ? "pro" : "flash", search: accurate });
     }
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, qFull);
     else renderAiAnswer(box, (obj && obj.answer) ? obj.answer : r.text);
-    // 無料回答(初回・写真なし)の時だけ、検索で精査するボタンを最小限で添える
-    if (!accurate && !vehAttachments.length) {
-      const rf = document.createElement("button");
-      rf.type = "button"; rf.className = "btn btn-ghost btn-sm repairRefine"; rf.textContent = "🔍 検索で精査";
-      rf.addEventListener("click", () => runVehAsk(true, lastVehQ));
-      box.appendChild(rf);
-    }
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {

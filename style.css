@@ -566,7 +566,6 @@ ol.ai-list li.hasTools>div{cursor:pointer}
 .aiPaidState b.on{color:var(--alert)}
 .aiPaidState b.off{color:var(--ok)}
 .aiPaidNote{font-size:11.5px;color:var(--dim);line-height:1.6}
-.repairRefine{display:block;margin:12px 0 2px auto;font-size:12px}
 .mRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mRow:first-of-type{border-top:0}
 .mInfo{flex:1 1 100%;min-width:0;font-size:13px;line-height:1.5}
