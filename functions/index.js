@@ -206,6 +206,14 @@ async function bumpPaidUsage(tid) {
     });
   } catch (e) {}
 }
+/* 今月の有料(Pro＋検索)実行回数を返す。赤字防止の月次上限判定に使う。 */
+async function paidCountThisMonth(tid) {
+  try {
+    const u = (await admin.firestore().collection("usage").doc(tid).get()).data() || {};
+    const month = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
+    return (u.pMonth === month) ? (u.mPaid || 0) : 0;
+  } catch (e) { return 0; }
+}
 /* 無料枠を使い切った事実を記録(管理画面で目視できるように) */
 async function markFreeExhausted(tid) {
   try {
@@ -266,7 +274,14 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     // ② 全ての無料キーが枠切れ
     freeExhausted = true;
     await markFreeExhausted(g.tid);
-    if (allowPaid) {
+    if (allowPaid && (await paidCountThisMonth(g.tid)) >= (+(process.env.LIMIT_MONTH_PAID || 300))) {
+      // ★赤字防止: 今月の有料回数が上限に達した店舗は、有料キーを使わず「検索なしFlash(無料)」に自動ダウングレード。
+      //   エラーにせず動き続ける(精度は落ちるが課金は止まる)。上限は .env の LIMIT_MONTH_PAID で調整。
+      const flashModels = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
+      out = await callGeminiModels(freeKeys[start % freeKeys.length], flashModels, parts, "flash", false, maxTokens);
+      tier = "free";
+      if (out.failed) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
+    } else if (allowPaid) {
       // 有料キーで継続(超過分のみ課金)
       out = await callGeminiModels(paidKey, models, parts, mode, data.search, maxTokens);
       tier = "paid";
