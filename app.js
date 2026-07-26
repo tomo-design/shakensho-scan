@@ -3826,14 +3826,15 @@ async function runSpecAI(srcBtn) {
   box.textContent = "🔧 メカ君が諸元・定番故障を調べています…(数秒〜十数秒)";
   setBtnLoading(btn, true, "メカ君が調べ中…");
   try {
-    // ★方針: 初回取得は「無料」(3系Flash・検索なし=AIの知識で回答)。
-    //   「最新に更新」(force)の時だけ「3 Pro＋検索グラウンディング(正確・要課金)」で取り直す。
+    // ★方針: 精度は運営管理のトグルで切替。
+    //   無料のみ(OFF)=初回も更新もFlash(検索なし・無料)。有料ON=Pro＋検索(正確)。
+    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
     const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
     const r = await geminiAsk(prompt, {
       noCache: force,
-      mode: force ? "pro" : "flash",     // 初回=Flash(無料) / 最新に更新=Pro(正確)
-      search: force,                     // 検索グラウンディングは「最新に更新」時のみ(課金機能)
+      mode: accurate ? "pro" : "flash",  // 有料ON=Pro / 無料のみ=Flash
+      search: accurate,                  // 検索グラウンディングは有料ON店舗のみ(課金機能)
       maxTokens: 32768                   // 諸元JSONの途中切れ防止
     });
     const obj = extractJson(r.text);
@@ -3896,7 +3897,8 @@ async function refreshSpecItem(key, btn) {
       "■対象車両: " + vehicleDesc(),
       "■知りたい項目: " + key
     ].join("\n");
-    const r = await geminiAsk(prompt, { noCache: true, mode: "pro", search: true });   // 単独更新=3 Pro＋検索で正確に取り直す
+    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
+    const r = await geminiAsk(prompt, { noCache: true, mode: accurate ? "pro" : "flash", search: accurate });   // 単独更新も運営管理のトグルに従う
     const obj = extractJson(r.text);
     const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
     if (!nv) return;
