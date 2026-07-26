@@ -102,8 +102,9 @@ async function uidFromReq(req) {
 }
 // テナント(店舗)ごとの利用上限。.envで上書き可(未設定はこの既定値)。赤字防止の安全弁。
 const usageLimits = () => ({
-  dayMecha: +(process.env.LIMIT_DAY_MECHA || 400),
-  monthMecha: +(process.env.LIMIT_MONTH_MECHA || 6000),
+  // 契約店舗は実質無制限。以下はバグ暴走(無限ループ等)だけを止める高めの安全弁。.envで調整可。
+  dayMecha: +(process.env.LIMIT_DAY_MECHA || 3000),
+  monthMecha: +(process.env.LIMIT_MONTH_MECHA || 50000),
   dayVision: +(process.env.LIMIT_DAY_VISION || 400),
   monthVision: +(process.env.LIMIT_MONTH_VISION || 6000),
   dayImage: +(process.env.LIMIT_DAY_IMAGE || 100),
@@ -274,9 +275,9 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
     // ② 全ての無料キーが枠切れ
     freeExhausted = true;
     await markFreeExhausted(g.tid);
-    if (allowPaid && (await paidCountThisMonth(g.tid)) >= (+(process.env.LIMIT_MONTH_PAID || 300))) {
-      // ★赤字防止: 今月の有料回数が上限に達した店舗は、有料キーを使わず「検索なしFlash(無料)」に自動ダウングレード。
-      //   エラーにせず動き続ける(精度は落ちるが課金は止まる)。上限は .env の LIMIT_MONTH_PAID で調整。
+    const limitPaid = +(process.env.LIMIT_MONTH_PAID || 0);   // 0=無制限(既定)。契約店舗は頭打ちなし・フル精度。
+    if (allowPaid && limitPaid > 0 && (await paidCountThisMonth(g.tid)) >= limitPaid) {
+      // (任意の安全弁を設定した場合のみ) 上限超過でFlash(無料)へダウングレード。既定では無効。
       const flashModels = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
       out = await callGeminiModels(freeKeys[start % freeKeys.length], flashModels, parts, "flash", false, maxTokens);
       tier = "free";
