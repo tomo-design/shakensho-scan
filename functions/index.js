@@ -169,16 +169,16 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
     }
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
-    // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
+    // 過負荷(503/500)は一時的。1回だけ短く待って再試行(=タイムアウト防止のため試行回数を絞る)。
     // 429(枠切れ)は待たずに即failで返す → 呼び出し側が「次の無料キー」へ素早く切り替える。
     let r = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
         });
       } catch (e) { lastErr = "network"; r = null; break; }
-      if ((r.status === 503 || r.status === 500) && attempt < 2) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 900 * (attempt + 1))); continue; }
+      if ((r.status === 503 || r.status === 500) && attempt < 1) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 400)); continue; }
       break;
     }
     if (!r) continue;                                  // network例外は次のモデルへ
@@ -252,9 +252,10 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const data = req.body || {};
   const mode = data.mode === "pro" ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
+  // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   const models = mode === "pro"
-    ? ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"]
-    : ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
+    ? ["gemini-pro-latest", "gemini-flash-latest"]
+    : ["gemini-flash-latest", "gemini-3.6-flash"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
@@ -267,8 +268,10 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   let out = { failed: true, quota: true };
   const skipFree = !!(data.search && allowPaid);
   const start = Math.floor(Math.random() * freeKeys.length);
+  // 無料試行するキー本数: 検索は無料で通らないので1本で見切り、通常flashは最大2本(枠分散)。過剰試行=タイムアウト防止。
+  const maxFreeTries = data.search ? 1 : Math.min(2, freeKeys.length);
   if (!skipFree) {
-    for (let i = 0; i < freeKeys.length; i++) {
+    for (let i = 0; i < maxFreeTries; i++) {
       const key = freeKeys[(start + i) % freeKeys.length];
       out = await callGeminiModels(key, models, parts, mode, data.search, maxTokens);
       if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });

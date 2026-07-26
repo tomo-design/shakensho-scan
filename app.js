@@ -3834,9 +3834,9 @@ async function runSpecAI(srcBtn) {
     // 諸元は「事実の取得」→ 思考の重いProは使わず、検索付きFlashで安く正確に(精度は検索結果で担保)。
     const r = await geminiAsk(prompt, {
       noCache: force,
-      mode: "flash",                     // 事実取得は常にFlash(思考トークンを使わない=低コスト)
+      mode: "flash",                     // 事実取得は常にFlash(低コスト・高速)
       search: accurate,                  // 検索グラウンディングは有料ON店舗のみ(課金機能)
-      maxTokens: 32768                   // 諸元JSONの途中切れ防止
+      maxTokens: 8192                    // 諸元JSONは小さい。出力上限を絞り生成を速く
     });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
