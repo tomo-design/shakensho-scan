@@ -236,7 +236,7 @@ async function clearFreeExhausted(tid) {
 
 /* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media, search} → {text, truncated, tier, freeExhausted}
    無料キーを先に使い、無料枠を使い切ったら(=429)、その店舗が「有料利用ON(aiPaidFallback)」なら有料キーで継続。 */
-exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
+exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   const g = await checkPaid(await uidFromReq(req));
@@ -259,22 +259,26 @@ exports.mecha = functions.region(REGION).https.onRequest(async (req, res) => {
   const allowPaid = !!(g.t && g.t.aiPaidFallback === true && paidKey);   // この店舗が有料利用ON かつ 有料キー有り
 
   // ① 無料キーを順番に試す(1本が枠切れ=429なら次のキーへ)。実質 無料枠×本数。
-  //    ランダムな開始位置で負荷を分散(いつも1本目に集中しない)。
+  //    ★検索(グラウンディング)は無料枠では絶対に通らない。有料ONなら無料試行を丸ごと飛ばして直接有料へ
+  //      (無料5本×モデルの429待ちで60秒タイムアウト→「Failed to fetch」になるのを防ぐ)。
   let out = { failed: true, quota: true };
+  const skipFree = !!(data.search && allowPaid);
   const start = Math.floor(Math.random() * freeKeys.length);
-  for (let i = 0; i < freeKeys.length; i++) {
-    const key = freeKeys[(start + i) % freeKeys.length];
-    out = await callGeminiModels(key, models, parts, mode, data.search, maxTokens);
-    if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
-    if (!out.failed) break;          // どれかで成功
-    if (!out.quota) break;           // 枠切れ以外の失敗はキーを替えても直らない → 中断
-    // 枠切れ(429) → 次の無料キーへ
+  if (!skipFree) {
+    for (let i = 0; i < freeKeys.length; i++) {
+      const key = freeKeys[(start + i) % freeKeys.length];
+      out = await callGeminiModels(key, models, parts, mode, data.search, maxTokens);
+      if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+      if (!out.failed) break;          // どれかで成功
+      if (!out.quota) break;           // 枠切れ以外の失敗はキーを替えても直らない → 中断
+      if (data.search) break;          // 検索は無料で通らない → 1本だけ試して見切る(時間短縮)
+      // 枠切れ(429) → 次の無料キーへ
+    }
   }
   let tier = "free", freeExhausted = false;
   if (out.failed && out.quota) {
-    // ② 全ての無料キーが枠切れ
-    freeExhausted = true;
-    await markFreeExhausted(g.tid);
+    // ② 無料が使えない(枠切れ or 検索スキップ)
+    if (!skipFree) { freeExhausted = true; await markFreeExhausted(g.tid); }
     const limitPaid = +(process.env.LIMIT_MONTH_PAID || 0);   // 0=無制限(既定)。契約店舗は頭打ちなし・フル精度。
     if (allowPaid && limitPaid > 0 && (await paidCountThisMonth(g.tid)) >= limitPaid) {
       // (任意の安全弁を設定した場合のみ) 上限超過でFlash(無料)へダウングレード。既定では無効。
