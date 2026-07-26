@@ -3071,8 +3071,8 @@ async function geminiAsk(prompt, opts) {
       try {
         // 思考トークンと本文が両方収まるよう上限は大きめに確保(諸元など長いJSONは opts.maxTokens で拡張)
         const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
-        // 思考トークン制御(2.5系＋現行3系＋-latest別名): flash=思考OFF(0)で高速化、pro=-1で自動調整。2.0系は非対応。
-        if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
+        // 思考トークン制御は2.5系のみ(3系は thinkingBudget:0 を拒否=400 になるためデフォルトに任せる)。
+        if (model.startsWith("gemini-2.5")) {
           genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
         }
         const res = await fetch(
