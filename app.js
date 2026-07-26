@@ -1372,7 +1372,7 @@ async function runVehAsk() {
       for (const a of vehAttachments) media.push({ mimeType: cleanMime(a.file.type, "image/jpeg"), data: await fileToBase64(a.file) });
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
-      r = await geminiAsk(buildRepairPrompt(qFull), { mode: accurate ? "pro" : "flash", search: accurate });
+      r = await geminiAsk(buildRepairPrompt(qFull), { mode: "flash", search: accurate });   // 修理も事実取得: Flash+検索(思考不要で低コスト・精度は検索で担保)
     }
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, qFull);
@@ -3831,9 +3831,10 @@ async function runSpecAI(srcBtn) {
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
     const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
+    // 諸元は「事実の取得」→ 思考の重いProは使わず、検索付きFlashで安く正確に(精度は検索結果で担保)。
     const r = await geminiAsk(prompt, {
       noCache: force,
-      mode: accurate ? "pro" : "flash",  // 有料ON=Pro / 無料のみ=Flash
+      mode: "flash",                     // 事実取得は常にFlash(思考トークンを使わない=低コスト)
       search: accurate,                  // 検索グラウンディングは有料ON店舗のみ(課金機能)
       maxTokens: 32768                   // 諸元JSONの途中切れ防止
     });
@@ -3897,8 +3898,8 @@ async function refreshSpecItem(key, btn) {
       "■対象車両: " + vehicleDesc(),
       "■知りたい項目: " + key
     ].join("\n");
-    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
-    const r = await geminiAsk(prompt, { noCache: true, mode: accurate ? "pro" : "flash", search: accurate });   // 単独更新も運営管理のトグルに従う
+    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみ検索
+    const r = await geminiAsk(prompt, { noCache: true, mode: "flash", search: accurate });   // 事実取得はFlash+検索(思考不要で低コスト)
     const obj = extractJson(r.text);
     const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
     if (!nv) return;
