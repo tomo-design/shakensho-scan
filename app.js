@@ -3265,12 +3265,46 @@ function attachInspectManual(itemDiv, cause) {
       const kirikake = (li && li.dataset && li.dataset.kirikake) || "";
       const r = await geminiAsk(buildInspectManualPrompt(cause, kirikake), { mode: "pro" });
       pane.innerHTML = "";
-      renderAiAnswer(pane, cleanCite(r.text));   // 番号付き手順として整形表示
+      renderInspectManual(pane, cleanCite(r.text));   // 見出しタップで開閉するアコーディオン形式
       loaded = true;
     } catch (e) {
       pane.innerHTML = '<div class="hint">⚠ ' + esc(e.message === "__cancelled__" ? "中断しました" : (e.message || "作成できませんでした")) + '</div>';
     } finally { loading = false; }
   });
+}
+
+/* 点検手引書を「見出しタップで開閉するアコーディオン」で描画。
+   ■/【】見出しごとに区切り、見出しをタップすると内容が開き、他の見出しを開くと前は閉じる(1つだけ開く)。 */
+function renderInspectManual(container, text) {
+  container.innerHTML = "";
+  const clean = String(text || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
+  const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean);
+  // 見出し(■/【】)ごとにセクション分割
+  const sections = [];
+  let cur = null;
+  for (const line of lines) {
+    const h = line.match(/^[■【]\s*(.+?)[】]?$/);
+    if (h) { cur = { title: h[1], body: [] }; sections.push(cur); }
+    else { if (!cur) { cur = { title: "点検手引書", body: [] }; sections.push(cur); } cur.body.push(line); }
+  }
+  sections.forEach((sec, idx) => {
+    const item = document.createElement("div"); item.className = "imSection";
+    const head = document.createElement("button"); head.type = "button"; head.className = "imHead";
+    head.innerHTML = '<span class="imChevron">▸</span><span class="imTitle"></span>';
+    head.querySelector(".imTitle").textContent = sec.title;
+    const body = document.createElement("div"); body.className = "imBody hidden";
+    renderAiAnswer(body, sec.body.join("\n"));   // 内容は既存の整形(番号手順・チェック・注意)を再利用
+    head.addEventListener("click", () => {
+      const willOpen = body.classList.contains("hidden");
+      container.querySelectorAll(".imBody").forEach(b => b.classList.add("hidden"));
+      container.querySelectorAll(".imHead").forEach(h => h.classList.remove("open"));
+      if (willOpen) { body.classList.remove("hidden"); head.classList.add("open"); }
+    });
+    item.append(head, body); container.appendChild(item);
+  });
+  // 先頭セクションだけ最初から開いておく
+  const fh = container.querySelector(".imHead"); const fb = container.querySelector(".imBody");
+  if (fh && fb) { fh.classList.add("open"); fb.classList.remove("hidden"); }
 }
 
 /* AI回答テキストを構造化して見やすく描画 */

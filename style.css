@@ -623,6 +623,21 @@ details[open] > .secSummary::after{content:"▴"}
 .manualPane .ai-cause{font-size:14px;line-height:1.9;color:var(--txt);font-weight:600}
 .manualPane .ai-p{font-size:14px;line-height:1.9;color:var(--txt);margin-top:8px}
 .manualPane .hint{font-size:13px;color:var(--dim);line-height:1.8}
+/* 点検手引書アコーディオン(診断とUIを差別化: 温かみのある枠＋開閉見出し) */
+.imSection{border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden;background:var(--panel)}
+.imSection:first-child{margin-top:2px}
+.imHead{width:100%;display:flex;align-items:center;gap:8px;text-align:left;cursor:pointer;
+  background:var(--panel2);border:0;border-left:4px solid var(--cyan);
+  padding:11px 12px;font-size:13.5px;font-weight:800;color:var(--txt);letter-spacing:.02em}
+.imHead:active{opacity:.75}
+.imHead.open{background:var(--cyan);color:#fff;border-left-color:var(--cyan)}
+.imChevron{flex:none;font-size:12px;transition:transform .15s;color:var(--cyan)}
+.imHead.open .imChevron{transform:rotate(90deg);color:#fff}
+.imTitle{flex:1}
+.imBody{padding:10px 12px 12px}
+.imBody.hidden{display:none}
+/* 手引書の中では帯見出し(ai-h)は使わないので控えめに */
+.manualPane .imBody .ai-h{background:var(--panel2);color:var(--cyan);margin:8px 0 6px;padding:6px 10px;border-radius:6px;font-size:12.5px}
 .ai-cause.clk,.flat li.clk{cursor:pointer}
 .ai-cause.clk:active,.flat li.clk:active{opacity:.6}
 .flat li.clk{color:var(--cyan);text-decoration:underline dotted}
