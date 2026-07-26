@@ -163,8 +163,10 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
   let lastErr = "", quota = false;
   for (const model of models) {
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
-    // 思考トークン制御は2.5系のみ(3系は thinkingBudget:0 を拒否=400 になるためデフォルトに任せる)。
-    if (model.indexOf("gemini-2.5") === 0) gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 0 };
+    // 思考トークン制御(2.5系・3系・-latest)。flash=最小128で高速化(3系は0が400になるため最小値128)、pro=-1(動的)。2.0系は非対応。
+    if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
+      gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 128 };
+    }
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
     // 過負荷(503/500)は一時的なので、下位モデルへ落とす前に同じモデルで最大3回リトライ。
