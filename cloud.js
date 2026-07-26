@@ -39,7 +39,7 @@
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
   let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
-  let unsubVeh = null, unsubRec = null, unsubJoin = null;
+  let unsubVeh = null, unsubRec = null, unsubJoin = null, unsubTenant = null;
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
   let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
   let planBlocked = false;     // 店舗が未払い/停止なら true
@@ -319,6 +319,11 @@
     deviceBlocked = false; planBlocked = false; tenantDoc = null;
     if (profile && profile.tenantId) {
       try { tenantDoc = (await db.collection("tenants").doc(profile.tenantId).get()).data() || null; } catch (e) { tenantDoc = null; }
+      // 店舗情報(プラン/有料ONフラグ等)をリアルタイム購読 → 運営がトグルを変えたら端末に即反映(古い状態で検索を送るのを防ぐ)
+      if (unsubTenant) { unsubTenant(); unsubTenant = null; }
+      try {
+        unsubTenant = db.collection("tenants").doc(profile.tenantId).onSnapshot(s => { tenantDoc = s.data() || tenantDoc; });
+      } catch (e) {}
     }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) {
@@ -476,7 +481,7 @@
       } catch (e) {}
     }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
   }
-  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } }
+  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } }
 
   /* ---------- プッシュ通知(FCM): 管理者はワンタップ許可のみ。設定作業は不要 ----------
      ↓ 運営(あなた)が一度だけ Firebase Console → Cloud Messaging → ウェブプッシュ証明書 で
