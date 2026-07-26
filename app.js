@@ -3284,9 +3284,7 @@ function attachInspectManual(itemDiv, cause) {
 function renderInspectManual(container, text) {
   container.innerHTML = "";
   const clean = String(text || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "")
-    .replace(/([^\n])[ 　]*([②-⑳])/g, "$1\n$2")            // 1行に詰まった②③…を強制改行
-    .replace(/([^\n])[ 　]*(■)/g, "$1\n$2")                // 詰まった見出し■を改行
-    .replace(/([^\n])[ 　]*(\d+[.)]\s)/g, "$1\n$2");       // 詰まった番号手順を改行
+    .replace(/([^\n])[ 　]*(■)/g, "$1\n$2");   // 詰まった見出し■だけ改行(保険)
   const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean);
   // 見出し(■/【】)ごとにセクション分割
   const sections = [];
@@ -3296,18 +3294,34 @@ function renderInspectManual(container, text) {
     if (h) { cur = { title: h[1], body: [] }; sections.push(cur); }
     else { if (!cur) { cur = { title: "点検手引書", body: [] }; sections.push(cur); } cur.body.push(line); }
   }
-  sections.forEach((sec, idx) => {
+  sections.forEach((sec) => {
     const item = document.createElement("div"); item.className = "imSection";
     const head = document.createElement("button"); head.type = "button"; head.className = "imHead";
     head.innerHTML = '<span class="imChevron">▸</span><span class="imTitle"></span>';
     head.querySelector(".imTitle").textContent = sec.title;
     const body = document.createElement("div"); body.className = "imBody hidden";
-    renderAiAnswer(body, sec.body.join("\n"));   // 内容は既存の整形(番号手順・チェック・注意)を再利用
+    const numbered = /手順|手引|検査|作業/.test(sec.title);   // 点検手順は連番、その他は・で表示
+    let n = 0;
+    sec.body.forEach((raw) => {
+      let t = raw.trim();
+      if (/^\d+[.)]?$/.test(t)) return;                       // 番号だけの行(ゴミ)は捨てる
+      t = t.replace(/^(?:\d{1,2}[.)、:：]|[①-⑳]|[・\-*])\s*/, "").trim();   // 先頭の番号/記号を除去
+      if (!t) return;
+      const row = document.createElement("div"); row.className = "imRow";
+      const mk = document.createElement("span"); mk.className = "imMk";
+      if (numbered) { n++; mk.textContent = n; mk.classList.add("num"); } else { mk.textContent = "・"; }
+      const tx = document.createElement("span"); tx.className = "imTx"; tx.textContent = t;
+      row.append(mk, tx); body.appendChild(row);
+    });
     head.addEventListener("click", () => {
       const willOpen = body.classList.contains("hidden");
       container.querySelectorAll(".imBody").forEach(b => b.classList.add("hidden"));
       container.querySelectorAll(".imHead").forEach(h => h.classList.remove("open"));
-      if (willOpen) { body.classList.remove("hidden"); head.classList.add("open"); }
+      if (willOpen) {
+        body.classList.remove("hidden"); head.classList.add("open");
+        // 高さ変化でスクロールがズレて飛ぶのを防ぐ: 押した見出しを見える位置へ
+        setTimeout(() => head.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+      }
     });
     item.append(head, body); container.appendChild(item);
   });

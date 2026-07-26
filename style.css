@@ -636,8 +636,12 @@ details[open] > .secSummary::after{content:"▴"}
 .imTitle{flex:1}
 .imBody{padding:10px 12px 12px}
 .imBody.hidden{display:none}
-/* 手引書の中では帯見出し(ai-h)は使わないので控えめに */
-.manualPane .imBody .ai-h{background:var(--panel2);color:var(--cyan);margin:8px 0 6px;padding:6px 10px;border-radius:6px;font-size:12.5px}
+/* 手引書の1行1項目(番号/・＋本文)。スマホで読みやすい行間・区切り */
+.imRow{display:flex;gap:9px;align-items:flex-start;padding:9px 2px;border-top:1px solid var(--line)}
+.imRow:first-child{border-top:0}
+.imMk{flex:none;color:var(--dim);font-weight:700;font-size:13px;line-height:1.7;min-width:14px;text-align:center}
+.imMk.num{background:var(--cyan);color:#fff;border-radius:50%;width:20px;height:20px;line-height:20px;font-size:12px;min-width:20px}
+.imTx{flex:1;min-width:0;font-size:14px;line-height:1.85;color:var(--txt)}
 .ai-cause.clk,.flat li.clk{cursor:pointer}
 .ai-cause.clk:active,.flat li.clk:active{opacity:.6}
 .flat li.clk{color:var(--cyan);text-decoration:underline dotted}
