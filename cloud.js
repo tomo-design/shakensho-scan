@@ -816,8 +816,9 @@
         if (ans === "") return;
         const months = parseInt(ans, 10);
         if (isNaN(months) || months < 0) { alert("数字を入力してください。"); return; }
-        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止にしました。"); }
-        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
+        // planManual=true: 運営の手動設定を優先し、Stripe webhookで勝手に短縮・停止されないようにする。
+        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended", planManual: true }, { merge: true }); alert("停止にしました。"); }
+        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until, planManual: true }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
       } else if (act === "devplus") {
         const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
         const nl = (Number(u.deviceLimit) || 2) + 1;

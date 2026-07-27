@@ -2881,8 +2881,8 @@ const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
   // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
-  flash: ["gemini-flash-latest", "gemini-3.6-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -3073,9 +3073,9 @@ async function geminiAsk(prompt, opts) {
       try {
         // 思考トークンと本文が両方収まるよう上限は大きめに確保(諸元など長いJSONは opts.maxTokens で拡張)
         const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
-        // 思考トークン制御(2.5系・3系・-latest)。flash=最小128で高速化(3系は0が400)、pro=-1で自動調整。2.0系は非対応。
+        // 思考トークン制御(2.5系・3系・-latest)。flash=512(3系は0が400・128だと空応答になり得る)、pro=-1で自動調整。2.0系は非対応。
         if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
-          genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 128 };
+          genCfg.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 512 };
         }
         const res = await fetch(
           "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
@@ -3901,7 +3901,7 @@ async function runSpecAI(srcBtn) {
       noCache: force,
       mode: "flash",                     // 事実取得は常にFlash(低コスト・高速)
       search: accurate,                  // 検索グラウンディングは有料ON店舗のみ(課金機能)
-      maxTokens: 8192                    // 諸元JSONは小さい。出力上限を絞り生成を速く
+      maxTokens: 12288                   // 諸元JSON＋検索引用で途中切れ/空応答にならない余裕を確保
     });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
@@ -4030,8 +4030,8 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);

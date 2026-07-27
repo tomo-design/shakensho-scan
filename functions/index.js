@@ -163,9 +163,9 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens) {
   let lastErr = "", quota = false;
   for (const model of models) {
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
-    // 思考トークン制御(2.5系・3系・-latest)。flash=最小128で高速化(3系は0が400になるため最小値128)、pro=-1(動的)。2.0系は非対応。
+    // 思考トークン制御(2.5系・3系・-latest)。flash=512(3系は0が400・128だと空応答になり得るため余裕を持たせる)、pro=-1(動的)。2.0系は非対応。
     if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
-      gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 128 };
+      gc.thinkingConfig = { thinkingBudget: mode === "pro" ? -1 : 512 };
     }
     const reqBody = { contents: [{ parts }], generationConfig: gc };
     if (search) reqBody.tools = [{ google_search: {} }];   // 検索グラウンディング(指定時のみ)
@@ -255,7 +255,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   const models = mode === "pro"
     ? ["gemini-pro-latest", "gemini-flash-latest"]
-    : ["gemini-flash-latest", "gemini-3.6-flash"];
+    : ["gemini-flash-latest", "gemini-2.5-flash"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
@@ -288,7 +288,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     const limitPaid = +(process.env.LIMIT_MONTH_PAID || 0);   // 0=無制限(既定)。契約店舗は頭打ちなし・フル精度。
     if (allowPaid && limitPaid > 0 && (await paidCountThisMonth(g.tid)) >= limitPaid) {
       // (任意の安全弁を設定した場合のみ) 上限超過でFlash(無料)へダウングレード。既定では無効。
-      const flashModels = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
+      const flashModels = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
       out = await callGeminiModels(freeKeys[start % freeKeys.length], flashModels, parts, "flash", false, maxTokens);
       tier = "free";
       if (out.failed) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
@@ -498,7 +498,19 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
   const db = admin.firestore();
   const setPlan = async (tid, active, untilMs) => {
     if (!tid) return;
-    await db.collection("tenants").doc(tid).set({ plan: active ? "active" : "suspended", paidUntil: untilMs || null }, { merge: true });
+    const ref = db.collection("tenants").doc(tid);
+    const cur = (await ref.get()).data() || {};
+    // 運営が手動で設定した契約(planManual)は、Stripeイベントで勝手に短縮・停止しない。
+    if (cur.planManual === true) return;
+    if (active) {
+      // paidUntilは「延長のみ」。既存期限とStripe期限の“遅い方”を採用し、更新イベントで
+      // 期間が短く上書きされて勝手に期限切れになるのを防ぐ。
+      const existing = Number(cur.paidUntil) || 0;
+      const next = Math.max(Number(untilMs) || 0, existing);
+      await ref.set({ plan: "active", paidUntil: next || null }, { merge: true });
+    } else {
+      await ref.set({ plan: "suspended" }, { merge: true });
+    }
   };
   try {
     const o = event.data.object;
@@ -525,10 +537,14 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
           }
         }
       } catch (e) { console.error("自動更新切替エラー", e); }
-    } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    } else if (event.type === "customer.subscription.deleted") {
       const tid = o.metadata && o.metadata.tenantId;
-      const active = o.status === "active" || o.status === "trialing";
-      await setPlan(tid, active, o.current_period_end ? o.current_period_end * 1000 : null);
+      await setPlan(tid, false, null);   // 契約が完全終了 → 停止
+    } else if (event.type === "customer.subscription.updated") {
+      const tid = o.metadata && o.metadata.tenantId;
+      // past_due/unpaid等の一時状態(再請求中)では止めない。canceled/失効のみ停止扱い。
+      const ended = o.status === "canceled" || o.status === "incomplete_expired";
+      await setPlan(tid, !ended, o.current_period_end ? o.current_period_end * 1000 : null);
     }
   } catch (e) { console.error("webhook処理エラー", e); }
   return res.json({ received: true });
