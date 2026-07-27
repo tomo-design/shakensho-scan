@@ -253,10 +253,10 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const mode = data.mode === "pro" ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
+  // gemini-2.5-flash は「新規ユーザーに提供終了(404)」のため使わない。無料で実際に通るのは gemini-flash-latest。
   const models = mode === "pro"
     ? ["gemini-pro-latest", "gemini-flash-latest"]
-    // 予備に thinking非対応の gemini-2.0-flash も入れる。3系が空応答/不調のとき確実に本文を返す受け皿。
-    : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+    : ["gemini-flash-latest", "gemini-2.0-flash"];   // 予備2.0はthinking非対応の受け皿(有料キー用)
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
@@ -290,7 +290,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     const limitPaid = +(process.env.LIMIT_MONTH_PAID || 0);   // 0=無制限(既定)。契約店舗は頭打ちなし・フル精度。
     if (allowPaid && limitPaid > 0 && (await paidCountThisMonth(g.tid)) >= limitPaid) {
       // (任意の安全弁を設定した場合のみ) 上限超過でFlash(無料)へダウングレード。既定では無効。
-      const flashModels = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+      const flashModels = ["gemini-flash-latest", "gemini-2.0-flash"];
       out = await callGeminiModels(freeKeys[start % freeKeys.length], flashModels, parts, "flash", false, maxTokens);
       tier = "free";
       if (out.failed) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });

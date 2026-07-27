@@ -2929,8 +2929,8 @@ const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
   // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
-  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.0-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -3941,15 +3941,15 @@ async function runSpecAI(srcBtn) {
   try {
     // ★方針: 精度は運営管理のトグルで切替。
     //   無料のみ(OFF)=初回も更新もFlash(検索なし・無料)。有料ON=Pro＋検索(正確)。
-    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const partial = !force && known.length > 0;                      // 一部だけ判明済み → 不足のみ補完
     const prompt = partial ? buildSpecPrompt(known, missReq) : buildSpecPrompt();
-    // 諸元は「事実の取得」→ 思考の重いProは使わず、検索付きFlashで安く正確に(精度は検索結果で担保)。
+    // 諸元は「事実の取得」。検索グラウンディングは遅く(30〜54秒)・無料枠では429・有料でも重いので使わない。
+    //   gemini-flash-latest(最新Flash)単体で事実諸元は十分＆4〜11秒で確実に返る(実測)。速度と安定を優先。
     const r = await geminiAsk(prompt, {
       noCache: force,
       mode: "flash",                     // 事実取得は常にFlash(低コスト・高速)
-      search: accurate,                  // 検索グラウンディングは有料ON店舗のみ(課金機能)
-      maxTokens: 12288                   // 諸元JSON＋検索引用で途中切れ/空応答にならない余裕を確保
+      search: false,                     // ★検索は使わない(遅延・429の原因)。最新Flashの知識で取得
+      maxTokens: 12288                   // 諸元JSONが途中で切れない余裕を確保
     });
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
@@ -4024,8 +4024,7 @@ async function refreshSpecItem(key, btn) {
       "■対象車両: " + vehicleDesc(),
       "■知りたい項目: " + key
     ].join("\n");
-    const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみ検索
-    const r = await geminiAsk(prompt, { noCache: true, mode: "flash", search: accurate });   // 事実取得はFlash+検索(思考不要で低コスト)
+    const r = await geminiAsk(prompt, { noCache: true, mode: "flash", search: false });   // 項目補完も検索なしFlash(速く確実)
     const obj = extractJson(r.text);
     const nv = obj && obj.v != null ? String(obj.v).trim() : String(r.text || "").trim();
     if (!nv) return;
@@ -4091,8 +4090,8 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-2.0-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
