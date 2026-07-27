@@ -3983,7 +3983,20 @@ async function runSpecAI(srcBtn) {
     if (faults.length) { renderFaultList(faults); toggle("secFault", true); }
     renderRecalls(recalls);
   } catch (e) {
-    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message === "__cancelled__") { return; }
+    // 更新に失敗しても、この端末/社内に既存データがあれば消さずに表示して現場を止めない。
+    if (known.length) {
+      const specs = mergeKeepManual(known.slice(), shownSpecs);
+      toggle("specAiBox", false);
+      renderSpecs(specs, "learned");
+      const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
+      const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
+      if (cf.length) { renderFaultList(cf); toggle("secFault", true); }
+      renderRecalls(rc);
+      showToast("更新できませんでした。既存の記憶データを表示しています。");
+    } else {
+      box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    }
   } finally {
     setBtnLoading(btn, false);
   }

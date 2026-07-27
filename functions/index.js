@@ -255,7 +255,8 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   const models = mode === "pro"
     ? ["gemini-pro-latest", "gemini-flash-latest"]
-    : ["gemini-flash-latest", "gemini-2.5-flash"];
+    // 予備に thinking非対応の gemini-2.0-flash も入れる。3系が空応答/不調のとき確実に本文を返す受け皿。
+    : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
@@ -268,8 +269,9 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   let out = { failed: true, quota: true };
   const skipFree = !!(data.search && allowPaid);
   const start = Math.floor(Math.random() * freeKeys.length);
-  // 無料試行するキー本数: 検索は無料で通らないので1本で見切り、通常flashは最大2本(枠分散)。過剰試行=タイムアウト防止。
-  const maxFreeTries = data.search ? 1 : Math.min(2, freeKeys.length);
+  // 無料試行するキー本数: 検索は無料で通らないので1本で見切り、通常flashは全キー(枠分散を使い切る)。
+  //  429は待たずに即・次キーへ切替(backoff無し)なので、全5本試してもタイムアウトしない。2回目更新の失敗対策。
+  const maxFreeTries = data.search ? 1 : freeKeys.length;
   if (!skipFree) {
     for (let i = 0; i < maxFreeTries; i++) {
       const key = freeKeys[(start + i) % freeKeys.length];
