@@ -39,7 +39,8 @@
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
   let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
-  let unsubVeh = null, unsubRec = null, unsubJoin = null, unsubTenant = null;
+  let unsubVeh = null, unsubRec = null, unsubJoin = null, unsubTenant = null, unsubMembers = null;
+  let tenantMembers = [];      // 同じ店舗のメンバー名簿(uid/name/nameKana/nameRoma) — カルテ担当者の照合に使用
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
   let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
   let planBlocked = false;     // 店舗が未払い/停止なら true
@@ -336,6 +337,7 @@
       // 最終ログイン日時を記録(管理画面に表示)
       try { db.collection("users").doc(user.uid).set({ lastLogin: Date.now() }, { merge: true }); } catch (e) {}
       startSync(profile.tenantId);
+      startMembersWatch(profile.tenantId);   // 店舗メンバー名簿(カルテ担当者の照合用)
       if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
     }
     // 運営ログイン後の遷移
@@ -481,7 +483,52 @@
       } catch (e) {}
     }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
   }
-  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } }
+  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } if (unsubMembers) { unsubMembers(); unsubMembers = null; } tenantMembers = []; }
+
+  /* 店舗メンバー名簿を購読(有効メンバーのみ)。カルテ担当者名→メンバー特定に使う。 */
+  function startMembersWatch(tid) {
+    if (unsubMembers) { unsubMembers(); unsubMembers = null; }
+    try {
+      unsubMembers = db.collection("users").where("tenantId", "==", tid).onSnapshot(snap => {
+        const list = [];
+        snap.forEach(d => { const u = d.data() || {}; if (u.active === true && (u.name || u.email)) list.push({ uid: d.id, name: u.name || "", nameKana: u.nameKana || "", nameRoma: u.nameRoma || "", email: u.email || "" }); });
+        tenantMembers = list;
+      }, () => {});
+    } catch (e) {}
+  }
+
+  /* 氏名照合用の正規化: NFKC・小文字化・カタカナ→ひらがな・空白/記号除去 */
+  function normNm(s) {
+    s = String(s == null ? "" : s).normalize("NFKC").toLowerCase();
+    s = s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));   // カタカナ→ひらがな
+    return s.replace(/[\s・.,、。･･／\/\-]/g, "").trim();
+  }
+  /* カルテの担当者テキストから店舗メンバーを特定。苗字/名前・漢字/カナ/かな/ローマ字のいずれでも照合。
+     一意に定まらない(同点で複数一致)場合は null を返し、誤った権限移譲を防ぐ。 */
+  function resolveMember(text) {
+    const q = normNm(text);
+    if (!q) return null;
+    const scored = [];
+    for (const m of tenantMembers) {
+      const parts = [];
+      [m.name, m.nameKana, m.nameRoma].filter(Boolean).forEach(full => {
+        parts.push(full);
+        String(full).split(/[\s・／\/,、]+/).filter(Boolean).forEach(t => parts.push(t));   // 苗字/名前などのトークン
+      });
+      const norm = [...new Set(parts.map(normNm).filter(Boolean))];
+      let score = 0;
+      for (const n of norm) {
+        if (n === q) score = Math.max(score, 3);                                            // 完全一致
+        else if (q.length >= 2 && (n.startsWith(q) || q.startsWith(n))) score = Math.max(score, 2);  // 前方一致
+        else if (q.length >= 2 && (n.includes(q) || q.includes(n))) score = Math.max(score, 1);      // 部分一致
+      }
+      if (score > 0) scored.push({ m, score });
+    }
+    if (!scored.length) return null;
+    scored.sort((a, b) => b.score - a.score);
+    if (scored.length > 1 && scored[0].score === scored[1].score) return null;   // あいまい → 特定しない
+    return { uid: scored[0].m.uid, name: scored[0].m.name };
+  }
 
   /* ---------- プッシュ通知(FCM): 管理者はワンタップ許可のみ。設定作業は不要 ----------
      ↓ 運営(あなた)が一度だけ Firebase Console → Cloud Messaging → ウェブプッシュ証明書 で
@@ -556,6 +603,10 @@
     aiReady() { return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
     // この店舗が「有料利用ON(運営管理のトグル)」か。真ならPro＋検索の正確モードを使う。
     aiPaidOn() { return !!(tenantDoc && tenantDoc.aiPaidFallback === true); },
+    // 店舗メンバー名簿(uid/name)。カルテ担当者の候補表示などに使用。
+    tenantMembers() { return tenantMembers.map(m => ({ uid: m.uid, name: m.name })); },
+    // カルテ担当者テキスト→メンバー特定({uid,name} or null)。苗字/名前・漢字/カナ/かな/ローマ字で照合。
+    resolveMember(text) { return resolveMember(text); },
     // Functions呼び出し(mecha/visionOcr/createCheckout)を通常HTTP+IDトークンで実行(callableは使わない)。
     async callFn(name, payload) {
       if (!me) throw new Error("ログインが必要です。");
@@ -784,10 +835,14 @@
       }
       if (act === "rename") {
         const doc = await db.collection("users").doc(id).get(); const u = doc.data() || {};
-        const nn = (prompt("新しい氏名を入力してください", u.name || "") || "").trim();
-        if (!nn || nn === u.name) return;
-        await db.collection("users").doc(id).update({ name: nn });
-        if ((u.role === "admin" || u.role === "super") && u.tenantId) await db.collection("tenants").doc(u.tenantId).set({ adminName: nn }, { merge: true });
+        const nn = (prompt("新しい氏名を入力してください（例: 田中 太郎）", u.name || "") || "").trim();
+        if (!nn) return;
+        // よみ(カナ/ローマ字)。カルテ担当者を漢字/カナ/かな/ローマ字のどれで入力しても本人を特定できるようにする。
+        const kana = (prompt("よみ（カナ・任意）　例: タナカ タロウ\n※カルテの担当者照合に使います。空欄でも可。", u.nameKana || "") || "").trim();
+        const roma = (prompt("ローマ字（任意）　例: tanaka taro\n※空欄でも可。", u.nameRoma || "") || "").trim();
+        const patch = { name: nn }; patch.nameKana = kana; patch.nameRoma = roma;
+        await db.collection("users").doc(id).update(patch);
+        if ((u.role === "admin" || u.role === "super") && u.tenantId && nn !== u.name) await db.collection("tenants").doc(u.tenantId).set({ adminName: nn }, { merge: true });
       } else if (act === "del") {
         if (!confirm("この申請を却下し、記録（氏名・メール）を完全に削除しますか？（取り消せません）")) return;
         await db.collection(col).doc(id).delete();
@@ -816,9 +871,9 @@
         if (ans === "") return;
         const months = parseInt(ans, 10);
         if (isNaN(months) || months < 0) { alert("数字を入力してください。"); return; }
-        // planManual=true: 運営の手動設定を優先し、Stripe webhookで勝手に短縮・停止されないようにする。
-        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended", planManual: true }, { merge: true }); alert("停止にしました。"); }
-        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until, planManual: true }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
+        // 契約更新は基本Stripe(年契約)側で行う。手動設定はStripe webhookで上書きされる(=webhook優先)。
+        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止にしました。"); }
+        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
       } else if (act === "devplus") {
         const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
         const nl = (Number(u.deviceLimit) || 2) + 1;

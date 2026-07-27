@@ -500,8 +500,6 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
     if (!tid) return;
     const ref = db.collection("tenants").doc(tid);
     const cur = (await ref.get()).data() || {};
-    // 運営が手動で設定した契約(planManual)は、Stripeイベントで勝手に短縮・停止しない。
-    if (cur.planManual === true) return;
     if (active) {
       // paidUntilは「延長のみ」。既存期限とStripe期限の“遅い方”を採用し、更新イベントで
       // 期間が短く上書きされて勝手に期限切れになるのを防ぐ。

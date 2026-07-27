@@ -11,7 +11,9 @@ service cloud.firestore {
     function isAdmin(){ return myRole() == "admin"; }
 
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isSuper() || (isAdmin() && resource.data.tenantId == myTenant()));
+      // 自分・運営・同店舗の代表管理者に加え、同じ店舗の有効メンバーも閲覧可(カルテの担当者名照合に必要)。
+      allow read: if signedIn() && (request.auth.uid == uid || isSuper()
+                    || (meActive() && resource.data.tenantId == myTenant()));
       // オーナー本人は自分のドキュメントを自由に作成/更新可(super昇格のため)
       allow write: if request.auth.uid == uid && isOwner();
       // 一般の自己登録: active=false かつ role は admin/staff のみ

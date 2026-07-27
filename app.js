@@ -1813,21 +1813,38 @@ function saveKarteEntry(entry) {
   const t = findHistEntry(h2, current); if (!t) return;
   const list = (t.karte || []).slice();
   const idx = list.findIndex(k => k.id === entry.id);
-  // 記入者(by=uid, byName=氏名)を記録。既存の編集では元の記入者を保持する。
-  if (idx >= 0) { entry.by = list[idx].by || entry.by || null; entry.byName = list[idx].byName || entry.byName || null; list[idx] = entry; }
-  else { entry.by = (window.Cloud && window.Cloud.myUid && window.Cloud.myUid()) || null; entry.byName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || entry.staff || null; list.unshift(entry); }
+  // 編集権限は「担当者(staff)」に従う。担当者名がメンバーとして特定できれば、その人を編集権限者(by)にする。
+  // → 担当をAからBへ変更して保存すると、編集権限もBへ移る。特定できない自由入力時は記入者を維持。
+  const owner = (window.Cloud && window.Cloud.resolveMember) ? window.Cloud.resolveMember(entry.staff || "") : null;
+  if (idx >= 0) {
+    const prev = list[idx];
+    if (owner) { entry.by = owner.uid; entry.byName = owner.name; }
+    else { entry.by = prev.by || null; entry.byName = prev.byName || entry.staff || null; }
+    list[idx] = entry;
+  } else {
+    if (owner) { entry.by = owner.uid; entry.byName = owner.name; }
+    else {
+      entry.by = (window.Cloud && window.Cloud.myUid && window.Cloud.myUid()) || null;
+      entry.byName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || entry.staff || null;
+    }
+    list.unshift(entry);
+  }
   t.karte = list; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
   try { reconcileFluidsFromKarte(entry); } catch (e) {}   // 油脂類の実績量で諸元を自動更新
 }
-/* カルテ編集・削除の権限: 未ログイン(個人利用)=可 / 管理者=常に可 / 従業員=自分が記入した記録のみ */
+/* カルテ編集・削除の権限: 未ログイン(個人利用)=可 / 管理者=常に可 /
+   従業員=「担当者」に指定された本人のみ。担当を別メンバーへ変えると編集権限もその人へ移る。 */
 function canEditKarte(k) {
   if (!window.Cloud || !window.Cloud.isLoggedIn || !window.Cloud.isLoggedIn()) return true;
   if (window.Cloud.isManager && window.Cloud.isManager()) return true;
   const uid = (window.Cloud.myUid && window.Cloud.myUid()) || "";
+  // 担当者名がメンバーとして特定できれば、その担当者だけが編集可(担当変更で権限が移る)
+  const owner = (k && k.staff && window.Cloud.resolveMember) ? window.Cloud.resolveMember(k.staff) : null;
+  if (owner) return owner.uid === uid;
+  // 担当者が特定できない(自由入力/未登録)場合は、記入者本人のみ
   if (k && k.by) return k.by === uid;
-  // 記入者IDが無い旧データは、担当者名が自分と一致する場合のみ許可
   return !!(k && k.byName && k.byName === (window.Cloud.myName && window.Cloud.myName()));
 }
 function renderKarte() {
