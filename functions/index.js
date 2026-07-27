@@ -237,6 +237,32 @@ async function clearFreeExhausted(tid) {
   } catch (e) {}
 }
 
+/* 常に最新のGeminiを使う: モデル一覧から「数字付きの最新flash/pro」を動的に選ぶ(新モデル発表に自動追従)。
+   1時間キャッシュ。取得失敗時は -latest 別名にフォールバック。 */
+let _modelCache = { at: 0, flash: "", pro: "" };
+async function latestModels(key) {
+  const now = Date.now();
+  if (_modelCache.flash && (now - _modelCache.at) < 3600e3) return _modelCache;
+  try {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(key) + "&pageSize=200");
+    const j = await r.json();
+    const names = (j.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m) => String(m.name || "").replace("models/", ""));
+    const pickHighest = (re) => {
+      let best = "", bestV = -1;
+      for (const n of names) { const m = n.match(re); if (m) { const v = parseFloat(m[1]); if (v > bestV) { bestV = v; best = n; } } }
+      return best;
+    };
+    // 例: gemini-3.6-flash を選ぶ。lite/image/tts/preview等は除外。pro は preview も対象(3系proはpreviewのみ)。
+    const flash = pickHighest(/^gemini-(\d+(?:\.\d+)?)-flash$/);
+    const pro = pickHighest(/^gemini-(\d+(?:\.\d+)?)-pro(?:-preview)?$/);
+    if (flash || pro) _modelCache = { at: now, flash: flash, pro: pro };
+  } catch (e) {}
+  return _modelCache;
+}
+const uniq = (a) => a.filter((x, i) => x && a.indexOf(x) === i);
+
 /* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media, search} → {text, truncated, tier, freeExhausted}
    無料キーを先に使い、無料枠を使い切ったら(=429)、その店舗が「有料利用ON(aiPaidFallback)」なら有料キーで継続。 */
 exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
@@ -253,10 +279,11 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const mode = data.mode === "pro" ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
-  // gemini-2.5-flash は「新規ユーザーに提供終了(404)」のため使わない。無料で実際に通るのは gemini-flash-latest。
+  // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
+  const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
-    ? ["gemini-pro-latest", "gemini-flash-latest"]
-    : ["gemini-flash-latest", "gemini-2.0-flash"];   // 予備2.0はthinking非対応の受け皿(有料キー用)
+    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
+    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);   // 2.0はthinking非対応の最終受け皿
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
