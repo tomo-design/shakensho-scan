@@ -333,12 +333,17 @@
       <button type="button" class="diagIco txt" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button>
       <button type="button" class="diagIco" id="btnVehPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
       <button type="button" class="diagIco" id="btnVehPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
+      <button type="button" class="diagIco" id="btnVehVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
+      <button type="button" class="diagIco" id="btnVehVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
     </span></h2>
   <div class="sec-body">
     <textarea id="qVehText" class="kGrow" style="min-height:60px" placeholder="修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。"></textarea>
     <div id="vehAttachList" class="hidden" style="margin-top:8px"></div>
     <input type="file" id="inVehPhoto" accept="image/*" multiple class="hidden">
     <input type="file" id="inVehPhotoCam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="inVehVideo" accept="video/*" class="hidden">
+    <input type="file" id="inVehVideoCam" accept="video/*" capture="environment" class="hidden">
+    <div id="vehVideoStatus" class="hint hidden" style="margin-top:6px"></div>
     <div class="btnRow diagRunRow">
       <button class="btn btn-ghost btnPick btn-sm" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
       <button class="btn btn-ghost btn-sm" id="btnVehClear" style="flex:0 0 30%">クリア</button>

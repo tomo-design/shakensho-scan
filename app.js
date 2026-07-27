@@ -1367,9 +1367,11 @@ async function runVehAsk() {
     const qFull = q || "添付した写真の部位について教えてください。";
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
     let r;
-    if (vehAttachments.length) {   // 写真添付あり: 画像も一緒にメカ君へ送る(検索なし)。写真は自動圧縮。
+    if (vehAttachments.length) {   // 写真/動画の添付あり: 一緒にメカ君へ送る(検索なし)。写真は自動圧縮。
       const media = [];
       for (const a of vehAttachments) media.push(await attachToMedia(a));
+      const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
+      if (tot * 0.75 > ATTACH_MAX) { box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
       r = await geminiAsk(buildRepairPrompt(qFull), { mode: "flash", search: accurate });   // 修理も事実取得: Flash+検索(思考不要で低コスト・精度は検索で担保)
@@ -4139,7 +4141,7 @@ async function addDiagAttachment(file) {
       st.textContent = "⚠ 自動圧縮できませんでした。短い動画で撮り直すか、低画質で撮影してください。";
     }
     if (f.size > ATTACH_MAX) {
-      st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。10秒程度に短く撮り直してください。";
+      st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。30秒程度に短く撮り直してください。";
       return;
     }
   }
@@ -4166,27 +4168,48 @@ function clearDiagAttachments() {
   document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
 }
 
-/* ===== 修理タブ「修理について質問」の写真添付(複数枚・画像のみ) ===== */
-const vehAttachments = [];   // {file, url}
-[["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"]].forEach(([btn, input]) => {
+/* ===== 修理タブ「修理について質問」の写真・動画添付(診断と同じ自動圧縮) ===== */
+const vehAttachments = [];   // {file, url, kind}
+[["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
   b.addEventListener("click", () => inp.click());
-  inp.addEventListener("change", e => {
+  inp.addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
-    for (const f of files) { if ((f.type || "").startsWith("image")) { vehAttachments.push({ file: f, url: URL.createObjectURL(f) }); } }
+    for (const f of files) await addVehAttachment(f);
     renderVehAttachList();
   });
 });
+async function addVehAttachment(file) {
+  const isVideo = (file.type || "").startsWith("video");
+  const st = $("vehVideoStatus");
+  let f = file;
+  if (isVideo && file.size > ATTACH_MAX) {
+    if (st) { toggle("vehVideoStatus", true); st.textContent = "動画が大きい(" + Math.round(file.size / 1048576) + "MB)ので自動圧縮しています…"; }
+    try {
+      f = await compressVideo(file, VIDEO_TARGET);
+      if (st) st.textContent = "✓ 圧縮しました(" + Math.round(f.size / 1048576) + "MB)。";
+    } catch (e) {
+      f = file;
+      if (st) st.textContent = "⚠ 自動圧縮できませんでした。短い動画で撮り直すか、低画質で撮影してください。";
+    }
+    if (f.size > ATTACH_MAX) {
+      if (st) st.textContent = "⚠ 圧縮しても大きすぎます(" + Math.round(f.size / 1048576) + "MB)。30秒程度に短く撮り直してください。";
+      return;
+    }
+  } else if (st) { toggle("vehVideoStatus", false); }
+  vehAttachments.push({ file: f, kind: isVideo ? "video" : "image", url: URL.createObjectURL(f) });
+}
 function renderVehAttachList() {
   const box = $("vehAttachList"); if (!box) return;
   box.innerHTML = "";
   vehAttachments.forEach((a, i) => {
     const d = document.createElement("div"); d.className = "attachThumb";
-    const img = document.createElement("img"); img.src = a.url;
-    const kind = document.createElement("span"); kind.className = "axKind"; kind.textContent = "写真";
+    const media = document.createElement(a.kind === "video" ? "video" : "img");
+    media.src = a.url; if (a.kind === "video") { media.muted = true; media.playsInline = true; }
+    const kind = document.createElement("span"); kind.className = "axKind"; kind.textContent = a.kind === "video" ? "動画" : "写真";
     const del = document.createElement("button"); del.className = "axDel"; del.textContent = "×";
     del.addEventListener("click", () => { URL.revokeObjectURL(a.url); vehAttachments.splice(i, 1); renderVehAttachList(); });
-    d.append(img, kind, del); box.appendChild(d);
+    d.append(media, kind, del); box.appendChild(d);
   });
   toggle("vehAttachList", vehAttachments.length > 0);
 }
@@ -4268,7 +4291,7 @@ async function diagMediaAnalyze() {
     for (const a of diagAttachments) media.push(await attachToMedia(a));
     const totalB64 = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
     if (totalB64 * 0.75 > ATTACH_MAX) {
-      st.textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalB64 * 0.75 / 1048576) + "MB)。動画は1本・10秒程度に、写真は枚数を減らしてください。";
+      st.textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalB64 * 0.75 / 1048576) + "MB)。動画は1本・30秒程度に、写真は枚数を減らしてください。";
       diagMediaBusy = false; setBtnLoading(runBtn, false); return;
     }
     st.textContent = "メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
