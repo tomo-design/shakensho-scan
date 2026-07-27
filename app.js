@@ -1367,9 +1367,9 @@ async function runVehAsk() {
     const qFull = q || "添付した写真の部位について教えてください。";
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
     let r;
-    if (vehAttachments.length) {   // 写真添付あり: 画像も一緒にメカ君へ送る(検索なし)
+    if (vehAttachments.length) {   // 写真添付あり: 画像も一緒にメカ君へ送る(検索なし)。写真は自動圧縮。
       const media = [];
-      for (const a of vehAttachments) media.push({ mimeType: cleanMime(a.file.type, "image/jpeg"), data: await fileToBase64(a.file) });
+      for (const a of vehAttachments) media.push(await attachToMedia(a));
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
       r = await geminiAsk(buildRepairPrompt(qFull), { mode: "flash", search: accurate });   // 修理も事実取得: Flash+検索(思考不要で低コスト・精度は検索で担保)
@@ -3988,6 +3988,31 @@ function fileToBase64(file) {
     r.readAsDataURL(file);
   });
 }
+/* 画像を送信前に自動縮小(長辺maxDim・JPEG品質quality)してbase64を返す。大きな写真を多数添付しても収まる。 */
+async function imageToCompressedBase64(file, maxDim, quality) {
+  maxDim = maxDim || 1280; quality = quality || 0.7;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(bmp, 0, 0, w, h);
+    if (bmp.close) bmp.close();
+    const dataUrl = cv.toDataURL("image/jpeg", quality);
+    cv.width = cv.height = 1;   // メモリ解放
+    const i = dataUrl.indexOf("base64,");
+    return i >= 0 ? dataUrl.slice(i + 7) : null;
+  } catch (e) { return null; }
+}
+/* 添付(写真/動画)を送信用 {mimeType,data} に変換。写真は自動圧縮、動画はそのまま。 */
+async function attachToMedia(a) {
+  const f = a.file;
+  if (/^image\//.test(f.type || "") && (a.kind !== "video")) {
+    const data = await imageToCompressedBase64(f);
+    if (data) return { mimeType: "image/jpeg", data: data };
+  }
+  return { mimeType: cleanMime(f.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(f) };
+}
 /* inlineData用にmimeTypeからcodecsなどのパラメータをはずしてGeminiが受け付ける形に */
 function cleanMime(m, fallback) {
   m = (m || fallback || "").split(";")[0].trim();
@@ -4229,24 +4254,24 @@ async function diagMediaAnalyze() {
     alert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
-  // 合計サイズの安全チェック(インライン送信の上限対策)
-  const totalSize = diagAttachments.reduce((s, a) => s + (a.file.size || 0), 0);
-  if (totalSize > ATTACH_MAX) {
-    toggle("diagVideoStatus", true);
-    $("diagVideoStatus").textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalSize / 1048576) + "MB)。動画は1本・10秒程度に、写真は枚数を減らしてください。";
-    return;
-  }
   if (diagMediaBusy) return;
   diagMediaBusy = true;
   const runBtn = $("btnDiagRun"); setBtnLoading(runBtn, true, "メカ君が解析中…");
   const st = $("diagVideoStatus"); toggle("diagVideoStatus", true);
-  st.textContent = "メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
+  st.textContent = "写真を最適化しています…";
   // テキストにコード/症状があれば内蔵DB照合も表示
   const text = $("diagText").value.trim();
   if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
   try {
+    // 写真は自動圧縮してから送信(枚数が多くても収まる)。圧縮後の合計で上限チェック。
     const media = [];
-    for (const a of diagAttachments) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+    for (const a of diagAttachments) media.push(await attachToMedia(a));
+    const totalB64 = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
+    if (totalB64 * 0.75 > ATTACH_MAX) {
+      st.textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalB64 * 0.75 / 1048576) + "MB)。動画は1本・10秒程度に、写真は枚数を減らしてください。";
+      diagMediaBusy = false; setBtnLoading(runBtn, false); return;
+    }
+    st.textContent = "メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
     const r = await geminiAskMedia(buildMediaDiagPrompt(), media);
     const box = $("diagResults");
     const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
