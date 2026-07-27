@@ -835,14 +835,10 @@
       }
       if (act === "rename") {
         const doc = await db.collection("users").doc(id).get(); const u = doc.data() || {};
-        const nn = (prompt("新しい氏名を入力してください（例: 田中 太郎）", u.name || "") || "").trim();
-        if (!nn) return;
-        // よみ(カナ/ローマ字)。カルテ担当者を漢字/カナ/かな/ローマ字のどれで入力しても本人を特定できるようにする。
-        const kana = (prompt("よみ（カナ・任意）　例: タナカ タロウ\n※カルテの担当者照合に使います。空欄でも可。", u.nameKana || "") || "").trim();
-        const roma = (prompt("ローマ字（任意）　例: tanaka taro\n※空欄でも可。", u.nameRoma || "") || "").trim();
-        const patch = { name: nn }; patch.nameKana = kana; patch.nameRoma = roma;
-        await db.collection("users").doc(id).update(patch);
-        if ((u.role === "admin" || u.role === "super") && u.tenantId && nn !== u.name) await db.collection("tenants").doc(u.tenantId).set({ adminName: nn }, { merge: true });
+        const nn = (prompt("新しい氏名を入力してください", u.name || "") || "").trim();
+        if (!nn || nn === u.name) return;
+        await db.collection("users").doc(id).update({ name: nn });
+        if ((u.role === "admin" || u.role === "super") && u.tenantId) await db.collection("tenants").doc(u.tenantId).set({ adminName: nn }, { merge: true });
       } else if (act === "del") {
         if (!confirm("この申請を却下し、記録（氏名・メール）を完全に削除しますか？（取り消せません）")) return;
         await db.collection(col).doc(id).delete();
@@ -864,16 +860,25 @@
         if (!confirm("この代表管理者を従業員に降格しますか？")) return;
         await db.collection("users").doc(id).update({ role: "staff" });
       } else if (act === "plan") {
-        // 店舗プランの設定(運営のみ)。何ヶ月分 有効にするか入力。0=停止。
+        // 手動設定は「早期解除(停止・前倒し)」のみ。延長はできない(延長はStripeの年契約=webhookで行う)。
         const cur = await db.collection("tenants").doc(id).get(); const td = cur.data() || {};
-        const now = td.paidUntil && Number(td.paidUntil) > Date.now() ? Number(td.paidUntil) : Date.now();
-        const ans = (prompt("店舗「" + id + "」のプラン\n何ヶ月分 有効にしますか？（0=停止、例 1・12）", "1") || "").trim();
+        const curUntil = td.paidUntil ? Number(td.paidUntil) : 0;
+        const msg = "店舗「" + id + "」の利用停止（早期解除）\n"
+          + "0 = 今すぐ停止\n"
+          + "数字 = ○日後に停止（現在の期限より前のみ）\n"
+          + (curUntil ? "現在の期限: " + new Date(curUntil).toLocaleDateString("ja-JP") + "\n" : "")
+          + "※延長はできません。延長したい場合はStripe（年契約）で更新してください。";
+        const ans = (prompt(msg, "0") || "").trim();
         if (ans === "") return;
-        const months = parseInt(ans, 10);
-        if (isNaN(months) || months < 0) { alert("数字を入力してください。"); return; }
-        // 契約更新は基本Stripe(年契約)側で行う。手動設定はStripe webhookで上書きされる(=webhook優先)。
-        if (months === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止にしました。"); }
-        else { const until = now + months * 30 * 24 * 3600 * 1000; await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true }); alert("契約中にしました（〜" + new Date(until).toLocaleDateString("ja-JP") + "）。"); }
+        const days = parseInt(ans, 10);
+        if (isNaN(days) || days < 0) { alert("数字を入力してください。"); return; }
+        if (days === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止しました。"); }
+        else {
+          const until = Date.now() + days * 24 * 3600 * 1000;
+          if (curUntil && until >= curUntil) { alert("延長はできません（現在の期限より前の日付のみ）。\n延長はStripe（年契約）で更新してください。"); return; }
+          await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true });
+          alert(new Date(until).toLocaleDateString("ja-JP") + " に停止するよう設定しました。");
+        }
       } else if (act === "devplus") {
         const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
         const nl = (Number(u.deviceLimit) || 2) + 1;

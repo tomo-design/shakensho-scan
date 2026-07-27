@@ -1806,6 +1806,34 @@ function getKarteList() {
   const e = findHistEntry(getHistory(), current);
   return mergeKarte(e && e.karte, []).filter(k => !k.deleted);
 }
+/* 担当者テキスト→店舗メンバーを特定。まず高速な文字照合、外れたらAIで漢字↔カナ↔かな↔ローマ字・
+   苗字/名前だけの表記ゆれを判別する(よみの事前登録は不要)。結果{uid,name} or null。 */
+async function resolveKarteOwner(staff) {
+  staff = (staff || "").trim();
+  if (!staff || !window.Cloud || !window.Cloud.resolveMember) return null;
+  const quick = window.Cloud.resolveMember(staff);
+  if (quick) return quick;
+  const members = (window.Cloud.tenantMembers && window.Cloud.tenantMembers()) || [];
+  if (!members.length) return null;
+  // メンバーが1人＝担当者は自明。AIを使わず本人に割当。
+  if (members.length === 1) return { uid: members[0].uid, name: members[0].name };
+  try {
+    const list = members.map((m, i) => (i + 1) + ". " + m.name).join("\n");
+    const prompt = "整備カルテの『担当者』欄の入力が、下の店舗メンバー一覧の誰を指すか判定してください。\n" +
+      "入力は氏名の一部(苗字だけ/名前だけ)のことや、漢字・カタカナ・ひらがな・ローマ字の違いがあります。読み(発音)が一致すれば同一人物とみなします。\n" +
+      "担当者の入力: 「" + staff + "」\n\nメンバー一覧:\n" + list +
+      "\n\n該当する人の番号を半角数字で1つだけ返してください。確信が持てない/該当なしは 0。数字以外は出力しないこと。";
+    const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 8 });
+    const n = parseInt(String((r && r.text) || "").replace(/[^0-9]/g, ""), 10);
+    if (n >= 1 && n <= members.length) return { uid: members[n - 1].uid, name: members[n - 1].name };
+  } catch (e) {}
+  return null;
+}
+/* 担当者をAI込みで特定してから保存(担当変更で編集権限を移すため)。 */
+async function saveKarteSmart(entry) {
+  try { entry._owner = await resolveKarteOwner(entry.staff || ""); } catch (e) { entry._owner = undefined; }
+  saveKarteEntry(entry);
+}
 function saveKarteEntry(entry) {
   let e = findHistEntry(getHistory(), current);
   if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); if (!e) return; }
@@ -1815,7 +1843,10 @@ function saveKarteEntry(entry) {
   const idx = list.findIndex(k => k.id === entry.id);
   // 編集権限は「担当者(staff)」に従う。担当者名がメンバーとして特定できれば、その人を編集権限者(by)にする。
   // → 担当をAからBへ変更して保存すると、編集権限もBへ移る。特定できない自由入力時は記入者を維持。
-  const owner = (window.Cloud && window.Cloud.resolveMember) ? window.Cloud.resolveMember(entry.staff || "") : null;
+  // 担当者の特定結果。事前にAIで判別済み(_owner)ならそれを優先、無ければ高速な文字照合。
+  const owner = (entry._owner !== undefined) ? entry._owner
+    : ((window.Cloud && window.Cloud.resolveMember) ? window.Cloud.resolveMember(entry.staff || "") : null);
+  delete entry._owner;
   if (idx >= 0) {
     const prev = list[idx];
     if (owner) { entry.by = owner.uid; entry.byName = owner.name; }
@@ -1920,10 +1951,11 @@ function editKarteInline(card, k) {
   const btns = document.createElement("div"); btns.className = "btnRow"; btns.style.marginTop = "10px";
   const save = document.createElement("button"); save.className = "btn btn-amber"; save.textContent = "保存";
   const cancel = document.createElement("button"); cancel.className = "btn btn-ghost"; cancel.style.flex = "0 0 28%"; cancel.textContent = "取消";
-  save.addEventListener("click", () => {
+  save.addEventListener("click", async () => {
     const work = dWork.value.trim(), parts = dParts.value.trim(), note = dNote.value.trim();
     if (!work && !parts && !note) { alert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
-    saveKarteEntry({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, at: new Date().toISOString() });
+    setBtnLoading(save, true);
+    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, at: new Date().toISOString() });
     renderKarte();
   });
   cancel.addEventListener("click", renderKarte);
@@ -1966,9 +1998,8 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
     staff: $("kStaff").value.trim(), note,
     at: new Date().toISOString(),
   };
-  saveKarteEntry(entry);
-  toggle("karteForm", false);
-  renderKarte();
+  const sb = $("btnKarteSave"); setBtnLoading(sb, true);
+  saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); renderKarte(); });
 });
 
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
