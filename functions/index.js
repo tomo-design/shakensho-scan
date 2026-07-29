@@ -529,6 +529,54 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   }
 });
 
+/* ツインターボの検索『席数』を設定(運営のみ)。POST {tid, seats}。
+   3席は標準(無料)。4席目以降は Stripe のサブスクに『追加席』priceを“数量”として付与し、
+   proration_behavior="none" で当月は請求せず、次サイクルでメイン料金にまとめて自動請求する。
+   契約(サブスク)の請求間隔(月/年)に合わせて月額/年額の席priceを使い分ける。 */
+exports.setSeats = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const u = (await db.collection("users").doc(uid).get()).data();
+  const isSuper = !!(u && u.role === "super");
+  if (!isSuper) return res.status(403).json({ error: "運営のみ設定できます。" });
+  const data = req.body || {};
+  const tid = data.tid;
+  const seats = Math.max(1, parseInt(data.seats, 10) || 3);
+  if (!tid) return res.status(400).json({ error: "店舗IDがありません。" });
+  const extra = Math.max(0, seats - 3);   // 4席目以降が課金対象
+  const tRef = db.collection("tenants").doc(tid);
+  const t = (await tRef.get()).data() || {};
+  let billed = false, note = "";
+  const seatMonth = process.env.STRIPE_PRICE_SEAT_MONTH, seatYear = process.env.STRIPE_PRICE_SEAT_YEAR;
+  const customerId = t.stripeCustomerId;
+  if (customerId) {
+    try {
+      const stripe = require("stripe")(cfg().stripe.secret);
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+      const sub = (subs.data || []).find((s) => ["active", "trialing", "past_due", "unpaid"].includes(s.status));
+      if (sub) {
+        // 契約の請求間隔を判定(メインplanのpriceから)。席priceも同じ間隔に合わせる。
+        const mainItem = sub.items.data.find((it) => tierFromPriceId(it.price.id)) || sub.items.data[0];
+        const interval = (mainItem && mainItem.price.recurring && mainItem.price.recurring.interval) || "month";
+        const seatPrice = interval === "year" ? seatYear : seatMonth;
+        const seatItem = sub.items.data.find((it) => it.price.id === seatMonth || it.price.id === seatYear);
+        const items = [];
+        if (seatItem) items.push({ id: seatItem.id, deleted: true });   // 既存の席itemは一旦外す(間隔変更にも対応)
+        if (extra > 0 && seatPrice) items.push({ price: seatPrice, quantity: extra });   // 正しい間隔で付け直す
+        if (items.length) {
+          await stripe.subscriptions.update(sub.id, { items: items, proration_behavior: "none" });   // 当月は請求せず次回にまとめる
+          billed = extra > 0;
+        }
+      } else { note = "有効な契約が無いためStripe請求は付けず、席数のみ更新しました。"; }
+    } catch (e) { note = "Stripe更新に失敗(席数のみ更新): " + (e.message || e); }
+  } else { note = "Stripe契約が無いため席数のみ更新しました(手動契約)。"; }
+  await tRef.set({ searchSeats: seats }, { merge: true });
+  return res.json({ ok: true, seats: seats, extra: extra, billed: billed, note: note });
+});
+
 /* 解約(自動): POST {} → 現契約を期間終了で自動キャンセル。代表管理者のみ。
    cancel_at_period_end=true にするので、支払い済み期間の終了まで利用可→その後 webhook で自動停止。 */
 exports.cancelPlan = functions.region(REGION).https.onRequest(async (req, res) => {

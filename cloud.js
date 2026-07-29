@@ -857,14 +857,19 @@
         const map = { "1": "na", "2": "turbo", "3": "twinturbo" };
         const plan = map[ans];
         if (!plan) { alert("1〜3で入力してください。"); return; }
-        const patch = { aiPlan: plan, aiPaidFallback: (plan !== "na") };   // aiPaidFallbackは後方互換で連動
+        await db.collection("tenants").doc(id).set({ aiPlan: plan, aiPaidFallback: (plan !== "na") }, { merge: true });   // aiPaidFallbackは後方互換で連動
         if (plan === "twinturbo") {
-          const seatsAns = (prompt("ツインターボの検索利用『席数』（同時に検索を使える人数／月）\n※4席目以降は+¥3,000/席", String(cur.searchSeats || 3)) || "").trim();
+          const seatsAns = (prompt("ツインターボの検索『席数』（検索を使える人数／月）\n3席は標準。4席目以降は +¥3,000/席（月額）または +¥36,000/席（年額）を、次回請求にまとめて自動計上します。", String(cur.searchSeats || 3)) || "").trim();
           const seats = parseInt(seatsAns, 10);
-          patch.searchSeats = (!isNaN(seats) && seats >= 1) ? seats : 3;
+          if (!isNaN(seats) && seats >= 1) {
+            try {
+              const r = await window.Cloud.callFn("setSeats", { tid: id, seats });
+              alert("ツインターボに設定しました。席数 " + r.seats + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加席は次回請求にまとめて計上されます。" : "")));
+            } catch (e) { alert("プランは設定しましたが、席数設定に失敗: " + (e.message || e)); }
+          } else { alert("AIプランを「ツインターボ」にしました（席数は据え置き）。"); }
+        } else {
+          alert("AIプランを「" + ({ na: "N/A", turbo: "ターボ" }[plan]) + "」にしました。");
         }
-        await db.collection("tenants").doc(id).set(patch, { merge: true });
-        alert("AIプランを「" + ({ na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[plan]) + "」にしました。");
         return;
       }
       if (act === "rename") {
