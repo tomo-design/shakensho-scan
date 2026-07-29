@@ -54,13 +54,22 @@
     if (tenantDoc.paidUntil && Number(tenantDoc.paidUntil) < Date.now()) return false;  // 期限切れ
     return true;                                        // active / trial / 未設定
   }
+  // AIプラン(検索裏取りの段階)。aiPlan: na/turbo/twinturbo。旧 aiPaidFallback も互換解釈。
+  function tierCode(td) {
+    td = td || tenantDoc || {};
+    if (td.aiPlan === "turbo" || td.aiPlan === "twinturbo" || td.aiPlan === "na") return td.aiPlan;
+    return td.aiPaidFallback === true ? "twinturbo" : "na";   // 旧データ互換
+  }
+  const TIER_NAME = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" };
+  function tierName(td) { return TIER_NAME[tierCode(td)] || "N/A"; }
   function planLabel() {
     if (!tenantDoc) return "";
     const until = tenantDoc.paidUntil ? new Date(Number(tenantDoc.paidUntil)) : null;
     const u = until ? until.toLocaleDateString("ja-JP") : "";
+    const tn = "／" + tierName();
     if (tenantDoc.plan === "suspended") return "⛔ 停止中";
     if (tenantDoc.paidUntil && Number(tenantDoc.paidUntil) < Date.now()) return "⛔ 期限切れ（" + u + "）";
-    if (tenantDoc.plan === "active") return "✓ 契約中" + (u ? "（〜" + u + "）" : "");
+    if (tenantDoc.plan === "active") return "✓ 契約中" + tn + (u ? "（〜" + u + "）" : "");
     if (tenantDoc.plan === "trial") return "試用中" + (u ? "（〜" + u + "）" : "");
     return "";
   }
@@ -601,8 +610,11 @@
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
     // AIプロキシが使えるか(契約中の店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
     aiReady() { return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
-    // この店舗が「有料利用ON(運営管理のトグル)」か。真ならPro＋検索の正確モードを使う。
-    aiPaidOn() { return !!(tenantDoc && tenantDoc.aiPaidFallback === true); },
+    // この店舗が検索裏取りを使えるプランか(ターボ/ツインターボ)。真なら診断・修理で検索ONを送る。
+    //  ※実際に検索できるか(月上限・席数)はサーバーが最終判定し、超過時は自動で検索なしに落とす。
+    aiPaidOn() { const c = tierCode(); return c === "turbo" || c === "twinturbo"; },
+    aiPlanCode() { return tierCode(); },
+    aiPlanName() { return tierName(); },
     // 店舗メンバー名簿(uid/name)。カルテ担当者の候補表示などに使用。
     tenantMembers() { return tenantMembers.map(m => ({ uid: m.uid, name: m.name })); },
     // カルテ担当者テキスト→メンバー特定({uid,name} or null)。苗字/名前・漢字/カナ/かな/ローマ字で照合。
@@ -720,7 +732,7 @@
             "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
             "<span class='mtBtns'>" + btn("plan", "t", id, "プラン") +
-            btn("paidai", "t", id, t.aiPaidFallback ? "⚡有料ON" : "無料のみ", t.aiPaidFallback ? "btn-amber" : "btn-ghost") +
+            btn("aitier", "t", id, "AI:" + tierName(t), tierCode(t) === "na" ? "btn-ghost" : "btn-amber") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
@@ -795,17 +807,24 @@
   async function fillTenantStats(tid) {
     const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
     try {
-      const [v, r, u, usage] = await Promise.all([
+      const [v, r, u, usage, td] = await Promise.all([
         db.collection("tenants").doc(tid).collection("vehicles").get().then(s => s.size).catch(() => "?"),
         db.collection("tenants").doc(tid).collection("records").get().then(s => s.size).catch(() => "?"),
         db.collection("users").where("tenantId", "==", tid).get().then(s => s.size).catch(() => "?"),
         db.collection("usage").doc(tid).get().then(s => s.data() || {}).catch(() => ({})),
+        db.collection("tenants").doc(tid).get().then(s => s.data() || {}).catch(() => ({})),
       ]);
       const jstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-      let ai = "";
+      const jstMonth = jstDay.slice(0, 7);
+      const code = tierCode(td), cap = code === "turbo" ? 500 : (code === "twinturbo" ? -1 : 0);
+      const mPaid = (usage.pMonth === jstMonth) ? (usage.mPaid || 0) : 0;
+      let ai = " ／ 🔧 " + tierName(td);
+      if (code === "turbo") ai += "（検索 今月 " + mPaid + "/500回）";
+      else if (code === "twinturbo") {
+        const seatUsed = (usage.seatMonth === jstMonth) ? (usage.seatUids || []).length : 0;
+        ai += "（検索 今月 " + mPaid + "回・席 " + seatUsed + "/" + (td.searchSeats || 3) + "）";
+      }
       if (usage.dMecha) ai += " ／ 🤖 AI本日 " + usage.dMecha + "回";
-      if (usage.freeExhaustedDay === jstDay) ai += " ／ ⚠無料枠 使い切り";
-      if (usage.dPaid) ai += " ／ ⚡有料 本日 " + usage.dPaid + "回";
       el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台" + ai;
     } catch (e) { el.textContent = "利用状況の取得に失敗"; }
   }
@@ -824,13 +843,23 @@
         } catch (e) { alert("発行に失敗: " + (e.message || e)); }
         return;
       }
-      if (act === "paidai") {
-        // 有料フォールバック(無料枠を超えた分だけ有料キーで継続)の店舗ごとON/OFF
+      if (act === "aitier") {
+        // AIプラン(検索裏取りの段階)を設定。1=N/A(検索なし) 2=ターボ(月500) 3=ツインターボ(無制限・席数)
         const cur = (await db.collection("tenants").doc(id).get()).data() || {};
-        const turnOn = !cur.aiPaidFallback;
-        if (turnOn && !confirm("店舗「" + id + "」で『有料利用（無料枠を超えた分だけ課金）』をONにします。\n無料枠を使い切ると自動で有料キーに切り替わり、超過分に課金が発生します。よろしいですか？")) return;
-        await db.collection("tenants").doc(id).set({ aiPaidFallback: turnOn }, { merge: true });
-        alert(turnOn ? "有料利用をONにしました（無料枠の超過分のみ課金）。" : "有料利用をOFFにしました（無料枠のみ・超過で停止）。");
+        const nowCode = (cur.aiPlan === "turbo" || cur.aiPlan === "twinturbo" || cur.aiPlan === "na") ? cur.aiPlan : (cur.aiPaidFallback === true ? "twinturbo" : "na");
+        const ans = (prompt("店舗「" + id + "」のAIプラン\n1 = N/A（検索なし・¥7,980）\n2 = ターボ（検索 月500回・¥12,800）\n3 = ツインターボ（検索 無制限・席数制・¥19,800）\n\n現在: " + ({ na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[nowCode]), nowCode === "turbo" ? "2" : nowCode === "twinturbo" ? "3" : "1") || "").trim();
+        if (!ans) return;
+        const map = { "1": "na", "2": "turbo", "3": "twinturbo" };
+        const plan = map[ans];
+        if (!plan) { alert("1〜3で入力してください。"); return; }
+        const patch = { aiPlan: plan, aiPaidFallback: (plan !== "na") };   // aiPaidFallbackは後方互換で連動
+        if (plan === "twinturbo") {
+          const seatsAns = (prompt("ツインターボの検索利用『席数』（同時に検索を使える人数／月）\n※4席目以降は+¥3,000/席", String(cur.searchSeats || 3)) || "").trim();
+          const seats = parseInt(seatsAns, 10);
+          patch.searchSeats = (!isNaN(seats) && seats >= 1) ? seats : 3;
+        }
+        await db.collection("tenants").doc(id).set(patch, { merge: true });
+        alert("AIプランを「" + ({ na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[plan]) + "」にしました。");
         return;
       }
       if (act === "rename") {

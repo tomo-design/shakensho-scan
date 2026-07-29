@@ -263,12 +263,42 @@ async function latestModels(key) {
 }
 const uniq = (a) => a.filter((x, i) => x && a.indexOf(x) === i);
 
+/* 店舗のAIプラン設定を返す。aiPlan: "na"|"turbo"|"twinturbo"(旧 aiPaidFallback も互換解釈)。
+   searchCap: 0=検索なし / 500=月上限 / -1=無制限。 seats: 0=人数制限なし / N=検索を使える人数(月内)。 */
+function planConfig(t) {
+  t = t || {};
+  let plan = t.aiPlan;
+  if (!plan) plan = (t.aiPaidFallback === true) ? "twinturbo" : "na";   // 旧データ互換(有料ON=無制限扱い)
+  if (plan === "turbo") return { plan: "turbo", searchCap: 500, seats: 0 };
+  if (plan === "twinturbo") return { plan: "twinturbo", searchCap: -1, seats: Math.max(1, +(t.searchSeats || 3)) };
+  return { plan: "na", searchCap: 0, seats: 0 };
+}
+function jstMonth() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7); }
+/* ツインターボの席(=月内に検索を使える人数)を確保。空席があればuidを登録してtrue。満席で未登録ならfalse。 */
+async function claimSeat(tid, uid, seats) {
+  if (!uid) return true;
+  try {
+    const db = admin.firestore(); const ref = db.collection("usage").doc(tid);
+    return await db.runTransaction(async (tx) => {
+      const s = await tx.get(ref); const u = s.exists ? s.data() : {};
+      const month = jstMonth();
+      const list = (u.seatMonth === month) ? (u.seatUids || []).slice() : [];
+      if (list.indexOf(uid) >= 0) return true;   // 既に席あり
+      if (list.length >= seats) return false;    // 満席
+      list.push(uid);
+      tx.set(ref, { seatMonth: month, seatUids: list }, { merge: true });
+      return true;
+    });
+  } catch (e) { return true; }   // 計測失敗時はサービス優先で許可
+}
+
 /* メカ君(Gemini)プロキシ: POST {prompt, mode:"flash"|"pro", media, search} → {text, truncated, tier, freeExhausted}
-   無料キーを先に使い、無料枠を使い切ったら(=429)、その店舗が「有料利用ON(aiPaidFallback)」なら有料キーで継続。 */
+   検索(裏取り)はプラン(searchCap/seats)の範囲でのみ有料キーで実行。範囲外は検索なしFlashに自動フォールバック。 */
 exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
-  const g = await checkPaid(await uidFromReq(req));
+  const uidReq = await uidFromReq(req);
+  const g = await checkPaid(uidReq);
   if (g.err) return res.status(g.err[0]).json({ error: g.err[1] });
   const freeKeys = cfg().geminiFree || [];               // 無料キーのプール(GEMINI_KEY, _2.._5)
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
@@ -288,57 +318,49 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
 
-  const allowPaid = !!(g.t && g.t.aiPaidFallback === true && paidKey);   // この店舗が有料利用ON かつ 有料キー有り
+  const pc = planConfig(g.t);   // プラン: na(検索なし)/turbo(月500)/twinturbo(無制限・席数)
+  const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
+  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);   // 無料キーはFlashのみ(Proは無料枠429)
 
-  // ① 無料キーを順番に試す(1本が枠切れ=429なら次のキーへ)。実質 無料枠×本数。
-  //    ★検索(グラウンディング)は無料枠では絶対に通らない。有料ONなら無料試行を丸ごと飛ばして直接有料へ
-  //      (無料5本×モデルの429待ちで60秒タイムアウト→「Failed to fetch」になるのを防ぐ)。
-  let out = { failed: true, quota: true };
-  const skipFree = !!(data.search && allowPaid);
-  const start = Math.floor(Math.random() * freeKeys.length);
-  // 無料試行するキー本数: 検索は無料で通らないので1本で見切り、通常flashは全キー(枠分散を使い切る)。
-  //  429は待たずに即・次キーへ切替(backoff無し)なので、全5本試してもタイムアウトしない。2回目更新の失敗対策。
-  const maxFreeTries = data.search ? 1 : freeKeys.length;
-  if (!skipFree) {
-    for (let i = 0; i < maxFreeTries; i++) {
+  // 検索(裏取り)を実際に使えるか: 検索対応プラン && 今月上限内 && 席内。不可なら検索なしに落として必ず回答を返す。
+  let effSearch = false;
+  if (data.search && paidCapable && pc.searchCap !== 0) {
+    const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;   // ターボ=月500回
+    const seatOk = pc.seats > 0 ? await claimSeat(g.tid, uidReq, pc.seats) : true;           // ツインターボ=席数
+    effSearch = !overCap && seatOk;
+  }
+  // 有料キーで実行する条件: 検索する / 契約店舗(ターボ以上)が Pro(高精度診断)を要求。na=常に無料Flash。
+  const usePaid = paidCapable && (effSearch || mode === "pro");
+
+  let out = { failed: true, quota: true }, tier = "free", freeExhausted = false;
+
+  // ① 有料キー(検索付き or Pro)。検索は無料枠では通らないので契約店舗のみここを通る。
+  if (usePaid) {
+    out = await callGeminiModels(paidKey, models, parts, mode, effSearch, maxTokens);
+    if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+    if (!out.failed) { tier = "paid"; if (effSearch) await bumpPaidUsage(g.tid); }   // 課金カウントは検索のみ
+    // 失敗しても下の無料Flashにフォールバックして回答を返す(out.failedのまま)。
+  }
+
+  // ② 無料キーでFlash(通常/検索不可/①失敗フォールバック): 全キー試して枠を使い切る。
+  if (out.failed) {
+    out = { failed: true, quota: true };
+    const start = Math.floor(Math.random() * freeKeys.length);
+    for (let i = 0; i < freeKeys.length; i++) {
       const key = freeKeys[(start + i) % freeKeys.length];
-      out = await callGeminiModels(key, models, parts, mode, data.search, maxTokens);
+      out = await callGeminiModels(key, freeModels, parts, "flash", false, maxTokens);
       if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
-      if (!out.failed) break;          // どれかで成功
-      if (!out.quota) break;           // 枠切れ以外の失敗はキーを替えても直らない → 中断
-      if (data.search) break;          // 検索は無料で通らない → 1本だけ試して見切る(時間短縮)
-      // 枠切れ(429) → 次の無料キーへ
+      if (!out.failed) break;
+      if (!out.quota) break;
     }
-  }
-  let tier = "free", freeExhausted = false;
-  if (out.failed && out.quota) {
-    // ② 無料が使えない(枠切れ or 検索スキップ)
-    if (!skipFree) { freeExhausted = true; await markFreeExhausted(g.tid); }
-    const limitPaid = +(process.env.LIMIT_MONTH_PAID || 0);   // 0=無制限(既定)。契約店舗は頭打ちなし・フル精度。
-    if (allowPaid && limitPaid > 0 && (await paidCountThisMonth(g.tid)) >= limitPaid) {
-      // (任意の安全弁を設定した場合のみ) 上限超過でFlash(無料)へダウングレード。既定では無効。
-      const flashModels = ["gemini-flash-latest", "gemini-2.0-flash"];
-      out = await callGeminiModels(freeKeys[start % freeKeys.length], flashModels, parts, "flash", false, maxTokens);
-      tier = "free";
+    if (out.failed && out.quota) {
+      freeExhausted = true; await markFreeExhausted(g.tid);
+      if (paidKey) { out = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens); if (!out.failed) tier = "paid"; }
       if (out.failed) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
-    } else if (allowPaid) {
-      // 有料キーで継続(超過分のみ課金)
-      out = await callGeminiModels(paidKey, models, parts, mode, data.search, maxTokens);
-      tier = "paid";
-      if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
-      if (out.failed) {
-        if (out.quota) return res.status(429).json({ error: "無料枠・有料枠ともに上限に達しました。時間をおいて再度お試しください。", freeExhausted: true });
-        return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
-      }
-      await bumpPaidUsage(g.tid);
-    } else {
-      // 有料利用OFF → 枠切れだが、現場には専用メッセージを出さず通常のAIエラーに統一(freeExhaustedは管理用に返す)
-      return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
+    } else if (out.failed) {
+      return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
     }
-  } else if (out.failed) {
-    return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
   }
-  // 無料キーで通った＝無料枠に余裕あり → 「使い切り」表示を解除(管理画面のバッジが自動で消える)
   if (tier === "free") clearFreeExhausted(g.tid);
   return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted });
 });
