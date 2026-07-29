@@ -151,9 +151,13 @@
         '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
       '</ul></div>' +
       '<div class="signupForm">' +
-        '<div class="fld">ご希望のプラン</div>' +
+        '<div class="fld">プランをお選びください</div>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="na" checked> <b>N/A</b> ｜ 検索の裏取りなし ｜ 月¥7,980・年¥86,000</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"> <b>ターボ</b> ｜ 検索 月500回 ｜ 月¥12,800・年¥138,000</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"> <b>ツインターボ</b> ｜ 検索 無制限（3席） ｜ 月¥19,800・年¥198,000</label>' +
+        '<div class="fld" style="margin-top:8px">お支払い間隔</div>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（お得）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（約1ヶ月分お得）</label>' +
         '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 申し込み・お支払いへ進む</button></div>' +
         '<div id="signupStat" class="planNote"></div>' +
       '</div>' +
@@ -162,10 +166,11 @@
     box.innerHTML = '<section><details><summary class="secSummary">契約・解約</summary>' + body + '</details></section>';
     const send = $("btnSignupSend"); if (send) send.onclick = async () => {
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
+      const tierPref = (document.querySelector('input[name="signupTier"]:checked') || {}).value || "na";
       send.disabled = true; $("signupStat").textContent = "お支払いページを準備中…";
       // 請求書(お支払いページ)を作成。カード/銀行振込/コンビニを選べるページへ遷移。
       try {
-        const d = await window.Cloud.callFn("createCheckout", { plan: planPref, email: me.email || "" });
+        const d = await window.Cloud.callFn("createCheckout", { plan: planPref, tier: tierPref, email: me.email || "" });
         if (d && d.url) { $("signupStat").textContent = "お支払いページを開きます…"; window.location.href = d.url; return; }
         if (d && d.invoiceSent) { $("signupStat").innerHTML = "✓ 請求書メールを送りました。メール内のリンクからお支払いください。"; send.disabled = false; return; }
         throw new Error("お支払いページを取得できませんでした");

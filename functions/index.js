@@ -81,11 +81,26 @@ const cfg = () => ({
   stripe: {
     secret: process.env.STRIPE_SECRET,
     wh: process.env.STRIPE_WH,
-    price_month: process.env.STRIPE_PRICE_MONTH,
+    price_month: process.env.STRIPE_PRICE_MONTH,   // 旧単一プラン(後方互換)
     price_year: process.env.STRIPE_PRICE_YEAR,
+    // 3プラン×月/年の price ID
+    prices: {
+      na: { month: process.env.STRIPE_PRICE_NA_MONTH, year: process.env.STRIPE_PRICE_NA_YEAR },
+      turbo: { month: process.env.STRIPE_PRICE_TURBO_MONTH, year: process.env.STRIPE_PRICE_TURBO_YEAR },
+      twinturbo: { month: process.env.STRIPE_PRICE_TWIN_MONTH, year: process.env.STRIPE_PRICE_TWIN_YEAR },
+    },
   },
   app: { url: process.env.APP_URL },
 });
+// price ID → プランコード(webフックで購入プランを店舗に反映するため)
+function tierFromPriceId(pid) {
+  if (!pid) return "";
+  const P = cfg().stripe.prices;
+  for (const code of ["na", "turbo", "twinturbo"]) {
+    if (P[code] && (P[code].month === pid || P[code].year === pid)) return code;
+  }
+  return "";
+}
 
 /* ---- 通常HTTP(onRequest)方式。callable(onCall)はMessagingのSW取得を巻き込み、
        GitHub Pagesのサブパス配信で404になるため、fetch+IDトークン方式にする。 ---- */
@@ -469,7 +484,11 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   if (!(u.role === "admin" || u.role === "super")) return res.status(403).json({ error: "代表管理者のみ手続きできます。" });
   const data = req.body || {};
   const stripe = require("stripe")(cfg().stripe.secret);
-  const priceId = (data.plan === "yearly") ? cfg().stripe.price_year : cfg().stripe.price_month;
+  // tier: "na"|"turbo"|"twinturbo"(既定na) / plan: "yearly"|"monthly"
+  const tier = ["na", "turbo", "twinturbo"].includes(data.tier) ? data.tier : "na";
+  const interval = (data.plan === "yearly") ? "year" : "month";
+  const P = cfg().stripe.prices[tier] || {};
+  const priceId = P[interval] || ((interval === "year") ? cfg().stripe.price_year : cfg().stripe.price_month);
   if (!priceId) return res.status(500).json({ error: "価格(Price)が未設定です。" });
   const email = data.email || u.email;
   const tid = u.tenantId;
@@ -490,7 +509,7 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
       items: [{ price: priceId }],
       collection_method: "send_invoice",
       days_until_due: 14,
-      metadata: { tenantId: tid },
+      metadata: { tenantId: tid, aiPlan: tier },   // 購入プランをwebフックで店舗に反映
       payment_settings: {
         payment_method_types: ["card", "konbini", "customer_balance"],
         save_default_payment_method: "on_subscription",
@@ -547,7 +566,7 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
     event = stripe.webhooks.constructEvent(req.rawBody, req.headers["stripe-signature"], cfg().stripe.wh);
   } catch (e) { console.error("署名検証失敗", e.message); return res.status(400).send("bad signature"); }
   const db = admin.firestore();
-  const setPlan = async (tid, active, untilMs) => {
+  const setPlan = async (tid, active, untilMs, tier) => {
     if (!tid) return;
     const ref = db.collection("tenants").doc(tid);
     const cur = (await ref.get()).data() || {};
@@ -556,24 +575,35 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       // 期間が短く上書きされて勝手に期限切れになるのを防ぐ。
       const existing = Number(cur.paidUntil) || 0;
       const next = Math.max(Number(untilMs) || 0, existing);
-      await ref.set({ plan: "active", paidUntil: next || null }, { merge: true });
+      const patch = { plan: "active", paidUntil: next || null };
+      // 購入プラン(N/A・ターボ・ツインターボ)を店舗に反映(検索上限/席数の切替)。
+      if (tier) { patch.aiPlan = tier; patch.aiPaidFallback = (tier !== "na"); }
+      await ref.set(patch, { merge: true });
     } else {
       await ref.set({ plan: "suspended" }, { merge: true });
     }
+  };
+  // サブスクから購入プランコードを取得(メタデータ優先、無ければprice IDから判定)
+  const tierOfSub = (sub) => {
+    if (!sub) return "";
+    let t = (sub.metadata && sub.metadata.aiPlan) || "";
+    if (!t) { try { t = tierFromPriceId(sub.items.data[0].price.id); } catch (e) {} }
+    return t;
   };
   try {
     const o = event.data.object;
     if (event.type === "checkout.session.completed") {
       const tid = (o.metadata && o.metadata.tenantId) || o.client_reference_id;
-      let until = null;
-      if (o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); until = sub.current_period_end * 1000; } catch (e) {} }
-      await setPlan(tid, true, until);
+      let until = null, tier = "";
+      if (o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); until = sub.current_period_end * 1000; tier = tierOfSub(sub); } catch (e) {} }
+      await setPlan(tid, true, until, tier);
     } else if (event.type === "invoice.paid") {
       // 支払い確定(カードは即時、コンビニ/銀行振込は入金後)で契約を有効化
       let tid = (o.subscription_details && o.subscription_details.metadata && o.subscription_details.metadata.tenantId) || (o.metadata && o.metadata.tenantId);
-      if (!tid && o.subscription) { try { tid = (await stripe.subscriptions.retrieve(o.subscription)).metadata.tenantId; } catch (e) {} }
+      let tier = ""; try { tier = tierFromPriceId(o.lines.data[0].price.id); } catch (e) {}
+      if (!tid && o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); tid = sub.metadata.tenantId; if (!tier) tier = tierOfSub(sub); } catch (e) {} }
       let until = null; try { until = o.lines.data[0].period.end * 1000; } catch (e) {}
-      if (tid) await setPlan(tid, true, until);
+      if (tid) await setPlan(tid, true, until, tier);
       // カードで支払われた場合は、次回以降を自動更新(自動引き落とし)に切り替える
       try {
         if (o.subscription && o.payment_intent) {
@@ -593,7 +623,7 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       const tid = o.metadata && o.metadata.tenantId;
       // past_due/unpaid等の一時状態(再請求中)では止めない。canceled/失効のみ停止扱い。
       const ended = o.status === "canceled" || o.status === "incomplete_expired";
-      await setPlan(tid, !ended, o.current_period_end ? o.current_period_end * 1000 : null);
+      await setPlan(tid, !ended, o.current_period_end ? o.current_period_end * 1000 : null, ended ? "" : tierOfSub(o));
     }
   } catch (e) { console.error("webhook処理エラー", e); }
   return res.json({ received: true });
