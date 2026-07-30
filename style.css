@@ -27,8 +27,7 @@ body.personalMode #personalKeyBanner{display:block;margin:14px 0 0;padding:12px 
 body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;padding:2px 10px;background:var(--panel)}
 /* 個人モード: 紹介タブを隠し、お問い合わせ(既定は非表示)を表示 */
 body.personalMode #secShareApp{display:none}
-#secContact{display:none}
-body.personalMode #secContact{display:block}
+#secContact{display:block}   /* お問い合わせ(AIサポートチャット+FAQ)は全モードで表示 */
 .faqItem{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:var(--panel)}
 .faqItem>summary{cursor:pointer;padding:10px 12px;font-weight:700;font-size:13px;list-style:none}
 .faqItem>summary::-webkit-details-marker{display:none}
@@ -662,3 +661,19 @@ details[open] > .secSummary::after{content:"▴"}
 .btnLoading{opacity:.7;pointer-events:none}
 .btnMecha.spin{animation:mechaSpin 1s linear infinite}
 @keyframes mechaSpin{to{transform:rotate(360deg)}}
+
+/* お問い合わせ AIサポートチャット(メカ君) */
+.supportChat{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
+.scHead{font-weight:700;font-size:15px}
+.scSub{font-size:12px;color:var(--dim);margin:2px 0 8px}
+.scMsgs{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0}
+.scMsg{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.scBot{align-self:flex-start;background:rgba(120,170,255,.12);border:1px solid var(--line);border-top-left-radius:4px}
+.scUser{align-self:flex-end;background:var(--amber,#ffb020);color:#1a1300;border-top-right-radius:4px}
+.scInputRow{display:flex;gap:8px;margin-top:10px}
+.scIn{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg,#0e1116);color:inherit;font-size:15px}
+.scChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.scChip{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--cyan,#4cc);cursor:pointer}
+.scChip:active{opacity:.7}
+.scNote{margin-top:8px}
+@media (prefers-color-scheme:light){.scBot{background:rgba(60,120,240,.08)}}

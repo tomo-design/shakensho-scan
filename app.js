@@ -4812,3 +4812,70 @@ function showToast(msg) {
     }).catch(() => {});
   }
 })();
+
+/* ============ お問い合わせ AIサポートチャット（メカ君） ============
+   このツールの使い方・仕様を熟知したAIが回答。geminiAsk(既存のプロキシ/自前キー)を使用。 */
+const SUPPORT_KB = [
+  "あなたは車両整備サポートPWA「メカノAI」の専属サポートAI『メカ君』です。",
+  "下記の仕様だけに基づき、整備士ユーザーの『使い方・仕様』の質問に、簡潔(3〜6文)・敬語で答えます。箇条書き可。",
+  "分からない事や、個別の契約・請求・不具合の確定対応は、憶測せず『運営(cablueie.123@gmail.com)へご連絡ください』と案内。アプリと無関係な質問は丁寧にお断りします。前置き・自己紹介は不要。",
+  "",
+  "【概要】整備士向けの無料PWA。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。",
+  "【画面】下タブ=スキャン/履歴/DB編集/設定。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。",
+  "【車検証スキャン】QRコードを枠いっぱいに明るく撮る。読めなければ『全体をスキャン(写真)』。複数QRは順番に。",
+  "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク・油脂類・車台/エンジン打刻位置・OBD検査対象などを取得。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正した値は保持。OBD対象車のみ記載。",
+  "【診断】ダイアグコード(DTC)を入力、または写真・動画(約30秒まで自動圧縮)を添付。複数のDTCや症状は1つずつでなく『1つの故障像』に統合し、最も可能性の高い根本原因を特定する。",
+  "【修理】症状から手順を提示。写真・動画の添付可。",
+  "【整備カルテ】作業記録を残す。『📷写真で入力』はカメラで直接撮影し、何枚でも追加でき自動圧縮、AIが手書きメモを読み取り各項目に整理。担当者に指定された本人が編集権限を持ち、担当者を変更すると編集権限もその人へ移る(苗字/名前・漢字/カナ/かな/ローマ字のどれでも本人を特定)。",
+  "【点検手引書】候補カードの下の小さなボタンから。見出しをタップで内容が開くアコーディオン。",
+  "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。従業員は代表管理者の承認で参加。1人2端末まで無料。",
+  "【AIの用意】個人利用は設定タブで無料のGeminiキー(カード不要)を登録。契約店舗はサーバー経由で鍵登録は不要。常に最新のGeminiを使用。",
+  "【料金プラン】3段階。N/A=検索の裏取りなし(最新AIの標準機能・全機能は使える)。ターボ=AIPro(検索の裏取り・上限あり)。ツインターボ=AIPro(検索の裏取り無制限。検索を使えるのは席数まで＝標準3席、4席目以降は追加席)。『検索の裏取り』とはGoogle検索で実データを確認して精度を上げる機能で、診断・修理で有効。プラン変更・席の追加は代表管理者の『契約・解約』画面、または運営が設定。支払いは月額/年契約。",
+  "【困った時】『AIが混み合っています』は少し時間をおいて再試行。AIが使えない時はキー登録やプランの有効期限を確認。データは端末を削除すると消えるので大切な記録は控えを。",
+  "【連絡先】解決しない場合・契約や不具合は cablueie.123@gmail.com。",
+].join("\n");
+(function initSupportChat() {
+  const msgs = document.getElementById("scMsgs"), inp = document.getElementById("scIn"),
+    send = document.getElementById("scSend"), chips = document.getElementById("scChips");
+  if (!msgs || !inp || !send) return;
+  const history = [];   // {role:"user"|"bot", text}
+  let busy = false;
+  function append(role, text) {
+    const el = document.createElement("div");
+    el.className = "scMsg " + (role === "user" ? "scUser" : "scBot");
+    el.textContent = text;
+    msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+    return el;
+  }
+  async function ask(q) {
+    q = (q || "").trim(); if (!q || busy) return;
+    if (!aiOK()) {
+      append("user", q);
+      append("bot", "いまAIをご利用いただけません。個人利用の方は設定タブで無料のGeminiキーを登録、契約店舗の方はログイン後にお使いください。お急ぎの場合は cablueie.123@gmail.com へご連絡ください。");
+      inp.value = ""; return;
+    }
+    busy = true; send.disabled = true; inp.value = "";
+    append("user", q); history.push({ role: "user", text: q });
+    const bot = append("bot", "メカ君が考え中…");
+    try {
+      const convo = history.slice(-6).map(m => (m.role === "user" ? "ユーザー: " : "メカ君: ") + m.text).join("\n");
+      const prompt = SUPPORT_KB + "\n\n【これまでの会話】\n" + convo + "\n\n【ユーザーの質問】\n" + q + "\n\n【回答】";
+      const r = await geminiAsk(prompt, { mode: "flash", noCache: true, maxTokens: 1024 });
+      const ans = (r && r.text) ? r.text.trim() : "うまく答えられませんでした。cablueie.123@gmail.com へお問い合わせください。";
+      bot.textContent = ans; history.push({ role: "bot", text: ans });
+    } catch (e) {
+      bot.textContent = "エラーが発生しました（" + (e.message || e) + "）。cablueie.123@gmail.com へお問い合わせください。";
+    } finally { busy = false; send.disabled = false; msgs.scrollTop = msgs.scrollHeight; }
+  }
+  send.addEventListener("click", () => ask(inp.value));
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); ask(inp.value); } });
+  // よくある質問チップ
+  if (chips) {
+    ["車検証はどこを写す？", "プランの違いは？", "診断で写真は使える？", "カルテの担当者を変えたい"].forEach(t => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "scChip"; b.textContent = t;
+      b.addEventListener("click", () => ask(t)); chips.appendChild(b);
+    });
+  }
+  // 初回あいさつ
+  append("bot", "こんにちは、サポートのメカ君です🔧 このツールの使い方や仕様について、なんでも聞いてください。");
+})();
