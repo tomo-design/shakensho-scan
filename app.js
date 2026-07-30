@@ -2003,22 +2003,48 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
 });
 
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
+let kartePhotoMedia = [];   // カメラで撮った写真(圧縮済み {mimeType,data})を蓄積 → まとめてAI読み取り
+function renderKartePhotoStatus() {
+  const st = $("kPhotoStatus"); if (!st) return;
+  toggle("kPhotoStatus", true);
+  const n = kartePhotoMedia.length;
+  st.innerHTML = '📷 <b>' + n + '枚</b> 撮影済み　' +
+    '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoMore">＋もう1枚撮る</button> ' +
+    '<button type="button" class="btn btn-amber btn-sm" id="kPhotoRun">AIで読み取り（' + n + '枚）</button> ' +
+    '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoClear">やり直す</button>';
+  $("kPhotoMore").onclick = () => $("kPhotoIn").click();
+  $("kPhotoRun").onclick = runKartePhotoOCR;
+  $("kPhotoClear").onclick = () => { kartePhotoMedia = []; toggle("kPhotoStatus", false); };
+}
 $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
   if (!vehicleKey(current)) { alert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
   if (!aiOK()) {
     alert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
-  $("kPhotoIn").click();
+  kartePhotoMedia = [];            // 新規スタート
+  $("kPhotoIn").click();           // カメラを直接起動
 });
 $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
   const files = Array.from(e.target.files || []); e.target.value = ""; if (!files.length) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
-  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真' + (files.length > 1 ? files.length + "枚" : "") + 'を読み取っています…(数十秒かかる場合があります)';
+  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> 写真を圧縮しています…';
+  // 撮影ごとに圧縮して蓄積(何枚でも追加可)。撮り終えたら「AIで読み取り」を押す。
+  for (const f of files) {
+    const data = await imageToCompressedBase64(f, 1280, 0.7);
+    if (data) kartePhotoMedia.push({ mimeType: "image/jpeg", data: data });
+  }
+  renderKartePhotoStatus();
+});
+async function runKartePhotoOCR() {
+  if (!kartePhotoMedia.length) return;
+  const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
+  const nPhotos = kartePhotoMedia.length;
+  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真' + (nPhotos > 1 ? nPhotos + "枚" : "") + 'を読み取っています…(数十秒かかる場合があります)';
   try {
     const prompt = [
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",
-      files.length > 1 ? "画像は複数枚ありますが、すべて同じ1件の整備作業に関するメモです。全ての画像の内容を統合して、1つのカルテにまとめて返してください(項目ごとに全画像の情報を合わせる。部品は全画像分を列挙)。" : "",
+      nPhotos > 1 ? "画像は複数枚ありますが、すべて同じ1件の整備作業に関するメモです。全ての画像の内容を統合して、1つのカルテにまとめて返してください(項目ごとに全画像の情報を合わせる。部品は全画像分を列挙)。" : "",
       "略号の展開(整備現場の頻出略号。書かれていれば正式名に展開してよい。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキオイル(ブレーキフルード), M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, バッテリ/BATT=バッテリー, プラグ=スパークプラグ, エレメント=フィルター, O/H=オーバーホール, 脱着=取り外し・取り付け。",
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
@@ -2026,9 +2052,7 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
       "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
     ].join("\n");
-    const media = [];
-    for (const f of files) media.push({ mimeType: cleanMime(f.type, "image/jpeg"), data: await fileToBase64(f) });
-    const r = await geminiAskMedia(prompt, media);
+    const r = await geminiAskMedia(prompt, kartePhotoMedia);   // 蓄積した圧縮済み写真をまとめて送信
     const obj = extractJson(r.text) || {};
     openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
     if (obj.date) $("kDate").value = String(obj.date).trim();
@@ -2038,11 +2062,12 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
     if (obj.staff) $("kStaff").value = String(obj.staff).trim();
     if (obj.note) $("kNote").value = String(obj.note).trim();
-    st.textContent = "✓ 写真" + (files.length > 1 ? files.length + "枚を統合して" : "を") + "読み取りました。内容を確認・修正して保存してください。";
+    st.textContent = "✓ 写真" + (nPhotos > 1 ? nPhotos + "枚を統合して" : "を") + "読み取りました。内容を確認・修正して保存してください。";
+    kartePhotoMedia = [];   // 読み取り完了 → 蓄積をクリア
   } catch (err) {
     st.textContent = "⚠ " + (err.message === "__cancelled__" ? "中断しました" : (err.message || "写真を読み取れませんでした")) + "（手入力・音声入力もできます）";
   }
-});
+}
 
 /* 車両識別キー: 型式 > 指定・類別 > 車台番号 の順(型式を読まなくても記憶できる) */
 function vehicleKey(d) {

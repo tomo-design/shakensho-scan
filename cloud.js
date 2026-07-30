@@ -144,6 +144,9 @@
     const canCancel = !!(tenantDoc && tenantDoc.plan === "active");
     const body = '<div class="sec-body">' +
       '<div class="planHead">現在の状態: <b>' + (lbl || "未契約（無料/試用）") + '</b></div>' +
+      (tierCode() === "twinturbo" ?
+        '<div class="planNote" id="seatBox">🔎 検索席: <b>' + (tenantDoc.searchSeats || 3) + '席</b>（3席まで標準・4席目〜 +¥3,000/席）　' +
+        '<button type="button" class="btn btn-ghost btn-sm" id="btnSeatChange">検索席を変更</button></div>' : "") +
       '<div class="planPerk"><div class="planPerkTtl">契約の特典</div><ul class="planPerkList">' +
         '<li>車両データ・車種DB・整備カルテを<b>社内の全端末で自動共有</b></li>' +
         '<li>従業員は<b>何人でも参加OK</b>（1人2端末まで無料）</li>' +
@@ -152,9 +155,9 @@
       '</ul></div>' +
       '<div class="signupForm">' +
         '<div class="fld">プランをお選びください</div>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="na" checked> <b>N/A</b> ｜ 検索の裏取りなし ｜ 月¥7,980・年¥86,000</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"> <b>ターボ</b> ｜ 検索 月500回 ｜ 月¥12,800・年¥138,000</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"> <b>ツインターボ</b> ｜ 検索 無制限（3席） ｜ 月¥19,800・年¥198,000</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="na" checked> <b>N/A</b>（AI標準）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"> <b>ターボ</b>（AIPro・上限あり）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"> <b>ツインターボ</b>（AIPro・無制限）</label>' +
         '<div class="fld" style="margin-top:8px">お支払い間隔</div>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（約1ヶ月分お得）</label>' +
@@ -177,6 +180,19 @@
       } catch (e) {
         send.disabled = false; $("signupStat").textContent = "⚠ 手続きに失敗しました: " + (e.message || e);
       }
+    };
+    const seatBtn = $("btnSeatChange"); if (seatBtn) seatBtn.onclick = async () => {
+      const now = (tenantDoc && tenantDoc.searchSeats) || 3;
+      const ans = (prompt("検索を使える人数（席数）を入力してください。\n3席まで標準。4席目以降は +¥3,000/席（月額）または +¥36,000/席（年額）を、次回請求にまとめて自動計上します。", String(now)) || "").trim();
+      if (!ans) return;
+      const seats = parseInt(ans, 10);
+      if (isNaN(seats) || seats < 1) { alert("数字を入力してください。"); return; }
+      seatBtn.disabled = true;
+      try {
+        const r = await window.Cloud.callFn("setSeats", { tid: profile.tenantId, seats: seats });
+        alert("検索席を " + r.seats + " 席に設定しました" + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
+        renderPlan();
+      } catch (e) { seatBtn.disabled = false; alert("席数の変更に失敗しました: " + (e.message || e)); }
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = async () => {
       if (!confirm("解約しますか？\n現在の契約期間の終了日まで利用でき、その後は自動で停止します（追加の請求はありません）。")) return;

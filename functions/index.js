@@ -540,10 +540,11 @@ exports.setSeats = functions.region(REGION).https.onRequest(async (req, res) => 
   if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
   const db = admin.firestore();
   const u = (await db.collection("users").doc(uid).get()).data();
-  const isSuper = !!(u && u.role === "super");
-  if (!isSuper) return res.status(403).json({ error: "運営のみ設定できます。" });
   const data = req.body || {};
   const tid = data.tid;
+  // 運営(super)は全店舗、代表管理者(admin)は自店舗のみ席数を変更できる。
+  const allowed = u && (u.role === "super" || (u.role === "admin" && u.tenantId === tid));
+  if (!allowed) return res.status(403).json({ error: "運営または自店舗の代表管理者のみ設定できます。" });
   const seats = Math.max(1, parseInt(data.seats, 10) || 3);
   if (!tid) return res.status(400).json({ error: "店舗IDがありません。" });
   const extra = Math.max(0, seats - 3);   // 4席目以降が課金対象
@@ -638,18 +639,25 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
     if (!t) { try { t = tierFromPriceId(sub.items.data[0].price.id); } catch (e) {} }
     return t;
   };
+  // metadataにtenantIdが無い契約でも、Stripe顧客IDから店舗を逆引きして紐付ける(取りこぼし防止)。
+  const tidFromCustomer = async (customerId) => {
+    if (!customerId) return "";
+    try { const q = await db.collection("tenants").where("stripeCustomerId", "==", customerId).limit(1).get(); return q.empty ? "" : q.docs[0].id; } catch (e) { return ""; }
+  };
   try {
     const o = event.data.object;
     if (event.type === "checkout.session.completed") {
-      const tid = (o.metadata && o.metadata.tenantId) || o.client_reference_id;
+      let tid = (o.metadata && o.metadata.tenantId) || o.client_reference_id;
       let until = null, tier = "";
       if (o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); until = sub.current_period_end * 1000; tier = tierOfSub(sub); } catch (e) {} }
+      if (!tid) tid = await tidFromCustomer(o.customer);
       await setPlan(tid, true, until, tier);
     } else if (event.type === "invoice.paid") {
       // 支払い確定(カードは即時、コンビニ/銀行振込は入金後)で契約を有効化
       let tid = (o.subscription_details && o.subscription_details.metadata && o.subscription_details.metadata.tenantId) || (o.metadata && o.metadata.tenantId);
       let tier = ""; try { tier = tierFromPriceId(o.lines.data[0].price.id); } catch (e) {}
       if (!tid && o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); tid = sub.metadata.tenantId; if (!tier) tier = tierOfSub(sub); } catch (e) {} }
+      if (!tid) tid = await tidFromCustomer(o.customer);
       let until = null; try { until = o.lines.data[0].period.end * 1000; } catch (e) {}
       if (tid) await setPlan(tid, true, until, tier);
       // カードで支払われた場合は、次回以降を自動更新(自動引き落とし)に切り替える
@@ -667,8 +675,10 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
     } else if (event.type === "customer.subscription.deleted") {
       const tid = o.metadata && o.metadata.tenantId;
       await setPlan(tid, false, null);   // 契約が完全終了 → 停止
-    } else if (event.type === "customer.subscription.updated") {
-      const tid = o.metadata && o.metadata.tenantId;
+    } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
+      // 送付インボイス方式では作成時点でactiveになるため、created でもプランを反映(=契約したら即切替)。
+      let tid = o.metadata && o.metadata.tenantId;
+      if (!tid) tid = await tidFromCustomer(o.customer);
       // past_due/unpaid等の一時状態(再請求中)では止めない。canceled/失効のみ停止扱い。
       const ended = o.status === "canceled" || o.status === "incomplete_expired";
       await setPlan(tid, !ended, o.current_period_end ? o.current_period_end * 1000 : null, ended ? "" : tierOfSub(o));
