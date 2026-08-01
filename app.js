@@ -4815,6 +4815,23 @@ function showToast(msg) {
       try { reg.update(); } catch (e) {}
     }).catch(() => {});
   }
+  // 手動更新ボタン: キャッシュが古いままの端末を、その場で確実に最新へ。
+  const upBtn = document.getElementById("btnAppUpdate");
+  if (upBtn) upBtn.addEventListener("click", async () => {
+    upBtn.disabled = true; upBtn.textContent = "🔄 更新中…";
+    try {
+      if (!("serviceWorker" in navigator)) { location.reload(); return; }
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) { location.reload(); return; }
+      await reg.update();
+      if (reg.waiting) { reg.waiting.postMessage("skipWaiting"); return; }   // controllerchangeでリロード
+      const nw = reg.installing;
+      if (nw) { nw.addEventListener("statechange", () => { if (nw.state === "installed") nw.postMessage("skipWaiting"); }); return; }
+      location.reload();   // 既に最新 → 通常リロード
+    } catch (e) { location.reload(); }
+    // 保険: 6秒待っても切り替わらなければ強制リロード
+    setTimeout(() => { location.reload(); }, 6000);
+  });
 })();
 
 /* ============ お問い合わせ AIサポートチャット（メカ君） ============
