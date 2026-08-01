@@ -707,3 +707,15 @@ details[open] > .secSummary::after{content:"▴"}
 .btn-alert:active,.kDel:active{border-color:var(--alert)}
 /* 送信ボタンも白＋タップ青枠に統一(矢印はアクセント色) */
 .scSendBtn{background:#fff;color:var(--amber);border:1px solid var(--line)}
+
+/* カルテ写真: ライブカメラ撮影オーバーレイ(外カメラ固定) */
+.kcOverlay{position:fixed;inset:0;z-index:300;background:#000;display:none;flex-direction:column}
+.kcVideo{flex:1;width:100%;height:100%;object-fit:cover;background:#000}
+.kcTip{position:absolute;top:14px;left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.8);padding:0 16px}
+.kcOverlay.kcFlash::after{content:"";position:absolute;inset:0;background:#fff;animation:kcFlash .13s ease-out}
+@keyframes kcFlash{from{opacity:.9}to{opacity:0}}
+.kcBar{position:absolute;left:0;right:0;bottom:0;padding:20px 22px calc(20px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.kcClose{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:26px;border:0;line-height:1;flex:none}
+.kcShot{width:72px;height:72px;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.55);flex:none;cursor:pointer}
+.kcShot:active{transform:scale(.94)}
+.kcDone{min-width:74px;height:46px;border-radius:23px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}

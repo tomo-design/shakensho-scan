@@ -2016,7 +2016,7 @@ function renderKartePhotoStatus() {
       '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoClear">クリア</button>' +
       '<button type="button" class="btn btn-amber btn-sm" id="kPhotoRun">AIで読み取り（' + n + '枚）</button>' +
     '</div>';
-  $("kPhotoMore").onclick = () => $("kPhotoIn").click();
+  $("kPhotoMore").onclick = () => openKarteCamera();
   $("kPhotoRun").onclick = runKartePhotoOCR;
   $("kPhotoClear").onclick = () => { kartePhotoMedia = []; toggle("kPhotoStatus", false); };
 }
@@ -2027,8 +2027,52 @@ $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
     switchView("settings"); return;
   }
   kartePhotoMedia = [];            // 新規スタート
-  $("kPhotoIn").click();           // カメラを直接起動
+  openKarteCamera();               // ライブカメラ(外カメラ)を起動
 });
+/* カルテ写真: ライブカメラ(getUserMedia facingMode=environment)で確実に外カメラ撮影。
+   capture属性は端末により内カメラになるため、こちらを既定にする。非対応時はファイル入力へフォールバック。 */
+let kcStream = null;
+async function openKarteCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $("kPhotoIn").click(); return; }
+  let ov = document.getElementById("kcOverlay");
+  if (!ov) {
+    ov = document.createElement("div"); ov.id = "kcOverlay"; ov.className = "kcOverlay";
+    ov.innerHTML =
+      '<video id="kcVideo" class="kcVideo" playsinline muted></video>' +
+      '<div class="kcTip">書類を枠いっぱいに。丸ボタンで撮影、複数枚OK</div>' +
+      '<div class="kcBar">' +
+        '<button type="button" class="kcClose" id="kcClose" aria-label="閉じる">×</button>' +
+        '<button type="button" class="kcShot" id="kcShot" aria-label="撮影"></button>' +
+        '<button type="button" class="kcDone" id="kcDone">完了 <span id="kcCount">0</span></button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.getElementById("kcClose").onclick = () => { closeKarteCamera(); renderKartePhotoStatus(); };
+    document.getElementById("kcShot").onclick = shotKarteCamera;
+    document.getElementById("kcDone").onclick = () => { closeKarteCamera(); renderKartePhotoStatus(); };
+  }
+  ov.style.display = "flex";
+  document.getElementById("kcCount").textContent = kartePhotoMedia.length;
+  const v = document.getElementById("kcVideo");
+  try {
+    kcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    v.srcObject = kcStream; await v.play();
+  } catch (e) { closeKarteCamera(); $("kPhotoIn").click(); }   // カメラ不許可等はファイル入力へ
+}
+function shotKarteCamera() {
+  const v = document.getElementById("kcVideo"); if (!v || !v.videoWidth) return;
+  const maxDim = 1280, scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
+  const w = Math.max(1, Math.round(v.videoWidth * scale)), h = Math.max(1, Math.round(v.videoHeight * scale));
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  cv.getContext("2d").drawImage(v, 0, 0, w, h);
+  const durl = cv.toDataURL("image/jpeg", 0.7), i = durl.indexOf("base64,");
+  if (i >= 0) kartePhotoMedia.push({ mimeType: "image/jpeg", data: durl.slice(i + 7) });
+  document.getElementById("kcCount").textContent = kartePhotoMedia.length;
+  const ov = document.getElementById("kcOverlay"); if (ov) { ov.classList.add("kcFlash"); setTimeout(() => ov.classList.remove("kcFlash"), 130); }
+}
+function closeKarteCamera() {
+  if (kcStream) { try { kcStream.getTracks().forEach(t => t.stop()); } catch (e) {} kcStream = null; }
+  const ov = document.getElementById("kcOverlay"); if (ov) ov.style.display = "none";
+}
 $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
   const files = Array.from(e.target.files || []); e.target.value = ""; if (!files.length) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
