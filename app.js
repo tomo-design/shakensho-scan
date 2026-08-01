@@ -2008,10 +2008,14 @@ function renderKartePhotoStatus() {
   const st = $("kPhotoStatus"); if (!st) return;
   toggle("kPhotoStatus", true);
   const n = kartePhotoMedia.length;
-  st.innerHTML = '📷 <b>' + n + '枚</b> 撮影済み　' +
-    '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoMore">＋もう1枚撮る</button> ' +
-    '<button type="button" class="btn btn-amber btn-sm" id="kPhotoRun">AIで読み取り（' + n + '枚）</button> ' +
-    '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoClear">やり直す</button>';
+  const thumbs = kartePhotoMedia.map(m => '<img class="kThumb" src="data:' + m.mimeType + ';base64,' + m.data + '" alt="">').join("");
+  st.innerHTML =
+    '<div class="kThumbRow">' + thumbs +
+      '<button type="button" class="kThumbAdd" id="kPhotoMore" aria-label="写真を追加">＋</button></div>' +
+    '<div class="kPhotoBtns">' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoClear">クリア</button>' +
+      '<button type="button" class="btn btn-amber btn-sm" id="kPhotoRun">AIで読み取り（' + n + '枚）</button>' +
+    '</div>';
   $("kPhotoMore").onclick = () => $("kPhotoIn").click();
   $("kPhotoRun").onclick = runKartePhotoOCR;
   $("kPhotoClear").onclick = () => { kartePhotoMedia = []; toggle("kPhotoStatus", false); };
@@ -4822,7 +4826,7 @@ const SUPPORT_KB = [
   "",
   "【概要】整備士向けの無料PWA。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。",
   "【画面】下タブ=スキャン/履歴/DB編集/設定。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。",
-  "【車検証スキャン】QRコードを枠いっぱいに明るく撮る。読めなければ『全体をスキャン(写真)』。複数QRは順番に。",
+  "【車検証スキャン】QRコードを枠いっぱいに明るく撮る。読めなければ『全体をスキャン(写真)』。QRが複数ある車検証は、1つずつではなく『2つずつ』写して読み取る。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク・油脂類・車台/エンジン打刻位置・OBD検査対象などを取得。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正した値は保持。OBD対象車のみ記載。",
   "【診断】ダイアグコード(DTC)を入力、または写真・動画(約30秒まで自動圧縮)を添付。複数のDTCや症状は1つずつでなく『1つの故障像』に統合し、最も可能性の高い根本原因を特定する。",
   "【修理】症状から手順を提示。写真・動画の添付可。",
@@ -4836,17 +4840,24 @@ const SUPPORT_KB = [
 ].join("\n");
 (function initSupportChat() {
   const msgs = document.getElementById("scMsgs"), inp = document.getElementById("scIn"),
-    send = document.getElementById("scSend"), chips = document.getElementById("scChips");
+    send = document.getElementById("scSend");
   if (!msgs || !inp || !send) return;
   const history = [];   // {role:"user"|"bot", text}
   let busy = false;
   function append(role, text) {
+    const row = document.createElement("div");
+    row.className = "scRow " + (role === "user" ? "scRowUser" : "scRowBot");
+    if (role !== "user") { const av = document.createElement("div"); av.className = "scAv"; av.textContent = "🤖"; row.appendChild(av); }
     const el = document.createElement("div");
     el.className = "scMsg " + (role === "user" ? "scUser" : "scBot");
     el.textContent = text;
-    msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+    row.appendChild(el);
+    msgs.appendChild(row); msgs.scrollTop = msgs.scrollHeight;
     return el;
   }
+  // 入力欄を文字量に応じて自動拡大(最大6行)
+  function grow() { inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 150) + "px"; }
+  inp.addEventListener("input", grow);
   async function ask(q) {
     q = (q || "").trim(); if (!q || busy) return;
     if (!aiOK()) {
@@ -4854,7 +4865,7 @@ const SUPPORT_KB = [
       append("bot", "いまAIをご利用いただけません。個人利用の方は設定タブで無料のGeminiキーを登録、契約店舗の方はログイン後にお使いください。お急ぎの場合は cablueie.123@gmail.com へご連絡ください。");
       inp.value = ""; return;
     }
-    busy = true; send.disabled = true; inp.value = "";
+    busy = true; send.disabled = true; inp.value = ""; grow();
     append("user", q); history.push({ role: "user", text: q });
     const bot = append("bot", "メカ君が考え中…");
     try {
@@ -4868,14 +4879,8 @@ const SUPPORT_KB = [
     } finally { busy = false; send.disabled = false; msgs.scrollTop = msgs.scrollHeight; }
   }
   send.addEventListener("click", () => ask(inp.value));
-  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); ask(inp.value); } });
-  // よくある質問チップ
-  if (chips) {
-    ["車検証はどこを写す？", "プランの違いは？", "診断で写真は使える？", "カルテの担当者を変えたい"].forEach(t => {
-      const b = document.createElement("button"); b.type = "button"; b.className = "scChip"; b.textContent = t;
-      b.addEventListener("click", () => ask(t)); chips.appendChild(b);
-    });
-  }
+  // Enterで送信 / Shift+Enterで改行
+  inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(inp.value); } });
   // 初回あいさつ
   append("bot", "こんにちは、サポートのメカ君です🔧 このツールの使い方や仕様について、なんでも聞いてください。");
 })();

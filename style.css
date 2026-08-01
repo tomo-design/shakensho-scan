@@ -662,18 +662,47 @@ details[open] > .secSummary::after{content:"▴"}
 .btnMecha.spin{animation:mechaSpin 1s linear infinite}
 @keyframes mechaSpin{to{transform:rotate(360deg)}}
 
-/* お問い合わせ AIサポートチャット(メカ君) */
-.supportChat{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
-.scHead{font-weight:700;font-size:15px}
-.scSub{font-size:12px;color:var(--dim);margin:2px 0 8px}
-.scMsgs{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0}
-.scMsg{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
-.scBot{align-self:flex-start;background:rgba(120,170,255,.12);border:1px solid var(--line);border-top-left-radius:4px}
-.scUser{align-self:flex-end;background:var(--amber,#ffb020);color:#1a1300;border-top-right-radius:4px}
-.scInputRow{display:flex;gap:8px;margin-top:10px}
-.scIn{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg,#0e1116);color:inherit;font-size:15px}
-.scChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.scChip{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--cyan,#4cc);cursor:pointer}
-.scChip:active{opacity:.7}
+/* お問い合わせ AIサポートチャット(LINE風・折り畳み) */
+.supportChat{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.scSummary{list-style:none;cursor:pointer;padding:12px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+.scSummary::-webkit-details-marker{display:none}
+.scSummary::after{content:"▸";margin-left:auto;color:var(--dim);transition:transform .2s}
+.supportChat[open] .scSummary::after{transform:rotate(90deg)}
+.scAvatar{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+.scHint2{font-size:11px;color:var(--dim);font-weight:500;margin-left:4px}
+.scBodyWrap{padding:0 12px 12px}
+/* LINE風メッセージ列 */
+.scMsgs{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:8px 0;background:var(--panel2);border-radius:10px;padding:10px 8px}
+.scRow{display:flex;align-items:flex-end;gap:6px;max-width:100%}
+.scRowUser{flex-direction:row-reverse}
+.scAv{width:28px;height:28px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px}
+.scMsg{max-width:76%;padding:9px 12px;border-radius:16px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 1px rgba(0,0,0,.04)}
+.scBot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.scUser{background:#06C755;color:#fff;border-bottom-right-radius:4px}   /* LINEグリーン */
+/* 入力: textareaは文字量で自動拡大、送信は小さな丸ボタン */
+.scInputRow{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.scIn{flex:1;min-width:0;padding:10px 12px;border-radius:18px;border:1px solid var(--line);background:#fff;color:var(--txt);font-size:15px;font-family:inherit;resize:none;line-height:1.5;max-height:150px;overflow-y:auto}
+.scSendBtn{flex:none;width:40px;height:40px;border-radius:50%;background:var(--amber);color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:0}
+.scSendBtn:disabled{opacity:.5}
 .scNote{margin-top:8px}
-@media (prefers-color-scheme:light){.scBot{background:rgba(60,120,240,.08)}}
+
+/* カルテ写真: 撮影サムネイル + 追加/クリア */
+.kThumbRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.kThumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.kThumbAdd{width:64px;height:64px;border-radius:8px;border:1.5px dashed var(--line);background:#fff;color:var(--dim);font-size:26px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.kThumbAdd:active{border-color:var(--amber);color:var(--amber)}
+.kPhotoBtns{display:flex;gap:8px}
+.kPhotoBtns .btn{flex:1}
+
+/* ===== 全ボタン共通: 白背景・タップで枠だけ青(アウトライン) ===== */
+.btn,.btn-amber,.btn-cyan,.btn-ghost,.btn-rescan,.btn-sm,.kEdit,.kDel{
+  background:#fff;color:var(--txt);border:1px solid var(--line)
+}
+.btn-alert,.kDel{color:var(--alert);background:#fff;border:1px solid var(--line)}
+.btn:active,.btn-amber:active,.btn-cyan:active,.btn-ghost:active,.btn-rescan:active,
+.btn-sm:active,.kEdit:active,.kDel:active,.btn-alert:active,.scSendBtn:active,.lastVeh:active,.btn-rescan:active{
+  background:#fff;border-color:var(--amber)
+}
+.btn-alert:active,.kDel:active{border-color:var(--alert)}
+/* 送信ボタンも白＋タップ青枠に統一(矢印はアクセント色) */
+.scSendBtn{background:#fff;color:var(--amber);border:1px solid var(--line)}
