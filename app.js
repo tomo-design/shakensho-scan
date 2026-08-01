@@ -4847,7 +4847,7 @@ const SUPPORT_KB = [
   function append(role, text) {
     const row = document.createElement("div");
     row.className = "scRow " + (role === "user" ? "scRowUser" : "scRowBot");
-    if (role !== "user") { const av = document.createElement("div"); av.className = "scAv"; av.textContent = "🤖"; row.appendChild(av); }
+    if (role !== "user") { const av = document.createElement("div"); av.className = "scAv"; av.innerHTML = '<img src="img/mecha.png" alt="メカ君">'; row.appendChild(av); }
     const el = document.createElement("div");
     el.className = "scMsg " + (role === "user" ? "scUser" : "scBot");
     el.textContent = text;

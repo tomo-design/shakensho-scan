@@ -668,14 +668,15 @@ details[open] > .secSummary::after{content:"▴"}
 .scSummary::-webkit-details-marker{display:none}
 .scSummary::after{content:"▸";margin-left:auto;color:var(--dim);transition:transform .2s}
 .supportChat[open] .scSummary::after{transform:rotate(90deg)}
-.scAvatar{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+.scAvatar{width:28px;height:28px;border-radius:50%;background:var(--panel2);object-fit:cover;flex:none}
 .scHint2{font-size:11px;color:var(--dim);font-weight:500;margin-left:4px}
 .scBodyWrap{padding:0 12px 12px}
 /* LINE風メッセージ列 */
 .scMsgs{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:8px 0;background:var(--panel2);border-radius:10px;padding:10px 8px}
 .scRow{display:flex;align-items:flex-end;gap:6px;max-width:100%}
 .scRowUser{flex-direction:row-reverse}
-.scAv{width:28px;height:28px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px}
+.scAv{width:30px;height:30px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.scAv img{width:100%;height:100%;object-fit:cover}
 .scMsg{max-width:76%;padding:9px 12px;border-radius:16px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 1px rgba(0,0,0,.04)}
 .scBot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
 .scUser{background:#06C755;color:#fff;border-bottom-right-radius:4px}   /* LINEグリーン */
