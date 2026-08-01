@@ -4863,18 +4863,20 @@ function showToast(msg) {
   const upBtn = document.getElementById("btnAppUpdate");
   if (upBtn) upBtn.addEventListener("click", async () => {
     upBtn.disabled = true; upBtn.textContent = "🔄 更新中…";
+    let done = false;
+    const hardReload = () => { if (done) return; done = true; try { location.reload(); } catch (e) {} };
+    // 何があっても必ずリロード(固まり防止)。新SW有効化(controllerchange)か、3.5秒のどちらか早い方。
+    const fallback = setTimeout(hardReload, 3500);
     try {
-      if (!("serviceWorker" in navigator)) { location.reload(); return; }
+      if (!("serviceWorker" in navigator)) { clearTimeout(fallback); hardReload(); return; }
       const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) { location.reload(); return; }
+      if (!reg) { clearTimeout(fallback); hardReload(); return; }
+      navigator.serviceWorker.addEventListener("controllerchange", hardReload, { once: true });   // 新版が効いたら即リロード
       await reg.update();
-      if (reg.waiting) { reg.waiting.postMessage("skipWaiting"); return; }   // controllerchangeでリロード
-      const nw = reg.installing;
-      if (nw) { nw.addEventListener("statechange", () => { if (nw.state === "installed") nw.postMessage("skipWaiting"); }); return; }
-      location.reload();   // 既に最新 → 通常リロード
-    } catch (e) { location.reload(); }
-    // 保険: 6秒待っても切り替わらなければ強制リロード
-    setTimeout(() => { location.reload(); }, 6000);
+      if (reg.waiting) reg.waiting.postMessage("skipWaiting");
+      else if (reg.installing) { const nw = reg.installing; nw.addEventListener("statechange", () => { if (nw.state === "installed") nw.postMessage("skipWaiting"); }); }
+      // 新版が無ければ 3.5秒後の hardReload に任せる(通常リロードで最新HTML/JSを取得)
+    } catch (e) { clearTimeout(fallback); hardReload(); }
   });
 })();
 
