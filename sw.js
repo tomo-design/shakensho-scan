@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v305";
+const CACHE = "shaken-scan-v306";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -31,6 +31,8 @@ const PRECACHE = [
   "./img/ic-photo-cam.png",
   "./img/ic-video.png",
   "./img/ic-video-cam.png",
+  "./img/karte-add.png",
+  "./img/karte-cam.png",
 ];
 
 self.addEventListener("install", e => {

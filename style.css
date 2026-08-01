@@ -720,3 +720,11 @@ details[open] > .secSummary::after{content:"▴"}
 .kcShot{width:72px;height:72px;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.55);flex:none;cursor:pointer}
 .kcShot:active{transform:scale(.94)}
 .kcDone{min-width:74px;height:46px;border-radius:23px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}
+
+/* カルテ: 見出し右の手書きイラスト(記録追加)ボタン + 写真カメラ画像ボタン */
+.kHead2{display:flex;align-items:center;gap:8px}
+.karteAddImg{margin-left:auto;background:none;border:0;padding:0;width:54px;height:54px;flex:none;cursor:pointer}
+.karteAddImg img{width:100%;height:100%;object-fit:contain;display:block}
+.karteAddImg:active{transform:scale(.93)}
+.kartePhotoBtn{display:flex;align-items:center;justify-content:center;gap:8px}
+.kBtnIco{width:30px;height:30px;object-fit:contain;flex:none}
