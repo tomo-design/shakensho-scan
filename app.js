@@ -2013,8 +2013,8 @@ function renderKartePhotoStatus() {
     '<div class="kThumbRow">' + thumbs +
       '<button type="button" class="kThumbAdd" id="kPhotoMore" aria-label="写真を追加">＋</button></div>' +
     '<div class="kPhotoBtns">' +
-      '<button type="button" class="btn btn-ghost btn-sm" id="kPhotoClear">クリア</button>' +
-      '<button type="button" class="btn btn-amber btn-sm" id="kPhotoRun">AIで読み取り（' + n + '枚）</button>' +
+      '<button type="button" class="btn btn-amber" id="kPhotoRun">読み取り（' + n + '枚）</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm kPhotoClear" id="kPhotoClear">クリア</button>' +
     '</div>';
   $("kPhotoMore").onclick = () => openKarteCamera();
   $("kPhotoRun").onclick = runKartePhotoOCR;

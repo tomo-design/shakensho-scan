@@ -692,8 +692,9 @@ details[open] > .secSummary::after{content:"▴"}
 .kThumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .kThumbAdd{width:64px;height:64px;border-radius:8px;border:1.5px dashed var(--line);background:#fff;color:var(--dim);font-size:26px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .kThumbAdd:active{border-color:var(--amber);color:var(--amber)}
-.kPhotoBtns{display:flex;gap:8px}
-.kPhotoBtns .btn{flex:1}
+.kPhotoBtns{display:flex;gap:8px;align-items:center}
+.kPhotoBtns #kPhotoRun{flex:1}
+.kPhotoBtns .kPhotoClear{flex:0 0 auto;min-height:38px;padding:6px 12px;font-size:12px}
 
 /* ===== 全ボタン共通: 白背景・タップで枠だけ青(アウトライン) ===== */
 .btn,.btn-amber,.btn-cyan,.btn-ghost,.btn-rescan,.btn-sm,.kEdit,.kDel{
