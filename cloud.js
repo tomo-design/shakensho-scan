@@ -227,18 +227,29 @@
     if (deviceBlocked) {
       body += '<div class="devBlock">⛔ この端末は無料枠（' + FREE_DEVICE_LIMIT + '台）を超えています。<br>' +
         '・上の使わない端末を「解除」すると、この端末で使えます。<br>' +
-        '・端末を増やしたい場合は<b>追加端末（有料）</b>の登録が必要です（準備中）。<br>' +
+        '・そのまま増やす場合は下の<b>「➕ 追加端末」</b>で登録できます（追加分は次回請求にまとめて計上）。<br>' +
         'それまでこの端末は<b>個人利用（ローカル保存）</b>で使えます（社内共有はされません）。</div>';
     }
     body += '<div class="planBtns"><button class="btn btn-ghost btn-sm" id="btnDevBuy">➕ 追加端末（3台目〜・有料）</button></div>' +
-      '<div class="planNote">2台目まで無料。3台目以降は追加端末の登録が必要です（お支払いは準備中）。</div>';
+      '<div class="planNote">2台目まで無料。3台目以降は「➕ 追加端末」で登録でき、追加分は月額/年額に自動で合算されます。</div>';
     body += '</div>';
     const tag = deviceBlocked ? ' <span class="foldTag warn">要対応</span>' : '';
     box.innerHTML = '<details class="foldCard"' + (deviceBlocked ? ' open' : '') + '><summary>📱 登録端末（' + devices.length + '/' + limit + '台）' + tag + '</summary>' + body + '</details>';
     box.querySelectorAll(".devDel").forEach(b => b.addEventListener("click", () => {
       if (confirm("この端末の登録を解除しますか？（その端末では社内共有が使えなくなります）")) removeDevice(b.dataset.id);
     }));
-    const buy = $("btnDevBuy"); if (buy) buy.onclick = () => alert("追加端末の購入は準備中です。\n\n現在は「無料2台まで」。使わない端末を『解除』すれば別の端末で使えます。");
+    const buy = $("btnDevBuy"); if (buy) buy.onclick = async () => {
+      if (!confirm("この端末を追加端末（3台目〜）として登録します。\n追加端末分は次回請求に自動でまとめて計上されます。よろしいですか？")) return;
+      buy.disabled = true;
+      try {
+        const r = await window.Cloud.callFn("setDevices", { delta: 1 });
+        if (profile) profile.deviceLimit = r.deviceLimit;           // 枠を反映
+        const g = await ensureDeviceAllowed(me.uid);                 // この端末を登録
+        if (g.ok) { deviceBlocked = false; startSync(profile.tenantId); }
+        alert("追加端末を登録しました（枠 " + r.deviceLimit + "台）。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
+        renderAuthUI(); renderDevices();
+      } catch (e) { buy.disabled = false; alert("追加に失敗しました: " + (e.message || e)); }
+    };
     show("cloudDevices", true);
   }
 
@@ -935,15 +946,12 @@
           alert(new Date(until).toLocaleDateString("ja-JP") + " に停止するよう設定しました。");
         }
       } else if (act === "devplus") {
-        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
-        const nl = (Number(u.deviceLimit) || 2) + 1;
-        await db.collection("users").doc(id).update({ deviceLimit: nl });
-        alert("端末枠を " + nl + " 台に増やしました（追加端末の支払い確認後に付与してください）。");
+        // 端末枠+1。追加端末分は自動でStripe(月/年)に合算(次サイクル請求)。
+        const r = await window.Cloud.callFn("setDevices", { uid: id, delta: 1 });
+        alert("端末枠を " + r.deviceLimit + " 台に増やしました。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
       } else if (act === "devminus") {
-        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
-        const nl = Math.max(2, (Number(u.deviceLimit) || 2) - 1);
-        await db.collection("users").doc(id).update({ deviceLimit: nl });
-        alert("端末枠を " + nl + " 台にしました。");
+        const r = await window.Cloud.callFn("setDevices", { uid: id, delta: -1 });
+        alert("端末枠を " + r.deviceLimit + " 台にしました。\n" + (r.note || ""));
       } else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }
       else await db.collection(col).doc(id).update({ active: false });
     } catch (e) { alert("操作失敗: " + (e.message || e)); }

@@ -529,6 +529,58 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   }
 });
 
+/* 店舗の『追加端末数』(3台目以降の合計)をStripeサブスクに数量反映。席と同じ方式(proration=none・次サイクル合算)。
+   追加端末数 = 店舗の全メンバーの Σ max(0, deviceLimit-2)。 */
+async function syncDeviceQty(tid) {
+  const db = admin.firestore();
+  const snap = await db.collection("users").where("tenantId", "==", tid).get();
+  let extra = 0; snap.forEach(d => { const dl = Number((d.data() || {}).deviceLimit) || 2; extra += Math.max(0, dl - 2); });
+  const t = (await db.collection("tenants").doc(tid).get()).data() || {};
+  const dm = process.env.STRIPE_PRICE_DEVICE_MONTH, dy = process.env.STRIPE_PRICE_DEVICE_YEAR;
+  let billed = false, note = "";
+  if (t.stripeCustomerId) {
+    try {
+      const stripe = require("stripe")(cfg().stripe.secret);
+      const subs = await stripe.subscriptions.list({ customer: t.stripeCustomerId, status: "all", limit: 10 });
+      const sub = (subs.data || []).find((s) => ["active", "trialing", "past_due", "unpaid"].includes(s.status));
+      if (sub) {
+        const mainItem = sub.items.data.find((it) => tierFromPriceId(it.price.id)) || sub.items.data[0];
+        const interval = (mainItem && mainItem.price.recurring && mainItem.price.recurring.interval) || "month";
+        const devPrice = interval === "year" ? dy : dm;
+        const devItem = sub.items.data.find((it) => it.price.id === dm || it.price.id === dy);
+        const items = [];
+        if (devItem) items.push({ id: devItem.id, deleted: true });
+        if (extra > 0 && devPrice) items.push({ price: devPrice, quantity: extra });
+        if (items.length) { await stripe.subscriptions.update(sub.id, { items: items, proration_behavior: "none" }); billed = extra > 0; }
+      } else { note = "有効な契約が無いため端末枠のみ更新しました。"; }
+    } catch (e) { note = "Stripe更新に失敗(端末枠のみ更新): " + (e.message || e); }
+  } else { note = "Stripe契約が無いため端末枠のみ更新しました(手動契約)。"; }
+  return { extra: extra, billed: billed, note: note };
+}
+/* 端末枠(deviceLimit)を増減し、追加端末分を自動でStripeに合算(次サイクル請求)。POST {uid?, delta}。
+   本人=自分の端末を追加/削減。運営(super)/同店舗の代表管理者(admin)=対象メンバーを操作可。 */
+exports.setDevices = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(uid).get()).data();
+  if (!me || me.active !== true) return res.status(403).json({ error: "有効なアカウントではありません。" });
+  const data = req.body || {};
+  const targetUid = data.uid || uid;
+  const delta = (parseInt(data.delta, 10) === -1) ? -1 : 1;
+  const tu = (await db.collection("users").doc(targetUid).get()).data();
+  if (!tu) return res.status(404).json({ error: "対象が見つかりません。" });
+  const isSelf = targetUid === uid;
+  const allowed = isSelf || me.role === "super" || (me.role === "admin" && me.tenantId === tu.tenantId);
+  if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  const newLimit = Math.max(2, (Number(tu.deviceLimit) || 2) + delta);
+  await db.collection("users").doc(targetUid).update({ deviceLimit: newLimit });
+  const bill = tu.tenantId ? await syncDeviceQty(tu.tenantId) : { extra: 0, billed: false, note: "" };
+  return res.json({ ok: true, deviceLimit: newLimit, extra: bill.extra, billed: bill.billed, note: bill.note });
+});
+
 /* ツインターボの検索『席数』を設定(運営のみ)。POST {tid, seats}。
    3席は標準(無料)。4席目以降は Stripe のサブスクに『追加席』priceを“数量”として付与し、
    proration_behavior="none" で当月は請求せず、次サイクルでメイン料金にまとめて自動請求する。
