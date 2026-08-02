@@ -4243,6 +4243,57 @@ function buildMediaDiagPrompt() {
   return lines.join("\n");
 }
 /* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
+/* 汎用ライブカメラ(外カメラ固定・複数枚撮影)。撮影ごとに onShot(File[jpeg]) を呼ぶ。完了/閉じるで onDone()。
+   capture属性(内カメラになる端末あり)を避け、getUserMedia facingMode=environment を使う。非対応は false を返す。 */
+let lcStream = null, lcShot = null, lcDone = null, lcCount = 0;
+async function openLiveCamera(onShot, onDone) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+  lcShot = onShot; lcDone = onDone || null; lcCount = 0;
+  let ov = document.getElementById("lcOverlay");
+  if (!ov) {
+    ov = document.createElement("div"); ov.id = "lcOverlay"; ov.className = "kcOverlay";
+    ov.innerHTML =
+      '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
+      '<div class="kcTip">枠いっぱいに写す。丸ボタンで撮影、複数枚OK</div>' +
+      '<div class="kcBar">' +
+        '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
+        '<button type="button" class="kcShot" id="lcShotBtn" aria-label="撮影"></button>' +
+        '<button type="button" class="kcDone" id="lcDoneBtn">完了 <span id="lcCount">0</span></button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.getElementById("lcClose").onclick = closeLiveCamera;
+    document.getElementById("lcShotBtn").onclick = shotLiveCamera;
+    document.getElementById("lcDoneBtn").onclick = closeLiveCamera;
+  }
+  document.getElementById("lcCount").textContent = "0";
+  ov.style.display = "flex";
+  const v = document.getElementById("lcVideo");
+  try {
+    lcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    v.srcObject = lcStream; await v.play();
+  } catch (e) { closeLiveCamera(); return false; }
+  return true;
+}
+function shotLiveCamera() {
+  const v = document.getElementById("lcVideo"); if (!v || !v.videoWidth) return;
+  const maxDim = 1600, scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
+  const w = Math.max(1, Math.round(v.videoWidth * scale)), h = Math.max(1, Math.round(v.videoHeight * scale));
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  cv.getContext("2d").drawImage(v, 0, 0, w, h);
+  cv.toBlob(blob => {
+    if (!blob) return;
+    const file = new File([blob], "photo_" + Date.now() + ".jpg", { type: "image/jpeg" });
+    lcCount++; const c = document.getElementById("lcCount"); if (c) c.textContent = lcCount;
+    if (lcShot) lcShot(file);
+  }, "image/jpeg", 0.72);
+  const ov = document.getElementById("lcOverlay"); if (ov) { ov.classList.add("kcFlash"); setTimeout(() => ov.classList.remove("kcFlash"), 130); }
+}
+function closeLiveCamera() {
+  if (lcStream) { try { lcStream.getTracks().forEach(t => t.stop()); } catch (e) {} lcStream = null; }
+  const ov = document.getElementById("lcOverlay"); if (ov) ov.style.display = "none";
+  const done = lcDone; lcShot = null; lcDone = null; if (done) done();
+}
+
 const diagAttachments = [];          // {file, kind:'image'|'video', url}
 const ATTACH_MAX = 12 * 1024 * 1024;   // インライン送信の安全上限(base64で約1.37倍に膨らむため raw 12MB ≒ 16.5MB)
 const VIDEO_TARGET = 9 * 1024 * 1024;  // 圧縮の目標サイズ(余裕を持って)
@@ -4254,10 +4305,15 @@ const attachMap = [
   ["btnAttachVideoCam", "inAttachVideoCam"],
 ];
 attachMap.forEach(([btn, input]) => {
-  $(btn).addEventListener("click", () => {
+  $(btn).addEventListener("click", async () => {
     if (typeof closeVoiceChat === "function") closeVoiceChat();   // 添付選択で会話モードを閉じる
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
+    if (input === "inAttachPhotoCam") {   // 写真カメラ=ライブカメラ(外カメラ・複数撮影)。非対応時はファイル入力へ
+      const ok = await openLiveCamera(async f => { await addDiagAttachment(f); }, null);
+      if (!ok) $(input).click();
+      return;
+    }
     $(input).click();
   });
   $(input).addEventListener("change", async e => {
@@ -4312,7 +4368,14 @@ function clearDiagAttachments() {
 const vehAttachments = [];   // {file, url, kind}
 [["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
-  b.addEventListener("click", () => inp.click());
+  b.addEventListener("click", async () => {
+    if (input === "inVehPhotoCam") {   // 写真カメラ=ライブカメラ(外カメラ・複数撮影)。非対応時はファイル入力へ
+      const ok = await openLiveCamera(async f => { await addVehAttachment(f); renderVehAttachList(); }, null);
+      if (!ok) inp.click();
+      return;
+    }
+    inp.click();
+  });
   inp.addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
     for (const f of files) await addVehAttachment(f);
