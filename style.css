@@ -723,8 +723,7 @@ details[open] > .secSummary::after{content:"▴"}
 
 /* カルテ: 見出し右の手書きイラスト(記録追加)ボタン + 写真カメラ画像ボタン */
 .kHead2{display:flex;align-items:center;gap:8px}
-.karteAddImg{margin-left:auto;background:none;border:0;padding:0;width:54px;height:54px;flex:none;cursor:pointer}
+.kHeadIcons{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+.karteAddImg{background:none;border:0;padding:0;width:54px;height:54px;flex:none;cursor:pointer}
 .karteAddImg img{width:100%;height:100%;object-fit:contain;display:block}
 .karteAddImg:active{transform:scale(.93)}
-.kartePhotoBtn{display:flex;align-items:center;justify-content:center;gap:8px}
-.kBtnIco{width:30px;height:30px;object-fit:contain;flex:none}
