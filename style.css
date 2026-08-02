@@ -727,3 +727,6 @@ details[open] > .secSummary::after{content:"▴"}
 .karteAddImg{background:none;border:0;padding:0;width:34px;height:34px;flex:none;cursor:pointer}   /* 修理・診断の見出しアイコンと同サイズ */
 .karteAddImg img{width:34px;height:34px;object-fit:contain;display:block}
 .karteAddImg:active{transform:scale(.92)}
+
+/* 修理見出しを1行に */
+.secHead .secTtl{white-space:nowrap;flex:none}
