@@ -4922,9 +4922,21 @@ function showToast(msg) {
       try { reg.update(); } catch (e) {}
     }).catch(() => {});
   }
-  // 手動更新ボタン: キャッシュが古いままの端末を、その場で確実に最新へ。
+  // ストア(App Store/Google Play)配布のネイティブ版は、更新はストアが行うのでこのボタンは不要 → 隠す。
+  //  判定: Capacitorラッパー / TWA(android-app://からの起動) / ?native=1 / 保存フラグ。
+  const isNativeApp = (() => {
+    try {
+      return !!(window.Capacitor) ||
+        (document.referrer || "").startsWith("android-app://") ||
+        new URLSearchParams(location.search).get("native") === "1" ||
+        localStorage.getItem("ss_nativeApp") === "1";
+    } catch (e) { return false; }
+  })();
+  if (new URLSearchParams(location.search).get("native") === "1") { try { localStorage.setItem("ss_nativeApp", "1"); } catch (e) {} }
+  // 手動更新ボタン: キャッシュが古いままの端末を、その場で確実に最新へ(Web/PWA版のみ)。
   const upBtn = document.getElementById("btnAppUpdate");
-  if (upBtn) upBtn.addEventListener("click", async () => {
+  if (upBtn && isNativeApp) { const w = upBtn.closest("div"); if (w) w.style.display = "none"; else upBtn.style.display = "none"; }
+  else if (upBtn) upBtn.addEventListener("click", async () => {
     upBtn.disabled = true; upBtn.textContent = "🔄 更新中…";
     let done = false;
     const hardReload = () => { if (done) return; done = true; try { location.reload(); } catch (e) {} };

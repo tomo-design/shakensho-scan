@@ -18,6 +18,8 @@ const PRECACHE = [
   "./icons/icon-maskable.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-maskable-192.png",
+  "./icons/icon-maskable-512.png",
   "./icons/apple-touch-icon.png",
   "./lib/jsQR.js",
   "./lib/zxing.js",
