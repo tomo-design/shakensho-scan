@@ -730,3 +730,9 @@ details[open] > .secSummary::after{content:"▴"}
 
 /* 修理見出しを1行に */
 .secHead .secTtl{white-space:nowrap;flex:none}
+
+/* ストア(App Store/Play)配布=個人版固定: ログイン/法人/プラン/決済/運営UIを非表示 */
+body.storeApp #secCloudSync,
+body.storeApp #cloudPlan,
+body.storeApp #cloudDevices,
+body.storeApp #tabAdmin{ display:none !important }

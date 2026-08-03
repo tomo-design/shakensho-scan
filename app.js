@@ -4933,6 +4933,8 @@ function showToast(msg) {
     } catch (e) { return false; }
   })();
   if (new URLSearchParams(location.search).get("native") === "1") { try { localStorage.setItem("ss_nativeApp", "1"); } catch (e) {} }
+  // ストア(App Store/Play)配布=個人版固定: ログイン/法人/プラン/決済UIを隠す(Appleの課金ルール対策)。
+  if (isNativeApp) { try { document.body.classList.add("storeApp"); setAppMode("personal"); } catch (e) {} }   // 個人版モード強制(AIキー表示/同期・契約非表示)
   // 手動更新ボタン: キャッシュが古いままの端末を、その場で確実に最新へ(Web/PWA版のみ)。
   const upBtn = document.getElementById("btnAppUpdate");
   if (upBtn && isNativeApp) { const w = upBtn.closest("div"); if (w) w.style.display = "none"; else upBtn.style.display = "none"; }
