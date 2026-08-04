@@ -366,6 +366,10 @@
       try {
         unsubTenant = db.collection("tenants").doc(profile.tenantId).onSnapshot(s => { tenantDoc = s.data() || tenantDoc; });
       } catch (e) {}
+      // 管理者/運営は、Stripe契約から自動でプランを同期(webフック取りこぼし救済・🔄手動不要)。
+      if ((profile.role === "admin" || profile.role === "super") && tenantDoc && tenantDoc.stripeCustomerId) {
+        try { await window.Cloud.callFn("syncPlan", { tid: profile.tenantId }); tenantDoc = (await db.collection("tenants").doc(profile.tenantId).get()).data() || tenantDoc; } catch (e) {}
+      }
     }
     renderAuthUI();
     if (profile && profile.active && profile.tenantId) {
@@ -840,13 +844,17 @@
   async function fillTenantStats(tid) {
     const el = $("stat_" + tid.replace(/[^a-zA-Z0-9_-]/g, "")); if (!el) return;
     try {
-      const [v, r, u, usage, td] = await Promise.all([
+      let [v, r, u, usage, td] = await Promise.all([
         db.collection("tenants").doc(tid).collection("vehicles").get().then(s => s.size).catch(() => "?"),
         db.collection("tenants").doc(tid).collection("records").get().then(s => s.size).catch(() => "?"),
         db.collection("users").where("tenantId", "==", tid).get().then(s => s.size).catch(() => "?"),
         db.collection("usage").doc(tid).get().then(s => s.data() || {}).catch(() => ({})),
         db.collection("tenants").doc(tid).get().then(s => s.data() || {}).catch(() => ({})),
       ]);
+      // Stripe契約がある店舗は、一覧表示時にプランを自動同期(🔄手動不要)。
+      if (td && td.stripeCustomerId) {
+        try { await window.Cloud.callFn("syncPlan", { tid: tid }); td = (await db.collection("tenants").doc(tid).get()).data() || td; } catch (e) {}
+      }
       const jstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
       const jstMonth = jstDay.slice(0, 7);
       const code = tierCode(td), cap = code === "turbo" ? 500 : (code === "twinturbo" ? -1 : 0);
