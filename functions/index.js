@@ -529,6 +529,39 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   }
 });
 
+/* Stripeの現契約から店舗のプランを取り込んで同期(webフックの取りこぼし救済)。POST {tid}。
+   運営(super) or 自店舗の代表管理者(admin)が実行可。契約のプラン(N/A/ターボ/ツインターボ)・期限を反映する。 */
+exports.syncPlan = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(uid).get()).data();
+  const tid = (req.body || {}).tid;
+  if (!tid) return res.status(400).json({ error: "店舗IDがありません。" });
+  const allowed = me && (me.role === "super" || (me.role === "admin" && me.tenantId === tid));
+  if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  const tRef = db.collection("tenants").doc(tid);
+  const t = (await tRef.get()).data() || {};
+  if (!t.stripeCustomerId) return res.status(400).json({ error: "この店舗にStripe契約情報がありません（手動契約の可能性）。" });
+  try {
+    const stripe = require("stripe")(cfg().stripe.secret);
+    const subs = await stripe.subscriptions.list({ customer: t.stripeCustomerId, status: "all", limit: 10 });
+    const sub = (subs.data || []).find((s) => ["active", "trialing", "past_due", "unpaid"].includes(s.status));
+    if (!sub) return res.status(400).json({ error: "有効なStripe契約が見つかりません。" });
+    // プラン判定: サブスクmetadata優先、無ければ price ID から判定
+    let tier = (sub.metadata && sub.metadata.aiPlan) || "";
+    if (!tier) { try { tier = tierFromPriceId(sub.items.data[0].price.id); } catch (e) {} }
+    if (!tier) tier = "na";
+    const until = sub.current_period_end ? sub.current_period_end * 1000 : null;
+    const existing = Number(t.paidUntil) || 0;
+    const patch = { plan: "active", paidUntil: Math.max(existing, Number(until) || 0) || null, aiPlan: tier, aiPaidFallback: (tier !== "na") };
+    await tRef.set(patch, { merge: true });
+    return res.json({ ok: true, aiPlan: tier, paidUntil: patch.paidUntil });
+  } catch (e) { return res.status(500).json({ error: "同期に失敗: " + (e.message || e) }); }
+});
+
 /* 店舗の『追加端末数』(3台目以降の合計)をStripeサブスクに数量反映。席と同じ方式(proration=none・次サイクル合算)。
    追加端末数 = 店舗の全メンバーの Σ max(0, deviceLimit-2)。 */
 async function syncDeviceQty(tid) {

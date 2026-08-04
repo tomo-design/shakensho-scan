@@ -764,6 +764,7 @@
             "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
             "<span class='mtBtns'>" + btn("plan", "t", id, "プラン") +
+            btn("syncplan", "t", id, "🔄同期") +
             btn("aitier", "t", id, "AI:" + tierName(t), tierCode(t) === "na" ? "btn-ghost" : "btn-amber") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
@@ -873,6 +874,15 @@
             prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
           } else { alert("発行に失敗しました。"); }
         } catch (e) { alert("発行に失敗: " + (e.message || e)); }
+        return;
+      }
+      if (act === "syncplan") {
+        // Stripeの現契約から plan/aiPlan/期限 を取り込む(webフックの取りこぼし救済)。
+        try {
+          const r = await window.Cloud.callFn("syncPlan", { tid: id });
+          const nm = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[r.aiPlan] || r.aiPlan;
+          alert("Stripeと同期しました。\nプラン: " + nm + (r.paidUntil ? "\n期限: " + new Date(r.paidUntil).toLocaleDateString("ja-JP") : ""));
+        } catch (e) { alert("同期に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "aitier") {
