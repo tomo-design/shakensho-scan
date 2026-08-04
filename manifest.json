@@ -1,5 +1,5 @@
 {
-  "id": "/shakensho-scan/",
+  "id": "/",
   "name": "メカノAI - 車両整備サポート",
   "short_name": "メカノAI",
   "description": "車検証をスキャンして、メンテナンスデータとAI故障診断を即表示する整備士向け現場ツール",
