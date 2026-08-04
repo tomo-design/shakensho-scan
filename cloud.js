@@ -794,7 +794,7 @@
         if (body) body.classList.toggle("hidden");
         head.classList.toggle("open", body && !body.classList.contains("hidden"));
       }));
-      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async e => { e.stopPropagation(); await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act); renderManage(boxId); }));
+      box.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", async e => { e.stopPropagation(); const r = await manageAction(b.dataset.kind, b.dataset.id, b.dataset.act, b); if (r !== "inplace") renderManage(boxId); }));
       statTids.forEach(t => fillTenantStats(t));
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   }
@@ -875,7 +875,7 @@
       el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台" + ai;
     } catch (e) { el.textContent = "利用状況の取得に失敗"; }
   }
-  async function manageAction(kind, id, act) {
+  async function manageAction(kind, id, act, btnEl) {
     try {
       const col = kind === "t" ? "tenants" : "users";
       if (act === "pwreset") {
@@ -892,11 +892,22 @@
       }
       if (act === "seaton" || act === "seatoff") {
         // 検索席の指名/解除。id=メンバーuid。店舗(tenantId)を引いて assignSeat を呼ぶ。
+        //  ★一覧の全体再描画はカードが畳まれて変化が見えないため、ボタンをその場で切り替える。
         const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
-        if (!u.tenantId) { alert("所属店舗が不明です。"); return; }
-        try { await window.Cloud.callFn("assignSeat", { tid: u.tenantId, uid: id, on: act === "seaton" }); }
-        catch (e) { alert("検索席の変更に失敗: " + (e.message || e)); }
-        return;
+        if (!u.tenantId) { alert("所属店舗が不明です。"); return "inplace"; }
+        const on = act === "seaton";
+        if (btnEl) btnEl.disabled = true;
+        try {
+          await window.Cloud.callFn("assignSeat", { tid: u.tenantId, uid: id, on: on });
+          if (btnEl) {
+            btnEl.dataset.act = on ? "seatoff" : "seaton";
+            btnEl.textContent = on ? "🔎席 ✓" : "🔎席";
+            btnEl.classList.toggle("btn-amber", on);
+            btnEl.classList.toggle("btn-ghost", !on);
+          }
+        } catch (e) { alert("検索席の変更に失敗: " + (e.message || e)); }
+        finally { if (btnEl) btnEl.disabled = false; }
+        return "inplace";
       }
       if (act === "syncplan") {
         // Stripeの現契約から plan/aiPlan/期限 を取り込む(webフックの取りこぼし救済)。
