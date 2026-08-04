@@ -341,7 +341,8 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   let effSearch = false;
   if (data.search && paidCapable && pc.searchCap !== 0) {
     const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;   // ターボ=月500回
-    const seatOk = pc.seats > 0 ? await claimSeat(g.tid, uidReq, pc.seats) : true;           // ツインターボ=席数
+    // ツインターボ=検索席を持つメンバーのみ(管理者が指名)。seatMembersにuidがあれば可。
+    const seatOk = pc.seats > 0 ? (Array.isArray(g.t.seatMembers) && g.t.seatMembers.indexOf(uidReq) >= 0) : true;
     effSearch = !overCap && seatOk;
   }
   // 有料キーで実行する条件: 検索する / 契約店舗(ターボ以上)が Pro(高精度診断)を要求。na=常に無料Flash。
@@ -612,6 +613,43 @@ exports.setDevices = functions.region(REGION).https.onRequest(async (req, res) =
   await db.collection("users").doc(targetUid).update({ deviceLimit: newLimit });
   const bill = tu.tenantId ? await syncDeviceQty(tu.tenantId) : { extra: 0, billed: false, note: "" };
   return res.json({ ok: true, deviceLimit: newLimit, extra: bill.extra, billed: bill.billed, note: bill.note });
+});
+
+/* ツインターボの検索席メンバーを指名/解除。POST {tid, uid, on}。運営 or 自店舗の代表管理者が実行可。
+   tenants/{tid}.seatMembers に uid を追加/削除。指名数は searchSeats(既定3)まで。 */
+exports.assignSeat = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const callerUid = await uidFromReq(req);
+  if (!callerUid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(callerUid).get()).data();
+  const data = req.body || {};
+  const tid = data.tid, uid = data.uid, on = !!data.on;
+  if (!tid || !uid) return res.status(400).json({ error: "パラメータ不足です。" });
+  const allowed = me && (me.role === "super" || (me.role === "admin" && me.tenantId === tid));
+  if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  const tu = (await db.collection("users").doc(uid).get()).data();
+  if (!tu || tu.tenantId !== tid) return res.status(400).json({ error: "対象メンバーが店舗に属していません。" });
+  const tRef = db.collection("tenants").doc(tid);
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const t = (await tx.get(tRef)).data() || {};
+      const seats = Math.max(1, +(t.searchSeats || 3));
+      let list = Array.isArray(t.seatMembers) ? t.seatMembers.slice() : [];
+      const idx = list.indexOf(uid);
+      if (on) {
+        if (idx < 0) {
+          if (list.length >= seats) return { err: "検索席が上限（" + seats + "席）に達しています。先に席数を増やすか、他のメンバーを解除してください。" };
+          list.push(uid);
+        }
+      } else if (idx >= 0) { list.splice(idx, 1); }
+      tx.set(tRef, { seatMembers: list }, { merge: true });
+      return { seatMembers: list, seats: seats };
+    });
+    if (result.err) return res.status(400).json({ error: result.err });
+    return res.json({ ok: true, seatMembers: result.seatMembers, seats: result.seats });
+  } catch (e) { return res.status(500).json({ error: "席の更新に失敗: " + (e.message || e) }); }
 });
 
 /* ツインターボの検索『席数』を設定(運営のみ)。POST {tid, seats}。

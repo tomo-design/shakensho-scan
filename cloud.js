@@ -773,7 +773,7 @@
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
-            membersHtml(byTenant[id]) + "</div></div>";
+            membersHtml(byTenant[id], t) + "</div></div>";
           delete byTenant[id];
         });
         // どの会社にも紐づかないユーザー
@@ -784,7 +784,7 @@
         });
       } else {
         // admin: 自店舗のメンバーのみ(AI有料/無料の状態は運営専用のため非表示)
-        html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId]) + "</div></div>";
+        html += "<div class='mTenant'><div class='mTenantHead'><span class='mName'>" + esc(profile.tenantId) + " のメンバー</span></div><div class='mBody'>" + membersHtml(byTenant[profile.tenantId], tenantDoc) + "</div></div>";
       }
       box.innerHTML = html || "メンバーがいません。";
       // 会社ヘッダーのタップでメンバーを開閉(ボタンのクリックは除外)
@@ -799,14 +799,14 @@
     } catch (e) { box.innerHTML = "⚠ 読み込み失敗: " + (e.message || e); }
   }
   function btn(act, kind, id, label, cls) { return "<button class='btn " + (cls || "btn-ghost") + " btn-sm' data-act='" + act + "' data-kind='" + kind + "' data-id='" + esc(id) + "'>" + label + "</button>"; }
-  function membersHtml(list) {
+  function membersHtml(list, t) {
     if (!list || !list.length) return "<div class='mStat'>メンバーなし</div>";
     // 代表管理者を先頭、従業員、運営管理者(在籍表示)は末尾に
     const rank = r => r === "admin" ? 2 : r === "super" ? 0 : 1;
     list.sort((a, b) => rank(b.u.role) - rank(a.u.role));
-    return list.map(x => userRow(x.id, x.u)).join("");
+    return list.map(x => userRow(x.id, x.u, t)).join("");
   }
-  function userRow(id, u) {
+  function userRow(id, u, t) {
     const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
     // 運営管理者(super)は店舗の管理対象ではない。操作ボタン無しで「在籍」だけ表示(誤って無効化されない)
     if (u.role === "super") {
@@ -832,12 +832,18 @@
       "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" + devCtrl + "</div>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
       "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ 端末 " + devN + "/" + devLimit + "台</div></div>";
+    // 検索席の指名トグル(ツインターボ店舗の有効メンバーのみ表示)。ON=このメンバーが検索を使える。
+    let seatBtn = "";
+    if (t && tierCode(t) === "twinturbo" && u.active) {
+      const on = Array.isArray(t.seatMembers) && t.seatMembers.indexOf(id) >= 0;
+      seatBtn = btn(on ? "seatoff" : "seaton", "u", id, on ? "🔎席 ✓" : "🔎席", on ? "btn-amber" : "btn-ghost");
+    }
     let btns;
     if (u.active) {
       // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
         : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
-      btns = btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
+      btns = seatBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
@@ -862,8 +868,8 @@
       let ai = " ／ 🔧 " + tierName(td);
       if (code === "turbo") ai += "（検索 今月 " + mPaid + "/500回）";
       else if (code === "twinturbo") {
-        const seatUsed = (usage.seatMonth === jstMonth) ? (usage.seatUids || []).length : 0;
-        ai += "（検索 今月 " + mPaid + "回・席 " + seatUsed + "/" + (td.searchSeats || 3) + "）";
+        const assigned = Array.isArray(td.seatMembers) ? td.seatMembers.length : 0;
+        ai += "（検索 今月 " + mPaid + "回・指名席 " + assigned + "/" + (td.searchSeats || 3) + "）";
       }
       if (usage.dMecha) ai += " ／ 🤖 AI本日 " + usage.dMecha + "回";
       el.textContent = "👥 メンバー " + u + "人 ／ 🚗 車種DB " + v + "件 ／ 📋 車両 " + r + "台" + ai;
@@ -882,6 +888,14 @@
             prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
           } else { alert("発行に失敗しました。"); }
         } catch (e) { alert("発行に失敗: " + (e.message || e)); }
+        return;
+      }
+      if (act === "seaton" || act === "seatoff") {
+        // 検索席の指名/解除。id=メンバーuid。店舗(tenantId)を引いて assignSeat を呼ぶ。
+        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
+        if (!u.tenantId) { alert("所属店舗が不明です。"); return; }
+        try { await window.Cloud.callFn("assignSeat", { tid: u.tenantId, uid: id, on: act === "seaton" }); }
+        catch (e) { alert("検索席の変更に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "syncplan") {
