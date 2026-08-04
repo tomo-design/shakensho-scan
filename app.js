@@ -1698,7 +1698,7 @@ $("abClose").addEventListener("click", hideAssign);
 /* メンテナンス諸元 [{k,v}] を表形式で表示 */
 let shownSpecs = [];        // 現在表示中の諸元(訂正の初期値に使う)
 function renderSpecs(specs, source) {
-  shownSpecs = normalizeSpecs(specs || []);   // 固まった値は項目ごとに自動分解して表示
+  shownSpecs = dedupSpecs(normalizeSpecs(specs || []));   // 固まった値は項目ごとに分解し、同義項目の重複は統合して表示
   const dl = $("specList"); dl.innerHTML = "";
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
@@ -3925,11 +3925,32 @@ function companyRecordFor(d) {
   return hit;
 }
 /* specsリストを統合(キー名重複は先勝ち=aを優先) */
+/* 諸元キーを正規化して同義項目をまとめる(重複統合用)。括弧注釈・空白・全半角差を無視し、主要な同義語を1つに。 */
+function canonSpecKey(k) {
+  let s = String(k == null ? "" : k).normalize("NFKC").toLowerCase();
+  s = s.replace(/[（(][^（()）]*[)）]/g, "");        // 括弧内の注釈を除去(クーラント（冷却水）量→クーラント量)
+  s = s.replace(/[\s　・･:：]/g, "");
+  if (/(クーラント|冷却水|llc|ll)/.test(s) && /(量|容量)/.test(s)) return "クーラント量";
+  if (/エンジン(オイル|油)量/.test(s)) return "エンジンオイル量";
+  if (/オイル粘度/.test(s)) return "推奨オイル粘度";
+  if (/ホイール(ナット)?(締付|締め付け|トルク)/.test(s)) return "ホイールナット締付トルク";
+  if (/(リアアクスル|アクスルシャフト|ドライブシャフト|ハブ)/.test(s) && /(締付|締め付け|トルク|フランジ|ナット)/.test(s)) return "リアアクスルシャフト締付トルク";
+  return s;
+}
+/* 同義キーで重複を除去(先頭を優先。手動確定値があればそれを優先的に残す)。 */
+function dedupSpecs(list) {
+  const map = new Map();
+  (list || []).forEach(s => {
+    if (!s || !s.k) return;
+    const c = canonSpecKey(s.k);
+    const cur = map.get(c);
+    if (!cur) { map.set(c, s); return; }
+    if (s.manual && !cur.manual) map.set(c, s);   // 手動確定を優先して残す
+  });
+  return [...map.values()];
+}
 function mergeSpecLists(a, b) {
-  const out = (a || []).slice();
-  const keys = new Set(out.map(s => String(s.k)));
-  (b || []).forEach(s => { if (s && s.k && !keys.has(String(s.k))) { out.push(s); keys.add(String(s.k)); } });
-  return out;
+  return dedupSpecs([...(a || []), ...(b || [])]);   // a(既存/優先)→b の順で同義キー重複を統合
 }
 /* メンテナンス諸元＋定番故障/持病をAIから一括取得(JSON)。
    known: 既に判明している値(再検索させない)。missOnly: 今回補完したい不足項目名。 */
@@ -3954,6 +3975,7 @@ function buildSpecPrompt(known, missOnly) {
     "【必須7項目は必ず1行ずつ出す】上記①〜⑦は、その車両に存在する限り必ずspecsに個別の行として含めること。特に②ミッションオイル量・③デフオイル量・⑤リアアクスル/ハブ締付トルクの出し忘れが多い。トラック等の大型車ではこれらは通常存在するので省略しないこと。",
     "ただし、その車両に構造上存在しない項目(例: FF車のデフオイル、CVT車のミッションオイル量など)は無理に出さなくてよい。存在するのに見つからない場合のみ最終手段として（要確認）とする。",
     "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。整備で重要かつ確証のある項目は上記以外も追加してよい。",
+    "【諸元の重複禁止】同じ項目を表記違いで二重に出さない。例:『クーラント量』と『クーラント（冷却水）量』/『リアアクスルシャフト締付トルク』と『リアアクスルシャフトフランジ締付トルク』は同一項目なので必ず1行に統合する。1つの部位・値につきspecsは1行だけにする。",
     "【ホイールナット締付トルクの基準】メーカー整備書の指定を最優先しつつ、判明しない場合は次の一般基準を目安にする(数値は目安・車両区分に合わせる):",
     "・普通乗用車: おおむね 103〜120 N·m(例 トヨタ約103、ホンダ/日産/マツダ/スバル約108、三菱約108)。ハブボルトは M12×1.25 または M12×1.5 が主流。",
     "・軽自動車: おおむね 85〜100 N·m。",
