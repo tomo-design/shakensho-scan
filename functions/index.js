@@ -402,6 +402,39 @@ exports.visionOcr = functions.region(REGION).https.onRequest(async (req, res) =>
   return res.json({ text: text });
 });
 
+/* 個人版(Google Play)サブスクの購入検証・承認。
+   POST {token, sku} → Google Play Developer API で定期購入の状態を確認し、
+   未承認なら acknowledge する。ログイン不要(有効な purchaseToken が本人性の担保)。
+   ※事前準備: (1)functions のサービスアカウントを Play Console の
+     「API アクセス」でユーザー招待し「財務データ/注文の閲覧」権限付与、
+     (2)Google Play Android Developer API を GCP で有効化。 */
+exports.verifyPlaySub = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const PKG = "com.cablueie.mechanoai";
+  const token = (req.body && req.body.token) || "";
+  const sku = (req.body && req.body.sku) || "personal_monthly";
+  if (!token) return res.status(400).json({ error: "purchaseToken がありません。" });
+  try {
+    const { google } = require("googleapis");   // 遅延require(他関数のコールドスタートに影響させない)
+    const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/androidpublisher"] });
+    const ap = google.androidpublisher({ version: "v3", auth });
+    // subscriptionsv2: token だけで購入全体の状態を取得できる
+    const r = await ap.purchases.subscriptionsv2.get({ packageName: PKG, token });
+    const d = r.data || {};
+    const state = d.subscriptionState || "";
+    const active = state === "SUBSCRIPTION_STATE_ACTIVE" || state === "SUBSCRIPTION_STATE_IN_GRACE_PERIOD";
+    // 未承認なら acknowledge(3日以内に承認しないと自動返金される)
+    if (d.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
+      try { await ap.purchases.subscriptions.acknowledge({ packageName: PKG, subscriptionId: sku, token, requestBody: {} }); } catch (e) {}
+    }
+    const expiry = (d.lineItems && d.lineItems[0] && d.lineItems[0].expiryTime) || null;
+    return res.json({ ok: active, state: state, expiry: expiry });
+  } catch (e) {
+    return res.status(500).json({ error: "検証エラー: " + String((e && e.message) || e) });
+  }
+});
+
 /* 部品の実写画像検索(Google Custom Search): POST {q, num} → {items:[{thumb,link,ctx,title}]}。
    契約中の店舗は自前キー不要で使える(運営のキーをサーバー側で使用)。 */
 exports.imageSearch = functions.region(REGION).https.onRequest(async (req, res) => {
