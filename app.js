@@ -22,6 +22,25 @@ const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", 
 function aiOK() { return !!localStorage.getItem(LS.gemini) || !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()); }
 
 const $ = id => document.getElementById(id);
+/* クリップボードにコピー。navigator.clipboard は安全(HTTPS)コンテキストでしか動かないため、
+   HTTP/非対応環境では execCommand('copy') にフォールバックする。成功で true。 */
+async function copyText(txt) {
+  txt = String(txt == null ? "" : txt);
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(txt); return true; }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
@@ -1110,8 +1129,8 @@ $("lnkRawChips").addEventListener("click", () => { toggle("secRaw", true); $("se
 { const b = $("btnCopyQrRaw"); if (b) b.addEventListener("click", async () => {
   const raw = (current && current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
   const txt = raw.length ? raw.join("\n") : "(QR生データなし)";
-  try { await navigator.clipboard.writeText(txt); b.textContent = "✓ コピーしました"; setTimeout(() => b.textContent = "🔎 QR生データをコピー（不具合報告用）", 1600); }
-  catch (e) { alert(txt); }
+  if (await copyText(txt)) { b.textContent = "✓ コピーしました"; setTimeout(() => b.textContent = "🔎 QR生データをコピー（不具合報告用）", 1600); }
+  else { alert(txt); }
 }); }
 $("btnVidSave").addEventListener("click", () => {
   const uc = id => $(id).value.trim().toUpperCase();
@@ -1253,8 +1272,8 @@ function renderPartsBreakdown(box, obj, part) {
   box.innerHTML = html;
   $("orderPre").textContent = lastOrderText;
   $("btnOrderCopy") && $("btnOrderCopy").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(lastOrderText); $("btnOrderCopy").textContent = "✓ コピーしました"; setTimeout(() => { const b = $("btnOrderCopy"); if (b) b.textContent = "コピー"; }, 1500); }
-    catch (e) { const p = $("orderPre"); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    if (await copyText(lastOrderText)) { $("btnOrderCopy").textContent = "✓ コピーしました"; setTimeout(() => { const b = $("btnOrderCopy"); if (b) b.textContent = "コピー"; }, 1500); }
+    else { const p = $("orderPre"); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
   });
   $("btnOrderShare") && $("btnOrderShare").addEventListener("click", async () => {
     const title = "部品注文リスト";
@@ -1457,7 +1476,7 @@ function renderRepairAnswer(box, obj, q) {
     const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "") + (o.kind === "同時交換推奨" ? "（※同時交換推奨）" : "")).join("\n");
     const bar = document.createElement("div"); bar.className = "btnRow"; bar.style.marginTop = "8px";
     const copy = document.createElement("button"); copy.className = "btn btn-amber btn-sm"; copy.textContent = "コピー";
-    copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(orderText); copy.textContent = "✓ コピー"; setTimeout(() => copy.textContent = "コピー", 1500); } catch (e) {} });
+    copy.addEventListener("click", async () => { if (await copyText(orderText)) { copy.textContent = "✓ コピー"; setTimeout(() => copy.textContent = "コピー", 1500); } });
     const share = document.createElement("button"); share.className = "btn btn-ghost btn-sm"; share.textContent = "共有・メール";
     share.addEventListener("click", async () => { if (navigator.share) { try { await navigator.share({ title: "部品注文リスト", text: orderText }); return; } catch (e) { if (e && e.name === "AbortError") return; } } location.href = "mailto:?subject=" + encodeURIComponent("部品注文リスト") + "&body=" + encodeURIComponent(orderText); });
     bar.append(copy, share); list.appendChild(bar);
@@ -2411,13 +2430,6 @@ function renderRecalls(recalls) {
   fillList("recallList", recalls, false);
   toggle("recallList", recalls.length > 0);
   toggle("recallNote", recalls.length > 0);
-}
-/* リコール確認用: 車台番号をハイフン前/後で別々にコピー＋各々別タブでサイトを開く */
-function copyText(t) {
-  try { navigator.clipboard.writeText(t); } catch (e) {
-    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
-    try { document.execCommand("copy"); } catch (e2) {} ta.remove();
-  }
 }
 /* 車台番号→型式 のキャッシュ＆AI特定 */
 function getCachedKata(vin) { try { return JSON.parse(localStorage.getItem("ss_katacache") || "{}")[vinPrefix(vin).toUpperCase()] || null; } catch (e) { return null; } }
@@ -3906,7 +3918,9 @@ const SPEC_REQUIRED = [
   { name: "ミッションオイル量", test: k => /(ミッション|トランスミッション|ATF|CVT|MTF|ギヤオイル|ギアオイル)/.test(k) },
   { name: "デフオイル量", test: k => /(デフ|デファレンシャル)/.test(k) },
   { name: "ホイールナット締付トルク", test: k => /ホイールナット/.test(k) },
-  { name: "リアアクスルシャフト締付トルク", test: k => /(アクスル|ドライブシャフト|ハブナット)/.test(k) },
+  { name: "リアアクスルシャフト（フランジ）締付トルク", test: k => /(アクスル|ドライブシャフト|フランジ)/.test(k) },
+  { name: "フロントハブベアリングナット締付トルク", test: k => /(フロント|前)/.test(k) && /ハブ/.test(k) },
+  { name: "リアハブベアリングナット締付トルク", test: k => /(リア|後)/.test(k) && /ハブ/.test(k) },
   { name: "車台番号の打刻位置", test: k => /車台番号/.test(k) && /打刻|位置/.test(k) },
   { name: "エンジン型式の打刻位置", test: k => /(エンジン型式|原動機)/.test(k) && /打刻|位置/.test(k) },
 ];
@@ -3934,7 +3948,10 @@ function canonSpecKey(k) {
   if (/エンジン(オイル|油)量/.test(s)) return "エンジンオイル量";
   if (/オイル粘度/.test(s)) return "推奨オイル粘度";
   if (/ホイール(ナット)?(締付|締め付け|トルク)/.test(s)) return "ホイールナット締付トルク";
-  if (/(リアアクスル|アクスルシャフト|ドライブシャフト|ハブ)/.test(s) && /(締付|締め付け|トルク|フランジ|ナット)/.test(s)) return "リアアクスルシャフト締付トルク";
+  // ハブベアリングナット(前後で別項目) と アクスルシャフト(フランジ)締付は別物として区別する
+  const side = /(フロント|前)/.test(s) ? "フロント" : /(リア|後)/.test(s) ? "リア" : "";
+  if (/ハブ(ベアリング)?ナット|ハブベアリング/.test(s) && /(締付|締め付け|トルク|ナット)/.test(s)) return (side || "") + "ハブベアリングナット締付トルク";
+  if (/(リアアクスル|アクスルシャフト|ドライブシャフト|フランジ)/.test(s) && /(締付|締め付け|トルク|フランジ|ナット|ボルト)/.test(s)) return "リアアクスルシャフト（フランジ）締付トルク";
   return s;
 }
 /* 同義キーで重複を除去(先頭を優先。手動確定値があればそれを優先的に残す)。 */
@@ -3969,18 +3986,19 @@ function buildSpecPrompt(known, missOnly) {
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
     "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
-    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
+    '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"リアアクスルシャフト（フランジ）締付トルク","v":"…±… N·m"},{"k":"フロントハブベアリングナット締付トルク","v":"…±… N·m"},{"k":"リアハブベアリングナット締付トルク","v":"…±… N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "【OBD検査の対象判定】この車両がOBD検査(OBD確認検査)の対象車かを、型式・初度登録年月・燃料種別・車種区分から判定する。対象と判断できる場合のみ、specsに {\"k\":\"OBD検査\",\"v\":\"対象車（◯年◯月〜適用）\"} を含める。対象でない・判定できない場合はこの項目を一切出さない(記載しない)。判定の要点: 令和3年(2021年)10月1日以降に型式指定を受けた新型車が対象。継続生産車はガソリン等が令和4年(2022年)10月〜・ディーゼルが令和5年(2023年)10月〜、輸入車はさらに後(令和6年10月〜)。二輪・大型特殊・被牽引車・一部の特種用途車は対象外。初度登録年月が令和3年10月より前の車両は基本的に対象外。確証が持てない場合は対象にしない(項目を出さない)。",
-    "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト(ドライブシャフト/ハブ)締付トルク ⑥車台番号の打刻位置 ⑦エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
-    "【必須7項目は必ず1行ずつ出す】上記①〜⑦は、その車両に存在する限り必ずspecsに個別の行として含めること。特に②ミッションオイル量・③デフオイル量・⑤リアアクスル/ハブ締付トルクの出し忘れが多い。トラック等の大型車ではこれらは通常存在するので省略しないこと。",
+    "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト（フランジ）締付トルク＝アクスルシャフトを固定するフランジ(ドライブフランジ)のボルト/ナットの締付値 ⑥フロントハブベアリングナット締付トルク ⑦リアハブベアリングナット締付トルク ⑧車台番号の打刻位置 ⑨エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
+    "【締付トルクは部位を厳密に区別する】『アクスルシャフト（フランジ）締付』と『ハブベアリングナット締付』は別の部位・別の規定値である。混同して1つにまとめない。ハブベアリングナット(ハブナット)は前輪(フロント)と後輪(リア)で値が異なる場合が多いので、必ず『フロントハブベアリングナット締付トルク』と『リアハブベアリングナット締付トルク』を別々の行で出すこと。存在しない/駆動方式上該当しない場合のみ省略可。",
+    "【必須項目は必ず1行ずつ出す】上記①〜⑨は、その車両に存在する限り必ずspecsに個別の行として含めること。特に②ミッションオイル量・③デフオイル量・⑤アクスルフランジ・⑥⑦前後ハブベアリングナットの出し忘れが多い。トラック等の大型車ではこれらは通常存在するので省略しないこと。",
     "ただし、その車両に構造上存在しない項目(例: FF車のデフオイル、CVT車のミッションオイル量など)は無理に出さなくてよい。存在するのに見つからない場合のみ最終手段として（要確認）とする。",
     "『オイルエレメント』『オイル交換目安』の項目は出力しないこと。整備で重要かつ確証のある項目は上記以外も追加してよい。",
-    "【諸元の重複禁止】同じ項目を表記違いで二重に出さない。例:『クーラント量』と『クーラント（冷却水）量』/『リアアクスルシャフト締付トルク』と『リアアクスルシャフトフランジ締付トルク』は同一項目なので必ず1行に統合する。1つの部位・値につきspecsは1行だけにする。",
+    "【諸元の重複禁止】同じ項目を表記違いで二重に出さない。例:『クーラント量』と『クーラント（冷却水）量』/『リアアクスルシャフト締付トルク』と『リアアクスルシャフト（フランジ）締付トルク』は同一項目なので必ず1行に統合する。1つの部位・値につきspecsは1行だけにする。ただし『アクスルシャフト（フランジ）締付』『フロントハブベアリングナット締付』『リアハブベアリングナット締付』は別部位なので統合せず、それぞれ別行で出す。",
     "【ホイールナット締付トルクの基準】メーカー整備書の指定を最優先しつつ、判明しない場合は次の一般基準を目安にする(数値は目安・車両区分に合わせる):",
     "・普通乗用車: おおむね 103〜120 N·m(例 トヨタ約103、ホンダ/日産/マツダ/スバル約108、三菱約108)。ハブボルトは M12×1.25 または M12×1.5 が主流。",
     "・軽自動車: おおむね 85〜100 N·m。",
     "・大型トラック/バス(全日本トラック協会の締付トルク基準): ISO方式(M22×1.5・球面座・片側10穴等)は約 570〜630 N·m(概ね600±)。JIS方式(複輪の内外ナット)は方式・サイズにより約 400〜590 N·m。車両が採用する方式(ISO/JIS)とナットサイズに合わせて示す。",
-    "・リアアクスルシャフト/ハブ/ドライブシャフト等の締付トルクはメーカー整備書の規定値に従う。",
+    "・リアアクスルシャフト（フランジ）締付トルク＝アクスルシャフトを固定するフランジ(ドライブフランジ)のボルト/ナット。ハブベアリングナット(ハブナット)＝ホイールハブのベアリングを予圧調整・固定するナットで、両者は別部位・別規定値。ハブベアリングナットは前後で値が異なることが多いのでフロント・リアを分けて示す。いずれもメーカー整備書の規定値に従い、判明しない場合は（要確認）とする。",
     "【オイル粘度・油量の基準】メーカー純正指定を最優先。新しい省燃費指定(例 0W-16/0W-20)がある車はそれを優先し、旧型は 5W-30/10W-30 等。ディーゼル大型はメーカー指定のディーゼル用粘度と規格(例 10W-30/15W-40、DL-1/DH-2 等)を示す。油量は『オイルのみ／エレメント同時交換』を併記する。",
     ""
   ];
@@ -4812,7 +4830,7 @@ function renderCopyKata() {
   el.innerHTML = '📋 <b>' + esc(code) + '</b> をコピー';
   toggle("copyKata", true);
   el.onclick = async () => {
-    try { await navigator.clipboard.writeText(code); } catch (e) {}
+    await copyText(code);
     const orig = el.innerHTML; el.innerHTML = '✓ コピー';
     setTimeout(() => { el.innerHTML = orig; }, 1200);
   };

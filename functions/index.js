@@ -809,3 +809,145 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
   } catch (e) { console.error("webhook処理エラー", e); }
   return res.json({ received: true });
 });
+
+/* =========================================================================
+   営業ルーム(社内専用) — AI社員が働く疑似会社ツール。運営(super)専用。
+   メカノAIを法人へ売り込むための「営業支援＋AI社員チーム」。
+   POST {action, ...} :
+     - "generate": {role, task, lead, history} → {text}  AI社員が提案文/メール/戦略等を生成
+     - "listLeads": → {leads:[...]}                        見込み客一覧
+     - "saveLead": {lead} → {id}                           見込み客を保存/更新
+     - "delLead": {id} → {ok}                              見込み客を削除
+   見込み客は salesLeads コレクションに保存(Admin SDK経由・ルール不要)。
+   鍵はサーバー内のみ。営業文の送信・投稿は行わない(下書き生成まで)。
+   ========================================================================= */
+
+// メカノAIの製品情報(AI社員が営業トークに使う共有ナレッジ)。事実に基づいて話させる土台。
+const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・トラック整備士向けの現場ツール(PWA)。
+【提供元】Cablueie。URL: https://mechanoai-cablueie.com/
+【主な機能】
+・車検証をQR/カメラでスキャン → 車両情報を即取得
+・メンテナンス諸元(締付トルク・オイル粘度/量・各種容量)をAIが即表示
+・故障診断/修理サポート(DTC・症状から原因と対処をAIが提案。裏取り検索対応)
+・整備カルテ(作業記録・写真・担当者管理。カルテは担当者のみ編集可)
+・法人向けクラウド同期(店舗内で車両DB・記録を共有。席指名・端末管理)
+【料金(法人)】3プラン。①N/A: 月¥7,980/年¥86,000(AI検索なし)。②ターボ: 月¥12,800/年¥138,000(月500回検索)。③ツインターボ: 月¥19,800/年¥198,000(検索無制限・指名3席、4席目〜+¥3,000/月)。端末追加も可。
+【個人版】App Store/Google Playで提供予定。基本無料。
+【強み】現場の紙作業・調べ物を削減。車検証から一気通貫。最新Geminiで高精度。整備士目線のUI。`;
+
+// 時事ネタ(営業トークのフック)。使えるものだけ自然に織り込ませる。誇張・古い断定はしない。
+const NEWS_KB = `【営業に使える時事の背景(2026年時点)】
+・整備士不足/高齢化: 自動車整備士は人手不足と高齢化が深刻。若手が入らず、ベテランの退職で技術継承が課題。→「調べ物・記録を仕組み化し、若手でも即戦力化」という訴求が刺さる。
+・物流2024年問題の余波: ドライバー・車両の稼働を止められない運送/GS併設整備では、点検整備の効率化・ダウンタイム短縮の価値が高い。
+・電子化/DX圧力: 車検証の電子化(ICタグ)、点検記録のデジタル化の流れ。紙・手書き作業からの脱却ニーズ。
+・車両の高度化: 電動車(HV/EV)や先進安全装備の普及で、参照すべき整備情報・締付トルク/専用手順が増加。都度調べる負担が増えている。
+・GS併設整備の事情: 給油客対応と整備を少人数で回すため、1人当たりの生産性・段取りの速さが死活的。車検証から一気に情報を出せる価値が大きい。
+使い方: 相手の業種に合うものを1つだけ自然に触れる。ニュースの受け売りにせず「だからメカノAIが効く」に必ず着地させる。数値の断定や古い統計の捏造はしない。`;
+
+// AI社員(疑似会社の各部門)。role → {name, sys}
+const SALES_STAFF = {
+  bucho: {
+    name: "営業部長 剛田",
+    sys: "あなたはメカノAI販売会社の営業部長。B2B法人営業(自動車整備工場・運送会社・ディーラー)のプロ。戦略立案・優先順位付け・商談の進め方・切り返しトークを、現実的で具体的に指示する。精神論でなく数字と手順で語る。",
+  },
+  writer: {
+    name: "セールスライター 文乃",
+    sys: "あなたはメカノAI販売会社のセールスライター。整備工場の経営者・工場長に響く提案メール/DM/チラシ文面を書く。専門用語を使いすぎず、導入メリット(時間短縮・ミス削減・若手教育)を具体的に。CTA(無料デモ・問い合わせ)で締める。過度な誇張・虚偽は書かない。",
+  },
+  marke: {
+    name: "マーケ担当 舞",
+    sys: "あなたはメカノAI販売会社のマーケティング担当。ターゲット選定・訴求軸・チャネル(展示会/SNS/紹介/飛び込み)・キャンペーン案を出す。ペルソナと数値目標を意識し、施策を箇条書きで実行可能な形にする。",
+  },
+  cs: {
+    name: "カスタマーサクセス 円",
+    sys: "あなたはメカノAI販売会社のカスタマーサクセス担当。導入後の質問・クレーム・解約防止に対応。落ち着いた丁寧な口調で、手順を分かりやすく案内する。製品KBの範囲で正確に答え、不明点は運営に確認と案内する。",
+  },
+  bell: {
+    name: "商談ロープレ相手",
+    sys: "あなたは整備工場の“渋い”経営者役。営業担当(ユーザー)の商談練習相手として、値段・使いこなせるか・既存のやり方で十分では、という現実的な反論をする。最後に良かった点と改善点を1つずつフィードバックする。",
+  },
+};
+
+async function isSuper(uid) {
+  if (!uid) return false;
+  try {
+    const u = (await admin.firestore().collection("users").doc(uid).get()).data();
+    return !!u && u.role === "super";
+  } catch (e) { return false; }
+}
+
+exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!(await isSuper(uid))) return res.status(403).json({ error: "運営(super)専用の機能です。" });
+  const db = admin.firestore();
+  const data = req.body || {};
+  const action = data.action || "generate";
+
+  // ---- 見込み客リスト(CRUD) ----
+  if (action === "listLeads") {
+    const snap = await db.collection("salesLeads").orderBy("updatedAt", "desc").limit(500).get();
+    return res.json({ leads: snap.docs.map((d) => Object.assign({ id: d.id }, d.data())) });
+  }
+  if (action === "saveLead") {
+    const l = data.lead || {};
+    const doc = {
+      company: String(l.company || "").slice(0, 200),
+      contact: String(l.contact || "").slice(0, 120),
+      phone: String(l.phone || "").slice(0, 60),
+      email: String(l.email || "").slice(0, 200),
+      kind: String(l.kind || "").slice(0, 60),        // 整備工場/運送/ディーラー 等
+      status: String(l.status || "見込み").slice(0, 40), // 見込み/アプローチ中/商談/契約/見送り
+      note: String(l.note || "").slice(0, 4000),
+      updatedAt: Date.now(),
+    };
+    let ref;
+    if (l.id) { ref = db.collection("salesLeads").doc(l.id); await ref.set(doc, { merge: true }); }
+    else { doc.createdAt = Date.now(); ref = await db.collection("salesLeads").add(doc); }
+    return res.json({ id: ref.id });
+  }
+  if (action === "delLead") {
+    if (data.id) await db.collection("salesLeads").doc(String(data.id)).delete();
+    return res.json({ ok: true });
+  }
+
+  // ---- AI社員による生成 ----
+  const staff = SALES_STAFF[data.role] || SALES_STAFF.bucho;
+  const freeKeys = cfg().geminiFree || [];
+  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
+  const latest = await latestModels(freeKeys[0]);
+  const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+
+  const lead = data.lead || null;
+  const leadBlock = lead ? `\n【対象の見込み客】\n会社名:${lead.company || "-"} / 業種:${lead.kind || "-"} / 担当:${lead.contact || "-"} / 状況:${lead.status || "-"}\nメモ:${lead.note || "-"}\n` : "";
+  const hist = Array.isArray(data.history) ? data.history.slice(-8) : [];
+  const histBlock = hist.length ? "\n【これまでのやりとり】\n" + hist.map((h) => (h.role === "user" ? "指示" : staff.name) + ": " + String(h.text || "").slice(0, 1200)).join("\n") + "\n" : "";
+
+  const prompt = `${staff.sys}
+
+以下は取り扱う製品の正確な情報です。ここに書かれた事実のみを根拠に話し、値段や機能をでっち上げないこと。
+${PRODUCT_KB}
+
+${NEWS_KB}
+${leadBlock}${histBlock}
+【あなたへの指示】
+${String(data.task || "").slice(0, 4000)}
+
+出力ルール: 日本語。すぐ使える具体的な内容。提案文やメールを頼まれたらそのまま送れる完成形で。前置きの挨拶や「承知しました」は不要。`;
+
+  const parts = [{ text: prompt }];
+  // まず有料キー(あれば)→ ダメなら無料キーを順に試す
+  let out = { failed: true };
+  if (paidKey) out = await callGeminiModels(paidKey, models, parts, "flash", false, 8192);
+  if (out.failed) {
+    const start = Math.floor(Math.random() * freeKeys.length);
+    for (let i = 0; i < freeKeys.length; i++) {
+      out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, parts, "flash", false, 8192);
+      if (!out.failed) break;
+    }
+  }
+  if (out.failed) return res.status(503).json({ error: "AIが混みあっています。少し待って再度お試しください。" });
+  return res.json({ text: out.text, truncated: !!out.truncated, staff: staff.name });
+});
