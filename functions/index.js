@@ -1,7 +1,7 @@
 /* 参加申請があったら、その会社の代表管理者(admin)と運営(super)にプッシュ通知を送る。
    users ドキュメントが「承認待ち(active=false, rejected!=true)」に“なった瞬間”だけ送信。
    デプロイ: firebase deploy --only functions   (Blazeプランが必要・無料枠内で運用可) */
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");   // v6でも従来(v1)記法をそのまま使う
 const admin = require("firebase-admin");
 admin.initializeApp();
 
