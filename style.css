@@ -537,6 +537,11 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
 .partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
 .partsItem .pShop:active{transform:translateY(1px)}
+/* 修理タブの部品行の下に出す通販ボタン */
+.orderShops{display:flex;gap:8px;margin:3px 0 10px;flex-wrap:wrap}
+.orderShops .pShop{flex:1 1 0;min-width:110px;text-align:center;font-size:12px;font-weight:800;text-decoration:none;padding:7px 6px;border-radius:8px;border:1px solid var(--line);white-space:nowrap}
+.orderShops .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
+.orderShops .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
 .orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#eef4ff}
 .orderT{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:6px}
 .orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}

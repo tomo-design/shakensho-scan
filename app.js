@@ -1431,8 +1431,11 @@ async function runVehAsk() {
       r = await geminiAsk(buildRepairPrompt(qFull), { mode: "flash", search: accurate });   // 修理も事実取得: Flash+検索(思考不要で低コスト・精度は検索で担保)
     }
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
-    if (obj && obj.isWork && Array.isArray(obj.steps) && obj.steps.length) renderRepairAnswer(box, obj, qFull);
-    else renderAiAnswer(box, (obj && obj.answer) ? obj.answer : r.text);
+    // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
+    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) renderRepairAnswer(box, obj, qFull);
+    else if (obj && obj.answer) renderAiAnswer(box, obj.answer);
+    else if (obj && obj.isWork) renderRepairAnswer(box, obj, qFull);
+    else renderAiAnswer(box, r.text);
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
@@ -1505,6 +1508,14 @@ function renderRepairAnswer(box, obj, q) {
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
+      // 通販で購入(Yahoo!ショッピング/Amazon)。タップで部品名の商品検索へ(アフィリエイト対応)
+      const sq = han(o.name).trim();
+      if (sq) {
+        const shops = document.createElement("div"); shops.className = "pShops orderShops";
+        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(sq); y.textContent = "🛒 Yahoo!";
+        const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(sq); a.textContent = "🛒 Amazon";
+        shops.append(y, a); list.appendChild(shops);
+      }
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
