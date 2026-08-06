@@ -47,6 +47,9 @@ function getAppMode() { return localStorage.getItem("ss_appmode") === "personal"
 function applyAppMode() {
   const personal = getAppMode() === "personal";
   document.body.classList.toggle("personalMode", personal);
+  // 個人版(ストア版)は「アプリを最新に更新」不要(ストア経由更新)。法人Web/PWA版のみ表示。
+  const upBtn = $("btnAppUpdate");
+  if (upBtn) { const w = upBtn.closest("div") || upBtn; w.style.display = personal ? "none" : ""; }
   // 個人版はAPIキーが前提。キー設定を自動で開いて見つけやすく
   if (personal) { const f = $("secAiKeyFold"); if (f) f.open = true; }
 }
@@ -4983,7 +4986,8 @@ function showToast(msg) {
   if (isNativeApp) { try { document.body.classList.add("storeApp"); setAppMode("personal"); } catch (e) {} }   // 個人版モード強制(AIキー表示/同期・契約非表示)
   // 手動更新ボタン: キャッシュが古いままの端末を、その場で確実に最新へ(Web/PWA版のみ)。
   const upBtn = document.getElementById("btnAppUpdate");
-  if (upBtn && isNativeApp) { const w = upBtn.closest("div"); if (w) w.style.display = "none"; else upBtn.style.display = "none"; }
+  // 個人版(ストア版/personalモード)はストア経由で更新されるため不要。法人(Web/PWA)版のみ表示。
+  if (upBtn && (isNativeApp || getAppMode() === "personal")) { const w = upBtn.closest("div"); if (w) w.style.display = "none"; else upBtn.style.display = "none"; }
   else if (upBtn) upBtn.addEventListener("click", async () => {
     upBtn.disabled = true; upBtn.textContent = "🔄 更新中…";
     let done = false;
