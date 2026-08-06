@@ -1476,11 +1476,6 @@ function renderRepairAnswer(box, obj, q) {
     sec("取り付け位置");
     const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
   }
-  // 実写画像はワンタップのWeb検索ボタンで(設定不要)。動画検索の上に配置
-  const iq = (carName + " " + mainPart + " 取り付け位置").trim();
-  const ia = document.createElement("a"); ia.className = "linkbtn"; ia.target = "_blank"; ia.rel = "noopener";
-  ia.href = "https://www.google.com/search?q=" + encodeURIComponent(iq) + "&tbm=isch";
-  ia.innerHTML = "🔍 実物の位置をWeb画像で探す<span class='arr'>↗</span>"; box.appendChild(ia);
   // 動画検索
   const yq = (carName + " " + mainPart + " 交換").trim();
   const sa = document.createElement("a"); sa.className = "linkbtn"; sa.target = "_blank"; sa.rel = "noopener";
@@ -1505,15 +1500,13 @@ function renderRepairAnswer(box, obj, q) {
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 部品ごとのアクション: 🔍画像で確認 / 🛒 通販で購入(Yahoo!・Amazon＝アフィリエイト対応)
+      // 部品ごとの購入リンク(Yahoo!・Amazon＝アフィリエイト対応)
       const sq = han(o.name).trim();
       if (sq) {
-        const pq = ((currentVehicleFacts().model || (current && current.type) || "") + " " + sq + " 部品").trim();
         const shops = document.createElement("div"); shops.className = "pShops orderShops";
-        const img = document.createElement("a"); img.className = "pShop pShopImg"; img.target = "_blank"; img.rel = "noopener"; img.href = "https://www.google.com/search?q=" + encodeURIComponent(pq) + "&tbm=isch"; img.textContent = "🔍 画像";
-        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(sq); y.textContent = "🛒 Yahoo!";
+        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(sq); y.textContent = "🛒 Yahoo!ショッピング";
         const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(sq); a.textContent = "🛒 Amazon";
-        shops.append(img, y, a); list.appendChild(shops);
+        shops.append(y, a); list.appendChild(shops);
       }
     });
     // コピー/共有テキスト(品番なし)
