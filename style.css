@@ -537,12 +537,16 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
 .partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
 .partsItem .pShop:active{transform:translateY(1px)}
-/* 部品名(タップで購入リンクを開閉) */
-.orderNameTap{background:none;border:0;padding:0;margin:0;font:inherit;color:var(--txt);text-align:left;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
-.orderNameTap .orderCaret{color:var(--dim);font-size:.8em;transition:transform .15s}
-.orderNameTap.isOpen .orderCaret{transform:rotate(180deg)}
-/* 修理タブの部品行の下に出す通販リンク(さりげない小さめチップ) */
-.orderShops{display:flex;gap:6px;margin:4px 0 8px 14px;flex-wrap:wrap}
+/* 注文部品: 部品名タップでYahoo!ショッピングへ(別タブ)。さりげなく🛒を添える */
+.orderNameLink{color:var(--txt);text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.orderNameLink .orderGo{font-size:.85em;opacity:.55}
+.orderNameLink:active{opacity:.7}
+/* 必要な工具: 各サイズにAmazon/Yahoo!リンク(さりげない小さめチップ) */
+.toolList{margin-top:4px}
+.toolRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-bottom:1px dashed var(--line)}
+.toolRow:last-child{border-bottom:0}
+.toolName{font-weight:800;color:var(--txt);min-width:56px}
+.orderShops{display:flex;gap:6px;flex-wrap:wrap}
 .orderShops .pShop{flex:0 1 auto;text-align:center;font-size:11.5px;font-weight:600;text-decoration:none;padding:4px 10px;border-radius:14px;border:1px solid var(--line);white-space:nowrap;color:var(--dim);background:transparent}
 .orderShops .pShop::before{content:"🛒 ";font-size:.9em}
 .orderShops .pShopY{color:#c0203a;border-color:rgba(200,30,60,.30)}

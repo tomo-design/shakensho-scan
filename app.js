@@ -69,6 +69,21 @@ function amazonSearchUrl(q) {
 function yahooSearchUrl(q) {
   return vcWrap("https://shopping.yahoo.co.jp/search?p=" + encodeURIComponent(q));
 }
+/* 部品検索用の車両プレフィックス: 車種名 + 型式の車種記号(例「ダイハツ タント L375S」)。
+   車台番号(VIN)そのものは商品に一致しないため使わず、型式記号までで特定精度を上げる。 */
+function vehPartPrefix() {
+  const model = (currentVehicleFacts().model || "").trim();
+  const code = kataSuffix((current && current.type) || "").trim();   // 例 DBA-L375S → L375S
+  return [model, code].filter(Boolean).join(" ").trim();
+}
+/* 工具(ソケット/ヘックス/トルクス)を検索しやすい語に整形 */
+function toolQuery(sz) {
+  const s = String(sz || "");
+  let m;
+  if ((m = s.match(/^HEX(\d+)/i))) return m[1] + "mm 六角 ヘックスソケット";
+  if ((m = s.match(/^T(\d+)/i))) return "T" + m[1] + " トルクスソケット";
+  return s + " ソケット";
+}
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
 function applyAppMode() {
@@ -1499,25 +1514,23 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      // 部品名タップで購入リンクを開閉(さりげなく表示)
       const sq = han(o.name).trim();
-      const nm = document.createElement(sq ? "button" : "span"); nm.className = "orderName" + (sq ? " orderNameTap" : "");
-      nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      if (sq) { nm.type = "button"; const car = document.createElement("span"); car.className = "orderCaret"; car.textContent = " ▾"; nm.appendChild(car); }
+      const label = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
+      let nm;
+      if (sq) {
+        // 部品名タップで、その車両(車種名+型式記号)＋部品名の検索をYahoo!ショッピングで別タブ表示
+        const query = (vehPartPrefix() + " " + sq).trim();
+        nm = document.createElement("a"); nm.className = "orderName orderNameLink";
+        nm.href = yahooSearchUrl(query); nm.target = "_blank"; nm.rel = "noopener sponsored";
+        nm.title = "Yahoo!ショッピングで探す";
+        nm.textContent = label;
+        const go = document.createElement("span"); go.className = "orderGo"; go.textContent = "🛒"; nm.appendChild(go);
+      } else {
+        nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = label;
+      }
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 部品ごとの購入リンク(Yahoo!・Amazon＝アフィリエイト対応)。既定は非表示、部品タップで開閉。
-      if (sq) {
-        // 読み込んだ車両に合わせた検索(車種名/型式 + 部品名)で、その車の部品がヒットするようにする
-        const veh = (currentVehicleFacts().model || (current && current.type) || "").trim();
-        const query = (veh ? veh + " " : "") + sq;
-        const shops = document.createElement("div"); shops.className = "pShops orderShops hidden";
-        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(query); y.textContent = "Yahoo!ショッピング";
-        const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(query); a.textContent = "Amazon";
-        shops.append(y, a); list.appendChild(shops);
-        nm.addEventListener("click", () => { const open = shops.classList.toggle("hidden"); nm.classList.toggle("isOpen", !open); });
-      }
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
@@ -1533,9 +1546,18 @@ function renderRepairAnswer(box, obj, q) {
   // ④ この作業で使うソケット・メガネのサイズだけを集約表示(その他の工具は載せない)
   const wrenchSizes = extractWrenchSizes(obj.steps);
   if (wrenchSizes.length) {
-    sec("必要なソケット・メガネ");
-    const p = document.createElement("div"); p.className = "ai-p wrenchSizes"; p.textContent = wrenchSizes.join("　・　");
-    box.appendChild(p);
+    sec("必要なソケット・工具");
+    const wrap = document.createElement("div"); wrap.className = "toolList";
+    wrenchSizes.forEach(sz => {
+      const q = toolQuery(sz);
+      const t = document.createElement("div"); t.className = "toolRow";
+      const nmT = document.createElement("span"); nmT.className = "toolName"; nmT.textContent = han(sz);
+      const chips = document.createElement("span"); chips.className = "pShops orderShops";
+      const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(q); y.textContent = "Yahoo!";
+      const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(q); a.textContent = "Amazon";
+      chips.append(y, a); t.append(nmT, chips); wrap.appendChild(t);
+    });
+    box.appendChild(wrap);
   }
   // ⑤ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
