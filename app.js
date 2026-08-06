@@ -46,7 +46,8 @@ const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hi
    ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
 const AFFIL = {
   amazonTag: "mechanoai-22",   // AmazonアソシエイトのトラッキングID。空ならタグ無し検索
-  monotaroWrap: "",    // モノタロウ(ASP)のリンクラッパー。"{url}" に実URL(エンコード済)を差し込む。空なら通常リンク
+  vcSid: "",   // バリューコマースのサイトID(数字)。Yahoo!ショッピング提携後に設定
+  vcPid: "",   // バリューコマースのYahoo!ショッピング広告プログラムID(数字)
 };
 /* 部品の検索クエリ: 品番が判明していれば「品番 + 名称」、無ければ名称のみ */
 function partQuery(i) {
@@ -54,12 +55,19 @@ function partQuery(i) {
   const hasPn = pn && pn.indexOf("要確認") < 0;
   return ((hasPn ? pn + " " : "") + (i && i.name ? i.name : "")).trim();
 }
+/* バリューコマースの成果計測リンクで包む(sid/pid設定時のみ)。未設定なら素のURLを返す。 */
+function vcWrap(targetUrl) {
+  if (AFFIL.vcSid && AFFIL.vcPid) {
+    return "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=" + encodeURIComponent(AFFIL.vcSid) +
+      "&pid=" + encodeURIComponent(AFFIL.vcPid) + "&vc_url=" + encodeURIComponent(targetUrl);
+  }
+  return targetUrl;
+}
 function amazonSearchUrl(q) {
   return "https://www.amazon.co.jp/s?k=" + encodeURIComponent(q) + (AFFIL.amazonTag ? "&tag=" + encodeURIComponent(AFFIL.amazonTag) : "");
 }
-function monotaroSearchUrl(q) {
-  const base = "https://www.monotaro.com/s/?q=" + encodeURIComponent(q);
-  return AFFIL.monotaroWrap ? AFFIL.monotaroWrap.replace("{url}", encodeURIComponent(base)) : base;
+function yahooSearchUrl(q) {
+  return vcWrap("https://shopping.yahoo.co.jp/search?p=" + encodeURIComponent(q));
 }
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
@@ -1281,7 +1289,7 @@ function renderPartsBreakdown(box, obj, part) {
     list.forEach(i => {
       const q = partQuery(i);
       const shops = q ? '<div class="pShops">' +
-        '<a class="pShop pShopM" target="_blank" rel="noopener sponsored" href="' + monotaroSearchUrl(q) + '">🛒 モノタロウ ↗</a>' +
+        '<a class="pShop pShopY" target="_blank" rel="noopener sponsored" href="' + yahooSearchUrl(q) + '">🛒 Yahoo!ショッピング ↗</a>' +
         '<a class="pShop pShopA" target="_blank" rel="noopener sponsored" href="' + amazonSearchUrl(q) + '">🛒 Amazon ↗</a>' +
         '</div>' : "";
       html += '<div class="partsItem"><div class="pName">' + esc(han(i.name)) + (i.qty ? ' <span class="pQty">×' + esc(han(String(i.qty))) + '</span>' : "") + '</div>' +
