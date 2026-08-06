@@ -83,9 +83,18 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .heroBtn{font-size:14px;font-weight:700;padding:11px 8px;border-radius:11px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;line-height:1.15;white-space:nowrap}
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-/* カメラ画面中央の模擬QR(2つ横並び・うっすら透過。複数まとめてスキャン可を示唆) */
-#multiQrHint{display:flex;gap:64px;opacity:.3;pointer-events:none}
+/* カメラ画面中央の模擬QR。2つ版と1つ版をゆっくりクロスフェードで交互表示(車検証は通常2つ・1つの場合もあることを示唆) */
+#multiQrHint{position:relative;width:256px;height:96px;pointer-events:none}
+#multiQrHint .qrLayer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:64px}
 #multiQrHint .qrMini{width:96px;height:96px;display:block}
+#multiQrHint .qrTwo{animation:qrHintTwo 6s ease-in-out infinite}
+#multiQrHint .qrOne{animation:qrHintOne 6s ease-in-out infinite}
+@keyframes qrHintTwo{0%,37%{opacity:.32}47%,84%{opacity:0}93%,100%{opacity:.32}}
+@keyframes qrHintOne{0%,37%{opacity:0}47%,84%{opacity:.32}93%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  #multiQrHint .qrTwo{animation:none;opacity:.32}
+  #multiQrHint .qrOne{animation:none;opacity:0}
+}
 .mechaBubble{font-size:13px;font-weight:700;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 16px}
 header h1{font-size:16px;font-weight:900;letter-spacing:.06em}
 header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Chakra Petch'}

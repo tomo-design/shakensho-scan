@@ -66,8 +66,13 @@
     <video id="video" playsinline muted></video>
     <div id="scanOverlay">
       <div id="multiQrHint">
-        <svg class="qrMini" width="96" height="96" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
-        <svg class="qrMini" width="96" height="96" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
+        <div class="qrLayer qrTwo">
+          <svg class="qrMini" width="96" height="96" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
+          <svg class="qrMini" width="96" height="96" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
+        </div>
+        <div class="qrLayer qrOne">
+          <svg class="qrMini" width="96" height="96" viewBox="0 0 25 25"><use href="#qrGlyph"/></svg>
+        </div>
       </div>
     </div>
     <div id="scanFlash"></div>
