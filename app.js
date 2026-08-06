@@ -1499,22 +1499,21 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      // 部品名タップで、その部品のWeb画像検索を新しいタブで開く(設定不要)
-      const pq = ((currentVehicleFacts().model || (current && current.type) || "") + " " + han(o.name) + " 部品").trim();
-      const nm = document.createElement("a"); nm.className = "orderName pic"; nm.target = "_blank"; nm.rel = "noopener";
-      nm.href = "https://www.google.com/search?q=" + encodeURIComponent(pq) + "&tbm=isch";
+      // 部品名は文字表示(タップで検索しない)。検索/購入は下のボタンで明示的に選ぶ
+      const nm = document.createElement("span"); nm.className = "orderName";
       nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      nm.title = "タップでWeb画像検索";
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 通販で購入(Yahoo!ショッピング/Amazon)。タップで部品名の商品検索へ(アフィリエイト対応)
+      // 部品ごとのアクション: 🔍画像で確認 / 🛒 通販で購入(Yahoo!・Amazon＝アフィリエイト対応)
       const sq = han(o.name).trim();
       if (sq) {
+        const pq = ((currentVehicleFacts().model || (current && current.type) || "") + " " + sq + " 部品").trim();
         const shops = document.createElement("div"); shops.className = "pShops orderShops";
+        const img = document.createElement("a"); img.className = "pShop pShopImg"; img.target = "_blank"; img.rel = "noopener"; img.href = "https://www.google.com/search?q=" + encodeURIComponent(pq) + "&tbm=isch"; img.textContent = "🔍 画像";
         const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(sq); y.textContent = "🛒 Yahoo!";
         const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(sq); a.textContent = "🛒 Amazon";
-        shops.append(y, a); list.appendChild(shops);
+        shops.append(img, y, a); list.appendChild(shops);
       }
     });
     // コピー/共有テキスト(品番なし)
