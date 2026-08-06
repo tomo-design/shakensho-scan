@@ -46,8 +46,8 @@ const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hi
    ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
 const AFFIL = {
   amazonTag: "mechanoai-22",   // AmazonアソシエイトのトラッキングID。空ならタグ無し検索
-  vcSid: "",   // バリューコマースのサイトID(数字)。Yahoo!ショッピング提携後に設定
-  vcPid: "",   // バリューコマースのYahoo!ショッピング広告プログラムID(数字)
+  vcSid: "3777798",     // バリューコマースのサイトID
+  vcPid: "892673833",   // バリューコマースのYahoo!ショッピング広告プログラムID
 };
 /* 部品の検索クエリ: 品番が判明していれば「品番 + 名称」、無ければ名称のみ */
 function partQuery(i) {
