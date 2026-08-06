@@ -1476,6 +1476,11 @@ function renderRepairAnswer(box, obj, q) {
     sec("取り付け位置");
     const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.location)); box.appendChild(p);
   }
+  // 実物の位置をWeb画像で探す(設定不要)。動画検索の上に配置
+  const iq = (carName + " " + mainPart + " 取り付け位置").trim();
+  const ia = document.createElement("a"); ia.className = "linkbtn"; ia.target = "_blank"; ia.rel = "noopener";
+  ia.href = "https://www.google.com/search?q=" + encodeURIComponent(iq) + "&tbm=isch";
+  ia.innerHTML = "🔍 実物の位置をWeb画像で探す<span class='arr'>↗</span>"; box.appendChild(ia);
   // 動画検索
   const yq = (carName + " " + mainPart + " 交換").trim();
   const sa = document.createElement("a"); sa.className = "linkbtn"; sa.target = "_blank"; sa.rel = "noopener";
@@ -1494,19 +1499,24 @@ function renderRepairAnswer(box, obj, q) {
     const list = document.createElement("div"); list.className = "orderBox";
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
-      // 部品名は文字表示(タップで検索しない)。検索/購入は下のボタンで明示的に選ぶ
-      const nm = document.createElement("span"); nm.className = "orderName";
+      // 部品名タップで購入リンクを開閉(さりげなく表示)
+      const sq = han(o.name).trim();
+      const nm = document.createElement(sq ? "button" : "span"); nm.className = "orderName" + (sq ? " orderNameTap" : "");
       nm.textContent = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
+      if (sq) { nm.type = "button"; const car = document.createElement("span"); car.className = "orderCaret"; car.textContent = " ▾"; nm.appendChild(car); }
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 部品ごとの購入リンク(Yahoo!・Amazon＝アフィリエイト対応)
-      const sq = han(o.name).trim();
+      // 部品ごとの購入リンク(Yahoo!・Amazon＝アフィリエイト対応)。既定は非表示、部品タップで開閉。
       if (sq) {
-        const shops = document.createElement("div"); shops.className = "pShops orderShops";
-        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(sq); y.textContent = "🛒 Yahoo!ショッピング";
-        const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(sq); a.textContent = "🛒 Amazon";
+        // 読み込んだ車両に合わせた検索(車種名/型式 + 部品名)で、その車の部品がヒットするようにする
+        const veh = (currentVehicleFacts().model || (current && current.type) || "").trim();
+        const query = (veh ? veh + " " : "") + sq;
+        const shops = document.createElement("div"); shops.className = "pShops orderShops hidden";
+        const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(query); y.textContent = "Yahoo!ショッピング";
+        const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(query); a.textContent = "Amazon";
         shops.append(y, a); list.appendChild(shops);
+        nm.addEventListener("click", () => { const open = shops.classList.toggle("hidden"); nm.classList.toggle("isOpen", !open); });
       }
     });
     // コピー/共有テキスト(品番なし)
