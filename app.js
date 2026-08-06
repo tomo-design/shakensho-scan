@@ -3056,6 +3056,12 @@ $("btnJumpKey") && $("btnJumpKey").addEventListener("click", () => {
   const f = $("secAiKeyFold"); if (f) f.open = true;
   const s = $("secAiKey"); if (s) s.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+// バナー「OCR用APIキー設定」→ 文字読み取り(Cloud Vision)セクションを開いてスクロール
+$("btnJumpVision") && $("btnJumpVision").addEventListener("click", () => {
+  const sec = $("secVisionKey"); if (!sec) return;
+  const d = sec.querySelector("details"); if (d) d.open = true;
+  sec.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 function renderGeminiStat() {
   const has = !!localStorage.getItem(LS.gemini);

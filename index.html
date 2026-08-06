@@ -486,8 +486,11 @@
   <!-- 個人モードのみ表示: 自分のAPIキーで動くことを最初に案内 -->
   <div id="personalKeyBanner" class="keyBanner">
     <div class="keyBannerTtl">🔑 このアプリはご自身のAPIキーで動きます</div>
-    <div class="keyBannerBody">下の「メカ君に相談機能」でGoogleの<b>無料APIキー</b>を取得して貼ると、AI機能が使えます（カード登録不要）。</div>
-    <button class="btn btn-cyan btn-sm" id="btnJumpKey" style="margin-top:8px">APIキーの設定へ ↓</button>
+    <div class="keyBannerBody">下の「メカ君に相談機能」でGoogleの<b>無料APIキー</b>を取得して貼ると、AI機能が使えます（カード登録不要）。<br>さらに<b>文字読み取り（OCR）</b>も、Cloud Vision APIキーの登録で高精度になります（月1,000枚まで無料）。</div>
+    <div class="keyBannerBtns">
+      <button class="btn btn-cyan btn-sm" id="btnJumpKey">🔑 AI用APIキー設定 ↓</button>
+      <button class="btn btn-cyan btn-sm" id="btnJumpVision">📷 OCR用APIキー設定 ↓</button>
+    </div>
   </div>
   <section id="secCloudSync" style="margin-top:14px">
     <details class="foldSec" open>
@@ -596,7 +599,7 @@
 
   <section id="secVisionKey">
     <details>
-      <summary class="secSummary">文字読み取り（OCR）について（API登録推奨）</summary>
+      <summary class="secSummary">文字読み取り（OCR）について</summary>
       <div class="sec-body">
         <p class="hint"><b>高精度に読み取るには、Cloud Vision APIの登録を推奨します。</b>整備書・諸元表・コーションプレート・手書き伝票などを正確に文字起こしできます（月1,000枚まで無料）。設定は下のSTEP 1〜2だけ、数分で完了します。</p>
         <div class="hint" style="margin-top:8px;padding:12px;border:1px solid var(--cyan);border-radius:10px;background:rgba(0,180,220,.06)">
