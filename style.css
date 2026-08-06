@@ -23,8 +23,8 @@ body.personalMode #personalKeyBanner{display:block;margin:14px 0 0;padding:12px 
   background:linear-gradient(180deg,#EAF6FA,#DCEEF5);border:1px solid #9FCEDD;border-radius:12px}
 .keyBannerTtl{font-weight:800;font-size:14px;color:var(--cyan)}
 .keyBannerBody{font-size:12px;color:var(--txt);margin-top:5px;line-height:1.6}
-.keyBannerBtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.keyBannerBtns .btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px;font-size:13px;line-height:1.25;white-space:normal;text-align:center}
+.keyBannerBtns{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.keyBannerBtns .btn{width:100%;white-space:nowrap;text-align:center}
 /* 個人モードではキー設定セクションを強調 */
 body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;padding:2px 10px;background:var(--panel)}
 /* 個人モード: 紹介タブを隠し、お問い合わせ(既定は非表示)を表示 */
@@ -84,9 +84,11 @@ header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;border-bot
 .heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 /* カメラ画面中央の模擬QR。2つ版と1つ版をゆっくりクロスフェードで交互表示(車検証は通常2つ・1つの場合もあることを示唆) */
-#multiQrHint{position:relative;width:256px;height:96px;pointer-events:none}
+#multiQrHint{position:relative;width:256px;height:150px;pointer-events:none}
 #multiQrHint .qrLayer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:64px}
 #multiQrHint .qrMini{width:96px;height:96px;display:block}
+/* 1つ版は大きめに表示(1枚だけの車検証QRを示唆) */
+#multiQrHint .qrOne .qrMini{width:150px;height:150px}
 #multiQrHint .qrTwo{animation:qrHintTwo 6s ease-in-out infinite}
 #multiQrHint .qrOne{animation:qrHintOne 6s ease-in-out infinite}
 @keyframes qrHintTwo{0%,37%{opacity:.32}47%,84%{opacity:0}93%,100%{opacity:.32}}
@@ -530,6 +532,11 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pName{font-size:15px;font-weight:700;color:var(--txt)}
 .partsItem .pName .pQty{font-weight:800;color:var(--amber);margin-left:4px}
 .partsItem .pMeta{font-size:12px;color:var(--dim);margin-top:2px}
+.partsItem .pShops{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.partsItem .pShop{flex:1 1 0;min-width:120px;text-align:center;font-size:13px;font-weight:800;text-decoration:none;padding:9px 8px;border-radius:9px;border:1px solid var(--line);white-space:nowrap}
+.partsItem .pShopM{color:#0a5ad6;background:rgba(10,90,214,.08);border-color:rgba(10,90,214,.35)}
+.partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
+.partsItem .pShop:active{transform:translateY(1px)}
 .orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#eef4ff}
 .orderT{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:6px}
 .orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}

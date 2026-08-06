@@ -42,6 +42,25 @@ async function copyText(txt) {
   } catch (e) { return false; }
 }
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
+/* 部品注文リストの各部品→通販(モノタロウ/Amazon)の商品検索へ。アフィリエイトID/リンクを入れると自動でタグ付き。
+   ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
+const AFFIL = {
+  amazonTag: "",       // AmazonアソシエイトのトラッキングID(例: mechanoai-22)。空ならタグ無し検索
+  monotaroWrap: "",    // モノタロウ(ASP)のリンクラッパー。"{url}" に実URL(エンコード済)を差し込む。空なら通常リンク
+};
+/* 部品の検索クエリ: 品番が判明していれば「品番 + 名称」、無ければ名称のみ */
+function partQuery(i) {
+  const pn = i && i.partno ? String(i.partno).trim() : "";
+  const hasPn = pn && pn.indexOf("要確認") < 0;
+  return ((hasPn ? pn + " " : "") + (i && i.name ? i.name : "")).trim();
+}
+function amazonSearchUrl(q) {
+  return "https://www.amazon.co.jp/s?k=" + encodeURIComponent(q) + (AFFIL.amazonTag ? "&tag=" + encodeURIComponent(AFFIL.amazonTag) : "");
+}
+function monotaroSearchUrl(q) {
+  const base = "https://www.monotaro.com/s/?q=" + encodeURIComponent(q);
+  return AFFIL.monotaroWrap ? AFFIL.monotaroWrap.replace("{url}", encodeURIComponent(base)) : base;
+}
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
 function applyAppMode() {
@@ -1260,8 +1279,13 @@ function renderPartsBreakdown(box, obj, part) {
     if (!list.length) return;
     html += '<div class="partsGroup"><div class="partsGroupT">' + label + '</div>';
     list.forEach(i => {
+      const q = partQuery(i);
+      const shops = q ? '<div class="pShops">' +
+        '<a class="pShop pShopM" target="_blank" rel="noopener sponsored" href="' + monotaroSearchUrl(q) + '">🛒 モノタロウ ↗</a>' +
+        '<a class="pShop pShopA" target="_blank" rel="noopener sponsored" href="' + amazonSearchUrl(q) + '">🛒 Amazon ↗</a>' +
+        '</div>' : "";
       html += '<div class="partsItem"><div class="pName">' + esc(han(i.name)) + (i.qty ? ' <span class="pQty">×' + esc(han(String(i.qty))) + '</span>' : "") + '</div>' +
-        '<div class="pMeta">' + (i.partno ? "品番: " + esc(han(i.partno)) : "品番: 要確認") + (i.memo ? " ／ " + esc(han(i.memo)) : "") + '</div></div>';
+        '<div class="pMeta">' + (i.partno ? "品番: " + esc(han(i.partno)) : "品番: 要確認") + (i.memo ? " ／ " + esc(han(i.memo)) : "") + '</div>' + shops + '</div>';
     });
     html += '</div>';
   });
