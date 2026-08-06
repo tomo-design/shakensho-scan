@@ -596,11 +596,12 @@
 
   <section id="secVisionKey">
     <details>
-      <summary class="secSummary">文字読み取り機能について</summary>
+      <summary class="secSummary">文字読み取り（OCR）について（API登録推奨）</summary>
       <div class="sec-body">
-        <p class="hint">ふだんの文字読み取りは端末内の<b>Tesseract（無料・オフライン可）</b>を使います。明るく大きく写すと精度UP。<b>設定不要でそのまま使えます。</b></p>
-        <div class="hint" style="margin-top:10px;padding:12px;border:1px dashed var(--line);border-radius:10px">
-          <b>もっと高精度にしたい場合（任意・Cloud Vision／月1,000枚まで無料）</b>
+        <p class="hint"><b>高精度に読み取るには、Cloud Vision APIの登録を推奨します。</b>整備書・諸元表・コーションプレート・手書き伝票などを正確に文字起こしできます（月1,000枚まで無料）。設定は下のSTEP 1〜2だけ、数分で完了します。</p>
+        <div class="hint" style="margin-top:8px;padding:12px;border:1px solid var(--cyan);border-radius:10px;background:rgba(0,180,220,.06)">
+          ✅ <b>おすすめ：Cloud Vision APIキーを登録</b>（月1,000枚まで無料・高精度）<br>
+          <span style="color:var(--dim)">未登録でも、端末内の <b>Tesseract（無料・オフライン）</b> で読み取りは動きます（精度は控えめ。明るく大きく写すと向上）。</span>
         </div>
         <div class="setupStep">
           <div class="setupNo">STEP 1</div>
@@ -620,7 +621,7 @@
         </div>
         <label class="fld">APIキーをここに貼る</label>
         <div class="inputRow" style="margin-top:4px">
-          <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（任意）">
+          <input type="password" id="visionKey" placeholder="Cloud Vision APIキー（推奨）">
           <button class="btn btn-amber" id="btnVisionSave">保存</button>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;font-weight:700">
