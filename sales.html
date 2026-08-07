@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>メカノAI 営業ルーム（社内専用）</title>
+<title>MECHANO 営業コンソール</title>
 <link rel="stylesheet" href="sales.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -12,141 +12,185 @@
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">🏢 メカノAI 営業ルーム <span class="tag">社内専用</span></div>
-  <div class="who"><span id="whoami"></span> <button id="btnLogout" class="mini hidden">ログアウト</button></div>
-</header>
-
-<!-- ログイン -->
-<section id="loginPane" class="pane">
-  <h1>営業ルーム</h1>
-  <p class="muted">運営（super）アカウントでログインしてください。</p>
-  <div class="loginBox">
-    <input id="liEmail" type="email" placeholder="メールアドレス" autocomplete="username">
-    <input id="liPass" type="password" placeholder="パスワード" autocomplete="current-password">
-    <button id="btnLogin" class="primary">ログイン</button>
+<!-- ============ ログイン ============ -->
+<section id="loginPane" class="login">
+  <div class="login-card">
+    <div class="mark"><span class="cog"></span></div>
+    <div class="brandline">MECHANO<span>営業コンソール</span></div>
+    <p class="login-sub">社内スタッフ専用。運営アカウントでサインインしてください。</p>
+    <div class="field">
+      <label>メールアドレス</label>
+      <input id="liEmail" type="email" autocomplete="username" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>パスワード</label>
+      <input id="liPass" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button id="btnLogin" class="btn btn-accent btn-block">サインイン</button>
     <div id="loginMsg" class="err"></div>
+    <div class="login-foot">© 2026 Cablueie — 社内利用限定</div>
   </div>
 </section>
 
-<!-- 本体 -->
-<main id="appPane" class="hidden">
-  <nav class="tabs">
-    <button class="tab active" data-tab="team">🤖 AI社員チーム</button>
-    <button class="tab" data-tab="leads">📋 見込み客リスト</button>
-    <button class="tab" data-tab="camp">🚀 キャンペーン一括生成</button>
-  </nav>
+<!-- ============ アプリ本体 ============ -->
+<div id="appPane" class="shell hidden">
+  <!-- サイドバー -->
+  <aside class="side">
+    <div class="side-brand">
+      <span class="mark sm"><span class="cog"></span></span>
+      <span class="brandline sm">MECHANO<span>営業コンソール</span></span>
+    </div>
+    <nav class="nav">
+      <button class="tab active" data-tab="team">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>AI営業チーム</span>
+      </button>
+      <button class="tab" data-tab="leads">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg>
+        <span>見込み客</span>
+      </button>
+      <button class="tab" data-tab="camp">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+        <span>一括作成</span>
+      </button>
+    </nav>
+    <div class="side-foot">
+      <div class="side-user">
+        <span class="ava-dot"></span>
+        <span id="whoami" class="side-email"></span>
+      </div>
+      <button id="btnLogout" class="btn btn-ghost btn-sm">サインアウト</button>
+    </div>
+  </aside>
 
-  <!-- AI社員チーム -->
-  <section id="tab-team" class="tabpane">
-    <div class="staffbar" id="staffbar"></div>
-    <div class="leadpick">
-      <label>対象の見込み客（任意）：</label>
-      <select id="leadSelect"><option value="">— 指定なし —</option></select>
-    </div>
-    <div class="quick" id="quickActions"></div>
-    <div class="chat" id="chatLog"></div>
-    <div class="composer">
-      <textarea id="taskInput" rows="2" placeholder="AI社員に指示を入力（例：この会社に送る初回アプローチメールを書いて）"></textarea>
-      <button id="btnSend" class="primary">送信</button>
-    </div>
-  </section>
+  <!-- 作業エリア -->
+  <main class="work">
+    <!-- AI営業チーム -->
+    <section id="tab-team" class="view">
+      <header class="vhead">
+        <div>
+          <h1>AI営業チーム</h1>
+          <p class="vsub">部門の担当に相談。提案文・戦略・切り返しをその場で作成します。</p>
+        </div>
+        <div class="lead-context">
+          <span class="lc-label">対象</span>
+          <select id="leadSelect"><option value="">指定なし</option></select>
+        </div>
+      </header>
+      <div class="staffbar" id="staffbar"></div>
+      <div class="quick" id="quickActions"></div>
+      <div class="chat" id="chatLog"></div>
+      <div class="composer">
+        <textarea id="taskInput" rows="1" placeholder="担当への指示を入力（例：この会社への初回アプローチメールを書いて）"></textarea>
+        <button id="btnSend" class="btn btn-accent">送信</button>
+      </div>
+    </section>
 
-  <!-- 見込み客リスト -->
-  <section id="tab-leads" class="tabpane hidden">
-    <div class="leadhead">
-      <button id="btnNewLead" class="primary">＋ 新規追加</button>
-      <span id="leadCount" class="muted"></span>
-    </div>
-    <div id="leadList" class="leadlist"></div>
-  </section>
+    <!-- 見込み客 -->
+    <section id="tab-leads" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>見込み客</h1>
+          <p class="vsub">アプローチ先を登録・管理。ステータスで進捗を追えます。</p>
+        </div>
+        <button id="btnNewLead" class="btn btn-dark">＋ 追加</button>
+      </header>
+      <div class="lead-toolbar"><span id="leadCount" class="muted"></span></div>
+      <div id="leadList" class="leadlist"></div>
+    </section>
 
-  <!-- キャンペーン一括生成 -->
-  <section id="tab-camp" class="tabpane hidden">
-  <div class="camphead">
-    <p class="muted">登録済みの見込み客に合わせて、営業文をまとめて自動生成します。<b>送信は行いません</b>（確認して手動送信）。</p>
-    <div class="camprow">
-      <label>チャネル
-        <select id="cpChannel">
-          <option value="mail">初回アプローチメール</option>
-          <option value="follow">フォローメール（デモ後）</option>
-          <option value="letter">郵送DM・手紙</option>
-          <option value="phone">電話トークスクリプト</option>
-          <option value="flyer">チラシ文面</option>
-        </select>
-      </label>
-      <label>訴求の切り口
-        <select id="cpAngle">
-          <option value="auto">おまかせ（業種で自動選択）</option>
-          <option value="shortage">整備士不足・若手育成</option>
-          <option value="efficiency">効率化・調べ物/記録の時短</option>
-          <option value="gs">GS併設・少人数の生産性</option>
-          <option value="logi2024">運送・2024年問題・稼働率</option>
-          <option value="dx">電子化・DX・車検証電子化</option>
-        </select>
-      </label>
-    </div>
-    <div class="camprow">
-      <label>対象の業種
-        <select id="cpKind">
-          <option value="">すべて</option>
-          <option value="整備工場">整備工場</option>
-          <option value="運送会社">運送会社</option>
-          <option value="ディーラー">ディーラー</option>
-          <option value="板金/塗装">板金/塗装</option>
-          <option value="その他">その他</option>
-        </select>
-      </label>
-      <label>対象の状況
-        <select id="cpStatus">
-          <option value="new">未接触（見込み）のみ</option>
-          <option value="">すべて</option>
-        </select>
-      </label>
-    </div>
-    <div class="campactions">
-      <button id="btnRunCamp" class="primary">🚀 一括生成する（<span id="cpTargetN">0</span>社）</button>
-      <button id="btnStopCamp" class="mini hidden">中止</button>
-      <button id="btnCsv" class="mini hidden">CSV出力</button>
-    </div>
-    <div id="cpProgress" class="cpprogress hidden"><div id="cpBar"></div></div>
-  </div>
-    <div id="campResults" class="campresults"></div>
-  </section>
-</main>
+    <!-- 一括作成 -->
+    <section id="tab-camp" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>営業文の一括作成</h1>
+          <p class="vsub">登録済みの見込み客ごとに、時流を踏まえた文面をまとめて作成します。送信は行いません。</p>
+        </div>
+      </header>
 
-<!-- 見込み客 編集モーダル -->
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field">
+            <label>チャネル</label>
+            <select id="cpChannel">
+              <option value="mail">初回アプローチメール</option>
+              <option value="follow">フォローメール（商談後）</option>
+              <option value="letter">郵送DM・挨拶状</option>
+              <option value="phone">電話トークスクリプト</option>
+              <option value="flyer">チラシ文面</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>訴求の切り口</label>
+            <select id="cpAngle">
+              <option value="auto">おまかせ（業種で自動）</option>
+              <option value="shortage">整備士不足・若手育成</option>
+              <option value="efficiency">効率化・調べ物/記録の時短</option>
+              <option value="gs">GS併設・少人数の生産性</option>
+              <option value="logi2024">運送・2024年問題・稼働率</option>
+              <option value="dx">電子化・DX・車検証電子化</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>対象の業種</label>
+            <select id="cpKind">
+              <option value="">すべて</option>
+              <option value="整備工場">整備工場</option>
+              <option value="運送会社">運送会社</option>
+              <option value="ディーラー">ディーラー</option>
+              <option value="板金/塗装">板金/塗装</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>対象の状況</label>
+            <select id="cpStatus">
+              <option value="new">未接触（見込み）のみ</option>
+              <option value="">すべて</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnRunCamp" class="btn btn-accent">対象 <b id="cpTargetN">0</b> 社ぶんを作成</button>
+          <button id="btnStopCamp" class="btn btn-ghost btn-sm hidden">中止</button>
+          <button id="btnCsv" class="btn btn-dark btn-sm hidden">CSV出力</button>
+        </div>
+        <div id="cpProgress" class="progress hidden"><div id="cpBar"></div></div>
+      </div>
+
+      <div id="campResults" class="campresults"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ 見込み客 編集モーダル ============ -->
 <div id="leadModal" class="modal hidden">
   <div class="modalbox">
     <h3 id="lmTitle">見込み客</h3>
-    <input id="lmCompany" placeholder="会社名 *">
+    <div class="field"><label>会社名 <span class="req">必須</span></label><input id="lmCompany" placeholder="〇〇自動車整備"></div>
     <div class="row2">
-      <select id="lmKind">
+      <div class="field"><label>業種</label><select id="lmKind">
         <option value="整備工場">整備工場</option>
         <option value="運送会社">運送会社</option>
         <option value="ディーラー">ディーラー</option>
         <option value="板金/塗装">板金/塗装</option>
         <option value="その他">その他</option>
-      </select>
-      <select id="lmStatus">
-        <option>見込み</option>
-        <option>アプローチ中</option>
-        <option>商談中</option>
-        <option>契約</option>
-        <option>見送り</option>
-      </select>
+      </select></div>
+      <div class="field"><label>状況</label><select id="lmStatus">
+        <option>見込み</option><option>アプローチ中</option><option>商談中</option><option>契約</option><option>見送り</option>
+      </select></div>
     </div>
-    <input id="lmContact" placeholder="担当者名">
+    <div class="field"><label>担当者名</label><input id="lmContact" placeholder="山田 太郎"></div>
     <div class="row2">
-      <input id="lmPhone" placeholder="電話">
-      <input id="lmEmail" placeholder="メール">
+      <div class="field"><label>電話</label><input id="lmPhone" placeholder="000-0000-0000"></div>
+      <div class="field"><label>メール</label><input id="lmEmail" placeholder="info@example.com"></div>
     </div>
-    <textarea id="lmNote" rows="4" placeholder="メモ（規模・課題・履歴など）"></textarea>
+    <div class="field"><label>メモ（規模・課題・履歴）</label><textarea id="lmNote" rows="4" placeholder="例：スタッフ5名、若手が続かない。車検で手一杯。"></textarea></div>
     <div class="modalbtns">
-      <button id="lmDelete" class="danger hidden">削除</button>
+      <button id="lmDelete" class="btn btn-danger btn-sm hidden">削除</button>
       <span class="spacer"></span>
-      <button id="lmCancel" class="mini">キャンセル</button>
-      <button id="lmSave" class="primary">保存</button>
+      <button id="lmCancel" class="btn btn-ghost btn-sm">キャンセル</button>
+      <button id="lmSave" class="btn btn-accent">保存</button>
     </div>
   </div>
 </div>

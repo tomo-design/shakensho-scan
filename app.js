@@ -1515,7 +1515,7 @@ function renderRepairAnswer(box, obj, q) {
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
       const sq = han(o.name).trim();
-      const labelText = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "") + (o.kind === "同時交換推奨" ? " ※" : "");
+      const labelText = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
       let nm;
       if (sq) {
         // 部品名タップで、その車両(車種名+型式記号)＋部品名の検索をYahoo!ショッピングで別タブ表示
@@ -1523,13 +1523,12 @@ function renderRepairAnswer(box, obj, q) {
         nm = document.createElement("a"); nm.className = "orderName orderNameLink";
         nm.href = yahooSearchUrl(query); nm.target = "_blank"; nm.rel = "noopener sponsored";
         nm.title = "Yahoo!ショッピングで探す";
-        const txt = document.createElement("span"); txt.className = "oTxt"; txt.textContent = labelText;
-        const go = document.createElement("span"); go.className = "orderGo"; go.textContent = "🛒";
-        nm.append(txt, go);
+        nm.textContent = labelText;
       } else {
         nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = labelText;
       }
       row.appendChild(nm);
+      if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
     });
     // コピー/共有テキスト(品番なし)
@@ -1550,15 +1549,15 @@ function renderRepairAnswer(box, obj, q) {
     const wrap = document.createElement("div"); wrap.className = "toolList";
     wrenchSizes.forEach(sz => {
       const q = toolQuery(sz);
-      const t = document.createElement("div"); t.className = "toolRow";
-      const nmT = document.createElement("button"); nmT.type = "button"; nmT.className = "toolName toolNameTap";
-      nmT.innerHTML = esc(han(sz)) + '<span class="orderCaret"> ▾</span>';
-      const chips = document.createElement("span"); chips.className = "pShops orderShops hidden";
+      const unit = document.createElement("span"); unit.className = "toolUnit";
+      const chip = document.createElement("button"); chip.type = "button"; chip.className = "toolChip";
+      chip.innerHTML = esc(han(sz)) + '<span class="orderCaret"> ▾</span>';
+      const shops = document.createElement("span"); shops.className = "toolShops hidden";
       const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(q); y.textContent = "Yahoo!";
       const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(q); a.textContent = "Amazon";
-      chips.append(y, a);
-      nmT.addEventListener("click", () => { const hid = chips.classList.toggle("hidden"); nmT.classList.toggle("isOpen", !hid); });
-      t.append(nmT, chips); wrap.appendChild(t);
+      shops.append(y, a);
+      chip.addEventListener("click", () => { const hid = shops.classList.toggle("hidden"); chip.classList.toggle("isOpen", !hid); });
+      unit.append(chip, shops); wrap.appendChild(unit);
     });
     box.appendChild(wrap);
   }

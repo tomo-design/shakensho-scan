@@ -28,12 +28,13 @@
 
   // ---- AI社員 ----
   const STAFF = [
-    { id: "bucho", name: "営業部長 剛田", emo: "🧑‍💼", role: "戦略・商談" },
-    { id: "writer", name: "ライター 文乃", emo: "✍️", role: "提案文・メール" },
-    { id: "marke", name: "マーケ 舞", emo: "📣", role: "集客・施策" },
-    { id: "cs", name: "CS 円", emo: "🎧", role: "導入後サポート" },
-    { id: "bell", name: "商談ロープレ", emo: "🥊", role: "練習相手" },
+    { id: "bucho", name: "営業部長 剛田", av: "剛", color: "#c0562a", role: "戦略・商談" },
+    { id: "writer", name: "ライター 文乃", av: "文", color: "#2b6fb3", role: "提案文・メール" },
+    { id: "marke", name: "マーケ 舞", av: "舞", color: "#7a4fb0", role: "集客・施策" },
+    { id: "cs", name: "CS 円", av: "円", color: "#1f9d6b", role: "導入後サポート" },
+    { id: "bell", name: "商談ロープレ", av: "練", color: "#5b6472", role: "練習相手" },
   ];
+  const staffOf = (id) => STAFF.find((x) => x.id === id) || STAFF[0];
   const QUICK = {
     bucho: ["この見込み客の攻略戦略を立てて", "値段が高いと言われた時の切り返しは？", "今週やるべき営業タスクを5つ"],
     writer: ["初回アプローチのメールを書いて", "デモ後のフォローメールを書いて", "整備工場向けチラシの文面を作って"],
@@ -104,36 +105,37 @@
   });
 
   // ---------- AI社員チーム ----------
+  const avaHtml = (s, cls) => `<span class="ava${cls ? " " + cls : ""}" style="background:${s.color}">${esc(s.av)}</span>`;
+
   function buildStaffbar() {
     $("staffbar").innerHTML = STAFF.map((s) =>
-      `<button class="staffbtn" data-staff="${s.id}">${s.emo} ${esc(s.name.split(" ")[0])}<small>${esc(s.role)}</small></button>`
+      `<button class="staffcard" data-staff="${s.id}">${avaHtml(s)}<span><span class="nm">${esc(s.name.split(" ").slice(-1)[0] || s.name)}</span><span class="rl">${esc(s.role)}</span></span></button>`
     ).join("");
-    $("staffbar").querySelectorAll(".staffbtn").forEach((b) => b.onclick = () => selectStaff(b.dataset.staff));
+    $("staffbar").querySelectorAll(".staffcard").forEach((b) => b.onclick = () => selectStaff(b.dataset.staff));
   }
   function selectStaff(id) {
     curStaff = id;
-    $("staffbar").querySelectorAll(".staffbtn").forEach((b) => b.classList.toggle("on", b.dataset.staff === id));
-    // クイックアクション
-    $("quickActions").innerHTML = (QUICK[id] || []).map((q) => `<button>${esc(q)}</button>`).join("");
-    $("quickActions").querySelectorAll("button").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
+    $("staffbar").querySelectorAll(".staffcard").forEach((b) => b.classList.toggle("on", b.dataset.staff === id));
+    $("quickActions").innerHTML = (QUICK[id] || []).map((q) => `<button class="chip">${esc(q)}</button>`).join("");
+    $("quickActions").querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
     renderChat();
+  }
+  function copy(text) {
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("コピーしました")).catch(() => toast("コピーできませんでした"));
   }
   function renderChat() {
     const log = $("chatLog");
+    const s = staffOf(curStaff);
     const hist = histByStaff[curStaff] || [];
     if (!hist.length) {
-      const s = STAFF.find((x) => x.id === curStaff);
-      log.innerHTML = `<div class="msg ai"><span class="nm">${s.emo} ${esc(s.name)}</span>指示をどうぞ。左下のボタンからも始められます。</div>`;
+      log.innerHTML = `<div class="empty">${avaHtml(s)}<div><b>${esc(s.name)}</b><br>指示を入力するか、上のボタンから始めてください。</div></div>`;
       return;
     }
-    const s = STAFF.find((x) => x.id === curStaff);
     log.innerHTML = hist.map((m, i) => {
-      if (m.role === "user") return `<div class="msg me"><span class="nm">あなた</span>${esc(m.text)}</div>`;
-      return `<div class="msg ai"><span class="nm">${s.emo} ${esc(s.name)}</span>${esc(m.text)}<span class="copy" data-i="${i}">📋 コピー</span></div>`;
+      if (m.role === "user") return `<div class="turn me"><span class="ava">私</span><div class="bubble">${esc(m.text)}</div></div>`;
+      return `<div class="turn ai">${avaHtml(s)}<div class="bubble"><span class="who">${esc(s.name)}</span>${esc(m.text)}<span class="copy" data-i="${i}">コピー</span></div></div>`;
     }).join("");
-    log.querySelectorAll(".copy").forEach((c) => c.onclick = () => {
-      (window.copyText ? window.copyText(hist[+c.dataset.i].text) : navigator.clipboard.writeText(hist[+c.dataset.i].text)).then(() => toast("コピーしました"));
-    });
+    log.querySelectorAll(".copy").forEach((c) => c.onclick = () => copy(hist[+c.dataset.i].text));
     log.scrollTop = log.scrollHeight;
   }
 
@@ -151,8 +153,10 @@
     renderChat();
     // typing表示
     const log = $("chatLog");
+    const s = staffOf(curStaff);
     const tip = document.createElement("div");
-    tip.className = "msg ai typing"; tip.textContent = "…考え中";
+    tip.className = "turn ai typing";
+    tip.innerHTML = `${avaHtml(s)}<div class="bubble">考え中…</div>`;
     log.appendChild(tip); log.scrollTop = log.scrollHeight;
     $("btnSend").disabled = true;
     const lead = curLeadId ? leads.find((l) => l.id === curLeadId) : null;
@@ -180,14 +184,14 @@
   }
   function fillLeadSelect() {
     const sel = $("leadSelect");
-    sel.innerHTML = '<option value="">— 指定なし —</option>' +
+    sel.innerHTML = '<option value="">指定なし</option>' +
       leads.map((l) => `<option value="${l.id}">${esc(l.company)}（${esc(l.status)}）</option>`).join("");
     sel.value = curLeadId;
   }
   function renderLeads() {
-    $("leadCount").textContent = leads.length ? leads.length + "件" : "";
+    $("leadCount").textContent = leads.length ? leads.length + " 社" : "";
     const box = $("leadList");
-    if (!leads.length) { box.innerHTML = '<p class="muted">まだ見込み客がいません。「＋ 新規追加」から登録してください。</p>'; return; }
+    if (!leads.length) { box.innerHTML = '<div class="empty-block">まだ見込み客がありません。<br>右上の「＋ 追加」から登録してください。</div>'; return; }
     box.innerHTML = leads.map((l) => `
       <div class="leadcard">
         <div class="l">
@@ -196,8 +200,8 @@
           ${l.note ? `<div class="note">${esc(l.note)}</div>` : ""}
         </div>
         <div class="acts">
-          <button class="mini" data-edit="${l.id}">編集</button>
-          <button class="mini" data-ai="${l.id}">AIに相談</button>
+          <button class="btn btn-ghost btn-sm" data-edit="${l.id}">編集</button>
+          <button class="btn btn-dark btn-sm" data-ai="${l.id}">AIに相談</button>
         </div>
       </div>`).join("");
     box.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openLead(b.dataset.edit));
@@ -314,8 +318,8 @@
     div.className = "crcard" + (err ? " err" : "");
     div.innerHTML = `<div class="crhead"><span class="crco">${esc(company)}</span><span class="muted">${esc(kind)}</span></div>
       <div class="crtext">${esc(text)}</div>
-      <div class="crbtns"><button class="mini cpcopy">📋 コピー</button></div>`;
-    div.querySelector(".cpcopy").onclick = () => (window.copyText ? window.copyText(text) : navigator.clipboard.writeText(text)).then(() => toast("コピーしました"));
+      <div class="crbtns"><button class="btn btn-ghost btn-sm cpcopy">コピー</button></div>`;
+    div.querySelector(".cpcopy").onclick = () => copy(text);
     $("campResults").appendChild(div);
   }
 
