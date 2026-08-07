@@ -104,7 +104,8 @@ textarea{resize:none;line-height:1.6}
 
 /* ================= AI営業チーム ================= */
 .staffbar{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;-webkit-overflow-scrolling:touch}
-.staffcard{flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:8px 12px 8px 9px;cursor:pointer;transition:.14s}
+.staffcard{flex:0 0 auto;display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:8px 12px 8px 9px;cursor:pointer;transition:.14s;color:var(--ink);font-family:inherit}
+.staffcard>span{display:flex;flex-direction:column;text-align:left}
 .staffcard:hover{border-color:#d3d7dd}
 .staffcard.on{border-color:var(--accent);background:#fff7ee;box-shadow:0 0 0 1px var(--accent)}
 .ava{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0}

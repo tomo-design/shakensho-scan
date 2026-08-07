@@ -857,7 +857,10 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
 
 // メカノAIの製品情報(AI社員が営業トークに使う共有ナレッジ)。事実に基づいて話させる土台。
 const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・トラック整備士向けの現場ツール(PWA)。
-【提供元】Cablueie。URL: https://mechanoai-cablueie.com/
+【提供元】Cablueie（読み: カブリエ）。
+【アプリURL】https://mechanoai-cablueie.com/ ← これは"アプリ本体"のURL（体験・紹介用）。★お問い合わせ先ではない。
+【重要】このURLを文面に載せるときは「アプリ体験・詳細はこちら」等と書く。絶対に「お問い合わせ先」「連絡先」として書かない。
+問い合わせ・申込みの宛先は、営業担当自身の署名欄（[会社名/担当者名/電話/メール]のプレースホルダ）を使うこと。
 【主な機能】
 ・車検証をQR/カメラでスキャン → 車両情報を即取得
 ・メンテナンス諸元(締付トルク・オイル粘度/量・各種容量)をAIが即表示
