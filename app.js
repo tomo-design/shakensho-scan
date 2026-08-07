@@ -3267,6 +3267,7 @@ function cancelAI() {
 }
 async function geminiAsk(prompt, opts) {
   opts = opts || {};
+  if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: API未使用の固定サンプル回答
   const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
   const key = localStorage.getItem(LS.gemini);
   // キャッシュ命中なら無料枠を消費せず即返す(noCache指定時は最新を取得)
@@ -4318,6 +4319,7 @@ const GEMINI_MEDIA_MODELS = {
   pro: ["gemini-3.1-pro-preview", "gemini-pro-latest", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
+  if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: 固定サンプル回答
   const key = localStorage.getItem(LS.gemini);
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
@@ -5175,4 +5177,89 @@ const SUPPORT_KB = [
   inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(inp.value); } });
   // 初回あいさつ
   append("bot", "こんにちは、サポートのメカ君です🔧 このツールの使い方や仕様について、なんでも聞いてください。");
+})();
+
+/* ============================================================
+   法人向け 無料デモ(ログイン不要・サンプルデータ・APIコストゼロ)
+   URL に ?demo=1 を付けると起動。営業チラシ/QRから飛ばせる。
+   AIはサーバーを呼ばず固定サンプルを返すため課金ゼロ。
+   ============================================================ */
+const DEMO_VEHICLE = {
+  type: "3BD-S710V", vin: "S710V-0012345", plate: "大阪 480 あ 12-34",
+  engine: "KF", kataShitei: "1234-5678", name: "デモ整備工場 サンプル車両",
+  firstReg: { year: 2023, month: 4 }, qrRaw: []
+};
+const DEMO_SPECS = [
+  { k: "エンジンオイル量", v: "2.9L（オイルのみ）／3.1L（エレメント同時交換）" },
+  { k: "推奨オイル粘度", v: "0W-20（省燃費指定。無ければ5W-30）" },
+  { k: "クーラント量", v: "約4.0L（スーパーLLC）" },
+  { k: "ホイールナット締付トルク", v: "85 N·m" },
+  { k: "ミッション（CVTフルード）", v: "約3.5L（要点検・規定に従う）" },
+  { k: "車台番号の打刻位置", v: "助手席シート下のフロア（めくりカバー内）" },
+  { k: "エンジン型式の打刻位置", v: "シリンダーブロック前面" }
+];
+const DEMO_FAULTS = [
+  "イグニッションコイル劣化による失火（アイドリング不調・チェックランプ点灯）が中〜高走行で出やすい",
+  "CVTの発進ジャダー（微振動）。フルード劣化時に顕著",
+  "タイミングチェーン系の冷間始動時異音（高走行車）"
+];
+const DEMO_RECALLS = [];
+const DEMO_REPAIR = {
+  isWork: true,
+  location: "フロント左右のブレーキキャリパー。タイヤを外し、ディスクローターを挟むキャリパー内にパッドがあります（軽トラは作業スペースが狭いので注意）。",
+  time: "約0.5〜0.8時間（左右）",
+  order: [
+    { name: "フロントブレーキパッド", qty: "1", kind: "本体", step: 3 },
+    { name: "パッド鳴き止めグリス", qty: "1", kind: "同時交換推奨" }
+  ],
+  torque: "キャリパー取付ボルト 約 27 N·m（要確認）",
+  special: "特になし（EPB非装着車）",
+  steps: [
+    { text: "車両を安全にジャッキアップし、輪止め・リジッドラックで固定する", tools: ["ジャッキ", "リジッドラック", "輪止め"] },
+    { text: "タイヤを外す", tools: ["ラチェット＋21mmソケット"] },
+    { text: "キャリパーを外して古いパッドを取り出し、新品を組む", tools: ["12mmメガネレンチ", "14mmソケット"] },
+    { text: "組付け・規定トルクで締付、ブレーキを数回踏んで当たりを出す", tools: ["トルクレンチ(締付 85N·m)"] }
+  ],
+  answer: ""
+};
+function isDemo() { try { return sessionStorage.getItem("ss_demo") === "1"; } catch (e) { return false; } }
+/* デモ用のAI固定回答。プロンプト内容から諸元/修理/会話を判定して返す(ネットワーク未使用) */
+function demoAnswer(prompt) {
+  const p = String(prompt || "");
+  let text;
+  if (/"isWork"|修理|作業/.test(p) && /JSON/.test(p)) {
+    text = JSON.stringify(DEMO_REPAIR);
+  } else if (/"specs"|メンテナンス諸元|諸元/.test(p)) {
+    text = JSON.stringify({ model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS });
+  } else {
+    text = "（デモ用サンプル回答）ご質問ありがとうございます。本契約版では、読み込んだ車両の型式・原動機・年式に合わせて、メカ君AIが具体的な整備アドバイス・原因の切り分け・必要な工具や締付トルクまで回答します。まずは点検箇所を順に確認していきましょう。";
+  }
+  return Promise.resolve({ text, truncated: false, model: "demo" });
+}
+function showDemoBanner() {
+  if (document.getElementById("demoBanner")) return;
+  const b = document.createElement("div"); b.id = "demoBanner";
+  b.innerHTML = '<span class="demoTxt">🎬 これは<b>無料デモ</b>です（ログイン不要・サンプルデータ）。本契約で全機能・自社データが使えます。</span>' +
+    '<span class="demoBtns"><a class="demoCta" href="mailto:cablueie.123@gmail.com?subject=' + encodeURIComponent("メカノAI 法人版の申込・相談") + '">申込・相談</a>' +
+    '<button type="button" id="demoExit" class="demoExit">デモ終了</button></span>';
+  document.body.appendChild(b);
+  document.body.classList.add("hasDemoBanner");
+  const ex = document.getElementById("demoExit");
+  if (ex) ex.addEventListener("click", () => { try { sessionStorage.removeItem("ss_demo"); } catch (e) {} location.href = location.pathname; });
+}
+function startDemo() {
+  try { sessionStorage.setItem("ss_demo", "1"); } catch (e) {}
+  document.body.classList.add("demoMode");
+  showDemoBanner();
+  // サンプル車両の諸元・故障を端末に記憶させ、AIを呼ばずにメンテ/診断へ表示
+  try { setLearned(vehicleKey(DEMO_VEHICLE), { model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS, specDone: true }); } catch (e) {}
+  try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
+}
+(function initDemo() {
+  let on = false;
+  try { on = new URLSearchParams(location.search).get("demo") === "1" || sessionStorage.getItem("ss_demo") === "1"; } catch (e) {}
+  if (!on) return;
+  const go = () => setTimeout(startDemo, 350);
+  if (document.readyState === "complete") go();
+  else window.addEventListener("load", go);
 })();

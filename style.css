@@ -755,6 +755,15 @@ details[open] > .secSummary::after{content:"▴"}
 .kcShot:active{transform:scale(.94)}
 .kcDone{min-width:74px;height:46px;border-radius:23px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}
 
+/* 法人デモ: 上部固定バナー + ログイン/契約系を隠す */
+#demoBanner{position:fixed;left:0;right:0;bottom:0;z-index:400;background:#0f2a5a;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 -2px 10px rgba(0,0,0,.25)}
+#demoBanner .demoTxt{flex:1 1 auto;min-width:180px}
+#demoBanner .demoBtns{display:flex;gap:8px;flex:none}
+#demoBanner .demoCta{background:#ffb100;color:#0f2a5a;font-weight:800;text-decoration:none;padding:7px 14px;border-radius:8px;white-space:nowrap}
+#demoBanner .demoExit{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);padding:7px 12px;border-radius:8px;font-weight:700;white-space:nowrap}
+body.hasDemoBanner{padding-bottom:64px}
+body.demoMode #secCloudSync,body.demoMode #cloudPlan,body.demoMode #cloudDevices,body.demoMode #tabAdmin,body.demoMode #personalKeyBanner{display:none!important}
+
 /* カルテ: 見出し右の手書きイラスト(記録追加)ボタン + 写真カメラ画像ボタン */
 .kHead2{display:flex;align-items:center;gap:8px}
 .kHeadIcons{margin-left:auto;display:flex;align-items:center;gap:2px;flex:none}
