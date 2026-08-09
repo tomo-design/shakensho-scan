@@ -755,6 +755,15 @@ details[open] > .secSummary::after{content:"▴"}
 .kcShot:active{transform:scale(.94)}
 .kcDone{min-width:74px;height:46px;border-radius:23px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}
 
+/* 修理タブ: 締付トルクを「部位 … 値」の2列リストで見やすく */
+.torqueList{margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.torqueRow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.torqueRow:last-child{border-bottom:0}
+.torqueRow:nth-child(even){background:var(--panel)}
+.torqueRow .tqK{color:var(--txt);font-size:14px;line-height:1.4}
+.torqueRow .tqV{flex:none;font-weight:800;color:var(--amber);white-space:nowrap}
+.torqueNote{font-size:12px;color:var(--dim);margin-top:6px}
+
 /* 法人デモ: 上部固定バナー + ログイン/契約系を隠す */
 #demoBanner{position:fixed;left:0;right:0;bottom:0;z-index:400;background:#0f2a5a;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 -2px 10px rgba(0,0,0,.25)}
 #demoBanner .demoTxt{flex:1 1 auto;min-width:180px}

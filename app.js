@@ -1549,6 +1549,8 @@ function renderRepairAnswer(box, obj, q) {
     bar.append(copy, share); list.appendChild(bar);
     box.appendChild(list);
   }
+  // ④ 特殊工具・整備モード(作業前に把握できるよう手順の前=旧「必要なソケット・工具」の位置に配置)
+  if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
   // ⑤ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
     sec("交換手順");
@@ -1576,9 +1578,29 @@ function renderRepairAnswer(box, obj, q) {
     });
     box.appendChild(ol);
   }
-  // ⑤ 締付トルク・特殊工具
-  if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = keepUnit(han(String(obj.torque))); box.appendChild(p); }
-  if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
+  // ⑥ 締付トルク・規定値(部位ごとに「部位 … 値」の2列で見やすく)
+  if (obj.torque) {
+    sec("締付トルク・規定値");
+    const raw = keepUnit(han(String(obj.torque)));
+    // 末尾の注記(（…FAINES/確認/推奨/目安…）)を分離
+    let body = raw, note = "";
+    const nm = raw.match(/[（(][^（()）]*(?:FAINES|確認|推奨|目安|参考)[^（()）]*[)）]\s*$/);
+    if (nm) { note = nm[0].replace(/^[（(]/, "").replace(/[)）]\s*$/, ""); body = raw.slice(0, nm.index).trim().replace(/[、,／/]\s*$/, ""); }
+    const items = body.split(/\s*[\/／]\s*/).map(s => s.trim()).filter(Boolean);
+    const list = document.createElement("div"); list.className = "torqueList";
+    items.forEach(it => {
+      const row = document.createElement("div"); row.className = "torqueRow";
+      const m = it.match(/^(.+?)\s*[:：]\s*(.+)$/);
+      if (m) {
+        const k = document.createElement("span"); k.className = "tqK"; k.textContent = m[1];
+        const v = document.createElement("span"); v.className = "tqV"; v.textContent = m[2];
+        row.append(k, v);
+      } else { row.textContent = it; }
+      list.appendChild(row);
+    });
+    box.appendChild(list);
+    if (note) { const n = document.createElement("div"); n.className = "torqueNote"; n.textContent = "※ " + note; box.appendChild(n); }
+  }
 }
 /* 交換手順の工具リストから、手で使う工具(締める/緩める/挟む/切る系)を抽出(重複除去)。
    ソケット/メガネ/スパナはmmサイズで、ヘックス/トルクスは番手で。
