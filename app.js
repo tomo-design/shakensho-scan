@@ -1549,25 +1549,6 @@ function renderRepairAnswer(box, obj, q) {
     bar.append(copy, share); list.appendChild(bar);
     box.appendChild(list);
   }
-  // ④ この作業で使うソケット・メガネのサイズだけを集約表示(その他の工具は載せない)
-  const wrenchSizes = extractWrenchSizes(obj.steps);
-  if (wrenchSizes.length) {
-    sec("必要なソケット・工具");
-    const wrap = document.createElement("div"); wrap.className = "toolList";
-    wrenchSizes.forEach(sz => {
-      const q = toolQuery(sz);
-      const unit = document.createElement("span"); unit.className = "toolUnit";
-      const chip = document.createElement("button"); chip.type = "button"; chip.className = "toolChip";
-      chip.innerHTML = esc(han(sz)) + '<span class="orderCaret"> ▾</span>';
-      const shops = document.createElement("span"); shops.className = "toolShops hidden";
-      const y = document.createElement("a"); y.className = "pShop pShopY"; y.target = "_blank"; y.rel = "noopener sponsored"; y.href = yahooSearchUrl(q); y.textContent = "Yahoo!";
-      const a = document.createElement("a"); a.className = "pShop pShopA"; a.target = "_blank"; a.rel = "noopener sponsored"; a.href = amazonSearchUrl(q); a.textContent = "Amazon";
-      shops.append(y, a);
-      chip.addEventListener("click", () => { const hid = shops.classList.toggle("hidden"); chip.classList.toggle("isOpen", !hid); });
-      unit.append(chip, shops); wrap.appendChild(unit);
-    });
-    box.appendChild(wrap);
-  }
   // ⑤ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
     sec("交換手順");
