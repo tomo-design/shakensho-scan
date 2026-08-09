@@ -1446,7 +1446,8 @@ async function runVehAsk() {
       if (tot * 0.75 > ATTACH_MAX) { box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
       r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
     } else {
-      r = await geminiAsk(buildRepairPrompt(qFull), { mode: "flash", search: accurate });   // 修理も事実取得: Flash+検索(思考不要で低コスト・精度は検索で担保)
+      // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。
+      r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192 } : { mode: "flash", search: false });
     }
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
@@ -1476,6 +1477,7 @@ function buildRepairPrompt(q, hasMedia) {
     "ジャッキ・ウマ(リジッドラック)・ジャッキスタンド・輪止め・ウエス・受け皿・手袋・パーツクリーナー等の昇降/支持/補助用品はtoolsに入れない(手順textで触れるのは可)。",
     "【工具サイズは必ず調べてから答える】ボルト・ナットの二面幅サイズは、対象車両の整備要領書・部品情報・整備事例・分解レポート等をGoogle検索で実際に調べ、その車両の実サイズを書くこと。『サイズ要確認』『適合サイズを確認』のような逃げの表現は禁止。調べれば分かることを調べずに濁さない。",
     "toolsにトルクレンチが含まれる手順では、その工具名の直後にその締結部の規定トルク値も併記する(例『トルクレンチ(締付 108N·m)』)。トルク値も検索で調べて具体値を書く。",
+    "【締付トルクは必ず調べて実値を出す】torque欄は、この型式・エンジンの整備要領書・整備解説・分解整備事例をGoogle検索で実際に調べ、部位ごとに『規定値(±公差があれば併記)』を具体数値で書く。『(要確認)』での逃げは禁止。どうしても一次情報が見つからない部位のみ、同種エンジン/一般的な締結(ボルト径・座面)から妥当な目安値を数値で示し、その旨(例:『一般的な目安』)を付す。数値を一切書かず要確認だけ、は不可。",
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明な場合のみ要確認とし、創作はしない。",
     "年式・グレードでサイズが異なる場合は、どの年式・グレードの値かを明記して具体値を書く。トルクは整備書(FAINES)での最終確認を促す。",
     "■対象車両: " + vehicleDesc(),
