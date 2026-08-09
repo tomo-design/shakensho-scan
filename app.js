@@ -82,9 +82,10 @@ function vehPartPrefix() {
 function toolQuery(sz) {
   const s = String(sz || "");
   let m;
+  if (/^\d{1,2}(\.\d)?mm$/i.test(s)) return s + " ソケット";        // 例 14mm → 14mm ソケット
   if ((m = s.match(/^HEX(\d+)/i))) return m[1] + "mm 六角 ヘックスソケット";
   if ((m = s.match(/^T(\d+)/i))) return "T" + m[1] + " トルクスソケット";
-  return s + " ソケット";
+  return s;   // 名前付き工具(プライヤー等)はそのまま検索
 }
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
 function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
@@ -1471,6 +1472,8 @@ function buildRepairPrompt(q, hasMedia) {
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
     "steps は安全確保→取り外し→取り付け→確認の順。各stepは {text:手順文, tools:その手順で使う工具・計測器の配列}。部品名は該当手順のtextにも登場させる。",
     "toolsは具体的に。ソケット(コマ)・メガネ・スパナは必ず実寸サイズ(mm)を明記(例『ラチェット＋14mmソケット』『12mmメガネレンチ』)、ヘックス/トルクスも番手明記(例『T30トルクス』『6mmヘックス』)。",
+    "その手順で実際に手に持って使う工具は具体名で挙げる: 締める/緩める系(各サイズのソケット・メガネ・スパナ・モンキーレンチ・六角レンチ・トルクスドライバー・トルクレンチ・インパクトレンチ)、挟む系(プライヤー・ラジオペンチ・ウォーターポンププライヤー・スナップリングプライヤー・バイスプライヤー)、切る系(ニッパー・ケーブルカッター)、内張り作業(内張りはがし/クリップリムーバー)、ドライバー(プラス/マイナス/貫通)。その手順で本当に使うものだけを書く。",
+    "ジャッキ・ウマ(リジッドラック)・ジャッキスタンド・輪止め・ウエス・受け皿・手袋・パーツクリーナー等の昇降/支持/補助用品はtoolsに入れない(手順textで触れるのは可)。",
     "【工具サイズは必ず調べてから答える】ボルト・ナットの二面幅サイズは、対象車両の整備要領書・部品情報・整備事例・分解レポート等をGoogle検索で実際に調べ、その車両の実サイズを書くこと。『サイズ要確認』『適合サイズを確認』のような逃げの表現は禁止。調べれば分かることを調べずに濁さない。",
     "toolsにトルクレンチが含まれる手順では、その工具名の直後にその締結部の規定トルク値も併記する(例『トルクレンチ(締付 108N·m)』)。トルク値も検索で調べて具体値を書く。",
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明な場合のみ要確認とし、創作はしない。",
@@ -1535,7 +1538,7 @@ function renderRepairAnswer(box, obj, q) {
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
-    const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "") + (o.kind === "同時交換推奨" ? "（※同時交換推奨）" : "")).join("\n");
+    const orderText = head + order.map(o => "・" + o.name + (o.qty ? " ×" + o.qty : "")).join("\n");
     const bar = document.createElement("div"); bar.className = "btnRow"; bar.style.marginTop = "8px";
     const copy = document.createElement("button"); copy.className = "btn btn-amber btn-sm"; copy.textContent = "コピー";
     copy.addEventListener("click", async () => { if (await copyText(orderText)) { copy.textContent = "✓ コピー"; setTimeout(() => copy.textContent = "コピー", 1500); } });
@@ -1594,25 +1597,51 @@ function renderRepairAnswer(box, obj, q) {
   if (obj.torque) { sec("締付トルク・規定値"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = keepUnit(han(String(obj.torque))); box.appendChild(p); }
   if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
 }
-/* 交換手順の各工具リストから、ソケット(コマ)・メガネ・スパナのサイズだけを抽出(重複除去)。
-   その他の工具(ドライバー・プライヤー等)は対象外。 */
+/* 交換手順の工具リストから、手で使う工具(締める/緩める/挟む/切る系)を抽出(重複除去)。
+   ソケット/メガネ/スパナはmmサイズで、ヘックス/トルクスは番手で。
+   さらにプライヤー・ペンチ・ニッパー・ドライバー・モンキー・トルクレンチ等の名前付き工具も追加。
+   ジャッキ・ウマ(リジッドラック)・輪止め・ウエス等の支持/昇降/補助具は除外。 */
+const TOOL_EXCLUDE = /(ジャッキ|ウマ|馬|リジッドラック|ジャッキスタンド|スタンド|輪止め|車止め|リフト|ウエス|布|ぼろ布|手袋|グローブ|受け皿|トレイ|トレー|バット|パーツクリーナー|ブレーキクリーナー|クリーナー|保護メガネ|ゴーグル|安全|脚立|ドレンパン)/;
+/* サイズを持たない名前付き工具(挟む/切る/締緩の手工具のみ)。上から順に判定し最初の一致を採用 */
+const NAMED_TOOLS = [
+  { re: /(ウォーターポンププライヤー|ウォーポン)/, label: "ウォーターポンププライヤー" },
+  { re: /(スナップリングプライヤー|サークリッププライヤー|スナップリング|サークリップ)/, label: "スナップリングプライヤー" },
+  { re: /バイスプライヤー/, label: "バイスプライヤー" },
+  { re: /ラジオペンチ/, label: "ラジオペンチ" },
+  { re: /(コンビネーションプライヤー|プライヤー)/, label: "プライヤー" },
+  { re: /ペンチ/, label: "ペンチ" },
+  { re: /(ニッパー|ニッパ)/, label: "ニッパー" },
+  { re: /(ケーブルカッター|ワイヤーカッター)/, label: "ケーブルカッター" },
+  { re: /(貫通ドライバー)/, label: "貫通ドライバー" },
+  { re: /(プラスドライバー|＋ドライバー|\+ドライバー|プラスドライバ)/, label: "プラスドライバー" },
+  { re: /(マイナスドライバー|－ドライバー|-ドライバー|マイナスドライバ)/, label: "マイナスドライバー" },
+  { re: /(トルクスドライバー|トルクスビット|ヘクスローブドライバー)/, label: "トルクスドライバー" },
+  { re: /(六角(棒)?レンチ|ヘックスレンチ|アーレンキー|六角レンチ)/, label: "六角レンチ" },
+  { re: /トルクレンチ/, label: "トルクレンチ" },
+  { re: /(インパクトレンチ|電動インパクト|インパクトドライバー)/, label: "インパクトレンチ" },
+  { re: /モンキー(レンチ)?/, label: "モンキーレンチ" },
+  { re: /(内張り(はがし|剥がし)|クリップリムーバー|クリップクランプ|パネルはがし|リムーバー)/, label: "内張りはがし(クリップリムーバー)" }
+];
 function extractWrenchSizes(steps) {
-  const set = new Set();
+  const sizes = new Set(), named = new Set();
   (Array.isArray(steps) ? steps : []).forEach(s => {
     const tools = (s && Array.isArray(s.tools)) ? s.tools : [];
     tools.forEach(t => {
       const str = han(String(t || ""));
+      if (TOOL_EXCLUDE.test(str)) return;   // ジャッキ・ウマ等は工具一覧に載せない
       // ソケット/コマ/メガネ/スパナ/ボックスレンチ に付くmmサイズ
       if (/(ソケット|コマ|メガネ|スパナ|ボックス)/.test(str)) {
-        (str.match(/\d{1,2}(?:\.\d)?\s*mm/gi) || []).forEach(m => set.add(m.replace(/\s+/g, "").toUpperCase().replace("MM", "mm")));
+        (str.match(/\d{1,2}(?:\.\d)?\s*mm/gi) || []).forEach(m => sizes.add(m.replace(/\s+/g, "").toUpperCase().replace("MM", "mm")));
       }
       // ヘックス(六角)・トルクスは番手で
       let m;
-      if ((m = str.match(/(?:ヘックス|HEX|六角)[^0-9]{0,4}(\d{1,2})/i))) set.add("HEX" + m[1]);
-      if ((m = str.match(/(?:トルクス|TORX|T)\s?(\d{2})/i))) set.add("T" + m[1]);
+      if ((m = str.match(/(?:ヘックス|HEX)[^0-9]{0,4}(\d{1,2})/i))) sizes.add("HEX" + m[1]);
+      if ((m = str.match(/(?:トルクス|TORX|T)\s?(\d{2})/i))) sizes.add("T" + m[1]);
+      // 名前付きの手工具(挟む/切る/締緩)
+      for (const nt of NAMED_TOOLS) { if (nt.re.test(str)) { named.add(nt.label); break; } }
     });
   });
-  return [...set];
+  return [...sizes, ...named];   // サイズ工具 → 名前付き工具 の順
 }
 function jumpToStep(box, n) {
   const li = box.querySelector("#rstep-" + n); if (!li) return;
@@ -5219,7 +5248,7 @@ const DEMO_REPAIR = {
   steps: [
     { text: "車両を安全にジャッキアップし、輪止め・リジッドラックで固定する", tools: ["ジャッキ", "リジッドラック", "輪止め"] },
     { text: "タイヤを外す", tools: ["ラチェット＋21mmソケット"] },
-    { text: "キャリパーを外して古いパッドを取り出し、新品を組む", tools: ["12mmメガネレンチ", "14mmソケット"] },
+    { text: "キャリパーを外して古いパッドを取り出し、ピストンを戻して新品を組む", tools: ["12mmメガネレンチ", "14mmソケット", "ウォーターポンププライヤー", "マイナスドライバー"] },
     { text: "組付け・規定トルクで締付、ブレーキを数回踏んで当たりを出す", tools: ["トルクレンチ(締付 85N·m)"] }
   ],
   answer: ""
