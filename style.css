@@ -755,6 +755,15 @@ details[open] > .secSummary::after{content:"▴"}
 .kcShot:active{transform:scale(.94)}
 .kcDone{min-width:74px;height:46px;border-radius:23px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}
 
+/* 修理タブ: 手動の整備モード手順(目立たない折り畳み) */
+.manualMode{margin:6px 0 2px;border:1px dashed var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;background:var(--panel)}
+.manualMode>summary{cursor:pointer;color:var(--dim);font-weight:700;padding:8px 0;list-style:none;user-select:none}
+.manualMode>summary::-webkit-details-marker{display:none}
+.manualMode>summary::before{content:"▸ 手動手順を開く｜ ";color:var(--cyan);font-weight:800}
+.manualMode[open]>summary::before{content:"▾ 手動手順｜ "}
+.manualSteps{margin:2px 0 10px;padding-left:20px;color:var(--txt)}
+.manualSteps li{margin:5px 0;line-height:1.55}
+
 /* 修理タブ: 締付トルクを「部位 … 値」の2列リストで見やすく */
 .torqueList{margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .torqueRow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px;border-bottom:1px solid var(--line)}

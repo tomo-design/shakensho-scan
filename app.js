@@ -1467,7 +1467,8 @@ function buildRepairPrompt(q, hasMedia) {
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     hasMedia ? "添付された写真(複数の場合あり)をよく観察し、写っている部位・部品・損傷・警告灯・漏れ・摩耗などを踏まえて回答すること。写真から部品名や作業を推定できる場合は具体的に述べる。" : "",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
-    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"manualService\":{\"name\":\"手動での◯◯移行/解除手順(診断機不要)\",\"steps\":[\"操作1\",\"操作2\"]},\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "【manualService=手動の整備モード手順】specialで整備モード/サービスモード(EPB電動パーキングブレーキ・DPF/DPD再生・ブレーキピストン戻し・SAS・バッテリー交換登録 等)に触れ、かつ『診断機(スキャンツール)を使わず手動で』移行・解除・実施できる方法がその車種に存在する場合のみ、その手動手順だけを manualService に入れる。手順はその車種で実際に通用する順序で具体的に(イグニッションON/OFFの回数・順序、ブレーキ/アクセルペダルの操作、待ち時間、キャリパーを手で戻す向き 等)。診断機でしか行えない/手動方法が無い/該当作業でない場合は manualService を出さない(キーごと省略)。診断機を使う方法は書かず、手動方法だけを簡潔にまとめる。",
     "【最重要】location・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
     "各order項目の step は、その部品を実際に取り付け/交換する steps の手順番号(1始まり)。該当が無ければ step は省略。",
@@ -1551,6 +1552,17 @@ function renderRepairAnswer(box, obj, q) {
   }
   // ④ 特殊工具・整備モード(作業前に把握できるよう手順の前=旧「必要なソケット・工具」の位置に配置)
   if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
+  // 手動での整備モード移行手順(診断機不要)。目立たない折り畳みで表示
+  const ms = obj.manualService;
+  if (ms && Array.isArray(ms.steps) && ms.steps.length) {
+    const det = document.createElement("details"); det.className = "manualMode";
+    const sm = document.createElement("summary"); sm.textContent = han(String(ms.name || "手動での整備モード手順（診断機不要）"));
+    det.appendChild(sm);
+    const ol = document.createElement("ol"); ol.className = "manualSteps";
+    ms.steps.forEach(s => { const li = document.createElement("li"); li.textContent = han(String(s)); ol.appendChild(li); });
+    det.appendChild(ol);
+    box.appendChild(det);
+  }
   // ⑤ 交換手順(タップでその手順の工具を表示・部品名からのジャンプ先アンカー)
   if (Array.isArray(obj.steps) && obj.steps.length) {
     sec("交換手順");
@@ -5249,8 +5261,17 @@ const DEMO_REPAIR = {
     { name: "フロントブレーキパッド", qty: "1", kind: "本体", step: 3 },
     { name: "パッド鳴き止めグリス", qty: "1", kind: "同時交換推奨" }
   ],
-  torque: "キャリパー取付ボルト 約 27 N·m（要確認）",
-  special: "特になし（EPB非装着車）",
+  torque: "キャリパー取付ボルト: 27 N·m / ホイールナット: 85 N·m",
+  special: "EPB（電動パーキングブレーキ）装着車は整備モードへの移行・解除が必要（診断機または手動操作）",
+  manualService: {
+    name: "手動でのEPB整備モード移行・解除手順（診断機不要）",
+    steps: [
+      "イグニッションをON（エンジンはかけない）にする",
+      "ブレーキペダルを踏み込んだまま、EPBスイッチを引き上げてから押し下げる操作を指定回数行い、作動音でリリースを確認",
+      "パッド交換後は逆手順でEPBを復帰させ、数回作動させて当たりを出す",
+      "最後にイグニッションOFF→ONでDTC（故障コード）が出ていないか確認する"
+    ]
+  },
   steps: [
     { text: "車両を安全にジャッキアップし、輪止め・リジッドラックで固定する", tools: ["ジャッキ", "リジッドラック", "輪止め"] },
     { text: "タイヤを外す", tools: ["ラチェット＋21mmソケット"] },
