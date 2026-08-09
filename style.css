@@ -760,7 +760,7 @@ details[open] > .secSummary::after{content:"▴"}
 .torqueRow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px;border-bottom:1px solid var(--line)}
 .torqueRow:last-child{border-bottom:0}
 .torqueRow:nth-child(even){background:var(--panel)}
-.torqueRow .tqK{color:var(--txt);font-size:14px;line-height:1.4}
+.torqueRow .tqK{flex:1 1 auto;min-width:0;color:var(--txt);font-size:14px;line-height:1.4;word-break:break-word;overflow-wrap:anywhere}
 .torqueRow .tqV{flex:none;font-weight:800;color:var(--amber);white-space:nowrap}
 .torqueNote{font-size:12px;color:var(--dim);margin-top:6px}
 

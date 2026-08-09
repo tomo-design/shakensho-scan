@@ -1585,8 +1585,9 @@ function renderRepairAnswer(box, obj, q) {
     // 末尾の注記(（…FAINES/確認/推奨/目安…）)を分離
     let body = raw, note = "";
     const nm = raw.match(/[（(][^（()）]*(?:FAINES|確認|推奨|目安|参考)[^（()）]*[)）]\s*$/);
-    if (nm) { note = nm[0].replace(/^[（(]/, "").replace(/[)）]\s*$/, ""); body = raw.slice(0, nm.index).trim().replace(/[、,／/]\s*$/, ""); }
-    const items = body.split(/\s*[\/／]\s*/).map(s => s.trim()).filter(Boolean);
+    if (nm) { note = nm[0].replace(/^[（(]/, "").replace(/[)）]\s*$/, ""); body = raw.slice(0, nm.index).trim().replace(/[、,／/;]\s*$/, ""); }
+    // 「/」「、」「,」「;」いずれの区切りでも部位ごとに分割
+    const items = body.split(/\s*[\/／、,;]\s*/).map(s => s.trim()).filter(Boolean);
     const list = document.createElement("div"); list.className = "torqueList";
     items.forEach(it => {
       const row = document.createElement("div"); row.className = "torqueRow";
