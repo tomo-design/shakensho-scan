@@ -818,6 +818,9 @@ body.storeApp #secCloudSync,
 body.storeApp #cloudPlan,
 body.storeApp #cloudDevices,
 body.storeApp #tabAdmin{ display:none !important }
+/* 個人版(ストア/個人モード)では法人専用の文言・要素を隠す */
+body.storeApp .corpOnly,
+body.personalMode .corpOnly{ display:none !important }
 
 /* --- 個人版ペイウォール(Google Playサブスク) --- */
 body.pwLocked{ overflow:hidden }
