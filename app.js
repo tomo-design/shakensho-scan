@@ -1558,20 +1558,25 @@ function renderRepairAnswer(box, obj, q) {
       const row = document.createElement("div"); row.className = "orderRow";
       const sq = han(o.name).trim();
       const labelText = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      let nm;
-      if (sq) {
-        // 部品名タップで、その車両(車種名+型式記号)＋部品名の検索をYahoo!ショッピングで別タブ表示
-        const query = (vehPartPrefix() + " " + sq).trim();
-        nm = document.createElement("a"); nm.className = "orderName orderNameLink";
-        nm.href = yahooSearchUrl(query); nm.target = "_blank"; nm.rel = "noopener sponsored";
-        nm.title = "Yahoo!ショッピングで探す";
-        nm.textContent = labelText;
-      } else {
-        nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = labelText;
-      }
+      const nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = labelText;
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
+      // 各部品の下に「楽天 / Yahoo! / Amazon」の検索ボタン(車種名+型式記号+部品名で検索・別タブ)
+      if (sq) {
+        const query = (vehPartPrefix() + " " + sq).trim();
+        const shops = document.createElement("div"); shops.className = "pShops orderShops";
+        const mk = (cls, txt, href) => {
+          const a = document.createElement("a"); a.className = "pShop " + cls;
+          a.target = "_blank"; a.rel = "noopener sponsored"; a.href = href; a.textContent = txt; return a;
+        };
+        shops.append(
+          mk("pShopR", "楽天", rakutenSearchUrl(query)),
+          mk("pShopY", "Yahoo!", yahooSearchUrl(query)),
+          mk("pShopA", "Amazon", amazonSearchUrl(query))
+        );
+        list.appendChild(shops);
+      }
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";
