@@ -133,7 +133,7 @@
       // 自分の端末を外して枠が空いたら、この端末を再登録して同期を再開
       if (deviceBlocked) { const g = await ensureDeviceAllowed(me.uid); if (g.ok) { deviceBlocked = false; startSync(profile.tenantId); } }
       renderDevices(); renderAuthUI();
-    } catch (e) { alert("端末の解除に失敗しました: " + (e.message || e)); }
+    } catch (e) { uiAlert("端末の解除に失敗しました: " + (e.message || e)); }
   }
   /* 店舗のお支払い(月額) — 折り畳み。代表管理者のみ表示。決済リンクは後で差し込む。 */
   function renderPlan() {
@@ -186,13 +186,13 @@
       const ans = (prompt("検索を使える人数（席数）を入力してください。\n3席まで標準。4席目以降は +¥3,000/席（月額）または +¥36,000/席（年額）を、次回請求にまとめて自動計上します。", String(now)) || "").trim();
       if (!ans) return;
       const seats = parseInt(ans, 10);
-      if (isNaN(seats) || seats < 1) { alert("数字を入力してください。"); return; }
+      if (isNaN(seats) || seats < 1) { uiAlert("数字を入力してください。"); return; }
       seatBtn.disabled = true;
       try {
         const r = await window.Cloud.callFn("setSeats", { tid: profile.tenantId, seats: seats });
-        alert("検索席を " + r.seats + " 席に設定しました" + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
+        uiAlert("検索席を " + r.seats + " 席に設定しました" + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
         renderPlan();
-      } catch (e) { seatBtn.disabled = false; alert("席数の変更に失敗しました: " + (e.message || e)); }
+      } catch (e) { seatBtn.disabled = false; uiAlert("席数の変更に失敗しました: " + (e.message || e)); }
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = async () => {
       if (!confirm("解約しますか？\n現在の契約期間の終了日まで利用でき、その後は自動で停止します（追加の請求はありません）。")) return;
@@ -246,9 +246,9 @@
         if (profile) profile.deviceLimit = r.deviceLimit;           // 枠を反映
         const g = await ensureDeviceAllowed(me.uid);                 // この端末を登録
         if (g.ok) { deviceBlocked = false; startSync(profile.tenantId); }
-        alert("追加端末を登録しました（枠 " + r.deviceLimit + "台）。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
+        uiAlert("追加端末を登録しました（枠 " + r.deviceLimit + "台）。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
         renderAuthUI(); renderDevices();
-      } catch (e) { buy.disabled = false; alert("追加に失敗しました: " + (e.message || e)); }
+      } catch (e) { buy.disabled = false; uiAlert("追加に失敗しました: " + (e.message || e)); }
     };
     show("cloudDevices", true);
   }
@@ -408,15 +408,15 @@
       if (rb) rb.onclick = async () => {
         const nm = (prompt("氏名を入力してください") || "").trim(); if (!nm) return;
         const tid = (prompt("事業所IDを入力してください（例: sakuragarage）") || "").toLowerCase().replace(/[^a-z0-9_-]/g, ""); if (!tid) return;
-        try { await db.collection("users").doc(me.uid).set({ name: nm, email: me.email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() }); alert("再申請しました。管理者の承認をお待ちください。"); location.reload(); }
-        catch (e) { alert("失敗: " + (e.message || e)); }
+        try { await db.collection("users").doc(me.uid).set({ name: nm, email: me.email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() }); uiAlert("再申請しました。管理者の承認をお待ちください。"); location.reload(); }
+        catch (e) { uiAlert("失敗: " + (e.message || e)); }
       };
     } else if (profile.rejected) {
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + "<br>⛔ <b>申請が却下されました。</b><br>下のボタンで再申請できます（会社の代表管理者の承認をお待ちください）。<br><button class='btn btn-amber btn-sm' id='cloudReapply' style='margin-top:8px'>もう一度 参加を申請する</button>";
       const rab = $("cloudReapply");
       if (rab) rab.onclick = async () => {
-        try { await db.collection("users").doc(me.uid).set({ active: false, rejected: false }, { merge: true }); alert("再申請しました。管理者の承認をお待ちください。"); }
-        catch (e) { alert("失敗: " + (e.message || e)); }
+        try { await db.collection("users").doc(me.uid).set({ active: false, rejected: false }, { merge: true }); uiAlert("再申請しました。管理者の承認をお待ちください。"); }
+        catch (e) { uiAlert("失敗: " + (e.message || e)); }
       };
     } else if (!profile.active) {
       $("cloudStat").innerHTML = who + "<br>会社: " + (profile.tenantId || "—") + " / 役割: " + roleJa + "<br>⏳ <b>承認待ち</b>です。承認されると自動で同期が始まります。";
@@ -738,7 +738,7 @@
     el.innerHTML = html;
     el.querySelectorAll("[data-done]").forEach(b => b.addEventListener("click", async () => {
       try { await db.collection("signups").doc(b.dataset.done).update({ status: "done", handledAt: Date.now() }); renderSignups(); }
-      catch (e) { alert("更新失敗: " + (e.message || e)); }
+      catch (e) { uiAlert("更新失敗: " + (e.message || e)); }
     }));
   }
   $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); });
@@ -886,15 +886,15 @@
           const d = await window.Cloud.callFn("setMemberPassword", { targetUid: id });
           if (d && d.password) {
             prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
-          } else { alert("発行に失敗しました。"); }
-        } catch (e) { alert("発行に失敗: " + (e.message || e)); }
+          } else { uiAlert("発行に失敗しました。"); }
+        } catch (e) { uiAlert("発行に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "seaton" || act === "seatoff") {
         // 検索席の指名/解除。id=メンバーuid。店舗(tenantId)を引いて assignSeat を呼ぶ。
         //  ★一覧の全体再描画はカードが畳まれて変化が見えないため、ボタンをその場で切り替える。
         const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
-        if (!u.tenantId) { alert("所属店舗が不明です。"); return "inplace"; }
+        if (!u.tenantId) { uiAlert("所属店舗が不明です。"); return "inplace"; }
         const on = act === "seaton";
         if (btnEl) btnEl.disabled = true;
         try {
@@ -905,7 +905,7 @@
             btnEl.classList.toggle("btn-amber", on);
             btnEl.classList.toggle("btn-ghost", !on);
           }
-        } catch (e) { alert("検索席の変更に失敗: " + (e.message || e)); }
+        } catch (e) { uiAlert("検索席の変更に失敗: " + (e.message || e)); }
         finally { if (btnEl) btnEl.disabled = false; }
         return "inplace";
       }
@@ -914,8 +914,8 @@
         try {
           const r = await window.Cloud.callFn("syncPlan", { tid: id });
           const nm = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[r.aiPlan] || r.aiPlan;
-          alert("Stripeと同期しました。\nプラン: " + nm + (r.paidUntil ? "\n期限: " + new Date(r.paidUntil).toLocaleDateString("ja-JP") : ""));
-        } catch (e) { alert("同期に失敗: " + (e.message || e)); }
+          uiAlert("Stripeと同期しました。\nプラン: " + nm + (r.paidUntil ? "\n期限: " + new Date(r.paidUntil).toLocaleDateString("ja-JP") : ""));
+        } catch (e) { uiAlert("同期に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "aitier") {
@@ -926,7 +926,7 @@
         if (!ans) return;
         const map = { "1": "na", "2": "turbo", "3": "twinturbo" };
         const plan = map[ans];
-        if (!plan) { alert("1〜3で入力してください。"); return; }
+        if (!plan) { uiAlert("1〜3で入力してください。"); return; }
         await db.collection("tenants").doc(id).set({ aiPlan: plan, aiPaidFallback: (plan !== "na") }, { merge: true });   // aiPaidFallbackは後方互換で連動
         if (plan === "twinturbo") {
           const seatsAns = (prompt("ツインターボの検索『席数』（検索を使える人数／月）\n3席は標準。4席目以降は +¥3,000/席（月額）または +¥36,000/席（年額）を、次回請求にまとめて自動計上します。", String(cur.searchSeats || 3)) || "").trim();
@@ -934,11 +934,11 @@
           if (!isNaN(seats) && seats >= 1) {
             try {
               const r = await window.Cloud.callFn("setSeats", { tid: id, seats });
-              alert("ツインターボに設定しました。席数 " + r.seats + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加席は次回請求にまとめて計上されます。" : "")));
-            } catch (e) { alert("プランは設定しましたが、席数設定に失敗: " + (e.message || e)); }
-          } else { alert("AIプランを「ツインターボ」にしました（席数は据え置き）。"); }
+              uiAlert("ツインターボに設定しました。席数 " + r.seats + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加席は次回請求にまとめて計上されます。" : "")));
+            } catch (e) { uiAlert("プランは設定しましたが、席数設定に失敗: " + (e.message || e)); }
+          } else { uiAlert("AIプランを「ツインターボ」にしました（席数は据え置き）。"); }
         } else {
-          alert("AIプランを「" + ({ na: "N/A", turbo: "ターボ" }[plan]) + "」にしました。");
+          uiAlert("AIプランを「" + ({ na: "N/A", turbo: "ターボ" }[plan]) + "」にしました。");
         }
         return;
       }
@@ -964,7 +964,7 @@
           const admins = await db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get();
           for (const a of admins.docs) { if (a.id !== id) { try { await db.collection("users").doc(a.id).update({ role: "staff" }); } catch (e) {} } }
         }
-        alert("代表管理者を引き継ぎました。");
+        uiAlert("代表管理者を引き継ぎました。");
       } else if (act === "demote") {
         if (!confirm("この代表管理者を従業員に降格しますか？")) return;
         await db.collection("users").doc(id).update({ role: "staff" });
@@ -980,24 +980,24 @@
         const ans = (prompt(msg, "0") || "").trim();
         if (ans === "") return;
         const days = parseInt(ans, 10);
-        if (isNaN(days) || days < 0) { alert("数字を入力してください。"); return; }
-        if (days === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); alert("停止しました。"); }
+        if (isNaN(days) || days < 0) { uiAlert("数字を入力してください。"); return; }
+        if (days === 0) { await db.collection("tenants").doc(id).set({ plan: "suspended" }, { merge: true }); uiAlert("停止しました。"); }
         else {
           const until = Date.now() + days * 24 * 3600 * 1000;
-          if (curUntil && until >= curUntil) { alert("延長はできません（現在の期限より前の日付のみ）。\n延長はStripe（年契約）で更新してください。"); return; }
+          if (curUntil && until >= curUntil) { uiAlert("延長はできません（現在の期限より前の日付のみ）。\n延長はStripe（年契約）で更新してください。"); return; }
           await db.collection("tenants").doc(id).set({ plan: "active", paidUntil: until }, { merge: true });
-          alert(new Date(until).toLocaleDateString("ja-JP") + " に停止するよう設定しました。");
+          uiAlert(new Date(until).toLocaleDateString("ja-JP") + " に停止するよう設定しました。");
         }
       } else if (act === "devplus") {
         // 端末枠+1。追加端末分は自動でStripe(月/年)に合算(次サイクル請求)。
         const r = await window.Cloud.callFn("setDevices", { uid: id, delta: 1 });
-        alert("端末枠を " + r.deviceLimit + " 台に増やしました。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
+        uiAlert("端末枠を " + r.deviceLimit + " 台に増やしました。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
       } else if (act === "devminus") {
         const r = await window.Cloud.callFn("setDevices", { uid: id, delta: -1 });
-        alert("端末枠を " + r.deviceLimit + " 台にしました。\n" + (r.note || ""));
+        uiAlert("端末枠を " + r.deviceLimit + " 台にしました。\n" + (r.note || ""));
       } else if (act === "on") { await db.collection(col).doc(id).update({ active: true, rejected: false }); }
       else await db.collection(col).doc(id).update({ active: false });
-    } catch (e) { alert("操作失敗: " + (e.message || e)); }
+    } catch (e) { uiAlert("操作失敗: " + (e.message || e)); }
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 

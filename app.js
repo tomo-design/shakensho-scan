@@ -42,6 +42,21 @@ async function copyText(txt) {
   } catch (e) { return false; }
 }
 const toggle = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
+/* ブラウザ標準alert(ドメイン名が出て不格好)の代わりの、アプリ内モーダル通知 */
+function uiAlert(msg, title) {
+  return new Promise(res => {
+    const ov = document.createElement("div"); ov.className = "uiModalOv";
+    const m = document.createElement("div"); m.className = "uiModal";
+    if (title) { const h = document.createElement("div"); h.className = "uiModalTitle"; h.textContent = String(title); m.appendChild(h); }
+    const body = document.createElement("div"); body.className = "uiModalBody"; body.textContent = String(msg == null ? "" : msg); m.appendChild(body);
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "uiModalOk"; ok.textContent = "OK"; m.appendChild(ok);
+    ov.appendChild(m); document.body.appendChild(ov);
+    const close = () => { ov.remove(); res(); };
+    ok.addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  });
+}
+try { window.uiAlert = uiAlert; } catch (e) {}
 /* 部品注文リストの各部品→通販(モノタロウ/Amazon)の商品検索へ。アフィリエイトID/リンクを入れると自動でタグ付き。
    ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
 const AFFIL = {
@@ -74,8 +89,16 @@ function yahooSearchUrl(q) {
 /* 部品検索用の車両プレフィックス: 車種名 + 型式の車種記号(例「ダイハツ タント L375S」)。
    車台番号(VIN)そのものは商品に一致しないため使わず、型式記号までで特定精度を上げる。 */
 function vehPartPrefix() {
-  const model = (currentVehicleFacts().model || "").trim();
   const code = kataSuffix((current && current.type) || "").trim();   // 例 DBA-L375S → L375S
+  let model = (currentVehicleFacts().model || "").trim();
+  // DBの車種名に登録番号/車台番号/使用者名が混入している場合があるため、
+  // 個人情報や検索を汚す文字列は除外し、車種名らしくない時は使わない(型式コードのみで検索)。
+  if (isEmailLike(model)) model = "";
+  if (/\d{3,}/.test(model)) model = "";                         // 登録番号・車台番号などの数字列
+  if (/[A-Za-z0-9]{5,}-\d/.test(model)) model = "";            // 車台番号っぽい英数-数字
+  if (/[0-9]{1,3}\s*[ぁ-んァ-ヶ]\s*[0-9]/.test(model)) model = ""; // ナンバー(例 480 あ 12)
+  const looksCar = /(トヨタ|レクサス|日産|ホンダ|マツダ|スズキ|ダイハツ|スバル|三菱|ふそう|いすゞ|イスズ|日野|ヒノ|UD|ニッサン|[ァ-ヶ]{2,})/.test(model);
+  if (!looksCar) model = "";
   return [model, code].filter(Boolean).join(" ").trim();
 }
 /* 工具(ソケット/ヘックス/トルクス)を検索しやすい語に整形 */
@@ -928,7 +951,7 @@ async function runAiQrParse(fromAuto) {
   stopFieldMic();
   if (!aiOK()) {
     if (fromAuto) return;   // 自動時はキー未設定なら静かに何もしない(ボタンで手動可)
-    alert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    uiAlert("QRのAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
   const raw = (current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
@@ -969,7 +992,7 @@ $("btnManual").addEventListener("click", () => {
   const type = uc("manualType"), engine = uc("manualEngine"), vin = uc("manualVin");
   const plate = $("manualPlate").value.trim();
   const user = $("manualUser").value.trim();
-  if (!type && !vin && !plate && !engine) { alert("いずれか1項目以上を入力してください。"); return; }
+  if (!type && !vin && !plate && !engine) { uiAlert("いずれか1項目以上を入力してください。"); return; }
   const d = { type: type || null, engine: engine || null, vin: vin || null, plate: plate || null,
     raw: [type, engine, vin, plate].filter(Boolean) };
   showResult(d, { fromScan: true });
@@ -1178,7 +1201,7 @@ $("lnkRawChips").addEventListener("click", () => { toggle("secRaw", true); $("se
   const raw = (current && current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
   const txt = raw.length ? raw.join("\n") : "(QR生データなし)";
   if (await copyText(txt)) { b.textContent = "✓ コピーしました"; setTimeout(() => b.textContent = "🔎 QR生データをコピー（不具合報告用）", 1600); }
-  else { alert(txt); }
+  else { uiAlert(txt); }
 }); }
 $("btnVidSave").addEventListener("click", () => {
   const uc = id => $(id).value.trim().toUpperCase();
@@ -1339,7 +1362,7 @@ $("btnPartsGo") && $("btnPartsGo").addEventListener("click", async () => {
   stopFieldMic();
   const part = $("partName").value.trim();
   if (!part) { $("partName").focus(); return; }
-  if (!vehicleKey(current)) { alert("先に車両を読み込んでください(車台番号や型式が必要です)。"); return; }
+  if (!vehicleKey(current)) { uiAlert("先に車両を読み込んでください(車台番号や型式が必要です)。"); return; }
   if (!aiOK()) {
     toggle("partsResult", true);
     $("partsResult").innerHTML = '<div class="hint">部品の洗い出しにはAI（無料Geminiキー）の設定が必要です。設定タブで登録してください。</div>';
@@ -1428,7 +1451,7 @@ async function runVehAsk() {
   const q = $("qVehText").value.trim();
   if (!q && !vehAttachments.length) { $("qVehText").focus(); return; }
   if (!aiOK()) {
-    alert("質問するには設定タブで無料のGemini APIキーを設定してください。");
+    uiAlert("質問するには設定タブで無料のGemini APIキーを設定してください。");
     switchView("settings"); return;
   }
   if (vehAskBusy) return; vehAskBusy = true;
@@ -1467,7 +1490,7 @@ function buildRepairPrompt(q, hasMedia) {
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     hasMedia ? "添付された写真(複数の場合あり)をよく観察し、写っている部位・部品・損傷・警告灯・漏れ・摩耗などを踏まえて回答すること。写真から部品名や作業を推定できる場合は具体的に述べる。" : "",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
-    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"manualService\":{\"name\":\"手動での◯◯移行/解除手順(診断機不要)\",\"steps\":[\"操作1\",\"操作2\"]},\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"manualService\":{\"name\":\"手動での◯◯移行・解除手順\",\"steps\":[\"操作1\",\"操作2\"]},\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
     "【manualService=手動の整備モード手順】specialで整備モード/サービスモード(EPB電動パーキングブレーキ・DPF/DPD再生・ブレーキピストン戻し・SAS・バッテリー交換登録 等)に触れ、かつ『診断機(スキャンツール)を使わず手動で』移行・解除・実施できる方法がその車種に存在する場合のみ、その手動手順だけを manualService に入れる。手順はその車種で実際に通用する順序で具体的に(イグニッションON/OFFの回数・順序、ブレーキ/アクセルペダルの操作、待ち時間、キャリパーを手で戻す向き 等)。診断機でしか行えない/手動方法が無い/該当作業でない場合は manualService を出さない(キーごと省略)。診断機を使う方法は書かず、手動方法だけを簡潔にまとめる。",
     "【最重要】location・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
@@ -1556,10 +1579,16 @@ function renderRepairAnswer(box, obj, q) {
   const ms = obj.manualService;
   if (ms && Array.isArray(ms.steps) && ms.steps.length) {
     const det = document.createElement("details"); det.className = "manualMode";
-    const sm = document.createElement("summary"); sm.textContent = han(String(ms.name || "手動での整備モード手順（診断機不要）"));
+    // 「（診断機非使用時）」「(診断機不要)」等の注記は表示名から除去
+    let mname = han(String(ms.name || "手動での整備モード手順")).replace(/[（(][^（()）]*(診断機|スキャンツール|ツール)[^（()）]*[)）]/g, "").trim();
+    const sm = document.createElement("summary"); sm.textContent = mname || "手動での整備モード手順";
     det.appendChild(sm);
     const ol = document.createElement("ol"); ol.className = "manualSteps";
-    ms.steps.forEach(s => { const li = document.createElement("li"); li.textContent = han(String(s)); ol.appendChild(li); });
+    ms.steps.forEach(s => {
+      const li = document.createElement("li");
+      li.textContent = han(String(s)).replace(/^\s*\d+\s*[.．、)）]\s*/, "");   // 先頭の「1.」等はol側で振るため除去
+      ol.appendChild(li);
+    });
     det.appendChild(ol);
     box.appendChild(det);
   }
@@ -1572,14 +1601,9 @@ function renderRepairAnswer(box, obj, q) {
       const tools = (s && s.tools && s.tools.length) ? s.tools : [];
       const li = document.createElement("li"); li.id = "rstep-" + (i + 1); li.className = "hasTools";
       const d = document.createElement("div");
-      const t = document.createElement("div"); t.className = "ai-cause";
-      // 「番号. 見出し: 本文」を見出し(太字)と本文(通常)に分けて読みやすく
-      const hm = han(text).match(/^\s*(\d+[.．]\s*)?([^：:]{1,40})[：:]\s*([\s\S]+)$/);
-      if (hm) {
-        const head = document.createElement("div"); head.className = "stepHead"; head.textContent = (hm[1] || "") + hm[2];
-        const bodyEl = document.createElement("div"); bodyEl.className = "stepBody"; bodyEl.textContent = hm[3];
-        t.append(head, bodyEl);
-      } else { t.textContent = han(text); }
+      const t = document.createElement("div"); t.className = "ai-cause stepBody";
+      // 手順文は均一な文字で表示(先頭の「1.」等はol側の番号と重複するため除去)
+      t.textContent = han(text).replace(/^\s*\d+\s*[.．、)）]\s*/, "");
       d.appendChild(t);
       const toolBox = document.createElement("div"); toolBox.className = "stepTools hidden";
       toolBox.innerHTML = tools.length ? '<b>使う工具:</b> ' + tools.map(x => esc(han(String(x)))).join(" ・ ") : "この手順の工具情報はありません。";
@@ -1873,7 +1897,7 @@ function renderSpecs(specs, source) {
 
 /* 諸元項目をタップ → その場で項目名・値を編集して保存(手動修正) */
 function enterSpecItemEdit(item, key) {
-  if (!vehicleKey(current)) { alert("車両を識別できないため編集できません(車台番号や指定・類別が必要です)。"); return; }
+  if (!vehicleKey(current)) { uiAlert("車両を識別できないため編集できません(車台番号や指定・類別が必要です)。"); return; }
   const s = shownSpecs.find(x => x.k === key) || { k: key, v: "" };
   item.classList.add("editing"); item.innerHTML = "";
   const ik = document.createElement("input"); ik.type = "text"; ik.className = "seK"; ik.value = s.k; ik.placeholder = "項目名";
@@ -1895,7 +1919,7 @@ function enterSpecItemEdit(item, key) {
 }
 /* 新しい諸元項目を1件、その場編集で追加 */
 function addSpecItemInline() {
-  if (!vehicleKey(current)) { alert("車両を識別できないため追加できません(車台番号や指定・類別が必要です)。"); return; }
+  if (!vehicleKey(current)) { uiAlert("車両を識別できないため追加できません(車台番号や指定・類別が必要です)。"); return; }
   toggle("secSpec", true); toggle("specList", true);
   const item = document.createElement("div"); item.className = "specItem editing";
   const ik = document.createElement("input"); ik.type = "text"; ik.className = "seK"; ik.placeholder = "項目名(例: エンジンオイル量)";
@@ -1917,7 +1941,7 @@ function saveSpecItemInline(oldKey, newKey, newVal, remove) {
   const idx = specs.findIndex(x => x.k === oldKey);
   if (remove) { if (idx >= 0) specs.splice(idx, 1); }
   else {
-    if (!newKey) { alert("項目名を入力してください。"); return; }
+    if (!newKey) { uiAlert("項目名を入力してください。"); return; }
     const item = { k: newKey, v: newVal, manual: true };   // 手動修正としてマーク(AI更新でも保持)
     if (idx >= 0) specs[idx] = item; else specs.push(item);
   }
@@ -2093,7 +2117,7 @@ function editKarteInline(card, k) {
   const cancel = document.createElement("button"); cancel.className = "btn btn-ghost"; cancel.style.flex = "0 0 28%"; cancel.textContent = "取消";
   save.addEventListener("click", async () => {
     const work = dWork.value.trim(), parts = dParts.value.trim(), note = dNote.value.trim();
-    if (!work && !parts && !note) { alert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+    if (!work && !parts && !note) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
     setBtnLoading(save, true);
     await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, at: new Date().toISOString() });
     renderKarte();
@@ -2104,7 +2128,7 @@ function editKarteInline(card, k) {
   autoGrowAll();
 }
 function openKarteForm(edit) {
-  if (!vehicleKey(current)) { alert("車両を識別できないため記録できません(車台番号や指定・類別が必要です)。"); return; }
+  if (!vehicleKey(current)) { uiAlert("車両を識別できないため記録できません(車台番号や指定・類別が必要です)。"); return; }
   const today = new Date(); const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
   $("kDate").value = (edit && edit.date) || iso;
   $("kOdo").value = (edit && edit.odo) || "";
@@ -2130,7 +2154,7 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
   const work = $("kWork").value.trim();
   const parts = $("kParts").value.trim();
   const note = $("kNote").value.trim();
-  if (!work && !parts && !note) { alert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+  if (!work && !parts && !note) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
   const entry = {
     id: karteEditId || ("k" + Date.now() + Math.floor(Math.random() * 1000)),
     date: $("kDate").value || "", odo: $("kOdo").value ? Number($("kOdo").value) : null,
@@ -2161,9 +2185,9 @@ function renderKartePhotoStatus() {
   $("kPhotoClear").onclick = () => { kartePhotoMedia = []; toggle("kPhotoStatus", false); };
 }
 $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
-  if (!vehicleKey(current)) { alert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
+  if (!vehicleKey(current)) { uiAlert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
   if (!aiOK()) {
-    alert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    uiAlert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
   kartePhotoMedia = [];            // 新規スタート
@@ -2450,9 +2474,9 @@ $("btnSpecAddRow").addEventListener("click", () => addSpecRow("", ""));
 $("btnSpecEditCancel").addEventListener("click", () => toggle("specEditBox", false));
 $("btnSpecSave").addEventListener("click", () => {
   const vk = vehicleKey(current);
-  if (!vk) { alert("車両を識別できないため保存できません(車台番号や指定・類別が必要です)。"); return; }
+  if (!vk) { uiAlert("車両を識別できないため保存できません(車台番号や指定・類別が必要です)。"); return; }
   const specs = collectSpecRows();
-  if (!specs.length) { alert("1件以上入力してください。"); return; }
+  if (!specs.length) { uiAlert("1件以上入力してください。"); return; }
   setLearned(vk, { specs });
   saveVehicleAiData(specs, null);
   registerVehicleToDB({ silent: true });   // 訂正した諸元をDB登録車種にも反映(更新)
@@ -2849,8 +2873,8 @@ $("btnDbOcrToNotes").addEventListener("click", () => { if ($("dbOcrText").value.
 $("btnDbSave").addEventListener("click", () => {
   const name = $("dbfName").value.trim();
   const match = $("dbfMatch").value.trim();
-  if (!name || !match) { alert("車種名と型式マッチ正規表現は必須です。"); return; }
-  try { new RegExp(match); } catch (e) { alert("正規表現が不正です: " + e.message); return; }
+  if (!name || !match) { uiAlert("車種名と型式マッチ正規表現は必須です。"); return; }
+  try { new RegExp(match); } catch (e) { uiAlert("正規表現が不正です: " + e.message); return; }
   const lines = id => $(id).value.split("\n").map(s => s.trim()).filter(Boolean);
   const id = editingId || ("c" + Date.now());
   const prev = CUSTOM_DB.find(x => x.id === id) || {};
@@ -2901,24 +2925,24 @@ $("dbImportIn").addEventListener("change", async e => {
       n++;
     }
     saveCustomDB(); renderDBList();
-    alert(n + " 件の車種をインポートしました（カスタムDBに保存）。");
-  } catch (err) { alert("インポート失敗: " + err.message); }
+    uiAlert(n + " 件の車種をインポートしました（カスタムDBに保存）。");
+  } catch (err) { uiAlert("インポート失敗: " + err.message); }
 });
 
 /* =========================================================
    設定
    ========================================================= */
 $("btnClearHist").addEventListener("click", () => {
-  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
+  if (!isManager()) { uiAlert("この操作は管理者のみ行えます。"); return; }
   if (confirm("スキャン履歴をすべて削除しますか？")) { localStorage.removeItem(LS.hist); renderHistory(); }
 });
 $("btnClearCustom").addEventListener("click", () => {
-  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
+  if (!isManager()) { uiAlert("この操作は管理者のみ行えます。"); return; }
   if (confirm("カスタム車種DBをすべて削除しますか？（内蔵DBは残ります）")) { CUSTOM_DB = []; saveCustomDB(); renderDBList(); }
 });
 /* DB内蔵データの全消去: 内蔵・カスタム・学習(諸元/定番故障)をすべて削除(履歴は残す) */
 $("btnClearDb").addEventListener("click", () => {
-  if (!isManager()) { alert("この操作は管理者のみ行えます。"); return; }
+  if (!isManager()) { uiAlert("この操作は管理者のみ行えます。"); return; }
   if (!confirm("DB内蔵データを全消去します。\n・内蔵車種DB\n・カスタムDB\n・AIが学習した諸元/定番故障\nをすべて削除します（スキャン履歴は残ります）。よろしいですか？")) return;
   localStorage.setItem("ss_dbcleared", "1");
   localStorage.removeItem(LS.custom);
@@ -2926,7 +2950,7 @@ $("btnClearDb").addEventListener("click", () => {
   CUSTOM_DB = []; BUILTIN_DB = [];
   renderDBList();
   appVerDisplay().then(ver => setText("verNote", "メカノAI " + ver + " ／ DBデータを全消去しました。スキャンやAI調査で再び蓄積されます。"));
-  alert("DB内蔵データを全消去しました。");
+  uiAlert("DB内蔵データを全消去しました。");
 });
 
 /* =========================================================
@@ -3212,7 +3236,7 @@ $("btnVisionSave").addEventListener("click", () => {
 });
 $("useVision").addEventListener("change", () => {
   if ($("useVision").checked && !localStorage.getItem("ss_visionkey")) {
-    alert("先にCloud Vision APIキーを保存してください。");
+    uiAlert("先にCloud Vision APIキーを保存してください。");
     $("useVision").checked = false; return;
   }
   localStorage.setItem("ss_usevision", $("useVision").checked ? "1" : "0");
@@ -3942,7 +3966,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
   micBtn.addEventListener("click", () => {
     if (fuRec) { try { fuRec.stop(); } catch (e) {} fuRec = null; return; }
     const rec = getSpeechRecognition();
-    if (!rec) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    if (!rec) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
     fuRec = rec; const base = ta.value; micBtn.textContent = "●"; micBtn.classList.add("sel");
     rec.onresult = e => { let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; ta.value = (base ? base + " " : "") + s; };
     rec.onend = () => { fuRec = null; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); };
@@ -3974,7 +3998,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
     inp.addEventListener("change", async e => {
       let f = e.target.files[0]; inp.value = ""; if (!f) return;
       const isV = (f.type || "").startsWith("video");
-      if (isV && f.size > ATTACH_MAX) { try { f = await compressVideo(f, ATTACH_MAX); } catch (er) {} if (f.size > ATTACH_MAX) { alert("動画が大きすぎます。短く撮り直してください。"); return; } }
+      if (isV && f.size > ATTACH_MAX) { try { f = await compressVideo(f, ATTACH_MAX); } catch (er) {} if (f.size > ATTACH_MAX) { uiAlert("動画が大きすぎます。短く撮り直してください。"); return; } }
       atts.push({ file: f, kind: isV ? "video" : "image", url: URL.createObjectURL(f) }); renderPv();
     });
     icons.appendChild(b); wrap.appendChild(inp);
@@ -4172,7 +4196,7 @@ function buildSpecPrompt(known, missOnly) {
 async function runSpecAI(srcBtn) {
   stopFieldMic();
   if (!aiOK()) {
-    alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
+    uiAlert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings");
     return;
   }
@@ -4282,7 +4306,7 @@ $("btnSpecReload").addEventListener("click", () => runSpecAI($("btnSpecReload"))
 async function refreshSpecItem(key, btn) {
   stopFieldMic();
   if (!aiOK()) {
-    alert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
+    uiAlert("AIで調べるには無料のGemini APIキーの設定が必要です。\n\n設定タブ →「AI相談機能」の手順でキーを取得・保存してください(クレジットカード不要)。");
     switchView("settings"); return;
   }
   if (btn) { btn.classList.add("loading"); btn.disabled = true; }
@@ -4310,7 +4334,7 @@ async function refreshSpecItem(key, btn) {
     registerVehicleToDB({ silent: true });
     renderSpecs(specs, "learned");
   } catch (e) {
-    if (e.message !== "__cancelled__") alert("⚠ " + (e.message || "更新に失敗しました"));
+    if (e.message !== "__cancelled__") uiAlert("⚠ " + (e.message || "更新に失敗しました"));
   } finally {
     if (btn) { btn.classList.remove("loading"); btn.disabled = false; }
   }
@@ -4679,7 +4703,7 @@ function compressVideo(file, targetBytes) {
 let diagMediaBusy = false;
 async function diagMediaAnalyze() {
   if (!aiOK()) {
-    alert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    uiAlert("写真・動画のAI解析には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
   if (diagMediaBusy) return;
@@ -4742,7 +4766,7 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
       return;
     }
     if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; }
-    if (!getSpeechRecognition()) { alert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
     const fld = $(fieldId);
     const base = fld.value ? fld.value + " " : "";
     let accum = "", sessionFinal = "";
@@ -4779,10 +4803,10 @@ let voiceRec = null, voiceHistory = [], voiceActive = false;
 /* 音声会話セクションを開く。呼び出し元(診断/質問)の直下へ移動して表示 */
 function openVoiceChat(afterEl) {
   if (!aiOK()) {
-    alert("音声会話には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    uiAlert("音声会話には無料のGemini APIキーの設定が必要です（設定タブ）。");
     switchView("settings"); return;
   }
-  if (!getSpeechRecognition()) { alert("この端末/ブラウザは音声認識に対応していません(Chrome等をお試しください)。"); return; }
+  if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声認識に対応していません(Chrome等をお試しください)。"); return; }
   const sec = $("voiceChatSec");
   if (afterEl && afterEl.parentNode) afterEl.parentNode.insertBefore(sec, afterEl.nextSibling);
   toggle("voiceChatSec", true);
@@ -4909,8 +4933,12 @@ function buildVoiceChatPrompt() {
 /* =========================================================
    タブ切替・初期化
    ========================================================= */
+let curView = "scan";        // 現在の主要ビュー
+let lastVehPage = "scan";    // 車両表示中に最後に開いていたページ(scan/maint/diag/parts/karte)
 function switchView(name) {
   if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
+  curView = name;
+  if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   // 車両のサブページ(メンテ/診断/部品)は下部タブ上「スキャン」を選択状態に
   const tabName = ["maint", "diag", "parts", "karte"].includes(name) ? "scan" : name;
@@ -4928,8 +4956,14 @@ function switchView(name) {
 }
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => {
-    // 下部「スキャン」タブ: 車両表示中に押したらホーム(3つの入口=カメラ/全体を撮影/手動入力)へ戻す
-    if (b.dataset.view === "scan" && !$("result").classList.contains("hidden")) { goHome(); return; }
+    if (b.dataset.view === "scan") {
+      const vehLoaded = current && (current.type || current.vin || current.kataShitei);
+      const vehViews = ["scan", "maint", "diag", "parts", "karte"];
+      // 設定/履歴/DB編集など非車両ビューに居て車両が読込済みなら、車両の最後のページ(修理/診断等)へ戻す
+      if (vehLoaded && !vehViews.includes(curView)) { switchView(lastVehPage || "scan"); toggle("result", true); return; }
+      // 車両ページに居る時は従来どおりホーム(3つの入口)へ
+      if (!$("result").classList.contains("hidden")) { goHome(); return; }
+    }
     switchView(b.dataset.view);
   }));
 
