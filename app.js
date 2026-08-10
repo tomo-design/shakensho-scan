@@ -1584,13 +1584,13 @@ function renderRepairAnswer(box, obj, q) {
     order.forEach(o => {
       const row = document.createElement("div"); row.className = "orderRow";
       const sq = han(o.name).trim();
-      const labelText = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
+      const labelText = han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
       let nm;
       if (sq) {
-        // 部品名タップ → 楽天/Yahoo!/Amazon の選択ポップアップ。目印は簡易的な▾
+        // 部品名タップ → 楽天/Yahoo!/Amazon の選択ポップアップ。目印の▾を先頭に配置
         const query = (vehPartPrefix() + " " + sq).trim();
         nm = document.createElement("button"); nm.type = "button"; nm.className = "orderName orderNameTap";
-        nm.innerHTML = esc(labelText) + '<span class="orderCaret"> ▾</span>';
+        nm.innerHTML = '<span class="orderCaret">▾ </span>' + esc(labelText);
         nm.title = "通販で探す";
         nm.addEventListener("click", () => openShopPopup(han(o.name), query));
       } else {
