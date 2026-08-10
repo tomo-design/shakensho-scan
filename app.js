@@ -1240,7 +1240,12 @@ function registerVehicleToDB(opt = {}) {
   // ※自分が保存したカスタムレコードに自己ヒットしないよう内蔵DBのみを検索
   const found = prefix ? findBuiltinVehicle(prefix) : null;
   const aiModel = noEmail(histE.model || learned.model) || null;
-  const name = noEmail((found && found.name) || aiModel || user || d.plate || d.vin || d.type) || "無名車両";
+  // 車種名は「内蔵DB名 > AI推定車種名 > 型式(車種記号)」のみ。
+  // ※使用者名・登録番号・車台番号は個人情報なので車種名に入れない(検索や表示に漏らさない)。
+  const name = noEmail((found && found.name) || aiModel)
+    || d.type || prefixRaw
+    || (d.kataShitei ? "型式指定 " + d.kataShitei : "")
+    || "未特定車両";
   const match = prefix
     || (d.type ? escRegex(String(d.type.includes("-") ? d.type.split("-")[1] : d.type).toUpperCase()) : (d.kataShitei || escRegex(name)));
   // メーカー = DB一致のメーカー > AI推定メーカー(有効なキーのみ) > 既存 > other
