@@ -27,8 +27,6 @@ body.personalMode #personalKeyBanner{display:block;margin:14px 0 0;padding:12px 
 .keyBannerBtns .btn{width:100%;white-space:nowrap;text-align:center}
 /* 個人モードではキー設定セクションを強調 */
 body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;padding:2px 10px;background:var(--panel)}
-/* 個人モード: 紹介タブを隠し、お問い合わせ(既定は非表示)を表示 */
-body.personalMode #secShareApp{display:none}
 #secContact{display:block}   /* お問い合わせ(AIサポートチャット+FAQ)は全モードで表示 */
 .faqItem{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:var(--panel)}
 .faqItem>summary{cursor:pointer;padding:10px 12px;font-weight:700;font-size:13px;list-style:none}
