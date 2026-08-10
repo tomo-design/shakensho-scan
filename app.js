@@ -79,6 +79,33 @@ function moshimoWrap(net, targetUrl) {
 function rakutenSearchUrl(q) {
   return moshimoWrap("rakuten", "https://search.rakuten.co.jp/search/mall/" + encodeURIComponent(q) + "/");
 }
+/* 部品名タップ時に出す通販選択ポップアップ(楽天/Yahoo!/Amazon)。name=表示名, query=検索語 */
+function openShopPopup(name, query) {
+  const ov = document.createElement("div"); ov.className = "uiModalOv shopPopOv";
+  const m = document.createElement("div"); m.className = "uiModal shopPop";
+  const h = document.createElement("div"); h.className = "shopPopT"; h.textContent = name;
+  const sub = document.createElement("div"); sub.className = "shopPopSub"; sub.textContent = "どのお店で探しますか？";
+  m.append(h, sub);
+  const wrap = document.createElement("div"); wrap.className = "shopPopBtns";
+  const close = () => ov.remove();
+  const mk = (cls, txt, href) => {
+    const a = document.createElement("a"); a.className = "shopPopBtn " + cls;
+    a.target = "_blank"; a.rel = "noopener sponsored"; a.href = href; a.textContent = txt;
+    a.addEventListener("click", () => setTimeout(close, 150));
+    return a;
+  };
+  wrap.append(
+    mk("pShopR", "🛒 楽天市場で探す", rakutenSearchUrl(query)),
+    mk("pShopY", "🛒 Yahoo!ショッピングで探す", yahooSearchUrl(query)),
+    mk("pShopA", "🛒 Amazonで探す", amazonSearchUrl(query))
+  );
+  m.appendChild(wrap);
+  const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "shopPopCancel"; cancel.textContent = "閉じる";
+  cancel.addEventListener("click", close);
+  m.appendChild(cancel);
+  ov.appendChild(m); document.body.appendChild(ov);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+}
 /* 部品の検索クエリ: 品番が判明していれば「品番 + 名称」、無ければ名称のみ */
 function partQuery(i) {
   const pn = i && i.partno ? String(i.partno).trim() : "";
@@ -1558,25 +1585,20 @@ function renderRepairAnswer(box, obj, q) {
       const row = document.createElement("div"); row.className = "orderRow";
       const sq = han(o.name).trim();
       const labelText = "・" + han(o.name) + (o.qty ? " ×" + han(String(o.qty)) : "");
-      const nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = labelText;
+      let nm;
+      if (sq) {
+        // 部品名タップ → 楽天/Yahoo!/Amazon の選択ポップアップ(車種名+型式記号+部品名で検索)
+        const query = (vehPartPrefix() + " " + sq).trim();
+        nm = document.createElement("button"); nm.type = "button"; nm.className = "orderName orderNameTap";
+        nm.innerHTML = esc(labelText) + '<span class="orderCart"> 🛒</span>';
+        nm.title = "通販で探す";
+        nm.addEventListener("click", () => openShopPopup(han(o.name), query));
+      } else {
+        nm = document.createElement("span"); nm.className = "orderName"; nm.textContent = labelText;
+      }
       row.appendChild(nm);
       if (o.kind === "同時交換推奨") { const meta = document.createElement("span"); meta.className = "orderMeta"; meta.textContent = "※"; row.appendChild(meta); }
       list.appendChild(row);
-      // 各部品の下に「楽天 / Yahoo! / Amazon」の検索ボタン(車種名+型式記号+部品名で検索・別タブ)
-      if (sq) {
-        const query = (vehPartPrefix() + " " + sq).trim();
-        const shops = document.createElement("div"); shops.className = "pShops orderShops";
-        const mk = (cls, txt, href) => {
-          const a = document.createElement("a"); a.className = "pShop " + cls;
-          a.target = "_blank"; a.rel = "noopener sponsored"; a.href = href; a.textContent = txt; return a;
-        };
-        shops.append(
-          mk("pShopR", "楽天", rakutenSearchUrl(query)),
-          mk("pShopY", "Yahoo!", yahooSearchUrl(query)),
-          mk("pShopA", "Amazon", amazonSearchUrl(query))
-        );
-        list.appendChild(shops);
-      }
     });
     // コピー/共有テキスト(品番なし)
     const head = "【部品注文リスト】\n車種: " + (currentVehicleFacts().model || "—") + " ／ 型式: " + (current.type || "—") + "\n作業: " + q + "\n";

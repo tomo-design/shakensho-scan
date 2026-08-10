@@ -535,14 +535,20 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pShops{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .partsItem .pShop{flex:1 1 0;min-width:120px;text-align:center;font-size:13px;font-weight:800;text-decoration:none;padding:9px 8px;border-radius:9px;border:1px solid var(--line);white-space:nowrap}
 .partsItem .pShopR{color:#bf0000;background:rgba(191,0,0,.07);border-color:rgba(191,0,0,.35)}
-/* 注文部品リスト: 各部品下の楽天/Yahoo/Amazon小ボタン */
-.orderShops{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px 14px}
-.orderShops .pShop{flex:0 0 auto;font-size:11.5px;font-weight:700;text-decoration:none;padding:5px 12px;border-radius:14px;border:1px solid var(--line);white-space:nowrap;background:#fff}
-.orderShops .pShop::before{content:"🛒 ";font-size:.9em}
-.orderShops .pShopR{color:#bf0000;border-color:rgba(191,0,0,.35)}
-.orderShops .pShopY{color:#c0203a;border-color:rgba(200,30,60,.30)}
-.orderShops .pShopA{color:#b05000;border-color:rgba(210,120,0,.30)}
-.orderShops .pShop:active{transform:translateY(1px)}
+/* 注文部品リスト: 部品名タップ → 通販選択ポップアップ */
+.orderNameTap{background:none;border:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;display:inline}
+.orderNameTap .orderCart{color:#1e5aa8;font-size:.95em}
+.orderNameTap:active{opacity:.6}
+.shopPop{max-width:340px}
+.shopPopT{font-size:15px;font-weight:800;color:var(--ink,#0f2a5a);line-height:1.5;margin-bottom:2px}
+.shopPopSub{font-size:12px;color:var(--dim,#777);margin-bottom:14px}
+.shopPopBtns{display:flex;flex-direction:column;gap:9px}
+.shopPopBtn{display:block;text-align:center;font-size:14px;font-weight:800;text-decoration:none;padding:13px 10px;border-radius:11px;border:1px solid var(--line)}
+.shopPopBtn.pShopR{color:#bf0000;background:rgba(191,0,0,.06);border-color:rgba(191,0,0,.35)}
+.shopPopBtn.pShopY{color:#c0203a;background:rgba(255,0,40,.05);border-color:rgba(200,30,60,.35)}
+.shopPopBtn.pShopA{color:#b05000;background:rgba(255,153,0,.08);border-color:rgba(210,120,0,.40)}
+.shopPopBtn:active{transform:translateY(1px)}
+.shopPopCancel{width:100%;margin-top:12px;padding:11px;border:none;background:none;color:var(--dim,#777);font-size:13px;cursor:pointer;text-decoration:underline}
 .partsItem .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
 .partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
 .partsItem .pShop:active{transform:translateY(1px)}
