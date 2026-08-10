@@ -534,6 +534,7 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pMeta{font-size:12px;color:var(--dim);margin-top:2px}
 .partsItem .pShops{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .partsItem .pShop{flex:1 1 0;min-width:120px;text-align:center;font-size:13px;font-weight:800;text-decoration:none;padding:9px 8px;border-radius:9px;border:1px solid var(--line);white-space:nowrap}
+.partsItem .pShopR{color:#bf0000;background:rgba(191,0,0,.07);border-color:rgba(191,0,0,.35)}
 .partsItem .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
 .partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
 .partsItem .pShop:active{transform:translateY(1px)}

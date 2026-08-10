@@ -61,30 +61,35 @@ try { window.uiAlert = uiAlert; } catch (e) {}
    ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
 const AFFIL = {
   amazonTag: "mechanoai-22",   // AmazonアソシエイトのトラッキングID。空ならタグ無し検索
-  // バリューコマースは2026-08にサイト審査 不承認 → sid/pid無効。空にして素の検索URLに戻す(部品タップが機能する)。
-  // 別ASP(もしも/A8/楽天等)に通ったら、その値をここに入れれば再びアフィリ計測される。
-  vcSid: "",     // バリューコマースのサイトID(未承認のため空)
-  vcPid: "",     // バリューコマースのYahoo!ショッピング広告プログラムID(未承認のため空)
+  // もしもアフィリエイト経由(af.moshimo.com)で成果計測。各ネットのIDは かんたんリンクのHTMLから取得。
+  // 未提携のネットは null にすると素の検索URL(計測なし)にフォールバック。Amazonは審査通過後に追加。
+  moshimo: {
+    rakuten: { a_id: 5743960, p_id: 54, pc_id: 54, pl_id: 27059 },
+    yahoo:   { a_id: 5743973, p_id: 1225, pc_id: 1925, pl_id: 27061 },
+  },
 };
+/* もしもの成果計測リンクで包む。net="rakuten"|"yahoo"。未設定なら素のURLを返す。 */
+function moshimoWrap(net, targetUrl) {
+  const m = AFFIL.moshimo && AFFIL.moshimo[net];
+  if (!m) return targetUrl;
+  return "https://af.moshimo.com/af/c/click?a_id=" + m.a_id + "&p_id=" + m.p_id +
+    "&pc_id=" + m.pc_id + "&pl_id=" + m.pl_id + "&url=" + encodeURIComponent(targetUrl);
+}
+/* 楽天市場の検索(部品名で検索)。もしも経由で計測。 */
+function rakutenSearchUrl(q) {
+  return moshimoWrap("rakuten", "https://search.rakuten.co.jp/search/mall/" + encodeURIComponent(q) + "/");
+}
 /* 部品の検索クエリ: 品番が判明していれば「品番 + 名称」、無ければ名称のみ */
 function partQuery(i) {
   const pn = i && i.partno ? String(i.partno).trim() : "";
   const hasPn = pn && pn.indexOf("要確認") < 0;
   return ((hasPn ? pn + " " : "") + (i && i.name ? i.name : "")).trim();
 }
-/* バリューコマースの成果計測リンクで包む(sid/pid設定時のみ)。未設定なら素のURLを返す。 */
-function vcWrap(targetUrl) {
-  if (AFFIL.vcSid && AFFIL.vcPid) {
-    return "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=" + encodeURIComponent(AFFIL.vcSid) +
-      "&pid=" + encodeURIComponent(AFFIL.vcPid) + "&vc_url=" + encodeURIComponent(targetUrl);
-  }
-  return targetUrl;
-}
 function amazonSearchUrl(q) {
   return "https://www.amazon.co.jp/s?k=" + encodeURIComponent(q) + (AFFIL.amazonTag ? "&tag=" + encodeURIComponent(AFFIL.amazonTag) : "");
 }
 function yahooSearchUrl(q) {
-  return vcWrap("https://shopping.yahoo.co.jp/search?p=" + encodeURIComponent(q));
+  return moshimoWrap("yahoo", "https://shopping.yahoo.co.jp/search?p=" + encodeURIComponent(q));
 }
 /* 部品検索用の車両プレフィックス: 車種名 + 型式の車種記号(例「ダイハツ タント L375S」)。
    車台番号(VIN)そのものは商品に一致しないため使わず、型式記号までで特定精度を上げる。 */
@@ -1335,6 +1340,7 @@ function renderPartsBreakdown(box, obj, part) {
     list.forEach(i => {
       const q = partQuery(i);
       const shops = q ? '<div class="pShops">' +
+        '<a class="pShop pShopR" target="_blank" rel="noopener sponsored" href="' + rakutenSearchUrl(q) + '">🛒 楽天市場 ↗</a>' +
         '<a class="pShop pShopY" target="_blank" rel="noopener sponsored" href="' + yahooSearchUrl(q) + '">🛒 Yahoo!ショッピング ↗</a>' +
         '<a class="pShop pShopA" target="_blank" rel="noopener sponsored" href="' + amazonSearchUrl(q) + '">🛒 Amazon ↗</a>' +
         '</div>' : "";
