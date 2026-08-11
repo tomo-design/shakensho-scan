@@ -152,6 +152,18 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
 .foot-links a:hover{color:#fff}
 .copo{color:#6b7280;font-size:12px;padding-top:20px}
 
+/* ============ 法律ページ(特商法/規約等) ============ */
+.legal{padding:52px 0 72px;background:var(--soft);min-height:70vh}
+.legal-t{font-size:26px;font-weight:800;text-align:center;margin-bottom:34px}
+.legal-dl{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.legal-dl dt{background:var(--soft);font-weight:700;font-size:14px;padding:16px 20px;border-top:1px solid var(--line)}
+.legal-dl dt:first-child{border-top:0}
+.legal-dl dd{margin:0;padding:14px 20px 20px;font-size:14.5px;color:#2c333d;line-height:1.8}
+.legal-dl .note{color:var(--ink2);font-size:12.5px}
+.legal-dl mark{background:#fff2cf;color:#8a5a00;padding:1px 6px;border-radius:5px;font-weight:700;font-size:13px}
+.legal-upd{text-align:right;color:var(--ink2);font-size:12.5px;margin-top:18px}
+@media(min-width:620px){.legal-dl{display:grid;grid-template-columns:200px 1fr}.legal-dl dt{border-top:1px solid var(--line)}.legal-dl dd{border-top:1px solid var(--line)}.legal-dl dt:first-of-type,.legal-dl dd:first-of-type{border-top:0}}
+
 /* ============ レスポンシブ ============ */
 @media(max-width:880px){
   .hero-in{grid-template-columns:1fr;text-align:center;padding-top:50px;padding-bottom:50px}
