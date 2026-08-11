@@ -596,6 +596,9 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .repairSecBody{padding:8px 2px 2px}
 .repairSecBody .ai-h{display:none}
 .orderToolNote{font-size:11.5px;color:var(--dim);margin:0 0 8px 16px}
+.toolTag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:8px;vertical-align:middle;white-space:nowrap}
+.toolTagMust{color:#b23;background:rgba(200,40,60,.10)}
+.toolTagBenri{color:#1e7a46;background:rgba(30,150,90,.12)}
 ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
 @keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
 /* 手順タップで工具表示 */
