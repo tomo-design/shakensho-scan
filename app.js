@@ -4253,6 +4253,7 @@ function buildSpecPrompt(known, missOnly) {
     "・大型トラック/バス(全日本トラック協会の締付トルク基準): ISO方式(M22×1.5・球面座・片側10穴等)は約 570〜630 N·m(概ね600±)。JIS方式(複輪の内外ナット)は方式・サイズにより約 400〜590 N·m。車両が採用する方式(ISO/JIS)とナットサイズに合わせて示す。",
     "・リアアクスルシャフト（フランジ）締付トルク＝アクスルシャフトを固定するフランジ(ドライブフランジ)のボルト/ナット。ハブベアリングナット(ハブナット)＝ホイールハブのベアリングを予圧調整・固定するナットで、両者は別部位・別規定値。ハブベアリングナットは前後で値が異なることが多いのでフロント・リアを分けて示す。いずれもメーカー整備書の規定値に従い、判明しない場合は（要確認）とする。",
     "【オイル粘度・油量の基準】メーカー純正指定を最優先。新しい省燃費指定(例 0W-16/0W-20)がある車はそれを優先し、旧型は 5W-30/10W-30 等。ディーゼル大型はメーカー指定のディーゼル用粘度と規格(例 10W-30/15W-40、DL-1/DH-2 等)を示す。油量は『オイルのみ／エレメント同時交換』を併記する。",
+    "【推奨オイル粘度の参照資料(HKS適合表)】粘度の裏取りとして、下記HKSの車種別オイル適合表(メーカー別)も参照してよい。検索が使える場合はこの車両のメーカーのページを確認し、純正指定と併せて妥当な粘度を判断する(油量はHKSには無いのでメーカー指定を優先)。トヨタ https://www.hks-power.co.jp/product/oil/list/toyota.html ／ レクサス https://www.hks-power.co.jp/product/oil/list/lexus.html ／ 日産 https://www.hks-power.co.jp/product/oil/list/nissan.html ／ ホンダ https://www.hks-power.co.jp/product/oil/list/honda.html ／ スバル https://www.hks-power.co.jp/product/oil/list/subaru.html ／ 三菱 https://www.hks-power.co.jp/product/oil/list/mitsubishi.html ／ マツダ https://www.hks-power.co.jp/product/oil/list/mazda.html ／ スズキ https://www.hks-power.co.jp/product/oil/list/suzuki.html ／ ダイハツ https://www.hks-power.co.jp/product/oil/list/daihatsu.html",
     ""
   ];
   // 部分補完モード: 既知の値は再検索させず、不足項目だけを検索して埋めさせる(検索コスト削減)
