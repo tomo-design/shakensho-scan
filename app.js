@@ -3034,10 +3034,58 @@ let DTC_DB = { codes: [], fallback: [] };
 let SYMPTOM_DB = [];
 let GUIDE_DB = [];
 
+let OIL_DB = null;   // HKS車種別オイル適合表(db/oil.json): 標準粘度・純正オイル量
 async function loadDiagDB() {
   try { DTC_DB = await (await fetch("db/dtc.json")).json(); } catch (e) {}
   try { SYMPTOM_DB = (await (await fetch("db/symptoms.json")).json()).symptoms || []; } catch (e) {}
   try { GUIDE_DB = (await (await fetch("db/guides.json")).json()).guides || []; } catch (e) {}
+  try { OIL_DB = await (await fetch("db/oil.json")).json(); } catch (e) {}
+}
+/* HKSオイル適合表から、この車両(原動機型式 or 車両型式)の {visc,oil,oilFilter,name,engine} を探す */
+function hksOilLookup(d) {
+  d = d || current; if (!OIL_DB || !d) return null;
+  const rows = OIL_DB.rows, be = OIL_DB.byEngine || {}, bm = OIL_DB.byModel || {};
+  const normE = s => String(s || "").toUpperCase().replace(/[（(].*$/, "").replace(/[^0-9A-Z-]/g, "");
+  let idx = null;
+  const eng = normE(d.engine);
+  if (eng) {
+    if (be[eng]) idx = be[eng][0];
+    else for (const k in be) { const a = k.replace(/-/g, ""), b = eng.replace(/-/g, ""); if (a === b || a.startsWith(b) || b.startsWith(a)) { idx = be[k][0]; break; } }
+  }
+  if (idx == null) {
+    const toks = [];
+    const t = d.type && d.type.includes("-") ? d.type.split("-")[1] : d.type;
+    if (t) toks.push(String(t).toUpperCase().replace(/[^0-9A-Z]/g, ""));
+    const vp = (typeof vinPrefix === "function") ? vinPrefix(d.vin) : ""; if (vp) toks.push(String(vp).toUpperCase());
+    for (const tk of toks) { if (tk.length >= 3 && bm[tk]) { idx = bm[tk][0]; break; } }
+  }
+  if (idx == null) return null;
+  const r = rows[idx];
+  return { name: r[1], model: r[2], engine: r[3], visc: r[5], oil: r[6], oilFilter: r[7] };
+}
+/* HKSの値を諸元行に変換(エンジンオイル量・推奨オイル粘度) */
+function hksOilSpecs(d) {
+  const h = hksOilLookup(d); if (!h) return [];
+  const out = [];
+  if (h.oil || h.oilFilter) {
+    let v = h.oil ? h.oil + "L（オイルのみ）" : "";
+    if (h.oilFilter) v += (v ? " ／ " : "") + h.oilFilter + "L（エレメント交換時）";
+    out.push({ k: "エンジンオイル量", v: v });
+  }
+  if (h.visc) out.push({ k: "推奨オイル粘度", v: h.visc });
+  return out;
+}
+/* AI/学習の諸元に、HKSの油量・粘度を上書き反映(ユーザー手動確定は尊重して上書きしない) */
+function withHksOil(specs, d) {
+  const hs = hksOilSpecs(d); if (!hs.length) return specs;
+  const out = (specs || []).slice();
+  hs.forEach(h => {
+    const c = canonSpecKey(h.k);
+    const i = out.findIndex(s => canonSpecKey(s.k) === c);
+    if (i >= 0) { if (!out[i].manual) out[i] = { k: out[i].k, v: h.v, hks: true }; }
+    else out.push({ k: h.k, v: h.v, hks: true });
+  });
+  return out;
 }
 
 /* DTCコード/症状に対応する点検手引書を探す */
@@ -4296,7 +4344,7 @@ async function runSpecAI(srcBtn) {
   // 取得済みフラグ: 一度きちんと取得した型式は、必須が一部埋まらなくても再検索しない(課金の歯止め)。
   const attemptedBefore = !!(cached.specDone || (hit && hit.specDone));
   if (!force && known.length && (!missReq.length || attemptedBefore)) {
-    const specs = mergeKeepManual(known.slice(), shownSpecs);
+    const specs = mergeKeepManual(withHksOil(known.slice()), shownSpecs);
     const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
     const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
     toggle("specAiBox", false);
@@ -4336,8 +4384,9 @@ async function runSpecAI(srcBtn) {
     // JSONで取れない時はテキストを諸元へフォールバック分解
     if (!specs.length) { lastSpecAiText = r.text; specs = aiTextToSpecs(r.text); }
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
-    // 既知(端末学習＋社内DB)とも統合してから、手動修正を尊重
+    // 既知(端末学習＋社内DB)とも統合 → HKS適合表の油量/粘度を上書き → 手動修正を尊重
     specs = mergeSpecLists(specs, known);
+    specs = withHksOil(specs);
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
     // ※以前ここで「不足項目の追い取得(Pro+検索を追加でもう1回)」をしていたが、無料枠の1日消費を倍増させ枠切れを
     //   早めていたため廃止。諸元取得は1回のみに戻す(不足項目は各項目右上の🔄で個別に補完できる)。
