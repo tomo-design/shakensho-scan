@@ -1528,7 +1528,8 @@ function buildRepairPrompt(q, hasMedia) {
     "あなたは『メカ君』。まじめで頼れるロボ整備士。次の車両の修理について答える。出力は厳密なJSONのみ(前後の文章・コードフェンス不要)。",
     hasMedia ? "添付された写真(複数の場合あり)をよく観察し、写っている部位・部品・損傷・警告灯・漏れ・摩耗などを踏まえて回答すること。写真から部品名や作業を推定できる場合は具体的に述べる。" : "",
     "入力が『パッド交換』のような作業名・部品名なら isWork=true とし、下記を埋める。単なる質問なら isWork=false とし answer に文章(見出しは■、箇条書きは・)で答える。",
-    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊工具・整備モード(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"manualService\":{\"name\":\"手動での◯◯移行・解除手順\",\"steps\":[\"操作1\",\"操作2\"]},\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "形式: {\"isWork\":true,\"location\":\"取り付け位置の説明(区画・周囲の目印・アクセス方法・左右前後)\",\"time\":\"標準作業時間の目安(要確認可)\",\"order\":[{\"name\":\"部品名\",\"qty\":\"1\",\"kind\":\"本体\"または\"同時交換推奨\",\"step\":2}],\"specialTools\":[{\"name\":\"専用工具名(SST等)\",\"note\":\"用途・規格\"}],\"torque\":\"締付トルク・規定値(調べた具体値。無ければ空)\",\"special\":\"特殊作業の注意(EPB/SAS/DPF再生/バッテリー登録等。無ければ特になし)\",\"manualService\":{\"name\":\"手動での◯◯移行・解除手順\",\"steps\":[\"操作1\",\"操作2\"]},\"steps\":[{\"text\":\"手順1(安全確保)\",\"tools\":[\"使用する工具1\",\"工具2\"]}],\"answer\":\"\"}",
+    "【specialTools=別途必要な工具】この作業で必要になる『専用工具(SST)や特殊工具』、および『一般整備士が個人では持っていないことが多い工具』だけを挙げる。例: 各種プーラー、ベアリング圧入/抜き工具、ブレーキピストン戻し工具(専用カム式)、O2/ラムダセンサーソケット、インジェクターリムーバー、ボールジョイントセパレーター、スプリングコンプレッサー、専用オイルフィルターカップ、トルク管理が特殊な角度締めツール、バッテリー登録/整備モード用スキャンツール等。ごく一般的な手工具(普通のソケット・メガネ・スパナ・ドライバー・プライヤー)は入れない。その作業で不要なら空配列。各項目は name(工具名) と note(用途や規格) を簡潔に。",
     "【manualService=手動の整備モード手順】specialで整備モード/サービスモード(EPB電動パーキングブレーキ・DPF/DPD再生・ブレーキピストン戻し・SAS・バッテリー交換登録 等)に触れ、かつ『診断機(スキャンツール)を使わず手動で』移行・解除・実施できる方法がその車種に存在する場合のみ、その手動手順だけを manualService に入れる。手順はその車種で実際に通用する順序で具体的に(イグニッションON/OFFの回数・順序、ブレーキ/アクセルペダルの操作、待ち時間、キャリパーを手で戻す向き 等)。診断機でしか行えない/手動方法が無い/該当作業でない場合は manualService を出さない(キーごと省略)。診断機を使う方法は書かず、手動方法だけを簡潔にまとめる。",
     "【最重要】location・order・steps・tools・torque はすべて、下記『対象車両』(その車種・型式・原動機)に固有の内容にすること。一般論や別車種の情報にしない。取り付け位置も工具サイズもこの車両に合わせる。",
     "orderには『当該作業の本体部品』と『推奨される同時交換部品(ガスケット/シール/Oリング/一度使用ボルト/クリップ/油脂類等)』を含める。品番は書かない。",
@@ -1611,8 +1612,28 @@ function renderRepairAnswer(box, obj, q) {
     bar.append(copy, share); list.appendChild(bar);
     box.appendChild(list);
   }
-  // ④ 特殊工具・整備モード(作業前に把握できるよう手順の前=旧「必要なソケット・工具」の位置に配置)
-  if (obj.special && !/特になし/.test(obj.special)) { sec("特殊工具・整備モード"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
+  // ③-2 別途必要な工具(SST・特殊工具・個人では持っていないことの多い工具)。部品と同じくタップで購入ポップアップ
+  const sTools = Array.isArray(obj.specialTools) ? obj.specialTools.filter(t => t && t.name) : [];
+  if (sTools.length) {
+    const h = document.createElement("div"); h.className = "ai-h orderHead";
+    h.innerHTML = '<span>別途必要な工具</span><span class="orderLegend">SST・特殊工具</span>';
+    box.appendChild(h);
+    const list = document.createElement("div"); list.className = "orderBox";
+    sTools.forEach(t => {
+      const nameStr = han(String(t.name)).trim();
+      const row = document.createElement("div"); row.className = "orderRow";
+      const nm = document.createElement("button"); nm.type = "button"; nm.className = "orderName orderNameTap";
+      nm.innerHTML = '<span class="orderCaret">▾ </span>' + esc(nameStr);
+      nm.title = "通販で探す";
+      nm.addEventListener("click", () => openShopPopup(nameStr, nameStr));
+      row.appendChild(nm);
+      list.appendChild(row);
+      if (t.note) { const nt = document.createElement("div"); nt.className = "orderToolNote"; nt.textContent = han(String(t.note)); list.appendChild(nt); }
+    });
+    box.appendChild(list);
+  }
+  // ④ 特殊作業(EPB/SAS/DPF再生/バッテリー登録等の注意)
+  if (obj.special && !/特になし/.test(obj.special)) { sec("特殊作業"); const p = document.createElement("div"); p.className = "ai-p"; p.textContent = han(String(obj.special)); box.appendChild(p); }
   // 手動での整備モード移行手順(診断機不要)。目立たない折り畳みで表示
   const ms = obj.manualService;
   if (ms && Array.isArray(ms.steps) && ms.steps.length) {
@@ -1676,6 +1697,19 @@ function renderRepairAnswer(box, obj, q) {
     box.appendChild(list);
     if (note) { const n = document.createElement("div"); n.className = "torqueNote"; n.textContent = "※ " + note; box.appendChild(n); }
   }
+  // 修理タブの各項目(見出し=ai-h単位)を折り畳み式(details)にまとめる。見出しの無い要素は直前セクション内へ。
+  const kids = [...box.children];
+  box.innerHTML = "";
+  let curBody = null;
+  kids.forEach(el => {
+    if (el.classList.contains("ai-h")) {
+      const det = document.createElement("details"); det.className = "repairSec"; det.open = true;
+      const sm = document.createElement("summary"); sm.className = "repairSecSum"; sm.innerHTML = el.innerHTML;
+      const bd = document.createElement("div"); bd.className = "repairSecBody";
+      det.append(sm, bd); box.appendChild(det); curBody = bd;
+    } else if (curBody) { curBody.appendChild(el); }
+    else { box.appendChild(el); }
+  });
 }
 /* 交換手順の工具リストから、手で使う工具(締める/緩める/挟む/切る系)を抽出(重複除去)。
    ソケット/メガネ/スパナはmmサイズで、ヘックス/トルクスは番手で。
