@@ -1712,6 +1712,49 @@ function renderRepairAnswer(box, obj, q) {
     } else if (curBody) { curBody.appendChild(el); }
     else { box.appendChild(el); }
   });
+  initRepairScrollSpy(box);
+}
+/* スクロールスパイ式アコーディオン: スクロール位置に応じて「今見ている項目」だけ自動で開く。
+   画面上部から TRIGGER の高さにある見出しをアクティブとし、それ以外は閉じる。
+   視界外(上)のセクションの開閉で生じる高さ変化は scrollTop を補正して画面のガタつきを防ぐ。 */
+let _repairSpyCleanup = null;
+function initRepairScrollSpy(box) {
+  if (_repairSpyCleanup) { _repairSpyCleanup(); _repairSpyCleanup = null; }   // 前回のリスナーを解除
+  const secs = [...box.querySelectorAll("details.repairSec")];
+  if (secs.length < 2) { if (secs[0]) secs[0].open = true; return; }
+  const scroller = document.scrollingElement || document.documentElement;
+  const TRIGGER = 0.30;   // ビューポート上端から30%の位置にある見出しをアクティブに
+  let ticking = false, manualUntil = 0;
+  function summaryOf(s) { return s.querySelector("summary"); }
+  function update() {
+    ticking = false;
+    if (Date.now() < manualUntil) return;   // 手動タップ直後は自動制御を少し止める
+    const line = window.innerHeight * TRIGGER;
+    let active = secs[0];
+    for (const s of secs) { if (summaryOf(s).getBoundingClientRect().top <= line) active = s; else break; }
+    secs.forEach(s => {
+      const want = (s === active);
+      if (s.open === want) return;
+      const sm = summaryOf(s);
+      const before = sm.getBoundingClientRect().top;
+      s.open = want;
+      const after = sm.getBoundingClientRect().top;
+      // この見出しが画面より上にある場合、開閉による高さ変化で下の内容が飛ぶのを補正
+      if (before < 0) scroller.scrollTop += (after - before);
+    });
+  }
+  const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+  // 手動タップは尊重(タップ直後0.8秒は自動制御を止める)
+  const onToggle = () => { manualUntil = Date.now() + 800; };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  secs.forEach(s => summaryOf(s).addEventListener("click", onToggle));
+  _repairSpyCleanup = () => {
+    window.removeEventListener("scroll", onScroll);
+    secs.forEach(s => { const sm = summaryOf(s); if (sm) sm.removeEventListener("click", onToggle); });
+  };
+  // 初期表示: 先頭(取り付け位置)を開く
+  secs[0].open = true;
+  requestAnimationFrame(update);
 }
 /* 交換手順の工具リストから、手で使う工具(締める/緩める/挟む/切る系)を抽出(重複除去)。
    ソケット/メガネ/スパナはmmサイズで、ヘックス/トルクスは番手で。
