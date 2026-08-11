@@ -948,6 +948,34 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     return res.json({ ok: true });
   }
 
+  // ---- 法人LPからの問い合わせ受信(inbound) ----
+  if (action === "listInquiries") {
+    const snap = await db.collection("bizInquiries").orderBy("createdAt", "desc").limit(300).get();
+    return res.json({ inquiries: snap.docs.map((d) => Object.assign({ id: d.id }, d.data())) });
+  }
+  if (action === "inquiryStatus") {
+    if (data.id) await db.collection("bizInquiries").doc(String(data.id)).set({ status: String(data.status || "対応中").slice(0, 40) }, { merge: true });
+    return res.json({ ok: true });
+  }
+  if (action === "delInquiry") {
+    if (data.id) await db.collection("bizInquiries").doc(String(data.id)).delete();
+    return res.json({ ok: true });
+  }
+  if (action === "inquiryToLead") {
+    const q = data.id ? (await db.collection("bizInquiries").doc(String(data.id)).get()).data() : null;
+    if (!q) return res.status(404).json({ error: "問い合わせが見つかりません。" });
+    const doc = {
+      company: (q.company || "").slice(0, 200), contact: (q.name || "").slice(0, 120),
+      phone: (q.phone || "").slice(0, 60), email: (q.email || "").slice(0, 200),
+      kind: (q.kind || "").slice(0, 60), status: "アプローチ中",
+      note: ("【LP問い合わせ】" + (q.plan ? "関心プラン:" + q.plan + " / " : "") + (q.message || "")).slice(0, 4000),
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    const ref = await db.collection("salesLeads").add(doc);
+    await db.collection("bizInquiries").doc(String(data.id)).set({ status: "見込み客化" }, { merge: true });
+    return res.json({ id: ref.id });
+  }
+
   // ---- AI社員による生成 ----
   const staff = SALES_STAFF[data.role] || SALES_STAFF.bucho;
   const freeKeys = cfg().geminiFree || [];
@@ -986,4 +1014,62 @@ ${String(data.task || "").slice(0, 4000)}
   }
   if (out.failed) return res.status(503).json({ error: "AIが混みあっています。少し待って再度お試しください。" });
   return res.json({ text: out.text, truncated: !!out.truncated, staff: staff.name });
+});
+
+/* =========================================================================
+   法人LP(biz.html)からの資料請求・デモ申込を受け付ける公開エンドポイント。
+   認証不要(誰でも送信可)。運営(super)にプッシュ通知し、bizInquiries に保存。
+   POST {company, name, email, phone, kind, plan, message, hp(ハニーポット)}
+   ========================================================================= */
+exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ。" });
+  const d = req.body || {};
+  // ボット対策: 非表示欄(hp)に入力があれば黙って成功を返す(保存しない)
+  if (String(d.hp || "").trim()) return res.json({ ok: true });
+
+  const clean = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+  const company = clean(d.company, 200), name = clean(d.name, 120);
+  const email = clean(d.email, 200), phone = clean(d.phone, 60);
+  const kind = clean(d.kind, 60), plan = clean(d.plan, 40), message = clean(d.message, 4000);
+  if (!company || !name) return res.status(400).json({ error: "会社名とお名前は必須です。" });
+  if (!email && !phone) return res.status(400).json({ error: "メールまたは電話のいずれかは必須です。" });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+
+  const db = admin.firestore();
+  try {
+    // 簡易レート制限: 同一メール/電話が直近1分に3件以上なら弾く(いたずら連投防止)
+    const since = Date.now() - 60000;
+    const recent = await db.collection("bizInquiries").where("createdAt", ">=", since).get();
+    let dup = 0; recent.forEach((x) => { const q = x.data(); if ((email && q.email === email) || (phone && q.phone === phone)) dup++; });
+    if (dup >= 3) return res.status(429).json({ error: "送信が多すぎます。しばらくして再度お試しください。" });
+
+    await db.collection("bizInquiries").add({
+      company, name, email, phone, kind, plan, message,
+      status: "新規", source: "biz-lp",
+      ua: clean(req.headers["user-agent"], 300),
+      createdAt: Date.now(),
+    });
+
+    // 運営(super)にプッシュ通知
+    try {
+      const supers = await db.collection("users").where("role", "==", "super").get();
+      const tokens = [];
+      supers.forEach((u) => (u.data().fcmTokens || []).forEach((t) => t && tokens.push(t)));
+      const uniqTokens = [...new Set(tokens)];
+      if (uniqTokens.length) {
+        await admin.messaging().sendEachForMulticast({
+          tokens: uniqTokens,
+          notification: { title: "メカノAI 法人問い合わせ", body: company + " / " + name + " さんから資料請求・デモ申込が届きました。" },
+          webpush: { fcmOptions: { link: "/sales.html" } },
+        });
+      }
+    } catch (e) { console.error("問い合わせ通知エラー", e); }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("bizInquiry保存エラー", e);
+    return res.status(500).json({ error: "送信に失敗しました。時間をおいて再度お試しください。" });
+  }
 });

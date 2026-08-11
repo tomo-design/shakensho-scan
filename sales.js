@@ -89,6 +89,7 @@
     buildStaffbar();
     selectStaff("bucho");
     loadLeads();
+    loadInbox(true);   // 未対応バッジを表示するため裏で読み込む
   });
 
   // ---------- タブ ----------
@@ -100,7 +101,9 @@
       show("tab-team", tab === "team");
       show("tab-leads", tab === "leads");
       show("tab-camp", tab === "camp");
+      show("tab-inbox", tab === "inbox");
       if (tab === "camp") updateCampCount();
+      if (tab === "inbox") loadInbox();
     };
   });
 
@@ -213,6 +216,60 @@
       toast("対象を設定しました。指示をどうぞ");
     });
   }
+
+  // ---------- 問い合わせ受信(LPから) ----------
+  let inquiries = [];
+  async function loadInbox(silent) {
+    try {
+      const j = await api("listInquiries");
+      inquiries = j.inquiries || [];
+    } catch (e) { if (!silent) toast(e.message); return; }
+    updateInboxBadge();
+    if (!silent) renderInbox();
+  }
+  function updateInboxBadge() {
+    const n = inquiries.filter((q) => q.status === "新規").length;
+    const b = $("inboxBadge");
+    if (b) { b.textContent = n; b.classList.toggle("hidden", n === 0); }
+  }
+  function fmtDate(ms) {
+    if (!ms) return "";
+    const d = new Date(ms);
+    return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() + " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+  function renderInbox() {
+    $("inboxCount").textContent = inquiries.length ? inquiries.length + " 件" : "";
+    const box = $("inboxList");
+    if (!inquiries.length) { box.innerHTML = '<div class="empty-block">まだ問い合わせはありません。<br>法人LP（biz.html）のフォームから届くとここに表示されます。</div>'; return; }
+    box.innerHTML = inquiries.map((q) => `
+      <div class="leadcard">
+        <div class="l">
+          <div class="co">${esc(q.company)} <span class="pill st-${q.status === "新規" ? "アプローチ中" : "見込み"}">${esc(q.status || "新規")}</span></div>
+          <div class="meta">${esc(q.name || "")}${q.kind ? " ／ " + esc(q.kind) : ""}${q.plan ? " ／ 関心:" + esc(q.plan) : ""}</div>
+          <div class="meta">${q.email ? "✉ " + esc(q.email) : ""}${q.phone ? "　☎ " + esc(q.phone) : ""}　<span class="muted">${fmtDate(q.createdAt)}</span></div>
+          ${q.message ? `<div class="note">${esc(q.message)}</div>` : ""}
+        </div>
+        <div class="acts">
+          <button class="btn btn-dark btn-sm" data-tolead="${q.id}">見込み客に追加</button>
+          <button class="btn btn-ghost btn-sm" data-done="${q.id}">対応済みに</button>
+          <button class="btn btn-ghost btn-sm" data-delq="${q.id}">削除</button>
+        </div>
+      </div>`).join("");
+    box.querySelectorAll("[data-tolead]").forEach((b) => b.onclick = async () => {
+      try { await api("inquiryToLead", { id: b.dataset.tolead }); toast("見込み客に追加しました"); await Promise.all([loadInbox(), loadLeads()]); renderInbox(); }
+      catch (e) { toast(e.message); }
+    });
+    box.querySelectorAll("[data-done]").forEach((b) => b.onclick = async () => {
+      try { await api("inquiryStatus", { id: b.dataset.done, status: "対応済み" }); await loadInbox(); renderInbox(); }
+      catch (e) { toast(e.message); }
+    });
+    box.querySelectorAll("[data-delq]").forEach((b) => b.onclick = async () => {
+      if (!confirm("この問い合わせを削除しますか？")) return;
+      try { await api("delInquiry", { id: b.dataset.delq }); await loadInbox(); renderInbox(); }
+      catch (e) { toast(e.message); }
+    });
+  }
+  const _rb = $("btnReloadInbox"); if (_rb) _rb.onclick = () => loadInbox();
 
   let editingId = "";
   function openLead(id) {

@@ -45,6 +45,10 @@
         <svg viewBox="0 0 24 24" class="ic"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span>AI営業チーム</span>
       </button>
+      <button class="tab" data-tab="inbox">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>
+        <span>問い合わせ<span id="inboxBadge" class="badge hidden">0</span></span>
+      </button>
       <button class="tab" data-tab="leads">
         <svg viewBox="0 0 24 24" class="ic"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg>
         <span>見込み客</span>
@@ -84,6 +88,19 @@
         <textarea id="taskInput" rows="1" placeholder="担当への指示を入力（例：この会社への初回アプローチメールを書いて）"></textarea>
         <button id="btnSend" class="btn btn-accent">送信</button>
       </div>
+    </section>
+
+    <!-- 問い合わせ受信(LPから) -->
+    <section id="tab-inbox" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>問い合わせ受信</h1>
+          <p class="vsub">法人LP（biz.html）の申込フォームから届いた問い合わせです。見込み客に変換できます。</p>
+        </div>
+        <button id="btnReloadInbox" class="btn btn-ghost btn-sm">再読み込み</button>
+      </header>
+      <div class="lead-toolbar"><span id="inboxCount" class="muted"></span></div>
+      <div id="inboxList" class="leadlist"></div>
     </section>
 
     <!-- 見込み客 -->
