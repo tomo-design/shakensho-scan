@@ -1019,19 +1019,13 @@
         if (!confirm("この申請を却下し、記録（氏名・メール）を完全に削除しますか？（取り消せません）")) return;
         await db.collection(col).doc(id).delete();
       } else if (act === "promote") {
-        // 代表管理者の引き継ぎ。
-        // 重要: 先に対象を admin に昇格する(この時点では実行者はまだ admin/super で権限がある)。
-        // 先に自分を降格すると権限を失い、対象の昇格がルールで拒否され「代表不在」になるため順序厳守。
+        // 代表管理者に“追加”指名(複数人OK)。他の代表は降格しない。
+        if (!confirm("このメンバーを代表管理者にしますか？\n（代表管理者は複数人でも設定できます）")) return;
         const tdoc = await db.collection("users").doc(id).get(); const tu = tdoc.data() || {};
-        const tid = tu.tenantId;
-        if (tid) {
-          await db.collection("users").doc(id).update({ role: "admin", active: true });
-          await db.collection("tenants").doc(tid).set({ adminName: tu.name || "" }, { merge: true });
-          // 対象以外の既存 admin を従業員に降格(実行者自身の降格はこの後=まだ権限保持中に実施)
-          const admins = await db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get();
-          for (const a of admins.docs) { if (a.id !== id) { try { await db.collection("users").doc(a.id).update({ role: "staff" }); } catch (e) {} } }
-        }
-        uiAlert("代表管理者を引き継ぎました。");
+        await db.collection("users").doc(id).update({ role: "admin", active: true });
+        // 店舗の代表者名(tenants.adminName)は運営(super)のみ更新可。adminが実行しても失敗しないよう super時のみ・かつ try で握りつぶす。
+        if (profile && profile.role === "super" && tu.tenantId) { try { await db.collection("tenants").doc(tu.tenantId).set({ adminName: tu.name || "" }, { merge: true }); } catch (e) {} }
+        uiAlert("代表管理者に設定しました。");
       } else if (act === "demote") {
         if (!confirm("この代表管理者を従業員に降格しますか？")) return;
         await db.collection("users").doc(id).update({ role: "staff" });
