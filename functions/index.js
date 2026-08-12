@@ -509,6 +509,26 @@ exports.setMemberPassword = functions.region(REGION).https.onRequest(async (req,
   }
 });
 
+/* 本人のメールアドレス変更: POST {email} → Auth と users/{uid}.email を同時更新。
+   認証済み本人のみ(uidはIDトークンから)。Firestoreルール上クライアントからは email を書けないためサーバーで実施。 */
+exports.changeMyEmail = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+  try {
+    await admin.auth().updateUser(uid, { email: email, emailVerified: false });
+    await admin.firestore().collection("users").doc(uid).set({ email: email }, { merge: true });
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e && e.code === "auth/email-already-exists") return res.status(409).json({ error: "このメールアドレスは既に使われています。" });
+    if (e && e.code === "auth/invalid-email") return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+    return res.status(500).json({ error: "変更に失敗しました: " + (e.message || String(e)) });
+  }
+});
+
 /* Stripe Checkout セッション作成: POST {plan:"monthly"|"yearly", email} → {url}。代表管理者のみ。 */
 exports.createCheckout = functions.region(REGION).https.onRequest(async (req, res) => {
   setCors(res);

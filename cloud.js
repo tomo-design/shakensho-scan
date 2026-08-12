@@ -307,6 +307,22 @@
       }
     }
   });
+  /* メールアドレス変更(ログイン中の本人。Auth＋Firestoreをサーバーで同時更新) */
+  $("btnCloudChangeEmail") && $("btnCloudChangeEmail").addEventListener("click", async () => {
+    const user = auth.currentUser;
+    if (!user) { alert("ログインしてから変更してください。"); return; }
+    const cur = user.email || "";
+    const ne = (prompt("新しいメールアドレスを入力してください\n（現在: " + cur + "）") || "").trim();
+    if (!ne) return;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ne)) { alert("メールアドレスの形式が正しくありません。"); return; }
+    const ne2 = (prompt("確認のため、もう一度同じメールアドレスを入力してください") || "").trim();
+    if (ne.toLowerCase() !== ne2.toLowerCase()) { alert("メールアドレスが一致しません。"); return; }
+    try {
+      await window.Cloud.callFn("changeMyEmail", { email: ne });
+      try { await user.reload(); } catch (e) {}
+      alert("✓ メールアドレスを変更しました。\n次回のログインからは新しいメールアドレスを使ってください。");
+    } catch (e) { alert("⚠ 変更できませんでした: " + (e.message || e)); }
+  });
   /* パスワード再設定メール */
   $("lnkResetPw") && $("lnkResetPw").addEventListener("click", async () => {
     const email = ($("cloudEmail").value || "").trim() || (prompt("再設定メールを送るメールアドレスを入力") || "").trim();
