@@ -1,8 +1,8 @@
 "use strict";
 /*! メカノAI 体験チュートリアル(ガイドツアー) © 2026 Cablueie.
     デモモード(?demo=1 / ss_demo)時に、実際の画面をハイライトしながら操作手順を案内する。
-    ・オーバーレイはクリックを奪わない(光っている実ボタンをそのままタップできる)
-    ・診断/修理は例文を入力して「押す」体験まで誘導する
+    ・暗幕(マスク)で「光っている対象だけ」タップ可能にし、他の場所は無効化
+    ・診断/修理は例文を入れ、「メカ君に聞く」を押させて結果まで体験させる
     既存アプリのDOMを触るだけの独立モジュール(app.jsには依存しない)。 */
 (function () {
   function isDemo() {
@@ -12,38 +12,41 @@
   if (!isDemo()) return;
 
   var $ = function (s) { return document.querySelector(s); };
-  // 画面に出ている(表示されている)要素を返す。同一セレクタが複数あってもvisibleな方を選ぶ。
   function visible(sel) {
     var els = document.querySelectorAll(sel);
     for (var i = 0; i < els.length; i++) { if (els[i].offsetParent !== null) return els[i]; }
     return null;
   }
 
-  // 手順。sel:対象 / click:true=対象タップ(または「次へ」)で進み、アプリが画面遷移する
-  //       fill:{value}=対象に例文を入れて誘導 / also=一緒に光らせる補助
+  // 種別: center=中央説明 / (既定)=説明のみ / nav=タップで画面遷移(自動で次へ) /
+  //       action=タップでその場に結果表示(次へで進む) / fill=例文を入れて誘導
   var STEPS = [
-    { center: true, step: "体験モード", title: "メカノAIを触ってみましょう", body: "実際の画面で操作感を体験できます（サンプルの軽トラを読み込み済み・AIはサンプル応答）。案内に沿って、光っている場所をタップしてみてください。", cta: "はじめる" },
+    { center: true, step: "体験モード", title: "メカノAIを触ってみましょう", body: "実際の画面で操作感を体験できます（サンプルの軽トラを読み込み済み・AIはサンプル応答）。光っている場所をタップして進めてください。", cta: "はじめる" },
     { sel: "#result", step: "STEP 1 / 6", title: "車検証を読むと車両情報が出ます", body: "本番では車検証のQR・写真を撮るだけ。今回はサンプル車両（ダイハツ ハイゼットカーゴ）を読み込んでいます。" },
-    { sel: "#btnGoMaint", click: true, step: "STEP 2 / 6", title: "メンテナンス諸元を見る", body: "オイル量・締付トルクなどをすぐ確認できます。この光っているボタンをタップしてみましょう。" },
+    { sel: "#btnGoMaint", nav: true, step: "STEP 2 / 6", title: "メンテナンス諸元を見る", body: "オイル量・締付トルクなどをすぐ確認できます。この光っているボタンをタップ。" },
     { sel: "#specList", also: "#btnSpecAI", step: "STEP 3 / 6", title: "諸元が即表示", body: "調べ物の時間を短縮。分からないことは「メカ君に聞く」でAIにも質問できます。若手や外国人スタッフでもすぐ戦力に。" },
-    { sel: "diag-nav", click: true, step: "STEP 4 / 6", title: "故障診断を開く", body: "下のメニューの「🩺 診断」をタップしてみましょう。" },
-    { sel: "#diagText", fill: { value: "P0401" }, step: "STEP 4 / 6", title: "ここに症状やコードを入力", body: "例として「P0401」を入力しました。実際はダイアグコードや「エンストする」等の症状でOK。この下の〔メカ君に聞く〕を押します。" },
-    { sel: "#btnDiagRun", click: true, step: "STEP 4 / 6", title: "AIに診断させる", body: "「メカ君に聞く」を押すと、原因の切り分けや対処をAIが回答します（デモはサンプル回答）。押してみましょう。" },
-    { sel: "parts-nav", click: true, step: "STEP 5 / 6", title: "修理（部品・注文）を開く", body: "続いて「🛠 修理」をタップ。必要部品の洗い出しや注文リスト作成ができます。" },
-    { sel: "#qVehText", fill: { value: "ブレーキパッド交換" }, also: "#btnVehAsk", step: "STEP 5 / 6", title: "作業名を入れるだけでOK", body: "例として「ブレーキパッド交換」を入力しました。〔メカ君に聞く〕を押すと、必要部品や手順を提案します（デモはサンプル）。" },
-    { sel: "karte-nav", click: true, step: "STEP 6 / 6", title: "整備カルテを開く", body: "最後に「📋 カルテ」をタップ。作業内容を記録して社内で共有できます。" },
+    { sel: "diag-nav", nav: true, step: "STEP 4 / 6", title: "故障診断を開く", body: "下のメニューの「🩺 診断」をタップ。" },
+    { sel: "#diagText", fill: "P0401", step: "STEP 4 / 6", title: "症状やコードを入力", body: "例として「P0401」を入力しました。実際はダイアグコードや「エンストする」等の症状でOK。次に下の〔メカ君に聞く〕を押します。" },
+    { sel: "#btnDiagRun", action: true, step: "STEP 4 / 6", title: "AIに診断させる", body: "「メカ君に聞く」を押すと、考えられる原因・確認手順・対処が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
+    { sel: "parts-nav", nav: true, step: "STEP 5 / 6", title: "修理（部品・注文）を開く", body: "続いて「🛠 修理」をタップ。必要部品の洗い出しや注文リスト作成ができます。" },
+    { sel: "#qVehText", fill: "ブレーキパッド交換", step: "STEP 5 / 6", title: "作業名を入れるだけでOK", body: "例として「ブレーキパッド交換」を入力しました。次に〔メカ君に聞く〕を押します。" },
+    { sel: "#btnVehAsk", action: true, step: "STEP 5 / 6", title: "必要部品・手順を出す", body: "押すと、必要な部品や作業手順の目安が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
+    { sel: "karte-nav", nav: true, step: "STEP 6 / 6", title: "整備カルテを開く", body: "最後に「📋 カルテ」をタップ。作業内容を記録して社内で共有できます。" },
     { sel: "#btnKarteAdd", also: "#karteList", step: "STEP 6 / 6", title: "作業記録を残して共有", body: "「＋」から作業記録を追加。写真での入力にも対応。担当者ごとに管理でき、引き継ぎもスムーズです。" },
     { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "本番では自社の車両データで、これらがすべて使えます。導入のご相談・無料デモはお気軽にどうぞ。", cta: "閉じる", showApply: true },
   ];
 
-  var i = 0, ov, spot, tip, curEl = null, stepDone = false, clickFn = null;
+  var i = 0, ov, spot, tip, masks = [], curEl = null, stepDone = false, clickFn = null, revealed = false;
 
   function build() {
     ov = document.createElement("div"); ov.id = "tourOv";
+    for (var k = 0; k < 4; k++) { var m = document.createElement("div"); m.className = "tourMask"; m.addEventListener("click", swallow); masks.push(m); ov.appendChild(m); }
     spot = document.createElement("div"); spot.id = "tourSpot"; spot.style.display = "none";
     tip = document.createElement("div"); tip.id = "tourTip";
     ov.appendChild(spot); ov.appendChild(tip); document.body.appendChild(ov);
   }
+  function swallow(e) { e.preventDefault(); e.stopPropagation(); if (spot && spot.style.display !== "none") { spot.classList.remove("pulse"); void spot.offsetWidth; spot.classList.add("pulse"); } }
+
   function targetFor(s) {
     if (!s.sel) return null;
     if (s.sel === "diag-nav") return visible('.navBtn[data-go="diag"]') || $("#btnGoDiag");
@@ -51,80 +54,106 @@
     if (s.sel === "karte-nav") return visible('.navBtn[data-go="karte"]') || $("#btnGoKarte");
     return visible(s.sel) || $(s.sel);
   }
-  function place(el, s) {
+  function unionRect(s, el) {
     var r = el.getBoundingClientRect();
+    var rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     var also = s.also ? (visible(s.also) || $(s.also)) : null;
-    var rect = r;
-    if (also) { // 補助要素も囲む
-      var r2 = also.getBoundingClientRect();
-      rect = { left: Math.min(r.left, r2.left), top: Math.min(r.top, r2.top), right: Math.max(r.right, r2.right), bottom: Math.max(r.bottom, r2.bottom) };
-      rect.width = rect.right - rect.left; rect.height = rect.bottom - rect.top;
-    }
+    if (also) { var r2 = also.getBoundingClientRect(); rect.left = Math.min(rect.left, r2.left); rect.top = Math.min(rect.top, r2.top); rect.right = Math.max(rect.right, r2.right); rect.bottom = Math.max(rect.bottom, r2.bottom); }
+    return rect;
+  }
+  function layoutMasks(hx, hy, hw, hh) {
+    var W = window.innerWidth, H = window.innerHeight;
+    // T, B, L, R
+    set(masks[0], 0, 0, W, Math.max(0, hy));
+    set(masks[1], 0, hy + hh, W, Math.max(0, H - (hy + hh)));
+    set(masks[2], 0, hy, Math.max(0, hx), hh);
+    set(masks[3], hx + hw, hy, Math.max(0, W - (hx + hw)), hh);
+    masks.forEach(function (m) { m.style.display = "block"; });
+  }
+  function set(el, x, y, w, h) { el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = w + "px"; el.style.height = h + "px"; }
+  function fullMask() { set(masks[0], 0, 0, window.innerWidth, window.innerHeight); masks[0].style.display = "block"; for (var k = 1; k < 4; k++) masks[k].style.display = "none"; }
+
+  function place(el, s) {
+    var rect = unionRect(s, el);
     var pad = 6;
+    var hx = rect.left - pad, hy = rect.top - pad, hw = (rect.right - rect.left) + pad * 2, hh = (rect.bottom - rect.top) + pad * 2;
     spot.style.display = "block";
-    spot.classList.toggle("pulse", !!s.click);
-    spot.style.left = (rect.left - pad) + "px";
-    spot.style.top = (rect.top - pad) + "px";
-    spot.style.width = (rect.width + pad * 2) + "px";
-    spot.style.height = (rect.height + pad * 2) + "px";
-    // ツールチップ: 対象の下、はみ出すなら上
+    spot.classList.toggle("pulse", !!(s.nav || s.action));
+    set(spot, hx, hy, hw, hh);
+    layoutMasks(hx, hy, hw, hh);
+    // ツールチップ配置(対象の下、はみ出すなら上)
     var tipH = tip.offsetHeight || 160, tipW = tip.offsetWidth || 300;
-    var below = rect.bottom + 12;
-    tip.style.top = (below + tipH > window.innerHeight - 8 ? Math.max(8, rect.top - tipH - 12) : below) + "px";
-    tip.style.left = Math.min(Math.max(12, rect.left + rect.width / 2 - tipW / 2), window.innerWidth - tipW - 12) + "px";
+    var below = hy + hh + 12;
+    tip.style.top = (below + tipH > window.innerHeight - 8 ? Math.max(8, hy - tipH - 12) : below) + "px";
+    tip.style.left = Math.min(Math.max(12, hx + hw / 2 - tipW / 2), window.innerWidth - tipW - 12) + "px";
   }
-  function unbind() {
-    if (clickFn && curEl) { try { curEl.removeEventListener("click", clickFn); } catch (e) {} }
-    clickFn = null;
+  function reposition() {
+    var s = STEPS[i]; if (!s || s.center || !curEl) return;
+    if (revealed) { var sec = curEl.closest("section, .view") || curEl; place(sec, { sel: "", also: null }); return; }
+    place(curEl, s);
   }
+
+  function unbind() { if (clickFn && curEl) { try { curEl.removeEventListener("click", clickFn); } catch (e) {} } clickFn = null; }
   function advance() { if (stepDone) return; stepDone = true; unbind(); i++; if (i >= STEPS.length) return end(); render(); }
 
   function render() {
     var s = STEPS[i];
-    stepDone = false; unbind(); curEl = null;
+    stepDone = false; revealed = false; unbind(); curEl = null;
     var btns = '<div class="tt-btns">' +
       '<button class="tt-skip" data-act="skip">' + (i > 0 ? "スキップ" : "閉じる") + "</button>" +
       '<span class="tt-spacer"></span>' +
       (s.showApply ? '<a class="tt-next" style="text-decoration:none" href="biz.html">詳細・申込</a>' :
         '<button class="tt-next" data-act="next">' + (s.cta || "次へ") + "</button>") +
       "</div>";
-    var hint = s.click ? '<div class="tt-hint">👆 光っている場所をタップ</div>' : "";
+    var hint = (s.nav || s.action) ? '<div class="tt-hint">👆 光っている場所をタップ</div>' : "";
     tip.innerHTML = '<div class="tt-step">' + s.step + "</div><h4>" + s.title + "</h4><p>" + s.body + "</p>" + hint + btns;
     tip.querySelectorAll("[data-act]").forEach(function (b) {
       b.onclick = function () {
         if (b.dataset.act === "skip") return end();
-        if (s.click && curEl) { unbind(); try { curEl.click(); } catch (e) {} setTimeout(advance, 260); }
+        if (s.nav && curEl) { unbind(); try { curEl.click(); } catch (e) {} setTimeout(advance, 300); }
+        else if (s.action && curEl && !revealed) { doAction(); }   // 未実行なら「次へ」で実行して結果を見せる
         else advance();
       };
     });
 
-    if (s.center) { spot.style.display = "none"; tip.className = "center"; tip.style.left = ""; tip.style.top = ""; return; }
+    if (s.center) { spot.style.display = "none"; fullMask(); tip.className = "center"; tip.style.left = ""; tip.style.top = ""; return; }
     tip.className = "";
     waitForTarget(s, 0);
   }
-  // 対象が表示されるまで少し待つ(画面遷移直後の未表示に対応)。出なければ中央表示にフォールバック。
+
+  function doAction() {   // action: その場で結果表示 → 暗幕をパネル全体に広げて結果を読めるように
+    if (revealed) return; revealed = true;
+    try { curEl.click(); } catch (e) {}
+    var next = tip.querySelector(".tt-next"); if (next) next.textContent = "次へ";
+    var hint = tip.querySelector(".tt-hint"); if (hint) hint.remove();
+    setTimeout(function () {
+      var sec = curEl.closest("section, .view") || curEl;
+      spot.classList.remove("pulse");
+      place(sec, { sel: "", also: null });
+    }, 450);
+  }
+
   function waitForTarget(s, tries) {
     var el = targetFor(s);
     if (el && el.offsetParent !== null) {
       curEl = el;
-      if (s.fill) { try { if (!el.value) { el.value = s.fill.value; el.dispatchEvent(new Event("input", { bubbles: true })); } el.focus({ preventScroll: true }); } catch (e) {} }
-      try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+      if (s.fill) { try { if (!el.value) { el.value = s.fill; el.dispatchEvent(new Event("input", { bubbles: true })); } el.focus({ preventScroll: true }); } catch (e) {} }
+      try { el.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
       setTimeout(function () {
-        if (STEPS[i] !== s) return;   // 既に進んでいたら無視
+        if (STEPS[i] !== s) return;
         place(el, s);
-        if (s.click) { clickFn = function () { setTimeout(advance, 260); }; el.addEventListener("click", clickFn, { once: true }); }
-      }, 340);
+        if (s.nav) { clickFn = function () { setTimeout(advance, 300); }; el.addEventListener("click", clickFn, { once: true }); }
+        else if (s.action) { clickFn = function () { doAction(); }; el.addEventListener("click", clickFn, { once: true }); }
+      }, 160);
+      // レイアウト確定後にもう一度合わせる(スクロール/フォント読み込みのズレ対策)
+      setTimeout(function () { if (STEPS[i] === s && !revealed) place(el, s); }, 450);
       return;
     }
-    if (tries < 12) { setTimeout(function () { waitForTarget(s, tries + 1); }, 200); return; }
-    // 見つからない → 中央表示で続行
-    spot.style.display = "none"; tip.className = "center"; tip.style.left = ""; tip.style.top = "";
+    if (tries < 14) { setTimeout(function () { waitForTarget(s, tries + 1); }, 180); return; }
+    spot.style.display = "none"; fullMask(); tip.className = "center"; tip.style.left = ""; tip.style.top = "";
   }
 
-  function end() {
-    unbind(); if (ov) ov.remove(); ov = spot = tip = null; curEl = null;
-    ensureReplay();
-  }
+  function end() { unbind(); if (ov) ov.remove(); ov = spot = tip = null; masks = []; curEl = null; ensureReplay(); }
   function start() { i = 0; if (!ov) build(); render(); }
 
   function ensureReplay() {
@@ -140,17 +169,14 @@
     var t = setInterval(function () {
       tries++;
       if ($("#result") && $("#result").offsetParent !== null) {
-        clearInterval(t);
-        ensureReplay();
+        clearInterval(t); ensureReplay();
         var seen = false; try { seen = sessionStorage.getItem("ss_tourDone") === "1"; } catch (e) {}
         if (!seen) { try { sessionStorage.setItem("ss_tourDone", "1"); } catch (e) {} start(); }
       } else if (tries > 40) { clearInterval(t); ensureReplay(); }
     }, 250);
   }
-  window.addEventListener("resize", function () {
-    var s = STEPS[i];
-    if (ov && tip && s && !s.center && curEl) place(curEl, s);
-  });
+  window.addEventListener("resize", reposition);
+  window.addEventListener("scroll", function () { if (ov) requestAnimationFrame(reposition); }, true);
 
   if (document.readyState === "complete") waitAndStart();
   else window.addEventListener("load", waitAndStart);
