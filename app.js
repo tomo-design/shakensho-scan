@@ -19,7 +19,7 @@ async function appVerDisplay() {
 }
 const LS = { hist: "ss_history", custom: "ss_customdb", gemini: "ss_geminikey", aimode: "ss_aimode" };
 /* AIが使えるか: 自分のGeminiキーがある or 契約中の店舗(サーバー経由=鍵不要)。*/
-function aiOK() { return !!localStorage.getItem(LS.gemini) || !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()); }
+function aiOK() { if (typeof isDemo === "function" && isDemo()) return true; return !!localStorage.getItem(LS.gemini) || !!(window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()); }
 
 const $ = id => document.getElementById(id);
 /* クリップボードにコピー。navigator.clipboard は安全(HTTPS)コンテキストでしか動かないため、

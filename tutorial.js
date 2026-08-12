@@ -27,10 +27,10 @@
     { sel: "#specList", also: "#btnSpecAI", step: "STEP 3 / 6", title: "諸元が即表示", body: "調べ物の時間を短縮。分からないことは「メカ君に聞く」でAIにも質問できます。若手や外国人スタッフでもすぐ戦力に。" },
     { sel: "diag-nav", nav: true, step: "STEP 4 / 6", title: "故障診断を開く", body: "下のメニューの「🩺 診断」をタップ。" },
     { sel: "#diagText", fill: "P0401", step: "STEP 4 / 6", title: "症状やコードを入力", body: "例として「P0401」を入力しました。実際はダイアグコードや「エンストする」等の症状でOK。次に下の〔メカ君に聞く〕を押します。" },
-    { sel: "#btnDiagRun", action: true, step: "STEP 4 / 6", title: "AIに診断させる", body: "「メカ君に聞く」を押すと、考えられる原因・確認手順・対処が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
+    { sel: "#btnDiagRun", action: true, result: "#diagResults", step: "STEP 4 / 6", title: "AIに診断させる", body: "「メカ君に聞く」を押すと、考えられる原因・確認手順・対処が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
     { sel: "parts-nav", nav: true, step: "STEP 5 / 6", title: "修理（部品・注文）を開く", body: "続いて「🛠 修理」をタップ。必要部品の洗い出しや注文リスト作成ができます。" },
     { sel: "#qVehText", fill: "ブレーキパッド交換", step: "STEP 5 / 6", title: "作業名を入れるだけでOK", body: "例として「ブレーキパッド交換」を入力しました。次に〔メカ君に聞く〕を押します。" },
-    { sel: "#btnVehAsk", action: true, step: "STEP 5 / 6", title: "必要部品・手順を出す", body: "押すと、必要な部品や作業手順の目安が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
+    { sel: "#btnVehAsk", action: true, result: "#qVehResult", step: "STEP 5 / 6", title: "必要部品・手順を出す", body: "押すと、必要な部品や作業手順の目安が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
     { sel: "karte-nav", nav: true, step: "STEP 6 / 6", title: "整備カルテを開く", body: "最後に「📋 カルテ」をタップ。作業内容を記録して社内で共有できます。" },
     { sel: "#btnKarteAdd", also: "#karteList", step: "STEP 6 / 6", title: "作業記録を残して共有", body: "「＋」から作業記録を追加。写真での入力にも対応。担当者ごとに管理でき、引き継ぎもスムーズです。" },
     { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "本番では自社の車両データで、これらがすべて使えます。導入のご相談・無料デモはお気軽にどうぞ。", cta: "閉じる", showApply: true },
@@ -88,8 +88,7 @@
     tip.style.left = Math.min(Math.max(12, hx + hw / 2 - tipW / 2), window.innerWidth - tipW - 12) + "px";
   }
   function reposition() {
-    var s = STEPS[i]; if (!s || s.center || !curEl) return;
-    if (revealed) { var sec = curEl.closest("section, .view") || curEl; place(sec, { sel: "", also: null }); return; }
+    var s = STEPS[i]; if (!s || s.center || !curEl || revealed) return;
     place(curEl, s);
   }
 
@@ -121,16 +120,28 @@
     waitForTarget(s, 0);
   }
 
-  function doAction() {   // action: その場で結果表示 → 暗幕をパネル全体に広げて結果を読めるように
+  function doAction() {   // action: その場で結果表示 → 暗幕を外して結果へフォーカス
     if (revealed) return; revealed = true;
+    var s = STEPS[i];
     try { curEl.click(); } catch (e) {}
     var next = tip.querySelector(".tt-next"); if (next) next.textContent = "次へ";
     var hint = tip.querySelector(".tt-hint"); if (hint) hint.remove();
-    setTimeout(function () {
-      var sec = curEl.closest("section, .view") || curEl;
-      spot.classList.remove("pulse");
-      place(sec, { sel: "", also: null });
-    }, 450);
+    // 結果が描画されるのを待ってから、暗幕を消して結果を画面内へ
+    var tries = 0;
+    (function waitResult() {
+      var res = s.result ? $(s.result) : null;
+      var ready = res && res.offsetParent !== null && (res.textContent || "").trim().length > 4;
+      if (ready || tries > 20) {
+        // 暗幕・枠を消して全体を見えるように(結果を邪魔しない)
+        spot.style.display = "none";
+        masks.forEach(function (m) { m.style.display = "none"; });
+        if (res) { try { res.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} }
+        tip.className = "pin";
+        tip.style.left = ""; tip.style.top = "";
+        return;
+      }
+      tries++; setTimeout(waitResult, 150);
+    })();
   }
 
   function waitForTarget(s, tries) {

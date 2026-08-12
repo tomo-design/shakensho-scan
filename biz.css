@@ -20,6 +20,9 @@ h1,h2,h3{line-height:1.35;margin:0}
   background:conic-gradient(from 0deg,var(--accent) 0 12%,transparent 0 25%,var(--accent) 0 37%,transparent 0 50%,var(--accent) 0 62%,transparent 0 75%,var(--accent) 0 87%,transparent 0);
   -webkit-mask:radial-gradient(circle,#000 7px,transparent 7.5px);mask:radial-gradient(circle,#000 7px,transparent 7.5px)}
 .mark.sm .cog{width:15px;height:15px}
+/* LPロゴ画像(アイコン3) */
+.lp-logo{width:38px;height:38px;border-radius:10px;object-fit:cover;flex-shrink:0;display:block}
+.lp-logo.sm{width:30px;height:30px;border-radius:8px}
 
 /* ボタン */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid transparent;border-radius:11px;padding:13px 24px;font-size:15px;transition:.15s}

@@ -23,6 +23,9 @@
 #tourTip.center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;max-width:340px}
 #tourTip.center .tt-btns{justify-content:center}
 #tourTip.center .tt-arrow{display:none}
+/* 結果表示中はツールチップを画面下に固定(結果を隠さない) */
+#tourTip.pin{position:fixed;left:50%;top:auto;bottom:calc(78px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:340px}
+#tourTip.pin .tt-arrow{display:none}
 #tourTip .tt-hint{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;color:#cf7c1c;font-weight:700}
 
 /* 体験を再生する小ボタン(デモ中に表示) */
