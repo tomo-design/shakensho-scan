@@ -140,33 +140,56 @@
     const box = $("cloudPlan"); if (!box) return;
     const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
     if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
-    const lbl = planLabel();
     const canCancel = !!(tenantDoc && tenantDoc.plan === "active");
-    const body = '<div class="sec-body">' +
-      '<div class="planHead">現在の状態: <b>' + (lbl || "未契約（無料/試用）") + '</b></div>' +
-      (tierCode() === "twinturbo" ?
-        '<div class="planNote" id="seatBox">🔎 検索席: <b>' + (tenantDoc.searchSeats || 3) + '席</b>（3席まで標準・4席目〜 +¥3,000/席）　' +
-        '<button type="button" class="btn btn-ghost btn-sm" id="btnSeatChange">検索席を変更</button></div>' : "") +
-      '<div class="planPerk"><div class="planPerkTtl">契約の特典</div><ul class="planPerkList">' +
-        '<li>車両データ・車種DB・整備カルテを<b>社内の全端末で自動共有</b></li>' +
-        '<li>従業員は<b>何人でも参加OK</b>（1人2端末まで無料）</li>' +
-        '<li>車検証スキャン・メカ君AI・整備カルテを<b>フル機能</b>で利用</li>' +
-        '<li>更新・追加機能を随時反映／メール優先サポート</li>' +
-      '</ul></div>' +
+    const active = canCancel;
+    const code = tierCode();                       // na / turbo / twinturbo
+    const seats = (tenantDoc && tenantDoc.searchSeats) || 3;
+    const TN = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" };
+    const PRICE = { na: "月¥7,980 / 年¥86,000", turbo: "月¥12,800 / 年¥138,000", twinturbo: "月¥19,800 / 年¥198,000" };
+    // グレード別のAI特典(現在の契約グレードに応じて出し分け)
+    const AI_PERK = {
+      na: ["🔧 AIメンテナンス諸元・故障診断・修理サポート（標準）", "🔎 Web裏取り検索：なし"],
+      turbo: ["🔧 AIメンテナンス諸元・故障診断・修理サポート", "⚡ AI Pro（高精度）", "🔎 Web裏取り検索：月500回まで"],
+      twinturbo: ["🔧 AIメンテナンス諸元・故障診断・修理サポート", "⚡ AI Pro（高精度）", "🔎 Web裏取り検索：無制限", "👥 検索席：" + seats + "席（3席標準・4席目〜+¥3,000/席）"],
+    };
+    const COMMON = [
+      "車両データ・車種DB・整備カルテを社内の全端末で自動共有",
+      "従業員は何人でも参加OK（1人2端末まで）",
+      "車検証スキャン・整備カルテをフル機能で利用",
+      "更新・新機能を随時反映／優先サポート",
+    ];
+    const li = a => a.map(x => "<li>" + x + "</li>").join("");
+    // 契約中: 現在グレードの特典だけをきれいに表示。未契約: 案内のみ。
+    const perkBlock = active
+      ? '<div class="planHead">現在のプラン <span class="tierBadge tier-' + code + '">' + TN[code] + '</span></div>' +
+        '<div class="planPrice">' + PRICE[code] + '</div>' +
+        '<div class="planPerk"><div class="planPerkTtl">このプランでできること</div>' +
+          '<ul class="planPerkList">' + li(AI_PERK[code] || AI_PERK.na) + '</ul>' +
+          '<div class="planPerkTtl">共通</div><ul class="planPerkList planPerkSub">' + li(COMMON) + '</ul>' +
+        '</div>' +
+        (code === "twinturbo" ? '<div class="planNote" id="seatBox"><button type="button" class="btn btn-ghost btn-sm" id="btnSeatChange">🔎 検索席を変更</button></div>' : "")
+      : '<div class="planHead">現在の状態: <b>未契約（無料/試用）</b></div>' +
+        '<div class="planNote">下から契約すると、社内共有・フル機能・AIサポートが使えます。</div>';
+    // プラン変更/申し込み(契約中は折り畳みでスッキリ)
+    const form =
       '<div class="signupForm">' +
-        '<div class="fld">プランをお選びください</div>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="na" checked> <b>N/A</b>（AI標準）</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"> <b>ターボ</b>（AIPro・上限あり）</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"> <b>ツインターボ</b>（AIPro・無制限）</label>' +
+        '<div class="fld">プラン</div>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="na"' + (code === "na" ? " checked" : "") + '> <b>N/A</b>（AI標準・検索なし）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"' + (code === "turbo" ? " checked" : "") + '> <b>ターボ</b>（Pro・検索月500）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"' + (code === "twinturbo" ? " checked" : "") + '> <b>ツインターボ</b>（Pro・検索無制限）</label>' +
         '<div class="fld" style="margin-top:8px">お支払い間隔</div>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
         '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（約1ヶ月分お得）</label>' +
-        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 申し込み・お支払いへ進む</button></div>' +
+        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 ' + (active ? "プラン変更・お支払いへ" : "申し込み・お支払いへ進む") + '</button></div>' +
         '<div id="signupStat" class="planNote"></div>' +
-      '</div>' +
+      '</div>';
+    const formBlock = active
+      ? '<details class="planChange"><summary class="secSummary">プランを変更する</summary>' + form + '</details>'
+      : form;
+    const body = '<div class="sec-body">' + perkBlock + formBlock +
       (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する</button></div>' : '') +
       '</div>';
-    box.innerHTML = '<section><details><summary class="secSummary">契約・解約</summary>' + body + '</details></section>';
+    box.innerHTML = '<section><details><summary class="secSummary">契約・プラン</summary>' + body + '</details></section>';
     const send = $("btnSignupSend"); if (send) send.onclick = async () => {
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
       const tierPref = (document.querySelector('input[name="signupTier"]:checked') || {}).value || "na";

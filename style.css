@@ -603,6 +603,22 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .cloudActs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
 .cloudActs .btn{white-space:nowrap;padding:11px 6px;min-height:44px;font-size:13px}
 .cloudActs .btn.hidden{display:none}
+/* 契約・プラン: グレード別特典をきれいに */
+.planHead{font-size:15px;font-weight:700;margin:2px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tierBadge{font-size:13px;font-weight:800;padding:3px 12px;border-radius:14px;color:#fff}
+.tier-na{background:#6b7280}
+.tier-turbo{background:#2563eb}
+.tier-twinturbo{background:linear-gradient(90deg,#7c3aed,#2563eb)}
+.planPrice{font-size:12.5px;color:var(--dim);margin:0 0 10px}
+.planPerk{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 12px;background:var(--panel)}
+.planPerkTtl{font-size:12px;font-weight:700;color:var(--dim);margin:2px 0 6px}
+.planPerkTtl+.planPerkList{margin-top:0}
+.planPerkList{list-style:none;padding:0;margin:0 0 8px}
+.planPerkList li{font-size:13px;line-height:1.7;padding:3px 0 3px 4px}
+.planPerkSub li{color:#555;font-size:12.5px}
+.planPerkSub li::before{content:"・";color:var(--dim)}
+.planChange{margin:6px 0;border:1px solid var(--line);border-radius:10px;padding:4px 12px}
+.planChange>summary{font-size:13px;padding:6px 0}
 ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
 @keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
 /* 手順タップで工具表示 */
