@@ -279,6 +279,34 @@
     } else { signup(cloudMode === "new"); }
   });
   $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
+  /* パスワード変更(ログイン中の本人が任意のパスワードへ) */
+  $("btnCloudChangePw") && $("btnCloudChangePw").addEventListener("click", async () => {
+    const user = auth.currentUser;
+    if (!user) { alert("ログインしてから変更してください。"); return; }
+    const pw1 = (prompt("新しいパスワードを入力してください（6文字以上）") || "").trim();
+    if (!pw1) return;
+    if (pw1.length < 6) { alert("パスワードは6文字以上にしてください。"); return; }
+    const pw2 = (prompt("確認のため、もう一度同じパスワードを入力してください") || "").trim();
+    if (pw1 !== pw2) { alert("パスワードが一致しません。もう一度お試しください。"); return; }
+    try {
+      await user.updatePassword(pw1);
+      alert("✓ パスワードを変更しました。次回から新しいパスワードでログインしてください。");
+    } catch (e) {
+      // 直近ログインから時間が経つと再認証が必要
+      if (e && e.code === "auth/requires-recent-login") {
+        const cur = (prompt("安全のため、現在のパスワード（一時パスワード等）を入力してください") || "").trim();
+        if (!cur) return;
+        try {
+          const cred = firebase.auth.EmailAuthProvider.credential(user.email, cur);
+          await user.reauthenticateWithCredential(cred);
+          await user.updatePassword(pw1);
+          alert("✓ パスワードを変更しました。次回から新しいパスワードでログインしてください。");
+        } catch (e2) { alert("⚠ 変更できませんでした: " + authErr(e2)); }
+      } else {
+        alert("⚠ 変更できませんでした: " + authErr(e));
+      }
+    }
+  });
   /* パスワード再設定メール */
   $("lnkResetPw") && $("lnkResetPw").addEventListener("click", async () => {
     const email = ($("cloudEmail").value || "").trim() || (prompt("再設定メールを送るメールアドレスを入力") || "").trim();
