@@ -1,8 +1,9 @@
 /* ===== 体験チュートリアル(ガイドツアー) ===== */
+/* オーバーレイ自体はクリックを奪わない(=光っている実ボタンをそのままタップできる)。
+   操作を受けるのはツールチップだけ。 */
 #tourOv{position:fixed;inset:0;z-index:9000;pointer-events:none}
-#tourOv.on{pointer-events:auto}
-/* スポットライト: 対象の周囲だけ暗くする */
-#tourSpot{position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(10,12,16,.66);transition:all .25s ease;pointer-events:none;outline:3px solid #e8912d;outline-offset:2px}
+/* スポットライト: 対象の周囲だけ暗くする。クリックは透過。 */
+#tourSpot{position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(10,12,16,.62);transition:all .2s ease;pointer-events:none;outline:3px solid #e8912d;outline-offset:2px}
 #tourSpot.pulse{animation:tourPulse 1.4s ease-in-out infinite}
 @keyframes tourPulse{0%,100%{outline-color:#e8912d}50%{outline-color:#ffd39a}}
 
