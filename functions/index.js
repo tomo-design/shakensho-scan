@@ -480,9 +480,11 @@ exports.setMemberPassword = functions.region(REGION).https.onRequest(async (req,
   if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
   const db = admin.firestore();
   const me = (await db.collection("users").doc(uid).get()).data();
-  if (!me || me.active !== true) return res.status(403).json({ error: "有効なアカウントではありません。" });
+  if (!me) return res.status(403).json({ error: "有効なアカウントではありません。" });
   const isSuper = me.role === "super";
   const isAdmin = me.role === "admin";
+  // 運営(super)は active フラグに関わらず許可。代表管理者は active===true 必須。
+  if (!isSuper && me.active !== true) return res.status(403).json({ error: "有効なアカウントではありません。" });
   if (!isSuper && !isAdmin) return res.status(403).json({ error: "代表管理者または運営のみ実行できます。" });
   const targetUid = String((req.body && req.body.targetUid) || "");
   if (!targetUid) return res.status(400).json({ error: "対象ユーザーが指定されていません。" });
