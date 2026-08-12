@@ -1003,7 +1003,8 @@
 
   /* ---------- 紹介用QR(アプリURL) ---------- */
   try {
-    const appUrl = (location.origin + location.pathname).replace(/index\.html$/, "");
+    // ?corp=1 付き: このQRは法人メンバー紹介用。読み取ると法人版ログインをデフォルト表示する。
+    const appUrl = (location.origin + location.pathname).replace(/index\.html$/, "") + "?corp=1";
     const qr = $("appQr");
     if (qr) {
       const enc = encodeURIComponent(appUrl);

@@ -345,8 +345,9 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     const seatOk = pc.seats > 0 ? (Array.isArray(g.t.seatMembers) && g.t.seatMembers.indexOf(uidReq) >= 0) : true;
     effSearch = !overCap && seatOk;
   }
-  // 有料キーで実行する条件: 検索する / 契約店舗(ターボ以上)が Pro(高精度診断)を要求。na=常に無料Flash。
-  const usePaid = paidCapable && (effSearch || mode === "pro");
+  // 契約店舗(ターボ以上)は常に有料キーで実行する。無料キーは共有プールで429待ち→数十秒の遅延が出るため、
+  // 検索なしのFlash諸元でも有料キーを使うことで安定して数秒で返す(検索課金はeffSearch時のみ計上)。na=常に無料Flash。
+  const usePaid = paidCapable;
 
   let out = { failed: true, quota: true }, tier = "free", freeExhausted = false;
 
