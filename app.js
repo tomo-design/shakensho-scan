@@ -2413,22 +2413,25 @@ function parseLiters(v) { const m = String(v || "").match(/([\d]+(?:\.\d+)?)\s*[
 /* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
 function reconcileFluidsFromKarte(entry) {
   if (!entry || entry.deleted || !entry.parts || !current) return;
-  // 「部品名 + 数量」に分解(数字始まりを直前の名前の数量とみなす)
-  const toks = String(entry.parts).split(/[、,，・\s]+/).map(s => han(s).trim()).filter(Boolean);
-  const rows = []; let name = [];
-  toks.forEach(t => { if (/^\d/.test(t) && name.length) { rows.push({ n: name.join(" "), q: t }); name = []; } else name.push(t); });
-  if (name.length) rows.push({ n: name.join(" "), q: "" });
-  // 油脂類 かつ L(リットル)量 のものだけ抽出
+  // 行・区切りごとに分解(改行/、/,/・/スペース)。1件ずつ油脂グループと量(L)を判定。
+  const segs = String(entry.parts).split(/[\r\n、,，・]+/).map(s => han(s).trim()).filter(Boolean);
   const found = [];
-  rows.forEach(r => {
-    const g = fluidGroupOf(r.n); if (!g) return;                                  // 油脂類のみ
-    // 「4.5L」等はもちろん、単位なしの数字「4.5」も油脂類なら L(リットル)量として扱う
-    let liters = parseLiters(r.q);
-    if (liters == null && /^\d+(?:\.\d+)?$/.test(r.q)) liters = parseFloat(r.q);
+  segs.forEach(seg => {
+    const g = fluidGroupOf(seg); if (!g) return;                                  // 油脂類のみ
+    // 粘度表記(例 5W-30 / 0w20)の数字を量と誤認しないよう先に除去
+    const cleaned = seg.replace(/\d+\s*w[\s-]*\d+/gi, " ");
+    let liters = null;
+    // ① 単位付き(L/ℓ/リットル)を最優先
+    let m = cleaned.match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/);
+    if (m) liters = parseFloat(m[1]);
+    // ② 単位が無くても、油脂行に現れる妥当な数量(0.1〜50L想定)を量として拾う
+    if (liters == null) { const m2 = cleaned.match(/(?:^|[^0-9.])(\d+(?:\.\d+)?)(?![0-9.])/); if (m2) { const n = parseFloat(m2[1]); if (n > 0 && n <= 50) liters = n; } }
     if (liters == null) return;
     found.push({ g, liters, qtyStr: liters + "L" });
   });
   if (!found.length) return;
+  // 同一グループが複数行あれば最後の値を採用(重複排除)
+  { const map = new Map(); found.forEach(f => map.set(f.g.canon, f)); found.length = 0; map.forEach(v => found.push(v)); }
   const he = findHistEntry(getHistory(), current) || {};
   const learned = getLearned(vehicleKey(current)) || {};
   let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
