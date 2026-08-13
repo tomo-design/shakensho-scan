@@ -34,6 +34,11 @@
   ul.feat li{position:relative;padding-left:22px;font-size:13.5px}
   ul.feat li::before{content:"";position:absolute;left:0;top:6px;width:12px;height:7px;border-left:2px solid var(--blue);border-bottom:2px solid var(--blue);transform:rotate(-45deg)}
   ul.feat li b{display:block;font-size:14px}
+  .shots3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:6px}
+  .shots3 figure{margin:0}
+  .shots3 img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+  .shots3 figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px;text-align:center}
+  .shots3 figcaption b{color:var(--ink)}
   table.price{width:100%;border-collapse:collapse;font-size:13.5px}
   table.price th,table.price td{border:1px solid var(--line);padding:10px 12px;text-align:center}
   table.price thead th{background:var(--navy);color:#fff;font-weight:700}
@@ -99,6 +104,13 @@
     <li><b>店舗内クラウド共有</b>車両DB・記録を共有。席指名・端末管理も可能。</li>
     <li><b>日本語・英語対応</b>外国人スタッフや技能実習生でも使え、戦力化しやすい。</li>
   </ul>
+
+  <h2>実際の画面</h2>
+  <div class="shots3">
+    <figure><img src="img/screen-spec.png" alt="メンテナンス諸元"><figcaption><b>メンテナンス諸元</b>オイル・トルク等を即表示</figcaption></figure>
+    <figure><img src="img/screen-diag.png" alt="AI故障診断"><figcaption><b>AI故障診断</b>原因候補を可能性順に</figcaption></figure>
+    <figure><img src="img/screen-karte.png" alt="整備カルテ"><figcaption><b>整備カルテ</b>記録・共有まで</figcaption></figure>
+  </div>
 
   <h2>料金（法人プラン）</h2>
   <table class="price">
