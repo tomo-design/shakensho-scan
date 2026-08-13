@@ -60,8 +60,8 @@
     if (td.aiPlan === "turbo" || td.aiPlan === "twinturbo" || td.aiPlan === "na") return td.aiPlan;
     return td.aiPaidFallback === true ? "twinturbo" : "na";   // 旧データ互換
   }
-  const TIER_NAME = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" };
-  function tierName(td) { return TIER_NAME[tierCode(td)] || "N/A"; }
+  const TIER_NAME = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" };
+  function tierName(td) { return TIER_NAME[tierCode(td)] || "NA"; }
   function planLabel() {
     if (!tenantDoc) return "";
     const until = tenantDoc.paidUntil ? new Date(Number(tenantDoc.paidUntil)) : null;
@@ -144,7 +144,7 @@
     const active = canCancel;
     const code = tierCode();                       // na / turbo / twinturbo
     const seats = (tenantDoc && tenantDoc.searchSeats) || 3;
-    const TN = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" };
+    const TN = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" };
     const PRICE = { na: "月¥7,980 / 年¥86,000", turbo: "月¥12,800 / 年¥138,000", twinturbo: "月¥19,800 / 年¥198,000" };
     // グレード別のAI特典(現在の契約グレードに応じて出し分け)
     const AI_PERK = {
@@ -174,7 +174,7 @@
     const form =
       '<div class="signupForm">' +
         '<div class="fld">プラン</div>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="na"' + (code === "na" ? " checked" : "") + '> <b>N/A</b>（AI標準・検索なし）</label>' +
+        '<label class="signupRadio"><input type="radio" name="signupTier" value="na"' + (code === "na" ? " checked" : "") + '> <b>NA</b>（AI標準・検索なし）</label>' +
         '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"' + (code === "turbo" ? " checked" : "") + '> <b>ターボ</b>（Pro・検索月500）</label>' +
         '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"' + (code === "twinturbo" ? " checked" : "") + '> <b>ツインターボ</b>（Pro・検索無制限）</label>' +
         '<div class="fld" style="margin-top:8px">お支払い間隔</div>' +
@@ -985,16 +985,16 @@
         // Stripeの現契約から plan/aiPlan/期限 を取り込む(webフックの取りこぼし救済)。
         try {
           const r = await window.Cloud.callFn("syncPlan", { tid: id });
-          const nm = { na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[r.aiPlan] || r.aiPlan;
+          const nm = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" }[r.aiPlan] || r.aiPlan;
           uiAlert("Stripeと同期しました。\nプラン: " + nm + (r.paidUntil ? "\n期限: " + new Date(r.paidUntil).toLocaleDateString("ja-JP") : ""));
         } catch (e) { uiAlert("同期に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "aitier") {
-        // AIプラン(検索裏取りの段階)を設定。1=N/A(検索なし) 2=ターボ(月500) 3=ツインターボ(無制限・席数)
+        // AIプラン(検索裏取りの段階)を設定。1=NA(検索なし) 2=ターボ(月500) 3=ツインターボ(無制限・席数)
         const cur = (await db.collection("tenants").doc(id).get()).data() || {};
         const nowCode = (cur.aiPlan === "turbo" || cur.aiPlan === "twinturbo" || cur.aiPlan === "na") ? cur.aiPlan : (cur.aiPaidFallback === true ? "twinturbo" : "na");
-        const ans = (prompt("店舗「" + id + "」のAIプラン\n1 = N/A（検索なし・¥7,980）\n2 = ターボ（検索 月500回・¥12,800）\n3 = ツインターボ（検索 無制限・席数制・¥19,800）\n\n現在: " + ({ na: "N/A", turbo: "ターボ", twinturbo: "ツインターボ" }[nowCode]), nowCode === "turbo" ? "2" : nowCode === "twinturbo" ? "3" : "1") || "").trim();
+        const ans = (prompt("店舗「" + id + "」のAIプラン\n1 = NA（検索なし・¥7,980）\n2 = ターボ（検索 月500回・¥12,800）\n3 = ツインターボ（検索 無制限・席数制・¥19,800）\n\n現在: " + ({ na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" }[nowCode]), nowCode === "turbo" ? "2" : nowCode === "twinturbo" ? "3" : "1") || "").trim();
         if (!ans) return;
         const map = { "1": "na", "2": "turbo", "3": "twinturbo" };
         const plan = map[ans];
@@ -1010,7 +1010,7 @@
             } catch (e) { uiAlert("プランは設定しましたが、席数設定に失敗: " + (e.message || e)); }
           } else { uiAlert("AIプランを「ツインターボ」にしました（席数は据え置き）。"); }
         } else {
-          uiAlert("AIプランを「" + ({ na: "N/A", turbo: "ターボ" }[plan]) + "」にしました。");
+          uiAlert("AIプランを「" + ({ na: "NA", turbo: "ターボ" }[plan]) + "」にしました。");
         }
         return;
       }

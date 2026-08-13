@@ -592,7 +592,7 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
 });
 
 /* Stripeの現契約から店舗のプランを取り込んで同期(webフックの取りこぼし救済)。POST {tid}。
-   運営(super) or 自店舗の代表管理者(admin)が実行可。契約のプラン(N/A/ターボ/ツインターボ)・期限を反映する。 */
+   運営(super) or 自店舗の代表管理者(admin)が実行可。契約のプラン(NA/ターボ/ツインターボ)・期限を反映する。 */
 exports.syncPlan = functions.region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -809,7 +809,7 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       const existing = Number(cur.paidUntil) || 0;
       const next = Math.max(Number(untilMs) || 0, existing);
       const patch = { plan: "active", paidUntil: next || null };
-      // 購入プラン(N/A・ターボ・ツインターボ)を店舗に反映(検索上限/席数の切替)。
+      // 購入プラン(NA・ターボ・ツインターボ)を店舗に反映(検索上限/席数の切替)。
       if (tier) { patch.aiPlan = tier; patch.aiPaidFallback = (tier !== "na"); }
       await ref.set(patch, { merge: true });
     } else {
@@ -895,7 +895,7 @@ const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・ト�
 ・故障診断/修理サポート(DTC・症状から原因と対処をAIが提案。裏取り検索対応)
 ・整備カルテ(作業記録・写真・担当者管理。カルテは担当者のみ編集可)
 ・法人向けクラウド同期(店舗内で車両DB・記録を共有。席指名・端末管理)
-【料金(法人)】3プラン。①N/A: 月¥7,980/年¥86,000(AI検索なし)。②ターボ: 月¥12,800/年¥138,000(月500回検索)。③ツインターボ: 月¥19,800/年¥198,000(検索無制限・指名3席、4席目〜+¥3,000/月)。端末追加も可。
+【料金(法人)】3プラン。①NA: 月¥7,980/年¥86,000(AI検索なし)。②ターボ: 月¥12,800/年¥138,000(月500回検索)。③ツインターボ: 月¥19,800/年¥198,000(検索無制限・指名3席、4席目〜+¥3,000/月)。端末追加も可。
 【個人版】App Store/Google Playで提供予定。基本無料。
 【多言語対応】画面は日本語・英語に対応。外国人スタッフや技能実習生でも使え、人手不足の現場で戦力化しやすい（人手不足の訴求と直結する強み）。
 【強み】現場の紙作業・調べ物を削減。車検証から一気通貫。最新Geminiで高精度。整備士目線のUI。`;
