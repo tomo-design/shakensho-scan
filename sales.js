@@ -46,6 +46,7 @@
   let me = null;
   let curStaff = "bucho";
   let curLeadId = "";
+  let replyCtx = null;   // 問い合わせへの返信作成時の相手コンテキスト(見込み客未登録でも文脈に使う)
   let leads = [];
   const histByStaff = {}; // {staffId: [{role,text}]}
 
@@ -162,7 +163,7 @@
     tip.innerHTML = `${avaHtml(s)}<div class="bubble">考え中…</div>`;
     log.appendChild(tip); log.scrollTop = log.scrollHeight;
     $("btnSend").disabled = true;
-    const lead = curLeadId ? leads.find((l) => l.id === curLeadId) : null;
+    const lead = replyCtx || (curLeadId ? leads.find((l) => l.id === curLeadId) : null);
     try {
       const j = await api("generate", { role: curStaff, task, lead, history: hist.slice(0, -1) });
       hist.push({ role: "ai", text: j.text || "(応答なし)" });
@@ -174,7 +175,12 @@
     }
   }
 
-  $("leadSelect").onchange = () => { curLeadId = $("leadSelect").value; };
+  $("leadSelect").onchange = () => { curLeadId = $("leadSelect").value; replyCtx = null; updateReplyBanner(); };
+  function updateReplyBanner() {
+    var el = $("replyBanner"); if (!el) return;
+    if (replyCtx) { el.classList.remove("hidden"); el.innerHTML = "✉ <b>" + esc(replyCtx.company) + "</b> の問い合わせに返信中 <button id='replyClear' class='rb-x'>解除</button>"; var x = $("replyClear"); if (x) x.onclick = () => { replyCtx = null; updateReplyBanner(); }; }
+    else { el.classList.add("hidden"); el.innerHTML = ""; }
+  }
 
   // ---------- 見込み客 ----------
   async function loadLeads() {
@@ -250,11 +256,15 @@
           ${q.message ? `<div class="note">${esc(q.message)}</div>` : ""}
         </div>
         <div class="acts">
+          <button class="btn btn-accent btn-sm" data-reply="${q.id}">✉ 返信文を作成</button>
           <button class="btn btn-dark btn-sm" data-tolead="${q.id}">見込み客に追加</button>
           <button class="btn btn-ghost btn-sm" data-done="${q.id}">対応済みに</button>
           <button class="btn btn-ghost btn-sm" data-delq="${q.id}">削除</button>
         </div>
       </div>`).join("");
+    box.querySelectorAll("[data-reply]").forEach((b) => b.onclick = () => {
+      const q = inquiries.find((x) => x.id === b.dataset.reply); if (q) replyToInquiry(q);
+    });
     box.querySelectorAll("[data-tolead]").forEach((b) => b.onclick = async () => {
       try { await api("inquiryToLead", { id: b.dataset.tolead }); toast("見込み客に追加しました"); await Promise.all([loadInbox(), loadLeads()]); renderInbox(); }
       catch (e) { toast(e.message); }
@@ -270,6 +280,24 @@
     });
   }
   const _rb = $("btnReloadInbox"); if (_rb) _rb.onclick = () => loadInbox();
+
+  // 問い合わせから、そのまま返信メールをAI(ライター)に作らせる
+  function replyToInquiry(q) {
+    replyCtx = {
+      company: q.company || "", contact: q.name || "", kind: q.kind || "",
+      email: q.email || "", phone: q.phone || "", status: "資料請求・デモ申込",
+      note: (q.plan ? "関心プラン:" + q.plan + " / " : "") + "問い合わせ本文: " + (q.message || "（本文なし）"),
+    };
+    curLeadId = "";
+    document.querySelector('.tab[data-tab="team"]').click();
+    selectStaff("writer");
+    if ($("leadSelect")) $("leadSelect").value = "";
+    updateReplyBanner();
+    ta.value = "この会社からの資料請求・デモ申込への返信メールを作成して。相手の質問や関心（上記メモ）に触れ、お礼→簡単な要点→無料で試せる導線（アプリ体験デモ ?demo=1、契約後は7日間無料トライアル）→次の一歩（オンラインで簡単な説明やお試しの日程調整）を丁寧に案内。署名は[会社名/担当者/電話/メール]のプレースホルダで。押し売りにしない。";
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    sendTask();
+    toast("返信文を作成中…");
+  }
 
   let editingId = "";
   function openLead(id) {
