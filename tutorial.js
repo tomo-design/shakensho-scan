@@ -81,15 +81,23 @@
     spot.classList.toggle("pulse", !!(s.nav || s.action));
     set(spot, hx, hy, hw, hh);
     layoutMasks(hx, hy, hw, hh);
-    // ツールチップ配置: 対象の下に置く→入らなければ上→どちらも入らない(対象が画面いっぱい)なら
-    // 画面下端に固定して、重要な上部情報に被らないようにする。
+    // ツールチップ配置:
+    //  ① 対象の横(左右)に十分な余白があれば、その余白側に縦中央で置く(PCの広い画面向き)
+    //  ② なければ 下 → 上 → どちらも入らなければ画面下端にピン留め(モバイルの縦長対象向き)
     var tipH = tip.offsetHeight || 160, tipW = tip.offsetWidth || 300, VH = window.innerHeight, VW = window.innerWidth;
-    var spaceBelow = VH - (hy + hh) - 12, spaceAbove = hy - 12, top;
-    if (spaceBelow >= tipH) top = hy + hh + 12;
-    else if (spaceAbove >= tipH) top = hy - tipH - 12;
-    else top = VH - tipH - 14;   // 上下とも余白なし → 画面下端にピン留め
-    tip.style.top = Math.max(8, top) + "px";
-    tip.style.left = Math.min(Math.max(12, hx + hw / 2 - tipW / 2), VW - tipW - 12) + "px";
+    var clamp = function (v, lo, hi) { return Math.min(Math.max(v, lo), hi); };
+    var gutterL = hx, gutterR = VW - (hx + hw), top, left;
+    if (gutterR >= tipW + 24) { left = hx + hw + 16; top = clamp(hy + hh / 2 - tipH / 2, 8, VH - tipH - 8); }
+    else if (gutterL >= tipW + 24) { left = hx - tipW - 16; top = clamp(hy + hh / 2 - tipH / 2, 8, VH - tipH - 8); }
+    else {
+      if (VH - (hy + hh) - 12 >= tipH) top = hy + hh + 12;
+      else if (hy - 12 >= tipH) top = hy - tipH - 12;
+      else top = VH - tipH - 14;
+      top = Math.max(8, top);
+      left = clamp(hx + hw / 2 - tipW / 2, 12, VW - tipW - 12);
+    }
+    tip.style.top = top + "px";
+    tip.style.left = left + "px";
   }
   function reposition() {
     var s = STEPS[i]; if (!s || s.center || !curEl || revealed) return;
