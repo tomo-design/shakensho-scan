@@ -129,10 +129,10 @@ textarea{resize:none;line-height:1.6}
 .turn{display:flex;gap:10px;max-width:90%}
 .turn.me{align-self:flex-end;flex-direction:row-reverse}
 .turn .ava{width:28px;height:28px;border-radius:8px;font-size:12px}
-.turn.me .ava{background:var(--dark)}
+.turn.me .ava{background:#3a4150;color:#fff}
 .bubble{padding:10px 13px;border-radius:12px;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.65}
 .turn.ai .bubble{background:#f4f5f7;border:1px solid var(--line);border-top-left-radius:4px}
-.turn.me .bubble{background:var(--dark);color:#fff;border-top-right-radius:4px}
+.turn.me .bubble{background:#3a4150;color:#fff;border-top-right-radius:4px}
 .turn .who{font-size:11px;color:var(--ink2);margin-bottom:3px;font-weight:600}
 .turn .copy{display:inline-block;margin-top:7px;font-size:11px;color:var(--accent-d);cursor:pointer;font-weight:600}
 .turn.typing .bubble{color:var(--ink2);font-style:italic}
