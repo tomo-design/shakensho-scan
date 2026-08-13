@@ -81,11 +81,15 @@
     spot.classList.toggle("pulse", !!(s.nav || s.action));
     set(spot, hx, hy, hw, hh);
     layoutMasks(hx, hy, hw, hh);
-    // ツールチップ配置(対象の下、はみ出すなら上)
-    var tipH = tip.offsetHeight || 160, tipW = tip.offsetWidth || 300;
-    var below = hy + hh + 12;
-    tip.style.top = (below + tipH > window.innerHeight - 8 ? Math.max(8, hy - tipH - 12) : below) + "px";
-    tip.style.left = Math.min(Math.max(12, hx + hw / 2 - tipW / 2), window.innerWidth - tipW - 12) + "px";
+    // ツールチップ配置: 対象の下に置く→入らなければ上→どちらも入らない(対象が画面いっぱい)なら
+    // 画面下端に固定して、重要な上部情報に被らないようにする。
+    var tipH = tip.offsetHeight || 160, tipW = tip.offsetWidth || 300, VH = window.innerHeight, VW = window.innerWidth;
+    var spaceBelow = VH - (hy + hh) - 12, spaceAbove = hy - 12, top;
+    if (spaceBelow >= tipH) top = hy + hh + 12;
+    else if (spaceAbove >= tipH) top = hy - tipH - 12;
+    else top = VH - tipH - 14;   // 上下とも余白なし → 画面下端にピン留め
+    tip.style.top = Math.max(8, top) + "px";
+    tip.style.left = Math.min(Math.max(12, hx + hw / 2 - tipW / 2), VW - tipW - 12) + "px";
   }
   function reposition() {
     var s = STEPS[i]; if (!s || s.center || !curEl || revealed) return;
