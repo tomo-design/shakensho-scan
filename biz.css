@@ -1,9 +1,13 @@
 /* ============ メカノAI 法人LP ============ */
 *{box-sizing:border-box}
 :root{
-  --ink:#171a20;--ink2:#5c6472;--line:#e7e9ee;--bg:#ffffff;--soft:#f5f6f8;
-  --graph:#181b22;--graph2:#22262f;--accent:#e8912d;--accent-d:#cf7c1c;--green:#1f9d55;
-  --font:-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  /* アプリ(メカノAI)と統一: ネイビー×ブルー(#2563EB)×ゴールド(#ffb100)、薄いブルーグレー背景 */
+  --ink:#1B2530;--ink2:#5E6B7C;--line:#D5DDE8;--bg:#ffffff;--soft:#F2F5F9;
+  --graph:#0f2a5a;--graph2:#173b73;      /* ダーク面=ネイビー(アプリのデモバナー/購入ボタン系) */
+  --accent:#2563EB;--accent-d:#1d4ed8;   /* プライマリ=アプリのブルー */
+  --gold:#ffb100;--gold-d:#e09e00;       /* 差し色=アプリのデモCTAゴールド */
+  --green:#15803D;
+  --font:'Noto Sans JP',-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;
   --wrap:1080px;
 }
 html{scroll-behavior:smooth}
@@ -27,8 +31,10 @@ h1,h2,h3{line-height:1.35;margin:0}
 /* ボタン */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid transparent;border-radius:11px;padding:13px 24px;font-size:15px;transition:.15s}
 .btn-block{display:flex;width:100%}
-.btn-accent{background:var(--accent);color:#241403}
+.btn-accent{background:var(--accent);color:#fff}
 .btn-accent:hover{background:var(--accent-d)}
+.btn-gold{background:var(--gold);color:#0f2a5a}
+.btn-gold:hover{background:var(--gold-d)}
 .btn-dark{background:var(--graph);color:#fff}
 .btn-dark:hover{background:#0f1218}
 .btn-ghost{background:transparent;border-color:rgba(255,255,255,.35);color:#fff}
@@ -45,13 +51,13 @@ h1,h2,h3{line-height:1.35;margin:0}
 .nav-links{display:flex;align-items:center;gap:26px;font-size:14px;font-weight:600}
 .nav-links a{text-decoration:none;color:var(--ink2);transition:.15s}
 .nav-links a:hover{color:var(--ink)}
-.nav-cta{background:var(--accent);color:#241403!important;padding:9px 16px;border-radius:9px}
+.nav-cta{background:var(--accent);color:#fff!important;padding:9px 16px;border-radius:9px}
 .nav-cta:hover{background:var(--accent-d)}
 
 /* ============ ヒーロー ============ */
 .hero{background:radial-gradient(1000px 500px at 80% -20%,#2a2f39 0%,var(--graph) 45%,#0f1218 100%);color:#fff;overflow:hidden}
 .hero-in{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-top:74px;padding-bottom:74px}
-.eyebrow{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--accent);background:rgba(232,145,45,.12);border:1px solid rgba(232,145,45,.3);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.eyebrow{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--gold);background:rgba(255,177,0,.14);border:1px solid rgba(255,177,0,.35);padding:5px 12px;border-radius:999px;margin-bottom:18px}
 .hero h1{font-size:40px;font-weight:900;letter-spacing:.01em}
 .lead{color:#c8cdd6;font-size:16.5px;margin:18px 0 26px;max-width:520px}
 .lead b{color:#fff}
@@ -64,7 +70,7 @@ h1,h2,h3{line-height:1.35;margin:0}
 .phone-top{width:70px;height:6px;background:#2c313b;border-radius:99px;margin:2px auto 16px}
 .phone-row{display:flex;align-items:center;gap:9px;font-size:13px;color:#c8cdd6;padding:9px 4px}
 .dot{width:9px;height:9px;border-radius:50%}
-.dot.amber{background:var(--accent)}.dot.green{background:var(--green)}
+.dot.amber{background:var(--gold)}.dot.green{background:#43e08a}
 .phone-card{background:#171b22;border:1px solid #2c313b;border-radius:14px;padding:14px;margin:6px 0}
 .pc-h{font-size:12px;color:var(--accent);font-weight:700;margin-bottom:9px;letter-spacing:.04em}
 .pc-line{display:flex;justify-content:space-between;font-size:13.5px;color:#e7e9ee;padding:6px 0;border-top:1px solid #22262f}
@@ -100,8 +106,8 @@ h1,h2,h3{line-height:1.35;margin:0}
 /* 料金 */
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}
 .plan{position:relative;background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px 24px;display:flex;flex-direction:column;gap:6px}
-.plan.feature{border-color:var(--accent);box-shadow:0 20px 50px -24px rgba(232,145,45,.6);transform:translateY(-6px)}
-.ribbon{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--accent);color:#241403;font-size:12px;font-weight:800;padding:4px 14px;border-radius:999px}
+.plan.feature{border-color:var(--accent);box-shadow:0 20px 50px -24px rgba(37,99,235,.55);transform:translateY(-6px)}
+.ribbon{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--gold);color:#0f2a5a;font-size:12px;font-weight:800;padding:4px 14px;border-radius:999px}
 .plan-name{font-size:20px;font-weight:900;letter-spacing:.04em}
 .plan-desc{color:var(--ink2);font-size:13px}
 .plan-price{margin-top:10px}
@@ -114,8 +120,8 @@ h1,h2,h3{line-height:1.35;margin:0}
 .plan li.off{color:#aab0ba}
 .plan li.off::before{border-color:#cfd4dc;transform:none;top:9px;width:11px;height:0;border-left:0;border-bottom:2px solid #cfd4dc}
 .plan .btn{margin-top:auto}
-.trial-badge{text-align:center;margin:26px auto 0;max-width:640px;background:#fff7ee;border:1px solid var(--accent);color:#8a5a00;font-size:14px;padding:12px 18px;border-radius:12px}
-.trial-badge b{color:var(--accent-d)}
+.trial-badge{text-align:center;margin:26px auto 0;max-width:640px;background:#FFF7E6;border:1px solid var(--gold);color:#7a5b00;font-size:14px;padding:12px 18px;border-radius:12px}
+.trial-badge b{color:#b07d00}
 .price-note{text-align:center;color:var(--ink2);font-size:12.5px;margin-top:14px}
 
 /* 導入の流れ */
@@ -140,7 +146,7 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
 .form .f2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .form i{color:var(--accent-d);font-style:normal;font-size:11px;margin-left:4px}
 .form input,.form select,.form textarea{width:100%;margin-top:6px;padding:12px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;color:var(--ink);background:#fff;font-weight:400}
-.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,145,45,.16)}
+.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.16)}
 .form textarea{resize:vertical}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .agree{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--ink)}
