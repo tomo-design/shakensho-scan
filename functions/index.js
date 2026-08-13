@@ -564,6 +564,7 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
     const sub = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
+      trial_period_days: 7,          // ★契約から7日間は無料トライアル(status:trialing)。8日目に初回請求書。
       collection_method: "send_invoice",
       days_until_due: 14,
       metadata: { tenantId: tid, aiPlan: tier },   // 購入プランをwebフックで店舗に反映
@@ -576,11 +577,15 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
       },
       expand: ["latest_invoice"],
     });
-    let inv = sub.latest_invoice;
-    if (inv && inv.status === "draft") { try { inv = await stripe.invoices.finalizeInvoice(inv.id); } catch (e) {} }
-    if (inv && inv.id) { try { await stripe.invoices.sendInvoice(inv.id); } catch (e) {} }   // メール送付
-    const url = inv && (inv.hosted_invoice_url || null);
-    return res.json({ url: url, invoiceSent: true });
+    // トライアル中は初回請求が¥0のため請求書は送らない。実請求(amount_due>0)がある時だけ送付。
+    const trial = sub.status === "trialing";
+    let inv = sub.latest_invoice, url = null, invoiceSent = false;
+    if (inv && (inv.amount_due || 0) > 0) {
+      if (inv.status === "draft") { try { inv = await stripe.invoices.finalizeInvoice(inv.id); } catch (e) {} }
+      if (inv && inv.id) { try { await stripe.invoices.sendInvoice(inv.id); invoiceSent = true; } catch (e) {} }
+      url = inv && (inv.hosted_invoice_url || null);
+    }
+    return res.json({ url: url, invoiceSent: invoiceSent, trial: trial, trialEnd: sub.trial_end || null });
   } catch (e) {
     return res.status(500).json({ error: "請求書の作成に失敗: " + (e.message || e) });
   }

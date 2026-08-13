@@ -197,6 +197,11 @@
       // 請求書(お支払いページ)を作成。カード/銀行振込/コンビニを選べるページへ遷移。
       try {
         const d = await window.Cloud.callFn("createCheckout", { plan: planPref, tier: tierPref, email: me.email || "" });
+        if (d && d.trial) {
+          const end = d.trialEnd ? new Date(d.trialEnd * 1000).toLocaleDateString("ja-JP") : "";
+          $("signupStat").innerHTML = "✓ 7日間の無料トライアルを開始しました。全機能をお使いいただけます。" + (end ? "<br>初回のご請求書は " + end + " 頃にお送りします。" : "");
+          send.disabled = false; return;
+        }
         if (d && d.url) { $("signupStat").textContent = "お支払いページを開きます…"; window.location.href = d.url; return; }
         if (d && d.invoiceSent) { $("signupStat").innerHTML = "✓ 請求書メールを送りました。メール内のリンクからお支払いください。"; send.disabled = false; return; }
         throw new Error("お支払いページを取得できませんでした");

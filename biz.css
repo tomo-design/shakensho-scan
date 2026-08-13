@@ -112,7 +112,9 @@ h1,h2,h3{line-height:1.35;margin:0}
 .plan li.off{color:#aab0ba}
 .plan li.off::before{border-color:#cfd4dc;transform:none;top:9px;width:11px;height:0;border-left:0;border-bottom:2px solid #cfd4dc}
 .plan .btn{margin-top:auto}
-.price-note{text-align:center;color:var(--ink2);font-size:12.5px;margin-top:26px}
+.trial-badge{text-align:center;margin:26px auto 0;max-width:640px;background:#fff7ee;border:1px solid var(--accent);color:#8a5a00;font-size:14px;padding:12px 18px;border-radius:12px}
+.trial-badge b{color:var(--accent-d)}
+.price-note{text-align:center;color:var(--ink2);font-size:12.5px;margin-top:14px}
 
 /* 導入の流れ */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
