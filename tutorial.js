@@ -57,8 +57,12 @@
   function unionRect(s, el) {
     var r = el.getBoundingClientRect();
     var rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-    var also = s.also ? (visible(s.also) || $(s.also)) : null;
-    if (also) { var r2 = also.getBoundingClientRect(); rect.left = Math.min(rect.left, r2.left); rect.top = Math.min(rect.top, r2.top); rect.right = Math.max(rect.right, r2.right); rect.bottom = Math.max(rect.bottom, r2.bottom); }
+    // 補助要素は「実際に表示されていて大きさがある」時だけ囲む(非表示要素の0,0を巻き込まない)
+    var also = s.also ? visible(s.also) : null;
+    if (also) {
+      var r2 = also.getBoundingClientRect();
+      if (r2.width > 0 && r2.height > 0) { rect.left = Math.min(rect.left, r2.left); rect.top = Math.min(rect.top, r2.top); rect.right = Math.max(rect.right, r2.right); rect.bottom = Math.max(rect.bottom, r2.bottom); }
+    }
     return rect;
   }
   function layoutMasks(hx, hy, hw, hh) {
