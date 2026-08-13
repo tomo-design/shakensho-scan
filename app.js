@@ -1690,8 +1690,12 @@ function renderRepairAnswer(box, obj, q) {
       const row = document.createElement("div"); row.className = "torqueRow";
       const m = it.match(/^(.+?)\s*[:：]\s*(.+)$/);
       if (m) {
+        const val = m[2];
+        // 多段トルク等で値が長い場合は、部位名の縦つぶれを防ぐため上下2段で表示
+        const longVal = /→|段階|ステップ|step/i.test(val) || val.length > 16;
+        if (longVal) row.classList.add("torqueRowStack");
         const k = document.createElement("span"); k.className = "tqK"; k.textContent = m[1];
-        const v = document.createElement("span"); v.className = "tqV"; v.textContent = m[2];
+        const v = document.createElement("span"); v.className = "tqV"; v.textContent = val;
         row.append(k, v);
       } else { row.textContent = it; }
       list.appendChild(row);
