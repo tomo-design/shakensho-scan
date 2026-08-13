@@ -293,7 +293,7 @@
     selectStaff("writer");
     if ($("leadSelect")) $("leadSelect").value = "";
     updateReplyBanner();
-    ta.value = "この会社からの資料請求・デモ申込への返信メールを作成して。相手の質問や関心（上記メモ）に触れ、お礼→簡単な要点→無料で試せる導線（アプリ体験デモ ?demo=1、契約後は7日間無料トライアル）→次の一歩（オンラインで簡単な説明やお試しの日程調整）を丁寧に案内。署名は実データの固定署名（メカノAI／Cablueie（カブリエ）／担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com）をそのまま使い、プレースホルダは使わない。押し売りにしない。";
+    ta.value = "この会社からの資料請求・デモ申込への返信メールを作成して。相手の質問や関心（上記メモ）に触れ、お礼→サービス紹介資料の案内（https://mechanoai-cablueie.com/shiryou.html）→簡単な要点→無料で試せる導線（アプリ体験デモ https://mechanoai-cablueie.com/?demo=1、契約後は7日間無料トライアル）→次の一歩（オンラインで簡単な説明やお試しの日程調整）を丁寧に案内。署名は実データの固定署名（メカノAI／Cablueie（カブリエ）／担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com）をそのまま使い、プレースホルダは使わない。押し売りにしない。";
     ta.dispatchEvent(new Event("input", { bubbles: true }));
     sendTask();
     toast("返信文を作成中…");

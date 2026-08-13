@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>メカノAI サービス紹介資料（法人向け）</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--ink:#1B2530;--ink2:#5E6B7C;--line:#D5DDE8;--soft:#F2F5F9;--navy:#0f2a5a;--blue:#2563EB;--gold:#ffb100;--green:#15803D}
+  *{box-sizing:border-box}
+  body{margin:0;background:#e8ecf1;color:var(--ink);font-family:'Noto Sans JP',-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;line-height:1.7;-webkit-text-size-adjust:100%}
+  .bar{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px}
+  .bar .t{font-weight:700;font-size:14px}
+  .bar button{background:var(--gold);color:var(--navy);border:0;border-radius:9px;padding:9px 16px;font-weight:800;font-size:14px;cursor:pointer}
+  .page{background:#fff;max-width:820px;margin:18px auto;padding:44px 48px;box-shadow:0 6px 24px rgba(0,0,0,.12)}
+  .cover{background:linear-gradient(150deg,var(--navy),#173b73);color:#fff;margin:-44px -48px 30px;padding:44px 48px 38px}
+  .cover .brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .cover .brand img{width:44px;height:44px;border-radius:11px}
+  .cover .brand span{font-weight:800;letter-spacing:.1em}
+  .cover .brand small{display:block;font-size:10px;letter-spacing:.2em;color:#9fb3d8}
+  .cover .eyebrow{color:var(--gold);font-weight:700;font-size:13px;letter-spacing:.1em}
+  .cover h1{font-size:30px;margin:8px 0 10px;line-height:1.35}
+  .cover p{color:#cfe;color:#c8d6ef;font-size:15px;max-width:560px;margin:0}
+  .cover .tag{display:inline-block;margin-top:18px;background:rgba(255,177,0,.16);border:1px solid rgba(255,177,0,.4);color:var(--gold);font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px}
+  h2{font-size:19px;border-left:5px solid var(--blue);padding-left:12px;margin:34px 0 16px}
+  h2:first-of-type{margin-top:6px}
+  .lead{font-size:15px;color:var(--ink2)}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .box{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--soft)}
+  .box h3{margin:0 0 6px;font-size:14.5px}
+  .box p{margin:0;font-size:12.5px;color:var(--ink2)}
+  ul.feat{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:10px 20px}
+  ul.feat li{position:relative;padding-left:22px;font-size:13.5px}
+  ul.feat li::before{content:"";position:absolute;left:0;top:6px;width:12px;height:7px;border-left:2px solid var(--blue);border-bottom:2px solid var(--blue);transform:rotate(-45deg)}
+  ul.feat li b{display:block;font-size:14px}
+  table.price{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.price th,table.price td{border:1px solid var(--line);padding:10px 12px;text-align:center}
+  table.price thead th{background:var(--navy);color:#fff;font-weight:700}
+  table.price tbody th{background:var(--soft);text-align:left;font-weight:700;white-space:nowrap}
+  table.price .feat-col{background:#eef4ff}
+  table.price .yen{font-weight:800;font-size:15px}
+  .trial{margin-top:14px;background:#FFF7E6;border:1px solid var(--gold);border-radius:10px;padding:12px 16px;font-size:13.5px}
+  .trial b{color:#b07d00}
+  ol.flow{margin:0;padding-left:20px;font-size:14px}
+  ol.flow li{margin-bottom:8px}
+  ol.flow b{color:var(--blue)}
+  .faq dt{font-weight:700;font-size:14px;margin-top:12px}
+  .faq dd{margin:4px 0 0;font-size:13px;color:var(--ink2)}
+  .company{border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+  .company div{display:grid;grid-template-columns:150px 1fr;border-top:1px solid var(--line)}
+  .company div:first-child{border-top:0}
+  .company dt{background:var(--soft);font-weight:700;padding:10px 14px;margin:0}
+  .company dd{padding:10px 14px;margin:0}
+  .foot{text-align:center;color:var(--ink2);font-size:12px;margin-top:30px;padding-top:16px;border-top:1px solid var(--line)}
+  @media(max-width:640px){.page{padding:26px 20px}.cover{margin:-26px -20px 24px;padding:26px 20px}.grid3{grid-template-columns:1fr}ul.feat{grid-template-columns:1fr}.company div{grid-template-columns:110px 1fr}.cover h1{font-size:23px}}
+  @media print{
+    body{background:#fff}
+    .bar{display:none}
+    .page{box-shadow:none;margin:0;max-width:none;padding:0 6mm}
+    .cover{margin:0 -6mm 18px}
+    h2{break-after:avoid}
+    .box,table.price,.company{break-inside:avoid}
+    @page{size:A4;margin:12mm}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="t">メカノAI サービス紹介資料（法人向け）</span>
+  <button onclick="window.print()">🖶 印刷 / PDFで保存</button>
+</div>
+
+<div class="page">
+  <div class="cover">
+    <div class="brand"><img src="img/logo-mark.png" alt="メカノAI"><span>メカノAI<small>MECHANO-AI</small></span></div>
+    <div class="eyebrow">自動車・トラック整備の現場ツール</div>
+    <h1>その「調べ物」と「記録」、<br>AIが肩代わりします。</h1>
+    <p>車検証をスキャンするだけで、締付トルク・オイル・各種容量などのメンテナンス諸元を即表示。故障診断も整備カルテも、この1台で。人手が足りない現場ほど効きます。</p>
+    <span class="tag">🎁 ご契約から7日間は無料トライアル</span>
+  </div>
+
+  <h2>こんな現場の悩みに</h2>
+  <div class="grid3">
+    <div class="box"><h3>整備士が足りない・若手が育たない</h3><p>ベテランの経験に依存しがちな「調べ物」を仕組み化。若手や外国人スタッフでも必要な数値にすぐ辿り着け、即戦力に。</p></div>
+    <div class="box"><h3>車両が高度化して手間が増えた</h3><p>HV/EVや先進装備で参照情報が増加。車検証から必要な諸元へ最短でアクセス。</p></div>
+    <div class="box"><h3>紙のカルテ・記録がバラバラ</h3><p>作業記録・写真・担当をデジタルで一元管理。店舗内で共有でき引き継ぎもスムーズ。</p></div>
+  </div>
+
+  <h2>主な機能</h2>
+  <ul class="feat">
+    <li><b>車検証スキャン</b>QR・カメラで車両情報を即取得。入力の手間を削減。</li>
+    <li><b>メンテナンス諸元</b>締付トルク・オイル粘度/量・各種容量をAIが即表示。</li>
+    <li><b>AI故障診断・修理サポート</b>DTC・症状から原因と対処を提案（上位は裏取り検索対応）。</li>
+    <li><b>整備カルテ</b>作業記録・写真・担当者を管理。カルテは担当者のみ編集可。</li>
+    <li><b>店舗内クラウド共有</b>車両DB・記録を共有。席指名・端末管理も可能。</li>
+    <li><b>日本語・英語対応</b>外国人スタッフや技能実習生でも使え、戦力化しやすい。</li>
+  </ul>
+
+  <h2>料金（法人プラン）</h2>
+  <table class="price">
+    <thead><tr><th>プラン</th><th>NA</th><th class="feat-col">ターボ（人気）</th><th>ツインターボ</th></tr></thead>
+    <tbody>
+      <tr><th>月額</th><td class="yen">¥7,980</td><td class="yen feat-col">¥12,800</td><td class="yen">¥19,800</td></tr>
+      <tr><th>年額</th><td>¥86,000</td><td class="feat-col">¥138,000</td><td>¥198,000</td></tr>
+      <tr><th>AI裏取り検索</th><td>なし</td><td class="feat-col">月500回</td><td>無制限</td></tr>
+      <tr><th>指名席</th><td>—</td><td class="feat-col">—</td><td>3席（4席目〜+¥3,000/月）</td></tr>
+      <tr><th>基本機能<br>（スキャン/諸元/診断/カルテ/共有）</th><td>✓</td><td class="feat-col">✓</td><td>✓</td></tr>
+    </tbody>
+  </table>
+  <div class="trial">🎁 <b>ご契約から7日間は無料トライアル</b>。期間中は自社の実データで全機能を試せ、初回のご請求は8日目からです（カード登録なしでも開始可）。年額は月額の約2か月分お得。端末追加も可能です。</div>
+
+  <h2>導入はかんたん3ステップ</h2>
+  <ol class="flow">
+    <li><b>資料請求・デモ申込</b>：フォームやメールでご連絡ください。訪問営業はありません。</li>
+    <li><b>初期設定・お試し</b>：店舗アカウントを発行。登録や使い方をオンラインでサポート。</li>
+    <li><b>ご契約・運用開始</b>：7日間の無料トライアルで試してから継続をご判断いただけます。</li>
+  </ol>
+
+  <h2>よくあるご質問</h2>
+  <dl class="faq">
+    <dt>訪問営業や電話勧誘はありますか？</dt><dd>いたしません。ご連絡はいただいた手段（メール等）でのみ行います。</dd>
+    <dt>どんな端末で使えますか？</dt><dd>スマホ・タブレットのブラウザで動作（インストールも可）。1アカウントで複数端末にも対応。</dd>
+    <dt>まず試せますか？</dt><dd>ログイン不要の体験デモに加え、契約後も7日間は無料トライアル。実データで確かめてから判断できます。</dd>
+  </dl>
+
+  <h2>会社概要・お問い合わせ</h2>
+  <dl class="company">
+    <div><dt>事業者名</dt><dd>Cablueie（カブリエ）</dd></div>
+    <div><dt>担当</dt><dd>中江</dd></div>
+    <div><dt>所在地</dt><dd>〒894-0062 鹿児島県奄美市名瀬有屋町36-2</dd></div>
+    <div><dt>電話</dt><dd>080-3692-0101</dd></div>
+    <div><dt>メール</dt><dd>cablueie.123@gmail.com</dd></div>
+    <div><dt>体験デモ</dt><dd>https://mechanoai-cablueie.com/?demo=1（ログイン不要）</dd></div>
+    <div><dt>詳細・申込</dt><dd>https://mechanoai-cablueie.com/biz.html</dd></div>
+  </dl>
+
+  <div class="foot">© 2026 Cablueie. All Rights Reserved.　メカノAI（MECHANO-AI）サービス紹介資料</div>
+</div>
+
+</body>
+</html>
