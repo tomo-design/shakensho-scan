@@ -921,3 +921,13 @@ body.pwLocked{ overflow:hidden }
 .histShareBtn:active{ background:var(--line,#e6e6e6) }
 .histMetaRow{ display:flex; align-items:center; gap:10px; margin-bottom:10px }
 .histMetaRow .histMeta{ flex:1 1 auto; margin:0; padding:0; border:0 }
+
+/* 過去の診断/手引書パネル: ボタン風カードではなく、控えめな見出し＋一覧 */
+.histPanel{ margin-top:20px; background:none; border:0 }
+.histSummary{ list-style:none; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:.04em;
+  color:var(--txt,#222); padding:8px 2px; border-bottom:1px solid var(--line,#e2e2e2);
+  display:flex; align-items:center; gap:7px }
+.histSummary::-webkit-details-marker{ display:none }
+.histSummary::before{ content:"▸"; color:#9aa2ad; font-size:11px }
+.histPanel details[open] .histSummary::before{ content:"▾" }
+.histPanelBody{ padding-top:12px }

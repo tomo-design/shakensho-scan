@@ -364,15 +364,15 @@
     <div class="hint" style="margin-top:10px">※ 回答・部品番号はAIの参考情報です。注文・作業前にFAINESや部品商で正式値を確認してください。</div>
   </div></section>
 
-  <section id="repairHistPanel" class="hidden" style="margin-top:14px">
+  <div id="repairHistPanel" class="histPanel hidden">
     <details>
-      <summary class="secHead" style="cursor:pointer"><span class="tag cy">保存</span>保存した点検手引書（後から閲覧）</summary>
-      <div class="sec-body">
+      <summary class="histSummary">過去の点検手引書</summary>
+      <div class="histPanelBody">
         <div id="repairHistList"></div>
         <div class="hint" style="margin-top:6px">結果はこの端末に保存されます。項目タップで再表示、×で削除。</div>
       </div>
     </details>
-  </section>
+  </div>
 </div>
 
 <!-- ============ VIEW: DIAG ============ -->
@@ -426,15 +426,15 @@
 
   <p class="note">※ 原因候補は参考情報です。最終判断は実測・実点検で。</p>
 
-  <section id="diagHistPanel" class="hidden" style="margin-top:14px">
+  <div id="diagHistPanel" class="histPanel hidden">
     <details>
-      <summary class="secHead" style="cursor:pointer"><span class="tag cy">保存</span>保存した診断結果（後から閲覧）</summary>
-      <div class="sec-body">
+      <summary class="histSummary">過去の診断結果</summary>
+      <div class="histPanelBody">
         <div id="diagHistList"></div>
         <div class="hint" style="margin-top:6px">結果はこの端末に保存されます。項目タップで再表示、×で削除。</div>
       </div>
     </details>
-  </section>
+  </div>
 </div>
 
 <!-- ============ VIEW: HISTORY ============ -->
