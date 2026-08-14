@@ -4273,6 +4273,61 @@ function stashGuideToRecord(cause, text) {
   if (!currentDiagRec) return;
   currentDiagRec.guides[cause] = text; saveDiagRecordObj(currentDiagRec);
 }
+/* 共有本文の整形: Markdown記号を除去し、■見出しは前に空行＋◆、番号候補の前にも空行を入れて
+   LINE等に貼っても読みやすい間隔にする(詰まってごちゃごちゃにならないように)。 */
+function shareCleanBody(s) {
+  let t = String(s || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
+  t = t.replace(/^[■【]\s*(.+?)】?\s*$/gm, "\n◆ $1");     // 見出し: 前に空行＋◆
+  t = t.replace(/^\s*(\d+)[.)、]\s*/gm, "\n$1. ");        // 番号候補: 前に空行
+  t = t.replace(/^\s*[・･]\s*/gm, "・");                   // 箇条書き記号を統一
+  return t.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "").trim();
+}
+/* 共有用テキストを組み立て(見やすい間隔で) */
+function diagShareText(rec) {
+  const v = rec.veh || {}; const L = ["🔧 メカノAI 診断結果"];
+  L.push("車両: " + (v.model || v.type || "不明"));
+  if (rec.input) L.push("症状/コード: " + rec.input);
+  L.push("──────────", shareCleanBody(rec.aiText));
+  const gk = Object.keys(rec.guides || {});
+  if (gk.length) { gk.forEach(c => { L.push("", "──────────", "🔧 点検手引書：" + c, shareCleanBody(rec.guides[c])); }); }
+  L.push("", "──────────", "※参考情報です。最終判断は実測・実点検で。 — メカノAI");
+  return L.join("\n");
+}
+async function shareDiagRecord(rec) {
+  const text = diagShareText(rec);
+  try { if (navigator.share) { await navigator.share({ title: "メカノAI 診断結果", text }); return; } }
+  catch (e) { if (e && e.name === "AbortError") return; }
+  const ok = await copyText(text);
+  uiAlert(ok ? "診断結果をコピーしました。メール・LINE・チャット等に貼り付けて共有できます。" : "コピーできませんでした。", "共有");
+}
+/* 修理(点検手引書)の共有テキスト */
+function repairShareText(rec) {
+  const o = rec.repairObj || {}; const v = rec.veh || {};
+  const L = ["🔧 メカノAI 点検手引書", "車両: " + (v.model || v.type || "不明")];
+  if (rec.input) L.push("作業: " + rec.input);
+  L.push("──────────");
+  if (o.location) L.push("◆ 取り付け位置", o.location);
+  if (Array.isArray(o.order) && o.order.length) { L.push("◆ 部品"); o.order.forEach(p => L.push("・" + (p.name || "") + (p.qty ? " ×" + p.qty : "") + (p.kind && p.kind !== "本体" ? "（" + p.kind + "）" : ""))); }
+  if (Array.isArray(o.steps) && o.steps.length) { L.push("◆ 手順"); o.steps.forEach((s, i) => L.push((i + 1) + ". " + (s.text || s))); }
+  if (o.torque) L.push("◆ 締付トルク", String(o.torque));
+  if (o.special && o.special !== "特になし") L.push("◆ 注意", String(o.special));
+  L.push("──────────", "※参考情報です。作業前にFAINES等で正式値を確認してください。 — メカノAI");
+  return L.join("\n");
+}
+async function shareRepairRecord(rec) {
+  const text = repairShareText(rec);
+  try { if (navigator.share) { await navigator.share({ title: "メカノAI 点検手引書", text }); return; } }
+  catch (e) { if (e && e.name === "AbortError") return; }
+  const ok = await copyText(text);
+  uiAlert(ok ? "点検手引書をコピーしました。メール・LINE・チャット等に貼り付けて共有できます。" : "コピーできませんでした。", "共有");
+}
+/* 保存結果カードのヘッダー右上に置く共有ボタン(1つだけ) */
+function addHeaderShareBtn(sec, rec) {
+  const h2 = sec.querySelector("h2"); if (!h2) return;
+  const b = document.createElement("button"); b.type = "button"; b.className = "histShareBtn"; b.textContent = "📤 共有";
+  b.addEventListener("click", () => shareDiagRecord(rec));
+  h2.appendChild(b);
+}
 /* 修理(点検手引書)の結果も同じ履歴ストアに保存(kind:"repair")。再表示時にrenderRepairAnswerで復元。 */
 function saveRepairRecord(q, obj) {
   const rec = { id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
@@ -4291,6 +4346,7 @@ function viewDiagRecord(rec) {
   const box = $("diagResults"); box.innerHTML = "";
   const v = rec.veh || {};
   const { sec, body } = diagSection("", "メカ君", "保存した診断結果" + (v.model || v.type ? "（" + (v.model || v.type) + "）" : ""));
+  addHeaderShareBtn(sec, rec);   // ヘッダー右上に共有ボタン(1つだけ)
   const meta = document.createElement("div"); meta.className = "histMeta";
   meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (rec.input ? " ／ " + rec.input : "");
   body.appendChild(meta);
@@ -4303,10 +4359,13 @@ function viewDiagRecord(rec) {
 function viewRepairRecord(rec) {
   switchView("parts");
   const box = $("qVehResult"); toggle("qVehResult", true); box.innerHTML = "";
-  const meta = document.createElement("div"); meta.className = "histMeta";
   const v = rec.veh || {};
+  const metaRow = document.createElement("div"); metaRow.className = "histMetaRow";
+  const meta = document.createElement("div"); meta.className = "histMeta";
   meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (v.model || v.type ? " ／ " + (v.model || v.type) : "") + (rec.input ? " ／ " + rec.input : "");
-  box.appendChild(meta);
+  const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
+  sh.addEventListener("click", () => shareRepairRecord(rec));
+  metaRow.append(meta, sh); box.appendChild(metaRow);
   const ans = document.createElement("div"); box.appendChild(ans);
   if (rec.repairObj) renderRepairAnswer(ans, rec.repairObj, rec.input);
   else ans.textContent = "この履歴には表示できる内容がありません。";
