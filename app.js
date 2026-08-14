@@ -3548,6 +3548,74 @@ async function geminiAsk(prompt, opts) {
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
 }
 
+/* ストリーミング版: 回答を逐次(SSE)受信し、onChunk(累積テキスト, 完了フラグ)で少しずつ表示する。
+   → 全文がそろうまで待たずに読み始められ、待機の体感が大きく短くなる。
+   自前キー(BYOK)のみ対応。契約店舗のプロキシ経由/デモ/キー無しは通常のgeminiAskへフォールバック。 */
+async function geminiAskStream(prompt, opts, onChunk) {
+  opts = opts || {};
+  const key = localStorage.getItem(LS.gemini);
+  if (!key || (typeof isDemo === "function" && isDemo())) return geminiAsk(prompt, opts);   // 非対応環境は従来どおり
+  const mode = opts.mode || getAiMode();
+  const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
+  if (!opts.noCache) {
+    const cached = aiCacheGet(ck);
+    if (cached) { if (onChunk) onChunk(cached.text, true); return { text: cached.text, truncated: cached.truncated, model: "cache" }; }
+  }
+  aiAbort = new AbortController();
+  let lastErr = null;
+  for (const model of GEMINI_MODELS[mode]) {
+    try {
+      const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
+      if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
+        const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? -1 : 512);
+        genCfg.thinkingConfig = { thinkingBudget: tb };
+      }
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key),
+        {
+          method: "POST", headers: { "Content-Type": "application/json" }, signal: aiAbort.signal,
+          body: JSON.stringify(Object.assign({ contents: [{ parts: [{ text: prompt }] }], generationConfig: genCfg }, opts.search ? { tools: [{ google_search: {} }] } : {}))
+        });
+      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 503 || res.status === 500) { lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
+      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか設定で標準モードにしてください。"); continue; }
+      if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+      if (!res.ok || !res.body) { lastErr = new Error("AI応答エラー (" + res.status + ")"); continue; }
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      let buf = "", text = "", finish = "";
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          if (line.indexOf("data:") !== 0) continue;
+          const js = line.slice(5).trim(); if (!js || js === "[DONE]") continue;
+          try {
+            const j = JSON.parse(js);
+            const cand = j.candidates && j.candidates[0];
+            const parts = (cand && cand.content && cand.content.parts) || [];
+            const piece = parts.filter(p => !p.thought).map(p => p.text || "").join("");
+            if (piece) { text += piece; if (onChunk) onChunk(text, false); }
+            if (cand && cand.finishReason) finish = cand.finishReason;
+          } catch (e) {}
+        }
+      }
+      if (!text) throw new Error("AIから回答が得られませんでした");
+      const r = { text, truncated: finish === "MAX_TOKENS", model };
+      aiCacheSet(ck, { text: r.text, truncated: r.truncated });
+      if (onChunk) onChunk(text, true);
+      return r;
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("__cancelled__");
+      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
+      lastErr = e;
+    }
+  }
+  // ストリーム経路が全滅した場合は通常呼び出しへフォールバック(壊さない)
+  try { return await geminiAsk(prompt, opts); } catch (e) { throw lastErr || e; }
+}
+
 /* 画像生成: Geminiの画像モデルで実画像(PNG)を生成し data URL を返す。失敗時は "" */
 const imgMemCache = new Map();   // セッション内キャッシュ(無料枠の節約)
 function imgCacheGet(k) {
@@ -3693,19 +3761,29 @@ function attachInspectManual(itemDiv, cause) {
   const btn = document.createElement("button"); btn.type = "button"; btn.className = "manualBtn"; btn.textContent = "📖 点検手引書を作る";
   const pane = document.createElement("div"); pane.className = "manualPane hidden";
   wrap.append(btn, pane); itemDiv.appendChild(wrap);
-  let loaded = false, loading = false;
+  let loaded = false, loading = false, preparing = false;
   function fill(text) {   // 本文をペインへ描画し「作成済み」状態にする(表示状態は変えない)
+    preparing = false; btn.classList.remove("preparing");
     pane.innerHTML = ""; renderInspectManual(pane, cleanCite(text)); loaded = true;
     btn.classList.add("ready");
     if (pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書（作成済み・タップで開く）";
   }
+  function prep() {   // バックグラウンド生成中であることを示す
+    if (loaded || loading) return;
+    preparing = true; btn.classList.add("preparing");
+    if (pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書を準備中…";
+  }
+  function unprep() {   // 生成に失敗した場合は元に戻す(タップで手動生成できる)
+    preparing = false; btn.classList.remove("preparing");
+    if (!loaded && pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書を作る";
+  }
   // 既に事前生成済みなら即反映
   if (diagGuideCache[cause]) fill(diagGuideCache[cause]);
-  inspectPaneReg.push({ cause, apply: (t) => { if (!loaded && !loading) fill(t); } });
+  inspectPaneReg.push({ cause, apply: (t) => { if (!loaded && !loading) fill(t); }, prep, unprep });
   btn.addEventListener("click", async () => {
     const open = pane.classList.toggle("hidden") === false;
     if (loaded) { btn.textContent = open ? "📖 点検手引書を閉じる" : "📖 点検手引書（作成済み・タップで開く）"; return; }
-    btn.textContent = open ? "📖 点検手引書を閉じる" : "📖 点検手引書を作る";
+    btn.textContent = open ? "📖 点検手引書を閉じる" : (preparing ? "📖 点検手引書を準備中…" : "📖 点検手引書を作る");
     if (!open || loading) return;
     if (!aiOK()) { pane.textContent = "点検手引書の生成には設定タブでGemini APIキーが必要です。"; return; }
     loading = true;
@@ -3727,19 +3805,37 @@ function attachInspectManual(itemDiv, cause) {
 }
 /* 上位の原因候補ぶんの点検手引書をバックグラウンドで先に生成しておく(時短)。
    逐次実行で無料枠への負荷を抑え、思考も短めに切り上げて速く仕上げる。完了ぶんは表示中のペインへ即反映。 */
+const AUTO_GUIDE_COUNT = 2;   // 先行生成する候補数(無料枠のレート制限を避けるため絞る)
 async function autoGenGuides(causes, rec) {
   if (!aiOK() || !Array.isArray(causes)) return;
-  for (const cause of causes.slice(0, 3)) {
-    if (!cause || diagGuideCache[cause]) continue;
-    if (!inspectPaneReg.some(p => p.cause === cause)) continue;   // 既に手動生成中/不要なら飛ばす
-    try {
-      const r = await geminiAsk(buildInspectManualPrompt(cause, ""), { mode: "pro", thinkingBudget: 2048 });
-      diagGuideCache[cause] = r.text;
-      if (rec) { rec.guides[cause] = r.text; saveDiagRecordObj(rec); }
-      inspectPaneReg.filter(p => p.cause === cause).forEach(p => p.apply(r.text));
-    } catch (e) { /* 事前生成の失敗は無視(タップ時に手動生成できる) */ }
+  const targets = causes.filter(c => c && !diagGuideCache[c] && inspectPaneReg.some(p => p.cause === c)).slice(0, AUTO_GUIDE_COUNT);
+  // 本体診断の直後に連続でPro呼び出しすると無料枠(RPM)で429になりやすい → 少し間隔を空けて逐次実行。
+  await sleep(1500);
+  for (let i = 0; i < targets.length; i++) {
+    const cause = targets[i];
+    if (diagGuideCache[cause]) continue;
+    const regs = inspectPaneReg.filter(p => p.cause === cause);
+    if (!regs.length) continue;
+    regs.forEach(p => p.prep && p.prep());
+    let ok = false;
+    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+      try {
+        const r = await geminiAsk(buildInspectManualPrompt(cause, ""), { mode: "pro", thinkingBudget: 2048 });
+        diagGuideCache[cause] = r.text;
+        if (rec) { rec.guides[cause] = r.text; saveDiagRecordObj(rec); }
+        regs.forEach(p => p.apply(r.text));
+        ok = true;
+      } catch (e) {
+        // レート制限(上限)なら少し待って1回だけ再試行。それ以外/2回目失敗は諦める。
+        if (attempt === 0 && e && /上限|429|混雑/.test(e.message || "")) { await sleep(6000); }
+        else break;
+      }
+    }
+    if (!ok) regs.forEach(p => p.unprep && p.unprep());
+    if (i < targets.length - 1) await sleep(2500);   // 次の生成まで間隔を空ける
   }
 }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /* 点検手引書を「見出しタップで開閉するアコーディオン」で描画。
    ■/【】見出しごとに区切り、見出しをタップすると内容が開き、他の見出しを開くと前は閉じる(1つだけ開く)。 */
@@ -4094,9 +4190,16 @@ async function runDiagAI(text) {
   const stopTimer = startThinkingTimer(p, "🔧 メカ君が考えています");   // 経過秒を出して待機の体感を軽くする
   body.appendChild(p);
   box.prepend(sec);
+  let streamed = false;
   try {
-    const r = await geminiAsk(buildDiagPrompt(text), { mode: "pro" });   // 故障診断は常に高精度(思考ON)
+    // ストリーミングで逐次表示＋思考量に上限を設けて、結果が出るまでの待ち時間を短縮する。
+    const r = await geminiAskStream(buildDiagPrompt(text), { mode: "pro", thinkingBudget: 3072 }, (acc, done) => {
+      if (done) return;
+      if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
+      p.textContent = acc;   // 生成されたぶんから先に読める
+    });
     stopTimer();
+    p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";

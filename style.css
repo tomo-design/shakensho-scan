@@ -901,3 +901,11 @@ body.pwLocked{ overflow:hidden }
 .histIco{ flex:0 0 auto; width:38px; border:0; border-left:1px solid var(--line,#eee);
   background:none; cursor:pointer; font-size:15px; color:#666 }
 .histIco:active{ background:rgba(0,0,0,.05) }
+
+/* ストリーミング中の回答: 改行を保持し、末尾に点滅カーソル */
+.ai-answer.streaming{ white-space:pre-wrap; line-height:1.7 }
+.ai-answer.streaming::after{ content:"▍"; margin-left:1px; animation:blinkCaret 1s step-end infinite; color:var(--brand,#1e5aa8) }
+@keyframes blinkCaret{ 50%{ opacity:0 } }
+/* 点検手引書を先行生成中のボタン */
+.manualBtn.preparing{ opacity:.75 }
+.manualBtn.preparing::before{ content:"⏳ "; }
