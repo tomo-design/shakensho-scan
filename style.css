@@ -909,3 +909,7 @@ body.pwLocked{ overflow:hidden }
 /* 点検手引書を先行生成中のボタン */
 .manualBtn.preparing{ opacity:.75 }
 .manualBtn.preparing::before{ content:"⏳ "; }
+
+/* 保存結果の日時メタ行 / 手引書の先行生成ステータス */
+.histMeta{ font-size:12px; color:#888; margin:0 0 10px; padding-bottom:8px; border-bottom:1px dashed var(--line,#e2e2e2) }
+.guidePrep{ margin-top:10px; color:var(--brand,#1e5aa8); font-weight:600 }

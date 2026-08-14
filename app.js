@@ -1512,9 +1512,9 @@ async function runVehAsk() {
     }
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
-    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) renderRepairAnswer(box, obj, qFull);
+    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(box, obj, qFull); saveRepairRecord(qFull, obj); }
     else if (obj && obj.answer) renderAiAnswer(box, obj.answer);
-    else if (obj && obj.isWork) renderRepairAnswer(box, obj, qFull);
+    else if (obj && obj.isWork) { renderRepairAnswer(box, obj, qFull); saveRepairRecord(qFull, obj); }
     else renderAiAnswer(box, r.text);
   } catch (e) {
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -3806,33 +3806,43 @@ function attachInspectManual(itemDiv, cause) {
 /* 上位の原因候補ぶんの点検手引書をバックグラウンドで先に生成しておく(時短)。
    逐次実行で無料枠への負荷を抑え、思考も短めに切り上げて速く仕上げる。完了ぶんは表示中のペインへ即反映。 */
 const AUTO_GUIDE_COUNT = 3;   // 先行生成する候補数
-async function autoGenGuides(causes, rec) {
-  if (!aiOK() || !Array.isArray(causes)) return;
+async function autoGenGuides(causes, rec, statusEl) {
+  const clearStatus = () => { if (statusEl && statusEl.parentNode) statusEl.remove(); };
+  if (!aiOK() || !Array.isArray(causes)) { clearStatus(); return; }
   const targets = causes.filter(c => c && !diagGuideCache[c] && inspectPaneReg.some(p => p.cause === c)).slice(0, AUTO_GUIDE_COUNT);
+  if (!targets.length) { clearStatus(); return; }
+  const setStatus = (done) => { if (statusEl) statusEl.textContent = "🔧 点検手引書を準備中…（" + done + "/" + targets.length + "）"; };
+  setStatus(0);
   // 本体診断の直後に連続でPro呼び出しすると無料枠(RPM)で429になりやすい → 少し間隔を空けて逐次実行。
-  await sleep(1500);
+  await sleep(600);
+  let ok = 0;
   for (let i = 0; i < targets.length; i++) {
     const cause = targets[i];
-    if (diagGuideCache[cause]) continue;
+    if (diagGuideCache[cause]) { ok++; setStatus(ok); continue; }
     const regs = inspectPaneReg.filter(p => p.cause === cause);
     if (!regs.length) continue;
     regs.forEach(p => p.prep && p.prep());
-    let ok = false;
-    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+    let done = false;
+    for (let attempt = 0; attempt < 2 && !done; attempt++) {
       try {
         const r = await geminiAsk(buildInspectManualPrompt(cause, ""), { mode: "pro", thinkingBudget: 2048 });
         diagGuideCache[cause] = r.text;
         if (rec) { rec.guides[cause] = r.text; saveDiagRecordObj(rec); }
         regs.forEach(p => p.apply(r.text));
-        ok = true;
+        done = true; ok++;
       } catch (e) {
         // レート制限(上限)なら少し待って1回だけ再試行。それ以外/2回目失敗は諦める。
         if (attempt === 0 && e && /上限|429|混雑/.test(e.message || "")) { await sleep(6000); }
         else break;
       }
     }
-    if (!ok) regs.forEach(p => p.unprep && p.unprep());
-    if (i < targets.length - 1) await sleep(2500);   // 次の生成まで間隔を空ける
+    if (!done) regs.forEach(p => p.unprep && p.unprep());
+    setStatus(ok);
+    if (i < targets.length - 1) await sleep(1500);   // 次の生成まで少し間隔を空ける
+  }
+  if (statusEl) {
+    if (ok) statusEl.textContent = "✅ 点検手引書を" + ok + "件用意しました（原因候補の「点検手引書を開く」から確認できます）";
+    else clearStatus();
   }
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -4206,13 +4216,14 @@ async function runDiagAI(text) {
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
       + "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
-    // 結果を履歴に保存し、共有バーを付ける
+    // 結果を履歴に保存(別車両を検索して画面がクリアされても後から一覧で閲覧できる)
     const rec = saveDiagRecord(text, r.text, getAiMode());
-    body.insertBefore(diagResultToolbar(rec), p);
-    appendAiFollowup(body, text, r.text);
-    // 上位の原因候補ぶんの点検手引書をバックグラウンドで先に作っておく(時短)
+    // 上位の原因候補ぶんの点検手引書をバックグラウンドで先に作っておく(時短)。進捗を表示。
+    const guideNote = document.createElement("div"); guideNote.className = "hint guidePrep";
+    body.appendChild(guideNote);
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
-    autoGenGuides(causes, rec);
+    autoGenGuides(causes, rec, guideNote);
+    appendAiFollowup(body, text, r.text);
   } catch (e) {
     stopTimer();
     if (e.message !== "__cancelled__") p.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -4262,57 +4273,50 @@ function stashGuideToRecord(cause, text) {
   if (!currentDiagRec) return;
   currentDiagRec.guides[cause] = text; saveDiagRecordObj(currentDiagRec);
 }
-/* 共有用テキストを組み立て */
-function diagShareText(rec) {
-  const L = ["【メカノAI 診断結果】"]; const v = rec.veh || {};
-  L.push("車両: " + (v.model || v.type || "不明") + (v.model && v.type ? "（" + v.type + "）" : ""));
-  if (rec.input) L.push("症状/コード: " + rec.input);
-  L.push("", "■メカ君の見解", String(rec.aiText || "").trim());
-  const gk = Object.keys(rec.guides || {});
-  if (gk.length) { L.push(""); gk.forEach(c => { L.push("■点検手引書: " + c, String(rec.guides[c]).trim(), ""); }); }
-  L.push("※参考情報です。最終判断は実測・実点検で。 — メカノAI");
-  return L.join("\n");
+/* 修理(点検手引書)の結果も同じ履歴ストアに保存(kind:"repair")。再表示時にrenderRepairAnswerで復元。 */
+function saveRepairRecord(q, obj) {
+  const rec = { id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    ts: Date.now(), kind: "repair", veh: curVehLabel(), input: String(q || ""), repairObj: obj };
+  const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
+  renderRepairHistList();
+  return rec;
 }
-async function shareDiagRecord(rec) {
-  const text = diagShareText(rec);
-  try { if (navigator.share) { await navigator.share({ title: "メカノAI 診断結果", text }); return; } }
-  catch (e) { if (e && e.name === "AbortError") return; }
-  const ok = await copyText(text);
-  uiAlert(ok ? "診断結果をコピーしました。メール・LINE・チャット等に貼り付けて共有できます。" : "コピーできませんでした。", "共有");
-}
-/* 保存済み結果を診断画面に再表示(見解＋保存済み手引書を復元) */
+/* 保存済み診断結果を「1つのブロック」で再表示(見解＋保存済み手引書を復元) */
 function viewDiagRecord(rec) {
+  if (rec.kind === "repair") { viewRepairRecord(rec); return; }
   currentDiagRec = rec;
   diagGuideCache = Object.assign({}, rec.guides || {});   // 保存済み手引書を即開けるように
   inspectPaneReg = [];
   lastDiagInput = rec.input || "";
   const box = $("diagResults"); box.innerHTML = "";
-  const head = diagSection("", "保存", "保存した診断結果" + (rec.veh && (rec.veh.model || rec.veh.type) ? "（" + (rec.veh.model || rec.veh.type) + "）" : ""));
-  const meta = document.createElement("div"); meta.className = "hint";
-  meta.textContent = new Date(rec.ts).toLocaleString("ja-JP") + (rec.input ? " ／ " + rec.input : "");
-  head.body.appendChild(meta);
-  head.body.appendChild(diagResultToolbar(rec));
-  box.appendChild(head.sec);
-  const { sec, body } = diagSection("", "メカ君", "メカ君の見解");
+  const v = rec.veh || {};
+  const { sec, body } = diagSection("", "メカ君", "保存した診断結果" + (v.model || v.type ? "（" + (v.model || v.type) + "）" : ""));
+  const meta = document.createElement("div"); meta.className = "histMeta";
+  meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (rec.input ? " ／ " + rec.input : "");
+  body.appendChild(meta);
   const p = document.createElement("div"); p.className = "ai-answer";
   renderAiAnswer(p, rec.aiText || "", { linkCauses: true });
   body.appendChild(p); box.appendChild(sec);
   box.scrollIntoView({ behavior: "smooth" });
 }
-/* 結果に付ける操作バー(共有ボタン等) */
-function diagResultToolbar(rec) {
-  const bar = document.createElement("div"); bar.className = "diagShareBar";
-  const sh = document.createElement("button"); sh.type = "button"; sh.className = "btn btn-ghost btn-sm";
-  sh.textContent = "📤 この結果を共有";
-  sh.addEventListener("click", () => shareDiagRecord(rec));
-  bar.appendChild(sh);
-  return bar;
+/* 保存済み修理(点検手引書)を修理タブで再表示 */
+function viewRepairRecord(rec) {
+  switchView("parts");
+  const box = $("qVehResult"); toggle("qVehResult", true); box.innerHTML = "";
+  const meta = document.createElement("div"); meta.className = "histMeta";
+  const v = rec.veh || {};
+  meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (v.model || v.type ? " ／ " + (v.model || v.type) : "") + (rec.input ? " ／ " + rec.input : "");
+  box.appendChild(meta);
+  const ans = document.createElement("div"); box.appendChild(ans);
+  if (rec.repairObj) renderRepairAnswer(ans, rec.repairObj, rec.input);
+  else ans.textContent = "この履歴には表示できる内容がありません。";
+  box.scrollIntoView({ behavior: "smooth" });
 }
-/* 保存済み結果の一覧を描画(診断画面下部のパネル) */
-function renderDiagHistList() {
-  const list = $("diagHistList"); if (!list) return;
-  const recs = getDiagHist();
-  const panel = $("diagHistPanel"); if (panel) panel.classList.toggle("hidden", !recs.length);
+/* 履歴パネル(診断/修理で共通)の描画。kindでフィルタし、行タップで再表示・×で削除。 */
+function renderHistPanel(listId, panelId, kindFilter, openFn) {
+  const list = $(listId); if (!list) return;
+  const recs = getDiagHist().filter(kindFilter);
+  const panel = $(panelId); if (panel) panel.classList.toggle("hidden", !recs.length);
   list.innerHTML = "";
   recs.forEach(rec => {
     const row = document.createElement("div"); row.className = "histRow";
@@ -4324,14 +4328,14 @@ function renderDiagHistList() {
     const ng = Object.keys(rec.guides || {}).length;
     sub.textContent = new Date(rec.ts).toLocaleString("ja-JP") + (ng ? " ・手引書" + ng + "件" : "");
     main.append(title, sub);
-    main.addEventListener("click", () => viewDiagRecord(rec));
-    const share = document.createElement("button"); share.type = "button"; share.className = "histIco"; share.title = "共有"; share.textContent = "📤";
-    share.addEventListener("click", (e) => { e.stopPropagation(); shareDiagRecord(rec); });
+    main.addEventListener("click", () => openFn(rec));
     const del = document.createElement("button"); del.type = "button"; del.className = "histIco"; del.title = "削除"; del.textContent = "×";
-    del.addEventListener("click", (e) => { e.stopPropagation(); setDiagHist(getDiagHist().filter(r => r.id !== rec.id)); renderDiagHistList(); });
-    row.append(main, share, del); list.appendChild(row);
+    del.addEventListener("click", (e) => { e.stopPropagation(); setDiagHist(getDiagHist().filter(r => r.id !== rec.id)); renderDiagHistList(); renderRepairHistList(); });
+    row.append(main, del); list.appendChild(row);
   });
 }
+function renderDiagHistList() { renderHistPanel("diagHistList", "diagHistPanel", r => r.kind !== "repair", viewDiagRecord); }
+function renderRepairHistList() { renderHistPanel("repairHistList", "repairHistPanel", r => r.kind === "repair", viewRepairRecord); }
 
 /* 各診断の下に「追加で相談」欄(テキスト＋写真/動画添付、会話モードは除く)。回答後さらに追い相談を連鎖 */
 function appendAiFollowup(body, origText, prevAnswer) {
@@ -5190,10 +5194,10 @@ async function diagMediaAnalyze() {
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
     const rec = saveDiagRecord(text || "写真・動画による診断", r.text, getAiMode());   // 結果を履歴に保存
-    body.insertBefore(diagResultToolbar(rec), p);
-    appendAiFollowup(body, text || "(添付の写真・動画による相談)", r.text);  // この診断にも追加相談欄
+    const guideNote = document.createElement("div"); guideNote.className = "hint guidePrep"; body.appendChild(guideNote);
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
-    autoGenGuides(causes, rec);   // 上位候補の点検手引書を先に用意(時短)
+    autoGenGuides(causes, rec, guideNote);   // 上位候補の点検手引書を先に用意(時短)
+    appendAiFollowup(body, text || "(添付の写真・動画による相談)", r.text);  // この診断にも追加相談欄
     st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
   } catch (err) {
     if (stopTimer) stopTimer();
@@ -5578,6 +5582,7 @@ function showToast(msg) {
   renderCseStat();
   renderAiMode();
   renderDiagHistList();   // 保存済み診断結果の一覧を復元
+  renderRepairHistList();   // 保存済み点検手引書の一覧を復元
   // Stripe決済から戻ってきた時のお礼(?paid=1)。プラン有効化は数秒後にサーバー側で反映される。
   try {
     if (/[?&]paid=1/.test(location.search)) {
