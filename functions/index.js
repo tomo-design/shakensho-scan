@@ -206,7 +206,7 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens, thi
     const cand = j.candidates && j.candidates[0];
     const text = ((cand && cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
     if (!text) { lastErr = "empty"; continue; }
-    return { text: text, truncated: cand.finishReason === "MAX_TOKENS" };
+    return { text: text, truncated: cand.finishReason === "MAX_TOKENS", model: model };
   }
   return { failed: true, quota: quota, lastErr: lastErr };
 }
@@ -239,6 +239,7 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
     if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok || !r.body) { lastErr = "http " + r.status; continue; }
     let full = "", truncated = false, headed = false, buf = "";
+    const usedModel = model;
     const dec = new TextDecoder();
     try {
       for await (const chunk of r.body) {
@@ -261,8 +262,8 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
           } catch (e) {}
         }
       }
-    } catch (e) { lastErr = "stream " + (e && e.message); if (headed) return { started: true, truncated: truncated }; continue; }
-    if (full) return { started: true, truncated: truncated };
+    } catch (e) { lastErr = "stream " + (e && e.message); if (headed) return { started: true, truncated: truncated, model: usedModel }; continue; }
+    if (full) return { started: true, truncated: truncated, model: usedModel };
     lastErr = "empty"; continue;   // 本文ゼロ(ヘッダ未送信) → 次モデル/次キーへ
   }
   return { failed: true, quota: quota, lastErr: lastErr };
@@ -447,7 +448,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     }
   }
   if (tier === "free") clearFreeExhausted(g.tid);
-  return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted });
+  return res.json({ text: out.text, truncated: out.truncated, tier: tier, freeExhausted: freeExhausted, model: out.model || "" });
 });
 
 /* メカ君プロキシ(ストリーミング版): mechaと同じ判定で、本文を SSE(data:{t:"..."}) で逐次返す。
@@ -484,12 +485,12 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
     effSearch = !overCap && seatOk;
   }
   const usePaid = paidCapable;
-  const finish = (truncated, tier) => { if (res.headersSent) { res.write("data: " + JSON.stringify({ done: true, truncated: !!truncated, tier: tier }) + "\n\n"); res.end(); } };
+  const finish = (truncated, tier, model) => { if (res.headersSent) { res.write("data: " + JSON.stringify({ done: true, truncated: !!truncated, tier: tier, model: model || "" }) + "\n\n"); res.end(); } };
 
   // ① 有料キー(Pro/検索)
   if (usePaid) {
     const out = await callGeminiStream(paidKey, models, parts, mode, effSearch, maxTokens, tb, res);
-    if (out.started) { if (effSearch) await bumpPaidUsage(g.tid); finish(out.truncated, "paid"); return; }
+    if (out.started) { if (effSearch) await bumpPaidUsage(g.tid); finish(out.truncated, "paid", out.model); return; }
   }
   // ② 無料キー(Flash) → ①失敗のフォールバック
   const start = Math.floor(Math.random() * freeKeys.length);
@@ -497,12 +498,12 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   for (let i = 0; i < freeKeys.length; i++) {
     const key = freeKeys[(start + i) % freeKeys.length];
     const out = await callGeminiStream(key, freeModels, parts, "flash", false, maxTokens, tb, res);
-    if (out.started) { clearFreeExhausted(g.tid); finish(out.truncated, "free"); return; }
+    if (out.started) { clearFreeExhausted(g.tid); finish(out.truncated, "free", out.model); return; }
     if (!out.quota) { quotaAll = false; break; }
   }
   if (quotaAll) {
     await markFreeExhausted(g.tid);
-    if (paidKey) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res); if (out.started) { finish(out.truncated, "paid"); return; } }
+    if (paidKey) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res); if (out.started) { finish(out.truncated, "paid", out.model); return; } }
   }
   // 一度も本文を送れていない(ヘッダ未送信) → JSONエラーで返す
   if (!res.headersSent) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。" });

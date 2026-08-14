@@ -940,3 +940,9 @@ body.pwLocked{ overflow:hidden }
 
 /* 修理結果の共有バー */
 .repairShareBar{ margin:0 0 10px }
+
+/* 使用エンジンのバッジ(高精度Pro / 標準Flash) */
+.engBadge{ margin-left:auto; flex:0 0 auto; font-size:10px; font-weight:700; letter-spacing:.02em;
+  padding:3px 9px; border-radius:12px; white-space:nowrap }
+.engBadge.pro{ background:#0f7b6c; color:#fff }
+.engBadge.flash{ background:#e7ebf0; color:#5a6472 }

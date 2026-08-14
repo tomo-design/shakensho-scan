@@ -760,7 +760,7 @@
         throw new Error("AIから回答が得られませんでした");
       }
       const reader = r.body.getReader(); const dec = new TextDecoder();
-      let buf = "", full = "", truncated = false;
+      let buf = "", full = "", truncated = false, usedModel = "";
       while (true) {
         const { value, done } = await reader.read(); if (done) break;
         buf += dec.decode(value, { stream: true });
@@ -773,13 +773,13 @@
           try {
             const o = JSON.parse(js);
             if (o.t) { full += o.t; if (onChunk) onChunk(full, false); }
-            if (o.done) truncated = !!o.truncated;
+            if (o.done) { truncated = !!o.truncated; if (o.model) usedModel = o.model; }
           } catch (e) {}
         }
       }
       if (!full) throw new Error("AIから回答が得られませんでした");
       if (onChunk) onChunk(full, true);
-      return { text: full, truncated: truncated, model: "proxy-stream" };
+      return { text: full, truncated: truncated, model: usedModel || "proxy-stream" };
     },
     fnsReady() { return true; },
     pushVehicle(rec) {

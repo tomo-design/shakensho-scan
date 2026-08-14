@@ -3497,7 +3497,7 @@ async function geminiAsk(prompt, opts) {
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
-    const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
+    const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
   }
@@ -4237,6 +4237,7 @@ async function runDiagAI(text) {
     stopTimer();
     p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
+    const eb = engineBadge(r.model); if (eb) { const h2 = sec.querySelector("h2"); if (h2) h2.appendChild(eb); }
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
@@ -4256,6 +4257,17 @@ async function runDiagAI(text) {
   } finally {
     diagAiBusy = false;
   }
+}
+/* 実際に使われたAIエンジンのバッジ(高精度Pro / 標準Flash)。モデル名にproを含むかで判定。
+   店舗版で「Proが使われているか」を現場で目視確認できるようにする。 */
+function engineBadge(model) {
+  if (!model || model === "cache") return null;
+  const pro = /pro/i.test(model);
+  const b = document.createElement("span");
+  b.className = "engBadge " + (pro ? "pro" : "flash");
+  b.textContent = pro ? "高精度Pro" : "標準Flash";
+  b.title = "使用エンジン: " + model;
+  return b;
 }
 /* 「考えています…(n秒)」と経過秒を1秒ごとに更新。stop()で停止。待機の体感を軽減する。 */
 function startThinkingTimer(el, label) {
@@ -5298,6 +5310,7 @@ async function diagMediaAnalyze() {
     });
     stopTimer(); p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
+    const eb = engineBadge(r.model); if (eb) { const h2 = sec.querySelector("h2"); if (h2) h2.appendChild(eb); }
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
