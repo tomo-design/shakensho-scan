@@ -885,3 +885,19 @@ body.pwLocked{ overflow:hidden }
 #pwBanner{ position:fixed; left:50%; transform:translateX(-50%); bottom:76px; z-index:9000;
   background:rgba(15,42,90,.92); color:#fff; font-size:12px; padding:7px 16px; border-radius:20px;
   box-shadow:0 4px 14px rgba(0,0,0,.25); pointer-events:none }
+
+/* ===== 診断結果: 共有バー / 保存履歴 ===== */
+.diagShareBar{ display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 10px }
+.diagShareBar .btn{ flex:0 0 auto }
+.manualBtn.ready{ border-color:var(--brand,#1e5aa8); color:var(--brand,#1e5aa8); font-weight:600 }
+#diagHistList{ display:flex; flex-direction:column; gap:8px }
+.histRow{ display:flex; align-items:stretch; gap:6px; border:1px solid var(--line,#e2e2e2);
+  border-radius:10px; overflow:hidden; background:var(--card,#fff) }
+.histOpen{ flex:1 1 auto; text-align:left; background:none; border:0; padding:9px 11px; cursor:pointer;
+  display:flex; flex-direction:column; gap:3px; min-width:0 }
+.histTitle{ font-size:13px; font-weight:600; color:var(--ink,#222); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap }
+.histSub{ font-size:11px; color:#888 }
+.histIco{ flex:0 0 auto; width:38px; border:0; border-left:1px solid var(--line,#eee);
+  background:none; cursor:pointer; font-size:15px; color:#666 }
+.histIco:active{ background:rgba(0,0,0,.05) }
