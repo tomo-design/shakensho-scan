@@ -4827,6 +4827,64 @@ async function geminiAskMedia(prompt, media) {
   }
   throw lastErr || new Error("AIに接続できませんでした(要ネット接続)");
 }
+/* 写真・動画診断のストリーミング版。思考量に上限を設けて逐次表示し、待ち時間を短縮する。
+   自前キー(BYOK)のみ対応。デモ/契約店舗プロキシ/キー無しは通常のgeminiAskMediaへフォールバック。 */
+async function geminiAskMediaStream(prompt, media, opts, onChunk) {
+  opts = opts || {};
+  if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
+  const key = localStorage.getItem(LS.gemini);
+  if (!key) return geminiAskMedia(prompt, media);   // プロキシ/未設定は従来経路
+  const mode = getAiMode();
+  aiAbort = new AbortController();
+  let lastErr = null;
+  for (const model of GEMINI_MEDIA_MODELS[mode]) {
+    try {
+      const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
+      // 3系/2.5系/-latest は思考量に上限を設けて速く仕上げる(写真解析は無制限思考まで不要)
+      if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
+        const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? 3072 : 512);
+        genCfg.thinkingConfig = { thinkingBudget: tb };
+      }
+      const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key),
+        { method: "POST", headers: { "Content-Type": "application/json" }, signal: aiAbort.signal, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
+      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 503 || res.status === 500) { lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
+      if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか標準モードにしてください。"); continue; }
+      if (res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
+      if (res.status === 400) { let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch (e) {} lastErr = new Error("送信できませんでした(" + model + "): " + (detail || "動画が大きすぎる可能性。短く/低画質でお試しを")); continue; }
+      if (!res.ok || !res.body) { lastErr = new Error("AI応答エラー (" + res.status + ")"); continue; }
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      let buf = "", text = "", finish = "";
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          if (line.indexOf("data:") !== 0) continue;
+          const js = line.slice(5).trim(); if (!js || js === "[DONE]") continue;
+          try {
+            const j = JSON.parse(js);
+            const cand = j.candidates && j.candidates[0];
+            const piece = ((cand && cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || "").join("");
+            if (piece) { text += piece; if (onChunk) onChunk(text, false); }
+            if (cand && cand.finishReason) finish = cand.finishReason;
+          } catch (e) {}
+        }
+      }
+      if (!text) throw new Error("AIから回答が得られませんでした");
+      if (onChunk) onChunk(text, true);
+      return { text, truncated: finish === "MAX_TOKENS", model };
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("__cancelled__");
+      if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
+      lastErr = e;
+    }
+  }
+  try { return await geminiAskMedia(prompt, media); } catch (e) { throw lastErr || e; }
+}
 function buildMediaDiagPrompt() {
   const lines = [
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
@@ -5103,6 +5161,7 @@ async function diagMediaAnalyze() {
   // テキストにコード/症状があれば内蔵DB照合も表示
   const text = $("diagText").value.trim();
   if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
+  let stopTimer = null;
   try {
     // 写真は自動圧縮してから送信(枚数が多くても収まる)。圧縮後の合計で上限チェック。
     const media = [];
@@ -5112,12 +5171,20 @@ async function diagMediaAnalyze() {
       st.textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalB64 * 0.75 / 1048576) + "MB)。動画は1本・30秒程度に、写真は枚数を減らしてください。";
       diagMediaBusy = false; setBtnLoading(runBtn, false); return;
     }
-    st.textContent = "メカ君が写真・動画を解析しています…(数十秒かかる場合があります)";
-    const r = await geminiAskMedia(buildMediaDiagPrompt(), media);
+    st.textContent = "メカ君が写真・動画を解析しています…";
     const box = $("diagResults");
     const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
-    const p = document.createElement("div"); p.className = "ai-answer"; body.appendChild(p);
+    const p = document.createElement("div"); p.className = "ai-answer";
+    body.appendChild(p); box.prepend(sec); sec.scrollIntoView({ behavior: "smooth" });
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
+    stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
+    let streamed = false;
+    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 3072 }, (acc, done) => {
+      if (done) return;
+      if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
+      p.textContent = acc;
+    });
+    stopTimer(); p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
@@ -5127,10 +5194,9 @@ async function diagMediaAnalyze() {
     appendAiFollowup(body, text || "(添付の写真・動画による相談)", r.text);  // この診断にも追加相談欄
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
     autoGenGuides(causes, rec);   // 上位候補の点検手引書を先に用意(時短)
-    box.prepend(sec);
     st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
-    sec.scrollIntoView({ behavior: "smooth" });
   } catch (err) {
+    if (stopTimer) stopTimer();
     if (err.message !== "__cancelled__") st.textContent = "⚠ " + (err.message || "解析に失敗しました");
   } finally {
     diagMediaBusy = false; setBtnLoading(runBtn, false);
