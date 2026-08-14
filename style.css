@@ -931,3 +931,9 @@ body.pwLocked{ overflow:hidden }
 .histSummary::before{ content:"▸"; color:#9aa2ad; font-size:11px }
 .histPanel details[open] .histSummary::before{ content:"▾" }
 .histPanelBody{ padding-top:12px }
+
+/* 保存結果の「閉じる」ボタン(共有の左) */
+.histCloseBtn{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:1px solid var(--line,#d9d9d9);
+  background:var(--panel2,#f3f5f8); color:#666; font-size:14px; line-height:1; cursor:pointer; padding:0 }
+.histCloseBtn:active{ background:var(--line,#e6e6e6) }
+.histMetaRow .histCloseBtn{ margin-left:auto }

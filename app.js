@@ -4321,12 +4321,20 @@ async function shareRepairRecord(rec) {
   const ok = await copyText(text);
   uiAlert(ok ? "点検手引書をコピーしました。メール・LINE・チャット等に貼り付けて共有できます。" : "コピーできませんでした。", "共有");
 }
-/* 保存結果カードのヘッダー右上に置く共有ボタン(1つだけ) */
-function addHeaderShareBtn(sec, rec) {
+/* 表示中の保存結果を閉じる(その画面のみクリア。履歴は残る) */
+function closeSavedResult(kind) {
+  if (kind === "repair") { const b = $("qVehResult"); if (b) { b.innerHTML = ""; b.classList.add("hidden"); } }
+  else { const b = $("diagResults"); if (b) b.innerHTML = ""; }
+}
+/* 保存結果カードのヘッダー右に「✕閉じる」「📤共有」を並べて置く */
+function addSavedHeaderControls(sec, rec, kind) {
   const h2 = sec.querySelector("h2"); if (!h2) return;
-  const b = document.createElement("button"); b.type = "button"; b.className = "histShareBtn"; b.textContent = "📤 共有";
-  b.addEventListener("click", () => shareDiagRecord(rec));
-  h2.appendChild(b);
+  const close = document.createElement("button"); close.type = "button"; close.className = "histCloseBtn"; close.title = "閉じる"; close.textContent = "✕";
+  close.style.marginLeft = "auto";
+  close.addEventListener("click", () => closeSavedResult(kind));
+  const share = document.createElement("button"); share.type = "button"; share.className = "histShareBtn"; share.textContent = "📤 共有";
+  share.addEventListener("click", () => (kind === "repair" ? shareRepairRecord(rec) : shareDiagRecord(rec)));
+  h2.append(close, share);
 }
 /* 修理(点検手引書)の結果も同じ履歴ストアに保存(kind:"repair")。再表示時にrenderRepairAnswerで復元。 */
 function saveRepairRecord(q, obj) {
@@ -4346,14 +4354,16 @@ function viewDiagRecord(rec) {
   const box = $("diagResults"); box.innerHTML = "";
   const v = rec.veh || {};
   const { sec, body } = diagSection("", "メカ君", "保存した診断結果" + (v.model || v.type ? "（" + (v.model || v.type) + "）" : ""));
-  addHeaderShareBtn(sec, rec);   // ヘッダー右上に共有ボタン(1つだけ)
+  addSavedHeaderControls(sec, rec, "diag");   // ヘッダー右に「✕閉じる」「📤共有」
   const meta = document.createElement("div"); meta.className = "histMeta";
   meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (rec.input ? " ／ " + rec.input : "");
   body.appendChild(meta);
   const p = document.createElement("div"); p.className = "ai-answer";
   renderAiAnswer(p, rec.aiText || "", { linkCauses: true });
   body.appendChild(p); box.appendChild(sec);
-  box.scrollIntoView({ behavior: "smooth" });
+  // カード上辺(見出し)まで見えるようにスクロール(固定ナビに隠れないよう余白を確保)
+  sec.style.scrollMarginTop = "70px";
+  sec.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 /* 保存済み修理(点検手引書)を修理タブで再表示 */
 function viewRepairRecord(rec) {
@@ -4363,13 +4373,17 @@ function viewRepairRecord(rec) {
   const metaRow = document.createElement("div"); metaRow.className = "histMetaRow";
   const meta = document.createElement("div"); meta.className = "histMeta";
   meta.textContent = "🕒 " + new Date(rec.ts).toLocaleString("ja-JP") + (v.model || v.type ? " ／ " + (v.model || v.type) : "") + (rec.input ? " ／ " + rec.input : "");
+  const close = document.createElement("button"); close.type = "button"; close.className = "histCloseBtn"; close.title = "閉じる"; close.textContent = "✕";
+  close.style.marginLeft = "auto";
+  close.addEventListener("click", () => closeSavedResult("repair"));
   const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
   sh.addEventListener("click", () => shareRepairRecord(rec));
-  metaRow.append(meta, sh); box.appendChild(metaRow);
+  metaRow.append(meta, close, sh); box.appendChild(metaRow);
   const ans = document.createElement("div"); box.appendChild(ans);
   if (rec.repairObj) renderRepairAnswer(ans, rec.repairObj, rec.input);
   else ans.textContent = "この履歴には表示できる内容がありません。";
-  box.scrollIntoView({ behavior: "smooth" });
+  box.style.scrollMarginTop = "70px";
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 /* 履歴パネル(診断/修理で共通)の描画。kindでフィルタし、行タップで再表示・×で削除。 */
 function renderHistPanel(listId, panelId, kindFilter, openFn) {
