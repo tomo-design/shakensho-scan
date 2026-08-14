@@ -937,3 +937,6 @@ body.pwLocked{ overflow:hidden }
   background:var(--panel2,#f3f5f8); color:#666; font-size:14px; line-height:1; cursor:pointer; padding:0 }
 .histCloseBtn:active{ background:var(--line,#e6e6e6) }
 .histMetaRow .histCloseBtn{ margin-left:auto }
+
+/* 修理結果の共有バー */
+.repairShareBar{ margin:0 0 10px }

@@ -1494,7 +1494,9 @@ async function runVehAsk() {
   }
   if (vehAskBusy) return; vehAskBusy = true;
   const box = $("qVehResult"); toggle("qVehResult", true);
-  box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が考えています…</div>';
+  box.innerHTML = "";
+  const load = document.createElement("div"); load.className = "stepFigLoad"; box.appendChild(load);
+  const stopTimer = startThinkingTimer(load, "🔧 メカ君が考えています");   // 経過秒で待機の体感を軽減
   const btn = $("btnVehAsk"); setBtnLoading(btn, true, "メカ君が考え中…");
   try {
     const qFull = q || "添付した写真の部位について教えてください。";
@@ -1504,23 +1506,36 @@ async function runVehAsk() {
       const media = [];
       for (const a of vehAttachments) media.push(await attachToMedia(a));
       const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
-      if (tot * 0.75 > ATTACH_MAX) { box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
-      r = await geminiAskMedia(buildRepairPrompt(qFull, true), media);
+      if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
+      // 思考量に上限を設けて高速化(診断と同様)。JSON応答なので逐次表示はしない。
+      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 3072 }, null);
     } else {
-      // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。
-      r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192 } : { mode: "flash", search: false });
+      // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。思考上限で高速化。
+      r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
     }
+    stopTimer();
     const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
-    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(box, obj, qFull); saveRepairRecord(qFull, obj); }
+    let repairRec = null;
+    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
     else if (obj && obj.answer) renderAiAnswer(box, obj.answer);
-    else if (obj && obj.isWork) { renderRepairAnswer(box, obj, qFull); saveRepairRecord(qFull, obj); }
+    else if (obj && obj.isWork) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
     else renderAiAnswer(box, r.text);
+    if (repairRec) addRepairShareBar(box, repairRec);   // 修理結果にも共有ボタン
   } catch (e) {
+    stopTimer();
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
   } finally {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
+}
+/* 修理結果の先頭に共有ボタンのバーを差し込む(renderRepairAnswerがboxをクリアした後に呼ぶ) */
+function addRepairShareBar(box, rec) {
+  const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
+  const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
+  const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
+  sh.addEventListener("click", () => shareRepairRecord(rec));
+  bar.append(sp, sh); box.insertBefore(bar, box.firstChild);
 }
 /* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章)。hasMedia=添付写真あり */
 function buildRepairPrompt(q, hasMedia) {
@@ -3887,7 +3902,8 @@ function renderInspectManual(container, text) {
       container.querySelectorAll(".imHead").forEach(h => h.classList.remove("open"));
       if (willOpen) {
         body.classList.remove("hidden"); head.classList.add("open");
-        // 高さ変化でスクロールがズレて飛ぶのを防ぐ: 押した見出しを見える位置へ
+        // 高さ変化でスクロールがズレて飛ぶのを防ぐ: 押した見出しを見える位置へ(固定ナビに隠れないよう余白)
+        head.style.scrollMarginTop = "70px";
         setTimeout(() => head.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
       }
     });
