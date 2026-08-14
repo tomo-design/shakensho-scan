@@ -3496,7 +3496,7 @@ async function geminiAsk(prompt, opts) {
   }
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search, maxTokens: opts.maxTokens || 0 });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
@@ -3568,8 +3568,18 @@ async function geminiAsk(prompt, opts) {
    自前キー(BYOK)のみ対応。契約店舗のプロキシ経由/デモ/キー無しは通常のgeminiAskへフォールバック。 */
 async function geminiAskStream(prompt, opts, onChunk) {
   opts = opts || {};
+  if (typeof isDemo === "function" && isDemo()) return geminiAsk(prompt, opts);
   const key = localStorage.getItem(LS.gemini);
-  if (!key || (typeof isDemo === "function" && isDemo())) return geminiAsk(prompt, opts);   // 非対応環境は従来どおり
+  if (!key) {
+    // 契約店舗(自前キー無し): サーバーのストリーミングプロキシ経由。未対応時は従来のgeminiAsk(mecha)へ。
+    if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
+      try {
+        return await window.Cloud.callFnStream("mechaStream",
+          { prompt, mode: opts.mode || getAiMode(), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
+      } catch (e) { if (e && e.message === "__cancelled__") throw e; /* それ以外は従来経路へ */ }
+    }
+    return geminiAsk(prompt, opts);
+  }
   const mode = opts.mode || getAiMode();
   const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
   if (!opts.noCache) {
@@ -4926,7 +4936,16 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   opts = opts || {};
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
-  if (!key) return geminiAskMedia(prompt, media);   // プロキシ/未設定は従来経路
+  if (!key) {
+    // 契約店舗: サーバーのストリーミングプロキシへ(写真/動画も送る)。未対応時は従来のgeminiAskMediaへ。
+    if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
+      try {
+        return await window.Cloud.callFnStream("mechaStream",
+          { prompt, mode: getAiMode(), media, thinkingBudget: opts.thinkingBudget }, onChunk);
+      } catch (e) { if (e && e.message === "__cancelled__") throw e; }
+    }
+    return geminiAskMedia(prompt, media);
+  }
   const mode = getAiMode();
   aiAbort = new AbortController();
   let lastErr = null;

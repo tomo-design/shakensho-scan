@@ -740,6 +740,47 @@
       if (!r.ok) throw new Error((data && data.error) || ("サーバーエラー " + r.status));
       return data;
     },
+    /* ストリーミング版Functions呼び出し(mechaStream用)。SSE(data:{t}/{done})を受け、
+       onChunk(累積テキスト, 完了フラグ)で逐次通知。{text,truncated}を返す。
+       サーバーがSSEでなくJSONを返した場合(エラー/非対応)は従来通り処理する。 */
+    async callFnStream(name, payload, onChunk) {
+      if (!me) throw new Error("ログインが必要です。");
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/" + name, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+        body: JSON.stringify(payload || {}),
+      });
+      const ctype = r.headers.get("content-type") || "";
+      if (!r.ok || !r.body || ctype.indexOf("text/event-stream") < 0) {
+        // 非ストリーム応答(エラーJSON or 通常JSON)にフォールバック
+        let data = {}; try { data = await r.json(); } catch (e) {}
+        if (!r.ok) throw new Error((data && data.error) || ("サーバーエラー " + r.status));
+        if (data && typeof data.text === "string") { if (onChunk) onChunk(data.text, true); return { text: data.text, truncated: !!data.truncated, model: "proxy" }; }
+        throw new Error("AIから回答が得られませんでした");
+      }
+      const reader = r.body.getReader(); const dec = new TextDecoder();
+      let buf = "", full = "", truncated = false;
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const evt = buf.slice(0, idx); buf = buf.slice(idx + 2);
+          const line = evt.split("\n").find(l => l.indexOf("data:") === 0);
+          if (!line) continue;
+          const js = line.slice(5).trim(); if (!js) continue;
+          try {
+            const o = JSON.parse(js);
+            if (o.t) { full += o.t; if (onChunk) onChunk(full, false); }
+            if (o.done) truncated = !!o.truncated;
+          } catch (e) {}
+        }
+      }
+      if (!full) throw new Error("AIから回答が得られませんでした");
+      if (onChunk) onChunk(full, true);
+      return { text: full, truncated: truncated, model: "proxy-stream" };
+    },
     fnsReady() { return true; },
     pushVehicle(rec) {
       if (!this.active || !rec || !rec.id) return;
