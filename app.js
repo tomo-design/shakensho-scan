@@ -3766,7 +3766,7 @@ function attachInspectManual(itemDiv, cause) {
     preparing = false; btn.classList.remove("preparing");
     pane.innerHTML = ""; renderInspectManual(pane, cleanCite(text)); loaded = true;
     btn.classList.add("ready");
-    if (pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書（作成済み・タップで開く）";
+    if (pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書を開く";
   }
   function prep() {   // バックグラウンド生成中であることを示す
     if (loaded || loading) return;
@@ -3782,7 +3782,7 @@ function attachInspectManual(itemDiv, cause) {
   inspectPaneReg.push({ cause, apply: (t) => { if (!loaded && !loading) fill(t); }, prep, unprep });
   btn.addEventListener("click", async () => {
     const open = pane.classList.toggle("hidden") === false;
-    if (loaded) { btn.textContent = open ? "📖 点検手引書を閉じる" : "📖 点検手引書（作成済み・タップで開く）"; return; }
+    if (loaded) { btn.textContent = open ? "📖 点検手引書を閉じる" : "📖 点検手引書を開く"; return; }
     btn.textContent = open ? "📖 点検手引書を閉じる" : (preparing ? "📖 点検手引書を準備中…" : "📖 点検手引書を作る");
     if (!open || loading) return;
     if (!aiOK()) { pane.textContent = "点検手引書の生成には設定タブでGemini APIキーが必要です。"; return; }
@@ -3805,7 +3805,7 @@ function attachInspectManual(itemDiv, cause) {
 }
 /* 上位の原因候補ぶんの点検手引書をバックグラウンドで先に生成しておく(時短)。
    逐次実行で無料枠への負荷を抑え、思考も短めに切り上げて速く仕上げる。完了ぶんは表示中のペインへ即反映。 */
-const AUTO_GUIDE_COUNT = 2;   // 先行生成する候補数(無料枠のレート制限を避けるため絞る)
+const AUTO_GUIDE_COUNT = 3;   // 先行生成する候補数
 async function autoGenGuides(causes, rec) {
   if (!aiOK() || !Array.isArray(causes)) return;
   const targets = causes.filter(c => c && !diagGuideCache[c] && inspectPaneReg.some(p => p.cause === c)).slice(0, AUTO_GUIDE_COUNT);
