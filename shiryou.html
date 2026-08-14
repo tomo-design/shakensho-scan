@@ -23,6 +23,24 @@
   .cover h1{font-size:30px;margin:8px 0 10px;line-height:1.35}
   .cover p{color:#dbe4f4;font-size:15px;max-width:560px;margin:0}
   .cover .tag{display:inline-block;margin-top:18px;background:rgba(255,177,0,.16);border:1px solid rgba(255,177,0,.4);color:var(--gold);font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px}
+  .cover-in{display:flex;align-items:center;gap:34px}
+  .cover-copy{flex:1;min-width:0}
+  .cover-art{flex:none}
+  .tablet{position:relative;width:300px;background:#0f1218;border:1px solid #2c313b;border-radius:24px;padding:13px;box-shadow:0 40px 90px -30px rgba(0,0,0,.6)}
+  .tablet-cam{width:7px;height:7px;border-radius:50%;background:#3a404b;position:absolute;top:15px;left:50%;transform:translateX(-50%)}
+  .tablet-screen{background:#eef2f7;border-radius:13px;padding:15px 13px 11px}
+  .ts-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .ts-logo{width:28px;height:28px;border-radius:7px}
+  .ts-name{font-weight:800;color:#16233a;font-size:14px;line-height:1}
+  .ts-name small{display:block;font-size:8px;letter-spacing:.15em;color:#8a93a3;font-weight:700;margin-top:2px}
+  .ts-hero{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 0 2px}
+  .ts-mecha{width:92px;height:auto;object-fit:contain;flex:none}
+  .ts-bubble{flex:1;background:#fff;border:2px solid #16233a;border-radius:14px;padding:9px 10px;font-weight:800;font-size:12px;color:#16233a;line-height:1.4;text-align:center;box-shadow:0 4px 0 rgba(22,35,58,.12)}
+  .ts-btns{display:flex;flex-direction:column;gap:7px;margin:8px 4px 0}
+  .ts-btn{background:#fff;border:1.5px solid #cdd6e3;border-radius:10px;padding:10px;text-align:center;font-weight:800;color:#1e5aa8;font-size:13px}
+  .ts-search{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:9px;text-align:center;color:#39435a;font-size:12.5px;font-weight:700;margin:8px 4px 0}
+  .ts-tabs{display:flex;justify-content:space-between;gap:4px;margin:13px 2px 2px;padding-top:9px;border-top:1px solid #dbe0e9}
+  .ts-tabs span{flex:1;text-align:center;font-size:9px;color:#5a6474;font-weight:700;line-height:1.5}
   h2{font-size:19px;border-left:5px solid var(--blue);padding-left:12px;margin:34px 0 16px}
   h2:first-of-type{margin-top:6px}
   .lead{font-size:15px;color:var(--ink2)}
@@ -58,7 +76,7 @@
   .company dt{background:var(--soft);font-weight:700;padding:10px 14px;margin:0}
   .company dd{padding:10px 14px;margin:0}
   .foot{text-align:center;color:var(--ink2);font-size:12px;margin-top:30px;padding-top:16px;border-top:1px solid var(--line)}
-  @media(max-width:640px){.page{padding:26px 20px}.cover{margin:-26px -20px 24px;padding:26px 20px}.grid3{grid-template-columns:1fr}ul.feat{grid-template-columns:1fr}.company div{grid-template-columns:110px 1fr}.cover h1{font-size:23px}}
+  @media(max-width:640px){.page{padding:26px 20px}.cover{margin:-26px -20px 24px;padding:26px 20px}.grid3{grid-template-columns:1fr}ul.feat{grid-template-columns:1fr}.company div{grid-template-columns:110px 1fr}.cover h1{font-size:23px}.cover-in{flex-direction:column;gap:22px}.cover-art{align-self:center}.tablet{width:280px;max-width:82vw}}
   @media print{
     body{background:#fff}
     .bar{display:none}
@@ -81,11 +99,30 @@
 
 <div class="page">
   <div class="cover">
-    <div class="brand"><img src="img/logo-mark.png" alt="メカノAI"><span>メカノAI<small>MECHANO-AI</small></span></div>
-    <div class="eyebrow">自動車・トラック整備の現場ツール</div>
-    <h1>その「調べ物」と「記録」、<br>AIが肩代わりします。</h1>
-    <p>車検証をスキャンするだけで、締付トルク・オイル・各種容量などのメンテナンス諸元を即表示。故障診断も整備カルテも、この1台で。人手が足りない現場ほど効きます。</p>
-    <span class="tag">🎁 ご契約から7日間は無料トライアル</span>
+    <div class="cover-in">
+      <div class="cover-copy">
+        <div class="brand"><img src="img/logo-mark.png" alt="メカノAI"><span>メカノAI<small>MECHANO-AI</small></span></div>
+        <div class="eyebrow">自動車・トラック整備の現場ツール</div>
+        <h1>その「調べ物」と「記録」、<br>AIが肩代わりします。</h1>
+        <p>車検証をスキャンするだけで、締付トルク・オイル・各種容量などのメンテナンス諸元を即表示。故障診断も整備カルテも、この1台で。人手が足りない現場ほど効きます。</p>
+        <span class="tag">🎁 ご契約から7日間は無料トライアル</span>
+      </div>
+      <div class="cover-art">
+        <div class="tablet">
+          <div class="tablet-cam"></div>
+          <div class="tablet-screen">
+            <div class="ts-head"><img src="img/logo-mark.png" class="ts-logo" alt=""><span class="ts-name">メカノAI<small>MECHANO-AI</small></span></div>
+            <div class="ts-hero">
+              <img src="img/hero2.png" class="ts-mecha" alt="メカ君">
+              <div class="ts-bubble">車検証を<br>スキャンしてね！</div>
+            </div>
+            <div class="ts-btns"><div class="ts-btn">QRでScan</div><div class="ts-btn">写真でScan</div></div>
+            <div class="ts-search">車両検索</div>
+            <div class="ts-tabs"><span>📷<br>スキャン</span><span>🕒<br>履歴</span><span>🔧<br>DB編集</span><span>⚙️<br>設定</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <h2>こんな現場の悩みに</h2>

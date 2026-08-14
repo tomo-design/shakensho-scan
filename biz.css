@@ -74,9 +74,9 @@ h1,h2,h3{line-height:1.35;margin:0}
 .ts-logo{width:30px;height:30px;border-radius:7px}
 .ts-name{font-weight:800;color:#16233a;font-size:15px;line-height:1}
 .ts-name small{display:block;font-size:8px;letter-spacing:.15em;color:#8a93a3;font-weight:700;margin-top:2px}
-.ts-hero{position:relative;display:flex;align-items:flex-start;justify-content:center;margin:6px 0 2px;min-height:118px}
-.ts-mecha{width:118px;height:auto;object-fit:contain}
-.ts-bubble{position:absolute;right:6px;top:8px;background:#fff;border:2px solid #16233a;border-radius:14px;padding:8px 12px;font-weight:800;font-size:13px;color:#16233a;line-height:1.35;text-align:center;box-shadow:0 4px 0 rgba(22,35,58,.12)}
+.ts-hero{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 0 2px}
+.ts-mecha{width:96px;height:auto;object-fit:contain;flex:none}
+.ts-bubble{flex:1;background:#fff;border:2px solid #16233a;border-radius:14px;padding:9px 10px;font-weight:800;font-size:12.5px;color:#16233a;line-height:1.4;text-align:center;box-shadow:0 4px 0 rgba(22,35,58,.12)}
 .ts-btns{display:flex;flex-direction:column;gap:8px;margin:8px 4px 0}
 .ts-btn{background:#fff;border:1.5px solid #cdd6e3;border-radius:10px;padding:11px;text-align:center;font-weight:800;color:#1e5aa8;font-size:14px}
 .ts-search{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:10px;text-align:center;color:#39435a;font-size:13px;font-weight:700;margin:8px 4px 0}
