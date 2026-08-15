@@ -842,11 +842,17 @@ exports.assignSeat = functions.region(REGION).https.onRequest(async (req, res) =
   const tu = (await db.collection("users").doc(uid).get()).data();
   if (!tu || tu.tenantId !== tid) return res.status(400).json({ error: "対象メンバーが店舗に属していません。" });
   const tRef = db.collection("tenants").doc(tid);
+  // この店舗に現在属するメンバーのuid集合。退職者・重複が seatMembers に残って
+  // 席数を多重カウントする不具合(3人なのに4人)を防ぐため、有効メンバーだけを数える。
+  const memSnap = await db.collection("users").where("tenantId", "==", tid).get();
+  const validUids = new Set(memSnap.docs.map((d) => d.id));
+  validUids.add(uid);
   try {
     const result = await db.runTransaction(async (tx) => {
       const t = (await tx.get(tRef)).data() || {};
       const seats = Math.max(1, +(t.searchSeats || 3));
-      let list = Array.isArray(t.seatMembers) ? t.seatMembers.slice() : [];
+      // 重複除去＋現メンバーのみに正規化してから数える(不正な席残りを掃除)
+      let list = (Array.isArray(t.seatMembers) ? t.seatMembers : []).filter((x, i, a) => x && a.indexOf(x) === i && validUids.has(x));
       const idx = list.indexOf(uid);
       if (on) {
         if (idx < 0) {

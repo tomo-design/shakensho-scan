@@ -959,3 +959,6 @@ body.pwLocked{ overflow:hidden }
 .csComment{ width:100%; min-height:64px; box-sizing:border-box; margin-bottom:12px;
   border:1px solid var(--line); border-radius:8px; padding:8px; font-family:inherit; font-size:13px }
 .csBtns{ display:flex; gap:8px; justify-content:flex-end }
+
+/* 修理: 入力欄と結果ブロックを区切り線で分離 */
+#qVehResult:not(:empty){ margin-top:14px; padding-top:16px; border-top:2px solid var(--line,#e2e2e2) }
