@@ -91,7 +91,35 @@ const cfg = () => ({
     },
   },
   app: { url: process.env.APP_URL },
+  // 問い合わせ自動返信(SendGrid)。key=APIキー / from=認証済み送信元 / notify=運営通知先
+  sendgrid: {
+    key: process.env.SENDGRID_API_KEY,
+    from: process.env.SENDGRID_FROM,
+    fromName: process.env.SENDGRID_FROM_NAME || "メカノAI",
+    notify: process.env.INQUIRY_NOTIFY || "cablueie.123@gmail.com",
+  },
 });
+/* SendGrid でメール送信(依存ライブラリ不要・HTTP API直叩き)。成功でtrue。 */
+async function sendMail(to, subject, text, replyTo) {
+  const sg = cfg().sendgrid;
+  if (!sg.key || !sg.from) { console.error("SendGrid未設定"); return false; }
+  try {
+    const body = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: sg.from, name: sg.fromName },
+      subject: subject,
+      content: [{ type: "text/plain", value: text }],
+    };
+    if (replyTo) body.reply_to = { email: replyTo };
+    const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + sg.key, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { console.error("SendGrid送信失敗", r.status, await r.text().catch(() => "")); return false; }
+    return true;
+  } catch (e) { console.error("SendGrid例外", e); return false; }
+}
 // price ID → プランコード(webフックで購入プランを店舗に反映するため)
 function tierFromPriceId(pid) {
   if (!pid) return "";
@@ -529,6 +557,64 @@ exports.visionOcr = functions.region(REGION).https.onRequest(async (req, res) =>
   const r0 = (j.responses || [])[0] || {};
   const text = (r0.fullTextAnnotation && r0.fullTextAnnotation.text) || ((r0.textAnnotations || [])[0] || {}).description || "";
   return res.json({ text: text });
+});
+
+/* 問い合わせ受付(公開・ログイン不要): POST {company,name,email,phone,message,website(honeypot)}
+   → Firestore inquiries に保存 → 問い合わせ主へ自動返信＋運営へ通知メール。
+   迷惑投稿対策: ハニーポット(website)＋必須項目＋長さ制限＋同一IPの簡易レート制限。 */
+exports.submitInquiry = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ" });
+  const d = req.body || {};
+  // ハニーポット(人間は空。botは埋めがち)→ 成功偽装して静かに破棄
+  if (d.website) return res.json({ ok: true });
+  const clip = (s, n) => String(s == null ? "" : s).trim().slice(0, n);
+  const company = clip(d.company, 120), name = clip(d.name, 80);
+  const email = clip(d.email, 160), phone = clip(d.phone, 40), message = clip(d.message, 4000);
+  if (!name || !email || !message) return res.status(400).json({ error: "お名前・メール・お問い合わせ内容は必須です。" });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+  const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "";
+  const db = admin.firestore();
+  try {
+    // 簡易レート制限: 同一IPから直近5分に5件を超えたら拒否
+    if (ip) {
+      const since = Date.now() - 5 * 60 * 1000;
+      const recent = await db.collection("inquiries").where("ip", "==", ip).where("ts", ">=", since).get();
+      if (recent.size >= 5) return res.status(429).json({ error: "送信が多すぎます。しばらくしてからお試しください。" });
+    }
+    const rec = { company, name, email, phone, message, ip, ua: clip(req.headers["user-agent"], 300), ts: Date.now(), status: "new" };
+    await db.collection("inquiries").add(rec);
+    // 自動返信(問い合わせ主へ)
+    const reply =
+      name + " 様\n\n" +
+      "この度は「メカノAI」へお問い合わせいただきありがとうございます。\n" +
+      "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
+      "──────────\n" +
+      (company ? "会社名: " + company + "\n" : "") +
+      "お名前: " + name + "\n" +
+      "メール: " + email + "\n" +
+      (phone ? "電話: " + phone + "\n" : "") +
+      "内容:\n" + message + "\n" +
+      "──────────\n\n" +
+      "※本メールは送信専用の自動返信です。ご返信いただいても確認できない場合があります。\n\n" +
+      "メカノAI（Cablueie）\nお問い合わせ: " + cfg().sendgrid.notify + "\n";
+    await sendMail(email, "【メカノAI】お問い合わせを受け付けました", reply, cfg().sendgrid.notify);
+    // 運営へ通知
+    const notify =
+      "新しいお問い合わせがありました。\n\n" +
+      "会社名: " + (company || "(未記入)") + "\n" +
+      "お名前: " + name + "\n" +
+      "メール: " + email + "\n" +
+      "電話: " + (phone || "(未記入)") + "\n" +
+      "内容:\n" + message + "\n\n" +
+      "IP: " + ip + "\n受信: " + new Date(rec.ts).toLocaleString("ja-JP");
+    await sendMail(cfg().sendgrid.notify, "【新規問い合わせ】" + (company || name), notify, email);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("submitInquiry失敗", e);
+    return res.status(500).json({ error: "送信に失敗しました。時間をおいて再度お試しください。" });
+  }
 });
 
 /* 個人版(Google Play)サブスクの購入検証・承認。
