@@ -915,10 +915,9 @@ body.pwLocked{ overflow:hidden }
 .guidePrep{ margin-top:10px; color:var(--brand,#1e5aa8); font-weight:600 }
 
 /* 保存結果カード: ヘッダー右上の共有ボタン(1つだけ) */
-.histShareBtn{ margin-left:auto; flex:0 0 auto; font-size:12px; font-weight:600; padding:5px 12px;
-  border:1px solid var(--line,#d9d9d9); border-radius:16px; background:var(--panel2,#f3f5f8);
-  color:var(--brand,#1e5aa8); cursor:pointer; letter-spacing:0 }
-.histShareBtn:active{ background:var(--line,#e6e6e6) }
+.histShareBtn{ margin-left:auto; flex:0 0 auto; font-size:12.5px; font-weight:600; padding:4px 6px;
+  border:0; background:none; color:var(--brand,#1e5aa8); cursor:pointer; letter-spacing:0 }
+.histShareBtn:active{ opacity:.55 }
 .histMetaRow{ display:flex; align-items:center; gap:10px; margin-bottom:10px }
 .histMetaRow .histMeta{ flex:1 1 auto; margin:0; padding:0; border:0 }
 
@@ -933,9 +932,8 @@ body.pwLocked{ overflow:hidden }
 .histPanelBody{ padding-top:12px }
 
 /* 保存結果の「閉じる」ボタン(共有の左) */
-.histCloseBtn{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:1px solid var(--line,#d9d9d9);
-  background:var(--panel2,#f3f5f8); color:#666; font-size:14px; line-height:1; cursor:pointer; padding:0 }
-.histCloseBtn:active{ background:var(--line,#e6e6e6) }
+.histCloseBtn{ flex:0 0 auto; border:0; background:none; color:#8a929c; font-size:18px; line-height:1; cursor:pointer; padding:4px 8px }
+.histCloseBtn:active{ opacity:.55 }
 .histMetaRow .histCloseBtn{ margin-left:auto }
 
 /* 修理結果の共有バー */

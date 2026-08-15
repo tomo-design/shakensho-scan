@@ -1529,13 +1529,13 @@ async function runVehAsk() {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
 }
-/* 修理結果の先頭に共有ボタンのバーを差し込む(renderRepairAnswerがboxをクリアした後に呼ぶ) */
+/* 修理結果の末尾(FAINESリンクの上)に共有ボタンを右寄せで置く */
 function addRepairShareBar(box, rec) {
   const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
   const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
   const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
   sh.addEventListener("click", () => shareRepairRecord(rec));
-  bar.append(sp, sh); box.insertBefore(bar, box.firstChild);
+  bar.append(sp, sh); box.appendChild(bar);
 }
 /* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章)。hasMedia=添付写真あり */
 function buildRepairPrompt(q, hasMedia) {
@@ -4220,7 +4220,7 @@ async function runDiagAI(text) {
   }
   if (diagAiBusy) return;
   diagAiBusy = true;
-  const { sec, body } = diagSection("", "メカ君", "メカ君の見解" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+  const { sec, body } = diagSection("", "メカ君", "メカ君の見解");
   const p = document.createElement("div");
   p.className = "ai-answer";
   const stopTimer = startThinkingTimer(p, "🔧 メカ君が考えています");   // 経過秒を出して待機の体感を軽くする
@@ -4343,13 +4343,16 @@ function repairShareText(rec) {
   const o = rec.repairObj || {}; const v = rec.veh || {};
   const L = ["🔧 メカノAI 点検手引書", "車両: " + (v.model || v.type || "不明")];
   if (rec.input) L.push("作業: " + rec.input);
-  L.push("──────────");
-  if (o.location) L.push("◆ 取り付け位置", o.location);
-  if (Array.isArray(o.order) && o.order.length) { L.push("◆ 部品"); o.order.forEach(p => L.push("・" + (p.name || "") + (p.qty ? " ×" + p.qty : "") + (p.kind && p.kind !== "本体" ? "（" + p.kind + "）" : ""))); }
-  if (Array.isArray(o.steps) && o.steps.length) { L.push("◆ 手順"); o.steps.forEach((s, i) => L.push((i + 1) + ". " + (s.text || s))); }
-  if (o.torque) L.push("◆ 締付トルク", String(o.torque));
-  if (o.special && o.special !== "特になし") L.push("◆ 注意", String(o.special));
-  L.push("──────────", "※参考情報です。作業前にFAINES等で正式値を確認してください。 — メカノAI");
+  const sec = (title, lines) => { L.push("", "◆ " + title, ...lines); };   // 各セクションの前に空行
+  if (o.location) sec("取り付け位置", [String(o.location)]);
+  if (o.time) sec("所要時間の目安", [String(o.time)]);
+  if (Array.isArray(o.order) && o.order.length) {
+    sec("部品注文リスト", o.order.map(p => "・" + (p.name || "") + (p.qty ? " ×" + p.qty : "") + (p.kind && p.kind !== "本体" ? "（" + p.kind + "）" : "")));
+  }
+  if (Array.isArray(o.steps) && o.steps.length) sec("手順", o.steps.map((s, i) => (i + 1) + ". " + (s.text || s)));
+  if (o.torque) sec("締付トルク", [String(o.torque)]);
+  if (o.special && o.special !== "特になし") sec("注意", [String(o.special)]);
+  L.push("", "──────────", "※参考情報です。作業前にFAINES等で正式値を確認してください。 — メカノAI");
   return L.join("\n");
 }
 async function shareRepairRecord(rec) {
@@ -5297,7 +5300,7 @@ async function diagMediaAnalyze() {
     }
     st.textContent = "メカ君が写真・動画を解析しています…";
     const box = $("diagResults");
-    const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断" + (getAiMode() === "pro" ? "（高精度モード）" : ""));
+    const { sec, body } = diagSection("", "メカ君", "写真・動画からのメカ君診断");
     const p = document.createElement("div"); p.className = "ai-answer";
     body.appendChild(p); box.prepend(sec); sec.scrollIntoView({ behavior: "smooth" });
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
