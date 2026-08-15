@@ -166,9 +166,10 @@
     const perkBlock = active
       ? '<div class="planHead"><span class="planHeadTtl">現在のプラン</span> <span class="tierBadge tier-' + code + '">' + TN[code] + '</span>' +
           (periodText ? '<span class="planPeriod">' + periodText + '</span>' : '') +
+        '</div>' +
+        '<div class="planPriceRow"><span class="planPrice">' + PRICE[code] + '</span>' +
           (code === "twinturbo" ? '<button type="button" class="btn btn-ghost btn-sm planSeatBtn" id="btnSeatChange">➕ 有料席を追加</button>' : '') +
         '</div>' +
-        '<div class="planPrice">' + PRICE[code] + '</div>' +
         '<div class="planPerk"><div class="planPerkTtl">このプランでできること</div>' +
           '<ul class="planPerkList">' + li(AI_PERK[code] || AI_PERK.na) + '</ul>' +
           '<div class="planPerkTtl">共通</div><ul class="planPerkList planPerkSub">' + li(COMMON) + '</ul>' +

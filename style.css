@@ -962,3 +962,7 @@ body.pwLocked{ overflow:hidden }
 
 /* 修理: 入力欄と結果ブロックを区切り線で分離 */
 #qVehResult:not(:empty){ margin-top:14px; padding-top:16px; border-top:2px solid var(--line,#e2e2e2) }
+
+/* プラン: 金額と「有料席を追加」を同じ行に(金額=左、ボタン=右) */
+.planPriceRow{ display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap }
+.planPriceRow .planPrice{ margin:0 }
