@@ -160,14 +160,19 @@
     ];
     const li = a => a.map(x => "<li>" + x + "</li>").join("");
     // 契約中: 現在グレードの特典だけをきれいに表示。未契約: 案内のみ。
+    // 契約期間(次回更新/終了日)。paidUntil(ms)がその期間の終わり。
+    const paidUntil = tenantDoc && tenantDoc.paidUntil ? Number(tenantDoc.paidUntil) : 0;
+    const periodText = paidUntil ? "〜" + new Date(paidUntil).toLocaleDateString("ja-JP") + " まで" : "";
     const perkBlock = active
-      ? '<div class="planHead">現在のプラン <span class="tierBadge tier-' + code + '">' + TN[code] + '</span></div>' +
+      ? '<div class="planHead"><span class="planHeadTtl">現在のプラン</span> <span class="tierBadge tier-' + code + '">' + TN[code] + '</span>' +
+          (periodText ? '<span class="planPeriod">' + periodText + '</span>' : '') +
+          (code === "twinturbo" ? '<button type="button" class="btn btn-ghost btn-sm planSeatBtn" id="btnSeatChange">➕ 有料席を追加</button>' : '') +
+        '</div>' +
         '<div class="planPrice">' + PRICE[code] + '</div>' +
         '<div class="planPerk"><div class="planPerkTtl">このプランでできること</div>' +
           '<ul class="planPerkList">' + li(AI_PERK[code] || AI_PERK.na) + '</ul>' +
           '<div class="planPerkTtl">共通</div><ul class="planPerkList planPerkSub">' + li(COMMON) + '</ul>' +
-        '</div>' +
-        (code === "twinturbo" ? '<div class="planNote" id="seatBox"><button type="button" class="btn btn-ghost btn-sm" id="btnSeatChange">🔎 検索席を変更</button></div>' : "")
+        '</div>'
       : '<div class="planHead">現在の状態: <b>未契約（無料/試用）</b></div>' +
         '<div class="planNote">下から契約すると、社内共有・フル機能・AIサポートが使えます。</div>';
     // プラン変更/申し込み(契約中は折り畳みでスッキリ)
@@ -222,17 +227,42 @@
         renderPlan();
       } catch (e) { seatBtn.disabled = false; uiAlert("席数の変更に失敗しました: " + (e.message || e)); }
     };
-    const cx = $("btnPlanCancel"); if (cx) cx.onclick = async () => {
-      if (!confirm("解約しますか？\n現在の契約期間の終了日まで利用でき、その後は自動で停止します（追加の請求はありません）。")) return;
-      cx.disabled = true; const st = $("signupStat"); if (st) st.textContent = "解約手続き中…";
-      try {
-        const d = await window.Cloud.callFn("cancelPlan", {});
-        if (st) st.textContent = "✓ 解約を受け付けました。" + (d && d.until ? new Date(d.until).toLocaleDateString("ja-JP") + " まで利用できます。" : "次回更新日以降の請求は停止されます。");
-      } catch (e) { cx.disabled = false; if (st) st.textContent = "⚠ 解約に失敗しました: " + (e.message || e); }
-    };
+    const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => openCancelSurvey();
     // 支払いページから戻った(bfcache)とき、進行中表示を確実にリセット
     if (!planPageshowBound) { planPageshowBound = true; window.addEventListener("pageshow", e => { if (e.persisted && me && profile) renderPlan(); }); }
     show("cloudPlan", true);
+  }
+  /* 解約前アンケート(改善協力)。回答をFirestoreに保存してから解約(cancelPlan)を実行。 */
+  function openCancelSurvey() {
+    const REASONS = ["料金が高い", "使う機会が減った", "機能が不足している", "使い方が難しい", "不具合・エラーが多い", "他サービスへ乗り換え", "一時的に休止したい", "その他"];
+    const ov = document.createElement("div"); ov.className = "uiModalOv";
+    const m = document.createElement("div"); m.className = "uiModal csModal";
+    m.innerHTML =
+      '<div class="uiModalTitle">解約前に教えてください</div>' +
+      '<div class="csLead">今後の改善のため、差し支えなければご回答ください（任意・匿名可）。</div>' +
+      '<div class="csReasons">' + REASONS.map(r => '<label class="csR"><input type="radio" name="csReason" value="' + r + '"> <span>' + r + '</span></label>').join("") + '</div>' +
+      '<textarea class="csComment" placeholder="改善してほしい点・ご意見（任意）"></textarea>' +
+      '<div class="csBtns"><button type="button" class="btn btn-ghost btn-sm" id="csBack">やめる</button>' +
+      '<button type="button" class="btn btn-amber btn-sm" id="csGo">回答して解約する</button></div>' +
+      '<div class="planNote" id="csStat">解約すると、契約期間の終了日まで利用でき、その後は自動で停止します（追加請求なし）。</div>';
+    ov.appendChild(m); document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    m.querySelector("#csBack").onclick = close;
+    m.querySelector("#csGo").onclick = async () => {
+      const reason = (m.querySelector('input[name="csReason"]:checked') || {}).value || "";
+      const comment = (m.querySelector(".csComment").value || "").trim();
+      const stat = m.querySelector("#csStat"); const go = m.querySelector("#csGo");
+      go.disabled = true; stat.textContent = "解約手続き中…";
+      try {
+        // アンケートを保存(失敗しても解約は続行)
+        try { await db.collection("cancelSurveys").add({ tid: (profile && profile.tenantId) || "", uid: (me && me.uid) || "", email: (me && me.email) || "", reason: reason, comment: comment, ts: Date.now() }); } catch (e) {}
+        const d = await window.Cloud.callFn("cancelPlan", {});
+        stat.textContent = "✓ 解約を受け付けました。" + (d && d.until ? new Date(d.until).toLocaleDateString("ja-JP") + " まで利用できます。" : "次回更新日以降の請求は停止されます。");
+        go.textContent = "閉じる"; go.disabled = false; go.onclick = close; m.querySelector("#csBack").style.display = "none";
+        renderPlan();
+      } catch (e) { go.disabled = false; stat.textContent = "⚠ 解約に失敗しました: " + (e.message || e); }
+    };
   }
   /* 登録端末の一覧＋追加端末(個人) — 折り畳み。制限超過時は自動で開く。 */
   function renderDevices() {

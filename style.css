@@ -944,3 +944,18 @@ body.pwLocked{ overflow:hidden }
   padding:3px 9px; border-radius:12px; white-space:nowrap }
 .engBadge.pro{ background:#0f7b6c; color:#fff }
 .engBadge.flash{ background:#e7ebf0; color:#5a6472 }
+
+/* 契約プラン: 期間表示・有料席追加ボタン・解約リンクを控えめに */
+.planPeriod{ font-size:11px; font-weight:500; color:var(--dim) }
+.planSeatBtn{ margin-left:auto; flex:0 0 auto }
+.planCancel .textlink{ flex:0 0 auto; width:auto; display:inline-block; background:none; border:0; border-radius:0;
+  padding:2px 4px; font-size:12px; color:var(--dim); text-decoration:underline; text-align:left }
+.planCancel .textlink:active{ color:var(--amber); border:0 }
+/* 解約前アンケート */
+.csModal{ max-width:430px; text-align:left }
+.csLead{ font-size:12px; color:var(--dim); margin:4px 0 12px; line-height:1.6 }
+.csReasons{ display:flex; flex-direction:column; gap:7px; margin-bottom:10px }
+.csR{ display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer }
+.csComment{ width:100%; min-height:64px; box-sizing:border-box; margin-bottom:12px;
+  border:1px solid var(--line); border-radius:8px; padding:8px; font-family:inherit; font-size:13px }
+.csBtns{ display:flex; gap:8px; justify-content:flex-end }
