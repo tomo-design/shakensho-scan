@@ -164,6 +164,213 @@
       "Set a Gemini API key (<b>free, no card needed</b>) to use “Ask Mecha”. Just get one with the button below and paste it.",
     "高精度モードは複雑な複合症状向け。無料枠の上限時は自動で標準に切替。":
       "High-accuracy mode is for complex, combined symptoms. Falls back to Standard automatically when the free quota is reached.",
+
+    // ===== 追加: 静的UIの網羅(ヘッダー/スキャン/フッター) =====
+    "メカノAI - 車両整備サポート": "MECHANO-AI – Vehicle Service Assistant",
+    "← 戻る": "← Back", "QRでScan": "Scan by QR", "写真でScan": "Scan by photo",
+    "🔄 再スキャン": "🔄 Rescan", "QR解析": "Analyze QR", "ライト": "Light",
+    "🔎 QR生データをコピー（不具合報告用）": "🔎 Copy raw QR data (for bug reports)",
+    "※ データはこの端末に保存。": "※ Stored on this device.",
+    "クラウド同期にログイン中は社内で共有されます。": "When signed in to cloud sync, it is shared within your company.",
+    "利用規約・著作権": "Terms & Copyright", "プライバシーポリシー": "Privacy Policy",
+    "カスタマーハラスメント対応ポリシー": "Customer Harassment Policy", "よくある質問": "FAQ",
+    "お問い合わせ": "Contact", "運営のメール": "Operator email", "アプリQR": "App QR",
+    "アプリ紹介用QRコード": "App promo QR code", "メカ君": "Mecha", "OCR対象画像": "OCR target image",
+    // ===== リコール =====
+    "国土交通省 リコール情報検索": "MLIT recall information search",
+    "車台番号・型式で検索（公式）": "Search by chassis / model (official)",
+    "メーカーのリコール検索ページ": "Manufacturer’s recall search page",
+    "車台番号入力で対象確認": "Check affected units by chassis number",
+    "「型式＋リコール」でWeb検索": "Web search “model + recall”",
+    "最新の届出をまとめて確認": "Check the latest filings at once",
+    // ===== 修理/診断 見出し =====
+    "修理/その他": "Repair / Other", "過去の点検手引書": "Past inspection guides",
+    "結果はこの端末に保存されます。項目タップで再表示、×で削除。":
+      "Results are saved on this device. Tap an item to reopen, × to delete.",
+    "故障診断/ダイアグ": "Fault diagnosis / DTC", "過去の診断結果": "Past diagnosis results",
+    // ===== DB編集 =====
+    "車種名（例: いすゞ ギガ）": "Model name (e.g. Isuzu Giga)",
+    "型式マッチ正規表現（例: ^(CYL|CXZ)）": "Model-match regex (e.g. ^(CYL|CXZ))",
+    "メーカー（リコールリンク用）": "Manufacturer (for recall links)",
+    "いすゞ": "Isuzu", "日野": "Hino", "三菱ふそう": "Mitsubishi Fuso", "UDトラックス": "UD Trucks",
+    "日産": "Nissan", "トヨタ": "Toyota", "ホンダ": "Honda", "マツダ": "Mazda",
+    "スズキ": "Suzuki", "ダイハツ": "Daihatsu", "スバル": "Subaru", "その他": "Other",
+    "定番故障・持病（1行に1件）": "Common faults (one per line)",
+    "メンテナンス諸元（1行に1件、「項目: 値」形式）": "Maintenance specs (one per line, “item: value”)",
+    "メモ（任意）": "Notes (optional)",
+    "📷 写真から読み取り（整備書・諸元表・コーションプレート等）":
+      "📷 Read from photo (service manual, spec sheet, caution plate, etc.)",
+    "読み取り結果（不要な行を消してから反映してください）": "OCR result (delete unneeded lines before applying)",
+    "「内蔵」は db/vehicles.json の初期データ、「カスタム」はこの端末で追加・編集したデータ（localStorage保存）です。同じ車種名のカスタムが内蔵より優先されます。ノウハウのバックアップにはエクスポートを使ってください。":
+      "“Built-in” is the initial data in db/vehicles.json; “Custom” is data you added/edited on this device (saved in localStorage). Custom entries with the same model name take priority. Use Export to back up your know-how.",
+    "履歴を全削除": "Delete all history", "カスタムDBを全削除": "Delete all custom DB",
+    "🗑 DB内蔵データを全消去": "🗑 Erase all built-in DB data",
+    "「DB内蔵データを全消去」は内蔵車種DB・カスタムDB・AIが学習した諸元/定番故障をすべて削除します（スキャン履歴は残ります）。":
+      "“Erase all built-in DB data” deletes the built-in model DB, custom DB, and AI-learned specs/common faults (scan history is kept).",
+    // ===== カルテ入力 =====
+    "記録を追加": "Add record", "写真で入力": "Photo input", "任意": "Optional", "担当者名": "Staff name",
+    "次回の申し送り・気づきなど（任意）": "Handover notes / observations (optional)",
+    "例: 82000": "e.g. 82000",
+    "例: エンジンオイル・エレメント交換、下回り点検（複数はカンマや改行で区切ると見やすく表示されます）":
+      "e.g. Engine oil & filter change, underbody inspection (separate multiple items with commas or line breaks)",
+    "例: 純正オイル4.0L、オイルエレメント(品番●●)": "e.g. Genuine oil 4.0L, oil filter (part no. ●●)",
+    // ===== 診断/修理 入力ボタン(title) =====
+    "音声で入力": "Voice input", "メカ君と会話": "Chat with Mecha",
+    "写真を添付": "Attach photo", "写真を撮って添付": "Take & attach photo",
+    "動画を添付": "Attach video", "動画を撮って添付": "Take & attach video",
+    "修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。":
+      "Ask about repair/maintenance (a task name is fine, e.g. “pad replacement”). 🎤 voice, 🗣️ chat, 📷 photo too.",
+    "ダイアグコード（例: P0401）や症状を入力。🎤音声・写真/動画の添付も可。":
+      "Enter a DTC (e.g. P0401) or symptom. 🎤 voice, photo/video attachments too.",
+    "メッセージを入力…": "Type a message…", "送信": "Send",
+    // ===== 直接入力の例(placeholder) =====
+    "例: 2PG-FW74HZ / VY12": "e.g. 2PG-FW74HZ / VY12", "例: A09C / 6UZ1 / KF": "e.g. A09C / 6UZ1 / KF",
+    "例: FW74HZ-510123": "e.g. FW74HZ-510123", "例: 品川 100 あ 12-34": "e.g. Shinagawa 100 A 12-34",
+    "例: 〇〇運送": "e.g. ABC Transport",
+    "例: 山田 太郎": "e.g. Taro Yamada", "6文字以上": "6+ characters", "例: sakuragarage": "e.g. sakuragarage",
+    "エンジンオイル量: 約13L（フィルタ交換時）\nホイールナット締付: 550-600N·m（ISO・要確認）":
+      "Engine oil: approx. 13L (with filter change)\nWheel nut torque: 550-600 N·m (ISO, verify)",
+    // ===== サポート/設定 見出し =====
+    "メカ君サポート": "Mecha support",
+    "回答はAIによる案内です。契約・請求の確定情報は運営にご確認ください。":
+      "Answers are AI guidance. For confirmed contract/billing details, please check with the operator.",
+    "解決しない場合：": "If not resolved:",
+    "バージョン情報を取得中…": "Loading version info…", "🔄 アプリを最新に更新": "🔄 Update app to latest",
+    "🔑 パスワード変更": "🔑 Change password", "✉ メール変更": "✉ Change email", "↩ ログアウト": "↩ Log out",
+    // ===== 従業員登録の手順 =====
+    "📋 従業員の登録手順（はじめての方へ）": "📋 Staff registration steps (first-time users)",
+    "既存の会社に参加": "Join an existing company", "自分のメール": "your email",
+    "パスワード（6文字以上）": "password (6+ characters)", "事業所ID": "company ID",
+    "④「承認待ち」と出る →": "④ “Pending approval” appears →",
+    "会社の管理者が承認": "your company admin approves", "するまで待つ": "— wait until then",
+    "⑤ 承認されると自動でログイン状態になり、社内の車両データ・車種DBが同期されます":
+      "⑤ Once approved, you’re signed in automatically and your company’s vehicle data / model DB syncs",
+    "※ 2回目以降は「ログイン」だけでOK。パスワードは各自で保管してください。":
+      "※ After the first time, just “Log in”. Keep your password safe.",
+    "ログインすると、車種DB・車両データ（ナンバー/使用者含む）を":
+      "Sign in to automatically share the model DB and vehicle data (incl. plate/owner) across",
+    "社内の全端末で自動共有": "all devices in your company",
+    "できます。会社ごとに分離され、他社からは見えません。":
+      ". Data is separated per company and invisible to other companies.",
+    "ログインでお困りの場合は、会社の代表管理者または運営（":
+      "If you have trouble signing in, contact your company admin or the operator (",
+    "）へご連絡ください。": ").",
+    // ===== APIキー設定の案内 =====
+    "🔑 このアプリはご自身のAPIキーで動きます": "🔑 This app runs on your own API key",
+    "下の「メカ君に相談機能」でGoogleの": "In “Ask-Mecha feature” below, get Google’s",
+    "無料APIキー": "free API key",
+    "を取得して貼ると、AI機能が使えます（カード登録不要）。":
+      " and paste it to enable AI features (no card required).",
+    "さらに": "Also, ", "文字読み取り（OCR）": "text recognition (OCR)",
+    "も、Cloud Vision APIキーの登録で高精度になります（月1,000枚まで無料）。":
+      " becomes high-accuracy by registering a Cloud Vision API key (free up to 1,000/month).",
+    "🔑 AI用キー設定": "🔑 AI key setup", "📷 OCR用キー設定": "📷 OCR key setup",
+    "APIキー": "API key", "を取る": " — get one",
+    "開いたページで（Googleにログイン後）「": "On the page that opens (after signing in to Google),",
+    "APIキーを作成": "Create API key", "」→ 出てきた": "→ copy the",
+    "をコピー → 下に貼る。": " and paste it below.",
+    "※「プロジェクトを選択」と出たら、一覧のどれかを選ぶ／無ければ「新しいプロジェクトで作成」でOK。":
+      "※ If asked to “Select a project”, pick any from the list, or choose “Create in new project”.",
+    "「無料枠の上限」をなくしたい場合（任意・従量課金）":
+      "To remove the “free-tier limit” (optional, pay-as-you-go)",
+    "同じキーのまま、紐づくプロジェクトの「課金」を有効にすると上限が大幅に上がります。":
+      "Keep the same key and enable “Billing” on its project to greatly raise the limit.",
+    "AI StudioのAPIキー画面 ↗": "AI Studio API keys ↗", "Google Cloud のお支払い ↗": "Google Cloud Billing ↗",
+    "でカード登録 → キーの貼り替え不要": " register a card — no need to re-paste the key",
+    "料金:": "Pricing:", "Gemini API 料金 ↗": "Gemini API pricing ↗",
+    "文字読み取り（OCR）について": "About text recognition (OCR)",
+    "高精度に読み取るには、Cloud Vision APIの登録を推奨します。":
+      "For high-accuracy reading, registering the Cloud Vision API is recommended.",
+    "整備書・諸元表・コーションプレート・手書き伝票などを正確に文字起こしできます（月1,000枚まで無料）。設定は下のSTEP 1〜2だけ、数分で完了します。":
+      "Accurately transcribe service manuals, spec sheets, caution plates, handwritten slips, etc. (free up to 1,000/month). Setup is just STEP 1–2 below and takes a few minutes.",
+    "おすすめ：Cloud Vision APIキーを登録": "Recommended: register a Cloud Vision API key",
+    "（月1,000枚まで無料・高精度）": " (free up to 1,000/month, high accuracy)",
+    "未登録でも、端末内の": "Even without it, on-device ",
+    "Tesseract（無料・オフライン）": "Tesseract (free, offline)",
+    "で読み取りは動きます（精度は控えめ。明るく大きく写すと向上）。":
+      " still works (lower accuracy; improves with bright, large shots).",
+    "を有効にする": " — enable it", "Vision APIを有効化する ↗": "Enable the Vision API ↗",
+    "開いた画面で「": "On the screen that opens,", "有効にする": "Enable",
+    "」を押す。プロジェクトが無ければ画面の案内で1つ作成（無料）。":
+      " and press it. If you have no project, create one via the on-screen guide (free).",
+    "APIキー発行ページを開く ↗": "Open the API key page ↗", "＋認証情報を作成": "+ Create credentials",
+    "」→ 出た": "→ the",
+    "※ 月1,000枚を超えると課金（ご自身のGoogle側）になります。料金:":
+      "※ Over 1,000/month is billed (on your Google account). Pricing:",
+    "Vision 料金 ↗": "Vision pricing ↗",
+    "高精度OCR（Cloud Vision）を使う": "Use high-accuracy OCR (Cloud Vision)",
+    "ON＋キー設定時のみ全OCRがCloud Visionに（課金はご自身のGoogle側）。":
+      "Only when ON and a key is set, all OCR uses Cloud Vision (billed on your Google account).",
+    "設定すると、": "Once set, ",
+    "部品注文リストの部品名をタップしたときに実物の写真": "tapping a part name in the order list shows real photos",
+    "が表示されます。未設定でもWeb画像検索リンクは使えます。":
+      ". Even without it, web image-search links still work.",
+    "ご契約中は設定不要です。": "No setup needed while you have a contract.",
+    "そのままお使いいただけます。": "You can use it as is.",
+    "検索エンジン": "search engine", "検索エンジンを作成する ↗": "Create a search engine ↗",
+    "名前は自由（例：部品画像）。作成したら、その検索エンジンの設定画面で次の2つを行ってください。":
+      "Any name (e.g. Part images). After creating it, do the following two things in its settings.",
+    "検索設定": "Search settings", "画像検索": "Image search", "オン": "on",
+    "にする（": " (",
+    "オフのままだと画像が出ません": "if left off, no images appear",
+    "ウェブ全体を検索": "Search the entire web",
+    "にする（見つからない場合は、検索対象に": " (if not found, add one site such as",
+    "ではなく": " instead of",
+    "など任意のサイトを1つ追加してから、この項目をオンにしてください）。":
+      " to the search targets, then turn this on).",
+    "そのうえで「": "Then ", "検索エンジンID": "Search engine ID", "」をコピー → 下の①に貼る。": " — copy it and paste into ① below.",
+    "Custom Search APIを有効にする ↗": "Enable the Custom Search API ↗",
+    "次のSTEP3と同じプロジェクト": "the same project as STEP 3 below",
+    "で行ってください（画面上部のプロジェクト名で確認）。ここが違うと「APIが有効になっていません」になります。":
+      " (check the project name at the top). A mismatch causes “API not enabled”.",
+    "をコピー → 下の②に貼る。": " — copy it and paste into ② below.",
+    "※ 1日100回まで無料。超えると課金（ご自身のGoogle側）。料金:":
+      "※ Free up to 100/day. Over that is billed (on your Google account). Pricing:",
+    "Custom Search 料金 ↗": "Custom Search pricing ↗",
+    "① 検索エンジンID をここに貼る": "① Paste the Search engine ID here",
+    "② APIキー をここに貼る": "② Paste the API key here",
+    "Cloud Vision APIキー（推奨）": "Cloud Vision API key (recommended)",
+    "検索エンジンID（例 a1b2c3d4e5f6g7h8i）": "Search engine ID (e.g. a1b2c3d4e5f6g7h8i)",
+    "Custom Search APIキー": "Custom Search API key",
+    "※ 車両ごとに記録・社内共有。「写真から自動入力」は作業伝票やメモの写真をメカ君(AI)が読み取り各項目に下書きします（内容は保存前に確認・修正できます）。":
+      "※ Records are per vehicle and shared in-house. “Auto-fill from photo” lets Mecha (AI) read a photo of a work slip/memo and draft each field (review and edit before saving).",
+    // ===== 追加: 細かな断片(インライン要素で分割された文言) =====
+    "」を押す": "”", "と": "and", "を入力": " — enter it",
+    "に会社から伝えられたID（例:": " — enter the ID given by your company (e.g.",
+    "）を入力 →「実行」": ") → “Submit”",
+    "を作る": " — create one", "の「": " → “", "」を": "” ", "」を割り当て:": "” — assign:",
+    "Gemini APIキー（": "A Gemini API key (", "無料・カード登録不要": "free, no card needed",
+    "）を設定すると「メカ君に相談」が使えます。下のボタンで取得して貼るだけ。":
+      ") enables “Ask Mecha”. Just get one with the button below and paste it.",
+
+    // ===== 追加: app.js の動的UI(読み込み/状態/ボタン/ラベル) =====
+    "ピント調整中…": "Adjusting focus…", "位置を調べ中…": "Looking up the location…",
+    "メカ君が考え中…": "Mecha is thinking…", "メカ君が解析中…": "Mecha is analyzing…",
+    "メカ君が調べ中…": "Mecha is looking it up…", "動画を圧縮中…": "Compressing video…",
+    "🔄 更新中…": "🔄 Updating…", "✓ 読み取り完了": "✓ Read complete", "中断しました": "Cancelled",
+    "取得に失敗しました": "Failed to load", "APIキー未設定": "No API key set", "キーが無効": "Key is invalid",
+    "利用不可": "Unavailable", "は利用不可": " unavailable",
+    "参考図を隠す": "Hide reference", "写真を追加": "Add photo", "📤 共有": "📤 Share",
+    "締付トルク・規定値": "Tightening torque / spec values", "リコール 改善対策": "Recall / improvement",
+    "前回の車両": "Last vehicle", "メカ君の見解": "Mecha’s view", "保存した診断結果": "Saved diagnosis results",
+    "点検手引書": "Inspection guide", "高精度Pro": "High-accuracy Pro", "標準Flash": "Standard Flash",
+    "通販で探す": "Find online", "楽天市場で探す": "Search on Rakuten", "Amazonで探す": "Search on Amazon",
+    "参考図": "Reference", "疑う原因": "Suspected cause",
+    // 油脂・冷却水など(諸元/修理でよく出る)
+    "エンジンオイル量": "Engine oil capacity", "推奨オイル粘度": "Recommended oil viscosity",
+    "クーラント量": "Coolant capacity", "デフオイル量": "Diff oil capacity",
+    "エンジンオイル": "Engine oil", "エンジン油": "Engine oil", "オートマオイル": "ATF",
+    "ミッションオイル": "Transmission oil", "デフオイル": "Diff oil", "ギヤオイル": "Gear oil", "ギアオイル": "Gear oil",
+    "CVTフルード": "CVT fluid", "ブレーキフルード": "Brake fluid", "ブレーキ液": "Brake fluid", "ブレーキオイル": "Brake fluid",
+    "パワステフルード": "Power steering fluid", "クーラント": "Coolant", "不凍液": "Antifreeze", "冷却水": "Coolant",
+    "アドブルー": "AdBlue", "尿素水": "AdBlue (urea)", "ロングライフ": "Long-life",
+    // 工具(別途必要な工具リストでよく出る)
+    "トルクレンチ": "Torque wrench", "ソケット": "Socket", "プライヤー": "Pliers", "ニッパー": "Nippers",
+    "ペンチ": "Pliers", "ラジオペンチ": "Needle-nose pliers", "モンキーレンチ": "Adjustable wrench",
+    "六角レンチ": "Hex key", "貫通ドライバー": "Through-shank screwdriver", "プラスドライバー": "Phillips screwdriver",
+    "マイナスドライバー": "Flat-head screwdriver", "インパクトレンチ": "Impact wrench",
+    "トルクスソケット": "Torx socket", "トルクスドライバー": "Torx driver", "バイスプライヤー": "Vise-grip pliers",
+    "ケーブルカッター": "Cable cutter", "ジャッキ": "Jack", "リジッドラック": "Jack stand", "輪止め": "Wheel chock",
   };
 
   // 「前置き(静的) + 値(動的)」— 前置きだけ英訳。^ 固定でユーザー入力への誤爆を防ぐ。
