@@ -202,6 +202,10 @@
       // 請求書(お支払いページ)を作成。カード/銀行振込/コンビニを選べるページへ遷移。
       try {
         const d = await window.Cloud.callFn("createCheckout", { plan: planPref, tier: tierPref, email: me.email || "" });
+        if (d && d.updated) {
+          $("signupStat").innerHTML = "✓ プランを変更しました。差額は次回のご請求でまとめて精算されます。";
+          send.disabled = false; renderPlan(); return;
+        }
         if (d && d.trial) {
           const end = d.trialEnd ? new Date(d.trialEnd * 1000).toLocaleDateString("ja-JP") : "";
           $("signupStat").innerHTML = "✓ 7日間の無料トライアルを開始しました。全機能をお使いいただけます。" + (end ? "<br>初回のご請求書は " + end + " 頃にお送りします。" : "");

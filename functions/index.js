@@ -688,6 +688,27 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
       customerId = c.id;
       await tRef.set({ stripeCustomerId: customerId }, { merge: true });
     }
+    // ★プラン変更: 既に有効な契約がある場合は「新規作成」せず既存サブスクの price を更新する。
+    //   → 契約が2本並ぶ二重課金を防ぐ。差額はStripeが日割り精算(次回請求に計上)。
+    const existSubs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+    const existingSub = (existSubs.data || []).find((s) => ["active", "trialing", "past_due", "unpaid"].includes(s.status));
+    if (existingSub) {
+      const mainItem = existingSub.items.data.find((it) => tierFromPriceId(it.price.id)) || existingSub.items.data[0];
+      const items = [{ id: mainItem.id, price: priceId }];
+      // プラン変更で不要になった席item(ツインターボ以外/間隔変更)を掃除
+      const seatMonth = process.env.STRIPE_PRICE_SEAT_MONTH, seatYear = process.env.STRIPE_PRICE_SEAT_YEAR;
+      existingSub.items.data.forEach((it) => {
+        if ((it.price.id === seatMonth || it.price.id === seatYear) && tier !== "twinturbo") items.push({ id: it.id, deleted: true });
+      });
+      const upd = await stripe.subscriptions.update(existingSub.id, {
+        items: items,
+        proration_behavior: "create_prorations",   // 差額は次回請求にまとめて計上
+        metadata: { tenantId: tid, aiPlan: tier },
+      });
+      const until = upd.current_period_end ? upd.current_period_end * 1000 : (Number(tData.paidUntil) || null);
+      await tRef.set({ plan: "active", aiPlan: tier, aiPaidFallback: (tier !== "na"), paidUntil: until }, { merge: true });
+      return res.json({ updated: true, tier: tier });
+    }
     // 請求書送付方式のサブスク。請求書ページでカード/銀行振込/コンビニを選べる。
     const sub = await stripe.subscriptions.create({
       customer: customerId,
