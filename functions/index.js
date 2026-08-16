@@ -963,6 +963,22 @@ exports.loginIdLookup = functions.region(REGION).https.onRequest(async (req, res
   return res.json({ email: q.docs[0].data().email || "" });
 });
 
+// ログイン中の本人が自分のログインIDを設定/変更する(重複不可)。
+exports.setLoginId = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ。" });
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  let id = String((req.body && req.body.loginId) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  if (id.length < 3 || id.length > 24) return res.status(400).json({ error: "IDは半角英数字・ハイフンで3〜24文字にしてください。" });
+  const db = admin.firestore();
+  const dup = await db.collection("users").where("loginId", "==", id).limit(1).get();
+  if (!dup.empty && dup.docs[0].id !== uid) return res.status(409).json({ error: "このログインIDは既に使われています。別のIDをお試しください。" });
+  await db.collection("users").doc(uid).set({ loginId: id }, { merge: true });
+  return res.json({ ok: true, loginId: id });
+});
+
 // トライアル満了後の決済リンク(未払い/送付済みの請求書のURL)を返す。8日目の画面導線用。POST {tid}。
 exports.getPayLink = functions.region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
@@ -1799,12 +1815,12 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
           "この度はメカノAIへお問い合わせ・資料請求いただきありがとうございます。\n" +
           "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
           planLine + msgLine +
-          "お急ぎの場合や、先にサービスをご覧になりたい場合は以下をご利用ください。\n" +
-          "・サービス紹介資料　" + appUrl + "shiryou.html\n" +
-          "・アプリを体験（ログイン不要）　" + appUrl + "?demo=1\n" +
-          "・機能・料金・FAQ　" + appUrl + "biz.html\n\n" +
+          "まずは、機能・料金・導入の流れをまとめた法人向けページをご覧ください。\n" +
+          "▼メカノAI 法人向けページ\n" + appUrl + "biz.html\n\n" +
+          "・詳しいサービス紹介資料（PDF）のご送付や、実際の操作を体験できるデモをご希望の場合は、\n" +
+          "　お手数ですが本メールにそのままご返信ください。折り返しご案内・発行いたします。\n\n" +
           "※ご契約から7日間は無料でお試しいただけます（実データのまま全機能・初回請求は8日目から）。\n\n" +
-          "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
+          "※本メールは送信専用の自動返信ではありません。ご返信いただければ担当（またはAIアシスタント）がご対応します。\n\n" +
           MAIL_SIGN;
         sendMail(email, subject, ack, replyAddr()).catch(() => {});
       }

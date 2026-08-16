@@ -115,6 +115,13 @@ h1,h2,h3{line-height:1.35;margin:0}
 .shot img{width:100%;height:auto;display:block;background:var(--soft);border-bottom:1px solid var(--line)}
 .shot figcaption{padding:14px 16px 16px;font-size:13px;color:var(--ink2);line-height:1.6}
 .shot figcaption b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:3px}
+.swipe-hint{display:none}
+/* スマホでは画面ショットを横スワイプの大きな表示に(3列固定で潰れるのを防ぐ) */
+@media(max-width:880px){
+  .shots{display:flex;grid-template-columns:none;overflow-x:auto;gap:14px;scroll-snap-type:x mandatory;padding:2px 2px 12px;-webkit-overflow-scrolling:touch}
+  .shot{flex:0 0 80%;scroll-snap-align:center}
+  .swipe-hint{display:block;text-align:center;color:var(--ink2);font-size:12.5px;margin:-6px 0 12px}
+}
 
 /* 料金 */
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}

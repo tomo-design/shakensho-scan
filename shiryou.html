@@ -61,7 +61,10 @@
   table.price th,table.price td{border:1px solid var(--line);padding:10px 12px;text-align:center}
   table.price thead th{background:var(--navy);color:#fff;font-weight:700}
   table.price tbody th{background:var(--soft);text-align:left;font-weight:700;white-space:nowrap}
-  table.price .feat-col{background:#eef4ff}
+  table.price tbody .feat-col{background:#eef4ff}
+  table.price thead th.feat-col{background:var(--navy);color:#fff}
+  .price-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
+  table.price{min-width:480px}
   table.price .yen{font-weight:800;font-size:15px}
   .trial{margin-top:14px;background:#FFF7E6;border:1px solid var(--gold);border-radius:10px;padding:12px 16px;font-size:13.5px}
   .trial b{color:#b07d00}
@@ -150,6 +153,7 @@
   </div>
 
   <h2>料金（法人プラン）</h2>
+  <div class="price-wrap">
   <table class="price">
     <thead><tr><th>プラン</th><th>NA</th><th class="feat-col">ターボ（人気）</th><th>ツインターボ</th></tr></thead>
     <tbody>
@@ -160,6 +164,7 @@
       <tr><th>基本機能<br>（スキャン/諸元/診断/カルテ/共有）</th><td>✓</td><td class="feat-col">✓</td><td>✓</td></tr>
     </tbody>
   </table>
+  </div>
   <div class="trial">🎁 <b>ご契約から7日間は無料トライアル</b>。期間中は自社の実データで全機能を試せ、初回のご請求は8日目からです（カード登録なしでも開始可）。年額は月額の約2か月分お得。端末追加も可能です。</div>
 
   <h2>導入はかんたん3ステップ</h2>

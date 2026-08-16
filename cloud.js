@@ -544,7 +544,23 @@
     } else if (deviceBlocked) {
       $("cloudStat").innerHTML = who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa + "<br>⛔ <b>この端末は無料枠を超えています</b>（社内共有は停止中／個人利用は可）。下の端末一覧をご確認ください。";
     } else {
-      $("cloudStat").innerHTML = "✓ 同期中 — " + who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa;
+      $("cloudStat").innerHTML = "✓ 同期中 — " + who +
+        "<br>ログインID: <b id='myLoginId'>" + esc(profile.loginId || "未設定") + "</b>" +
+        " <button class='btn btn-ghost btn-sm' id='btnChangeLoginId' style='padding:2px 10px;font-size:12px;margin-left:2px'>変更</button>" +
+        "<br>役割: " + roleJa +
+        "<br><span style='color:var(--dim,#89a);font-size:11px'>店舗コード: " + esc(profile.tenantId || "—") + "（社内・サポート用）</span>";
+      const bcl = $("btnChangeLoginId");
+      if (bcl) bcl.onclick = async () => {
+        const cur = profile.loginId || "";
+        let nid = (prompt("新しいログインIDを入力してください。\n（半角英数字とハイフン、3〜24文字。次回からこのIDでログインできます）", cur) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+        if (!nid || nid === cur) return;
+        try {
+          const rsp = await window.Cloud.callFn("setLoginId", { loginId: nid });
+          profile.loginId = rsp.loginId || nid;
+          const el = $("myLoginId"); if (el) el.textContent = profile.loginId;
+          uiAlert("ログインIDを変更しました：" + profile.loginId);
+        } catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
+      };
     }
     renderPlan();
     renderDevices();
