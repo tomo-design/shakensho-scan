@@ -36,6 +36,8 @@
   .ts-hero{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 0 2px}
   .ts-mecha{width:92px;height:auto;object-fit:contain;flex:none}
   .ts-bubble{flex:1;background:#fff;border:2px solid #16233a;border-radius:14px;padding:9px 10px;font-weight:800;font-size:12px;color:#16233a;line-height:1.4;text-align:center;box-shadow:0 4px 0 rgba(22,35,58,.12)}
+  .ts-cert{flex:1;display:flex;justify-content:center;align-items:center}
+  .ts-cert svg{width:100%;max-width:210px;height:auto;display:block;filter:drop-shadow(0 4px 8px rgba(15,27,48,.18))}
   .ts-btns{display:flex;flex-direction:column;gap:7px;margin:8px 4px 0}
   .ts-btn{background:#fff;border:1.5px solid #cdd6e3;border-radius:10px;padding:10px;text-align:center;font-weight:800;color:#1e5aa8;font-size:13px}
   .ts-search{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:9px;text-align:center;color:#39435a;font-size:12.5px;font-weight:700;margin:8px 4px 0}
@@ -117,7 +119,47 @@
             <div class="ts-head"><img src="img/logo-mark.png" class="ts-logo" alt=""><span class="ts-name">メカノAI<small>MECHANO-AI</small></span></div>
             <div class="ts-hero">
               <img src="img/hero2.png" class="ts-mecha" alt="メカ君">
-              <div class="ts-bubble">車検証を<br>スキャンしてね！</div>
+              <div class="ts-cert" role="img" aria-label="自動車検査証（電子車検証）">
+              <svg viewBox="0 0 264 164" xmlns="http://www.w3.org/2000/svg" font-family="'Yu Gothic','Hiragino Sans',sans-serif">
+                <rect x="1" y="1" width="262" height="162" rx="5" fill="#eef4fb" stroke="#5b7fb0" stroke-width="1.4"/>
+                <g fill="#cddcef" opacity=".55"><rect x="214" y="14" width="14" height="8" rx="2"/><rect x="234" y="14" width="14" height="8" rx="2"/><rect x="214" y="150" width="14" height="8" rx="2"/><rect x="234" y="150" width="14" height="8" rx="2"/></g>
+                <text x="60" y="16" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16324f" letter-spacing="2">自動車検査証</text>
+                <text x="112" y="9" font-size="4.6" fill="#33506f">令和4年12月1日　東京運輸支局長</text>
+                <text x="112" y="16" font-size="4.6" fill="#33506f">411230000011</text>
+                <line x1="6" y1="20" x2="258" y2="20" stroke="#5b7fb0" stroke-width="0.7"/>
+                <g stroke="#7f9dc0" stroke-width="0.5">
+                  <line x1="6" y1="32" x2="212" y2="32"/><line x1="6" y1="44" x2="212" y2="44"/><line x1="6" y1="56" x2="212" y2="56"/><line x1="6" y1="68" x2="212" y2="68"/><line x1="6" y1="80" x2="212" y2="80"/><line x1="6" y1="92" x2="212" y2="92"/>
+                  <line x1="6" y1="24" x2="6" y2="92"/><line x1="212" y1="24" x2="212" y2="92"/><line x1="70" y1="24" x2="70" y2="92"/><line x1="120" y1="24" x2="120" y2="92"/><line x1="166" y1="24" x2="166" y2="92"/>
+                </g>
+                <g font-size="4.4" fill="#8199b8">
+                  <text x="9" y="29">自動車登録番号</text><text x="73" y="29">登録年月日</text><text x="123" y="29">種別</text><text x="169" y="29">型式指定番号</text>
+                  <text x="9" y="41">車名</text><text x="123" y="41">車体の形状</text><text x="9" y="53">車台番号</text><text x="123" y="53">燃料の種類</text>
+                  <text x="9" y="65">型式</text><text x="73" y="65">原動機の型式</text><text x="123" y="65">総排気量</text><text x="169" y="65">出力</text>
+                  <text x="9" y="77">乗車定員</text><text x="73" y="77">車両重量</text><text x="123" y="77">車両総重量</text><text x="169" y="77">長さ</text><text x="9" y="89">使用者</text>
+                </g>
+                <g font-size="5.4" fill="#16324f" font-weight="600">
+                  <text x="9" y="37">東京 310 お 1001</text><text x="73" y="37">令4年12月</text><text x="123" y="37">普通</text><text x="169" y="37">98765</text>
+                  <text x="9" y="49">コクドコウツウ</text><text x="123" y="49">箱型</text><text x="9" y="61">SHADAI-001</text><text x="123" y="61">ガソリン</text>
+                  <text x="9" y="73">ZXX-ABC99</text><text x="73" y="73">ABC-3DE</text><text x="123" y="73">1.59 L</text><text x="169" y="73">1.59</text>
+                  <text x="9" y="85">5人</text><text x="73" y="85">1350kg</text><text x="123" y="85">1625kg</text><text x="169" y="85">448cm</text>
+                </g>
+                <text x="9" y="100" font-size="4.4" fill="#8199b8">備考</text>
+                <g fill="#c3d2e6"><rect x="9" y="103" width="120" height="2.6"/><rect x="9" y="108" width="120" height="2.6"/><rect x="9" y="113" width="98" height="2.6"/></g>
+                <g>
+                  <rect x="150" y="122" width="28" height="28" rx="1.5" fill="#fff" stroke="#9fb4d0" stroke-width="0.6"/>
+                  <g fill="#28405f"><rect x="153" y="125" width="6" height="6"/><rect x="169" y="125" width="6" height="6"/><rect x="153" y="141" width="6" height="6"/></g>
+                  <g fill="#fff"><rect x="154.2" y="126.2" width="3.6" height="3.6"/><rect x="170.2" y="126.2" width="3.6" height="3.6"/><rect x="154.2" y="142.2" width="3.6" height="3.6"/></g>
+                  <g fill="#28405f"><rect x="155.1" y="127.1" width="1.8" height="1.8"/><rect x="171.1" y="127.1" width="1.8" height="1.8"/><rect x="155.1" y="143.1" width="1.8" height="1.8"/><rect x="163" y="126" width="1.7" height="1.7"/><rect x="166" y="129" width="1.7" height="1.7"/><rect x="162" y="133" width="1.7" height="1.7"/><rect x="169" y="135" width="1.7" height="1.7"/><rect x="164" y="138" width="1.7" height="1.7"/><rect x="171" y="141" width="1.7" height="1.7"/><rect x="167" y="144" width="1.7" height="1.7"/><rect x="162" y="145" width="1.7" height="1.7"/></g>
+                  <rect x="182" y="122" width="28" height="28" rx="1.5" fill="#fff" stroke="#9fb4d0" stroke-width="0.6"/>
+                  <g fill="#28405f"><rect x="185" y="125" width="6" height="6"/><rect x="201" y="125" width="6" height="6"/><rect x="185" y="141" width="6" height="6"/></g>
+                  <g fill="#fff"><rect x="186.2" y="126.2" width="3.6" height="3.6"/><rect x="202.2" y="126.2" width="3.6" height="3.6"/><rect x="186.2" y="142.2" width="3.6" height="3.6"/></g>
+                  <g fill="#28405f"><rect x="187.1" y="127.1" width="1.8" height="1.8"/><rect x="203.1" y="127.1" width="1.8" height="1.8"/><rect x="187.1" y="143.1" width="1.8" height="1.8"/><rect x="195" y="126" width="1.7" height="1.7"/><rect x="198" y="130" width="1.7" height="1.7"/><rect x="194" y="134" width="1.7" height="1.7"/><rect x="201" y="136" width="1.7" height="1.7"/><rect x="196" y="139" width="1.7" height="1.7"/><rect x="203" y="143" width="1.7" height="1.7"/><rect x="199" y="145" width="1.7" height="1.7"/></g>
+                </g>
+                <text x="9" y="150" font-size="6" fill="#1c6db0" font-weight="700">🌐 国土交通省</text>
+                <line x1="214" y1="22" x2="214" y2="158" stroke="#7f9dc0" stroke-width="0.5"/>
+                <text x="228" y="30" font-size="5" fill="#33506f" writing-mode="tb">裏面もご覧ください</text>
+              </svg>
+              </div>
             </div>
             <div class="ts-btns"><div class="ts-btn">QRでScan</div><div class="ts-btn">写真でScan</div></div>
             <div class="ts-search">車両検索</div>
