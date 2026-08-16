@@ -3483,8 +3483,14 @@ function cancelAI() {
   if (typeof partsBusy !== "undefined") partsBusy = false; if (typeof vehAskBusy !== "undefined") vehAskBusy = false;
   ["btnDiagRun", "btnPartsGo", "btnSpecAI", "btnSpecReload", "btnVehAsk", "btnAiQr"].forEach(id => { const b = $(id); if (b) setBtnLoading(b, false); });
 }
+/* 英語モード時、AIに英語で回答させる指示を付ける(JSON構造・数値・型式・品番は保持) */
+function langDirective(p) {
+  if (window.APP_LANG !== "en") return p;
+  return p + "\n\n[Output language] Respond in English. Every natural-language string in your answer — including all JSON string values — must be written in English. Keep JSON keys, structure, part numbers, model codes, DTC codes, and numeric values with their units unchanged. Use the Japanese-market values as-is; do not convert to other regions' specifications.";
+}
 async function geminiAsk(prompt, opts) {
   opts = opts || {};
+  prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: API未使用の固定サンプル回答
   const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
   const key = localStorage.getItem(LS.gemini);
@@ -4898,6 +4904,7 @@ const GEMINI_MEDIA_MODELS = {
   pro: ["gemini-3.1-pro-preview", "gemini-pro-latest", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.0-flash"]
 };
 async function geminiAskMedia(prompt, media) {
+  prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: 固定サンプル回答
   const key = localStorage.getItem(LS.gemini);
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
@@ -4949,6 +4956,7 @@ async function geminiAskMedia(prompt, media) {
    自前キー(BYOK)のみ対応。デモ/契約店舗プロキシ/キー無しは通常のgeminiAskMediaへフォールバック。 */
 async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   opts = opts || {};
+  prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
   if (!key) {
@@ -5916,7 +5924,9 @@ function demoAnswer(prompt) {
   } else if (/"specs"|メンテナンス諸元|諸元/.test(p)) {
     text = JSON.stringify({ model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS });
   } else {
-    text = "（デモ用サンプル回答）ご質問ありがとうございます。本契約版では、読み込んだ車両の型式・原動機・年式に合わせて、メカ君AIが具体的な整備アドバイス・原因の切り分け・必要な工具や締付トルクまで回答します。まずは点検箇所を順に確認していきましょう。";
+    text = (window.APP_LANG === "en")
+      ? "(Demo sample answer) Thanks for your question. In the full version, Mecha AI tailors specific maintenance advice, cause isolation, required tools and tightening torque to the scanned vehicle's model, engine and year. Let's check the inspection points one by one."
+      : "（デモ用サンプル回答）ご質問ありがとうございます。本契約版では、読み込んだ車両の型式・原動機・年式に合わせて、メカ君AIが具体的な整備アドバイス・原因の切り分け・必要な工具や締付トルクまで回答します。まずは点検箇所を順に確認していきましょう。";
   }
   return Promise.resolve({ text, truncated: false, model: "demo" });
 }

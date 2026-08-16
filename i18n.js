@@ -371,6 +371,13 @@
     "マイナスドライバー": "Flat-head screwdriver", "インパクトレンチ": "Impact wrench",
     "トルクスソケット": "Torx socket", "トルクスドライバー": "Torx driver", "バイスプライヤー": "Vise-grip pliers",
     "ケーブルカッター": "Cable cutter", "ジャッキ": "Jack", "リジッドラック": "Jack stand", "輪止め": "Wheel chock",
+    // ===== メカ君サポート(チャット) =====
+    "こんにちは、サポートのメカ君です🔧 このツールの使い方や仕様について、なんでも聞いてください。":
+      "Hi, I’m Mecha from support 🔧 Ask me anything about how to use this tool or its features.",
+    "いまAIをご利用いただけません。個人利用の方は設定タブで無料のGeminiキーを登録、契約店舗の方はログイン後にお使いください。お急ぎの場合は cablueie.123@gmail.com へご連絡ください。":
+      "AI isn’t available right now. Individual users: register a free Gemini key in Settings. Contracted shops: use it after signing in. If urgent, contact cablueie.123@gmail.com.",
+    "うまく答えられませんでした。cablueie.123@gmail.com へお問い合わせください。":
+      "I couldn’t answer that well. Please contact cablueie.123@gmail.com.",
   };
 
   // 「前置き(静的) + 値(動的)」— 前置きだけ英訳。^ 固定でユーザー入力への誤爆を防ぐ。
@@ -405,6 +412,8 @@
     [/^最終ログイン (.*)$/, "Last login $1"],
     [/^登録 (.*)$/, "Registered $1"],
     [/^役割: (.*)$/, "Role: $1"],
+    [/^エラーが発生しました（(.*)）。cablueie\.123@gmail\.com へお問い合わせください。$/,
+      "An error occurred ($1). Please contact cablueie.123@gmail.com."],
   ];
 
   const has = k => Object.prototype.hasOwnProperty.call(EXACT, k);
