@@ -97,8 +97,12 @@ const cfg = () => ({
     from: process.env.SENDGRID_FROM,
     fromName: process.env.SENDGRID_FROM_NAME || "メカノAI",
     notify: process.env.INQUIRY_NOTIFY || "cablueie.123@gmail.com",
+    // 返信の受け口(SendGrid Inbound Parse用サブドメインのアドレス)。未設定ならnotify(Gmail)へ返信が届く従来動作。
+    reply: process.env.REPLY_INBOUND || "",
   },
 });
+// 送信メールの Reply-To。Inbound Parse用アドレスがあればそちら(=AI自動返信の受け口)、無ければ運営Gmail。
+const replyAddr = () => cfg().sendgrid.reply || cfg().sendgrid.notify;
 /* SendGrid でメール送信(依存ライブラリ不要・HTTP API直叩き)。成功でtrue。 */
 async function sendMail(to, subject, text, replyTo) {
   const sg = cfg().sendgrid;
@@ -119,6 +123,72 @@ async function sendMail(to, subject, text, replyTo) {
     if (!r.ok) { console.error("SendGrid送信失敗", r.status, await r.text().catch(() => "")); return false; }
     return true;
   } catch (e) { console.error("SendGrid例外", e); return false; }
+}
+
+/* ---- ③ 受信メール自動返信 用ヘルパー ---- */
+// SendGrid Inbound Parse の multipart/form-data を解析(添付は無視)。
+function parseInbound(req) {
+  return new Promise((resolve, reject) => {
+    let bb;
+    try { bb = require("busboy")({ headers: req.headers }); }
+    catch (e) { return reject(e); }
+    const fields = {};
+    bb.on("field", (name, val) => { fields[name] = val; });
+    bb.on("file", (name, stream) => { stream.resume(); }); // 添付は捨てる
+    bb.on("close", () => resolve(fields));
+    bb.on("finish", () => resolve(fields));
+    bb.on("error", reject);
+    if (req.rawBody) bb.end(req.rawBody); else req.pipe(bb);
+  });
+}
+// SendGrid Inbound Parse は各フィールドの文字コードを charsets(JSON)で通知する。
+// busboyはUTF-8前提で復号するため、ISO-2022-JP等の本文が化ける。charsetsを見て正しく再変換する。
+// (ISO-2022-JPは7bitなのでlatin1でバイト列を復元→TextDecoderで変換。Shift_JIS/EUC-JPにも対応)
+function decodeInbound(fields, key) {
+  let v = fields[key];
+  if (v == null) return "";
+  v = String(v);
+  let cs = {};
+  try { cs = JSON.parse(fields.charsets || "{}"); } catch (e) { /* 無ければUTF-8扱い */ }
+  const c = String(cs[key] || "").toLowerCase().replace(/[^a-z0-9-]/g, "");
+  if (!c || c === "utf8" || c === "utf-8" || c === "usascii" || c === "us-ascii" || c === "ascii") return v;
+  try { return new TextDecoder(c).decode(Buffer.from(v, "latin1")); }
+  catch (e) { return v; } // 未知のコードはそのまま
+}
+// "山田太郎 <info@ex.com>" 等から素のメールアドレスを取り出す。
+function extractEmail(s) {
+  const m = String(s || "").match(/[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/);
+  return m ? m[0].toLowerCase() : "";
+}
+// 返信本文から引用(過去のやりとり)を粗く落とし、相手が今回書いた部分だけ残す。
+function stripQuoted(t) {
+  if (!t) return "";
+  const out = [];
+  for (const ln of String(t).split(/\r?\n/)) {
+    if (/^\s*>/.test(ln)) break;
+    if (/^\s*-{2,}\s*(Original Message|元のメッセージ|返信元メッセージ)/i.test(ln)) break;
+    if (/^\s*On .+wrote:\s*$/.test(ln)) break;
+    if (/^\s*\d{4}[年/-].*(書きました|wrote)\s*[:：]?\s*$/.test(ln)) break;
+    if (/^\s*From:\s.+@/.test(ln)) break;
+    out.push(ln);
+  }
+  return out.join("\n").trim();
+}
+// 運営(super)へ通知メール(Gmail)を送る。
+async function notifySuperMail(subject, text) {
+  const to = cfg().sendgrid.notify;
+  if (!to) return;
+  await sendMail(to, subject, text + "\n\n" + MAIL_SIGN, cfg().sendgrid.from).catch(() => {});
+}
+// 運営(super)へプッシュ通知。
+async function pushSuper(title, body) {
+  try {
+    const supers = await admin.firestore().collection("users").where("role", "==", "super").get();
+    const tokens = [];
+    supers.forEach((u) => (u.data().fcmTokens || []).forEach((t) => t && tokens.push(t)));
+    const uq = [...new Set(tokens)];
+    if (uq.length) await admin.messaging().sendEachForMulticast({ tokens: uq, notification: { title, body }, webpush: { fcmOptions: { link: "/sales.html" } } });
+  } catch (e) { console.error("pushSuper失敗", e); }
 }
 // メール共通署名(プレーンテキスト・実データ固定)
 const MAIL_SIGN = "――――――――――――\n" +
@@ -1024,7 +1094,7 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
               "使い方のご相談・設定サポートは本メールへの返信、またはお電話で承ります。\n\n" +
               "今後ともよろしくお願いいたします。\n\n" +
               MAIL_SIGN;
-            const ok = await sendMail(toEmail, "【メカノAI】ご契約ありがとうございます（はじめ方のご案内）", welcome, cfg().sendgrid.notify);
+            const ok = await sendMail(toEmail, "【メカノAI】ご契約ありがとうございます（はじめ方のご案内）", welcome, replyAddr());
             if (ok) await ref.set({ welcomeSent: true }, { merge: true });
           }
         } catch (e) { console.error("welcomeメール失敗", e); }
@@ -1145,7 +1215,7 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
       const optout = "――――――――――――\n本メールは、貴社が公開されている連絡先へ整備業向けツールのご案内としてお送りしています。\n今後の配信を希望されない場合は本メールに「配信停止」とご返信いただくか、次のリンクからお手続きください（以後お送りしません）。\n配信停止：" + unsubUrl;
       const text = body + "\n\n" + optout + "\n\n" + MAIL_SIGN;
       const subject = "整備現場の“調べ物”を減らすツールのご案内（メカノAI）";
-      const ok = await sendMail(email, subject, text, cfg().sendgrid.notify);
+      const ok = await sendMail(email, subject, text, replyAddr());
       if (ok) {
         await doc.ref.set({ status: "アプローチ中", approachedAt: Date.now(), updatedAt: Date.now() }, { merge: true });
         await db.collection("salesOutbound").add({ leadId: doc.id, company: l.company || "", email: email, subject: subject, body: text, ts: Date.now() });
@@ -1154,6 +1224,143 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
     }
     console.log("drip: 送信 " + sent + " 件");
     return null;
+  });
+
+/* ③ 受信メールへのAI自動返信。SendGrid Inbound Parse からの POST(multipart)を受ける。
+   相手の返信/質問を営業チーム(CS担当)のAIが読み、
+     ・料金/契約/見積 に関する質問 → 自動送信せず、下書き付きで運営(Gmail+プッシュ)へ通知(＝人が確認)
+     ・それ以外 → AIが返信文を作成し自動送信
+   「配信停止」返信は mailSuppress に登録。すべて inboundMails に記録。
+   ※常に 200 を返す(SendGrid が再送しないように)。 */
+exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onRequest(async (req, res) => {
+    if (req.method !== "POST") return res.status(200).send("ok");
+    const db = admin.firestore();
+    let fields = {};
+    try { fields = await parseInbound(req); }
+    catch (e) { console.error("inbound解析失敗", e); return res.status(200).send("ok"); }
+
+    const fromEmail = extractEmail(fields.from);
+    if (!fromEmail) return res.status(200).send("ok");
+    const subject = decodeInbound(fields, "subject").slice(0, 300);
+    let text = decodeInbound(fields, "text").trim();
+    if (!text && fields.html) text = decodeInbound(fields, "html").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const cleanBody = stripQuoted(text).slice(0, 4000);
+
+    // ループ/自動応答/エラー通知は無視
+    const sgFrom = String(cfg().sendgrid.from || "").toLowerCase();
+    if (fromEmail === sgFrom || /sendgrid\.net$/.test(fromEmail) ||
+        /(mailer-daemon|no-?reply|postmaster|do-?not-?reply)/i.test(fromEmail)) {
+      return res.status(200).send("ok");
+    }
+
+    const inRef = await db.collection("inboundMails").add({
+      from: fromEmail, to: String(fields.to || "").slice(0, 300),
+      subject, body: cleanBody, raw: text.slice(0, 8000),
+      status: "新規", ts: Date.now(),
+    });
+
+    // 配信停止
+    if (/配信停止|配信を停止|停止希望|unsubscribe/i.test(text)) {
+      const supId = Buffer.from(fromEmail).toString("base64").replace(/[^a-zA-Z0-9]/g, "");
+      await db.collection("mailSuppress").doc(supId).set({ email: fromEmail, ts: Date.now(), via: "reply" }, { merge: true });
+      const ls = await db.collection("salesLeads").where("email", "==", fromEmail).limit(5).get();
+      for (const d of ls.docs) await d.ref.set({ status: "配信停止", updatedAt: Date.now() }, { merge: true });
+      await inRef.set({ status: "配信停止処理済み" }, { merge: true });
+      return res.status(200).send("ok");
+    }
+
+    // 対象リード・直近の送信内容(文脈)
+    let lead = null, leadId = null;
+    const ls = await db.collection("salesLeads").where("email", "==", fromEmail).limit(1).get();
+    if (!ls.empty) { lead = ls.docs[0].data(); leadId = ls.docs[0].id; }
+    let lastOut = "";
+    try {
+      const os = await db.collection("salesOutbound").where("email", "==", fromEmail).orderBy("ts", "desc").limit(1).get();
+      if (!os.empty) lastOut = String(os.docs[0].data().body || "").slice(0, 1500);
+    } catch (e) { /* 索引未作成でも致命ではない */ }
+
+    // AIで「分類＋返信文」を生成(CS担当 円)
+    const freeKeys = cfg().geminiFree || [];
+    const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+    if (!freeKeys.length) { console.error("inbound: Geminiキー未設定"); return res.status(200).send("ok"); }
+    const latest = await latestModels(freeKeys[0]);
+    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+    const staff = SALES_STAFF.cs;
+    const prompt = `${staff.sys}
+
+${PRODUCT_KB}
+
+${NEWS_KB}
+
+以下は見込み客/問い合わせ主から届いたメールです。あなたはこれに返信します。
+【送信元】${lead ? ("会社:" + (lead.company || "-") + " 担当:" + (lead.contact || "-") + " 業種:" + (lead.kind || "-")) : fromEmail}
+【件名】${subject || "(なし)"}
+【相手の本文】
+${cleanBody || "(本文なし)"}
+${lastOut ? "\n【こちらが直前に送った内容(参考)】\n" + lastOut + "\n" : ""}
+
+やること:
+1) この相手の用件が「料金・価格・費用・見積・支払・契約条件・割引」に関する質問や交渉を含むか判定する。
+2) 返信メールの本文を、CS担当として丁寧かつ簡潔に作成する。製品KBの事実のみを根拠にし、金額はKB記載の範囲で正確に。答えられない点は「担当より折り返す」と案内。誇張・虚偽は書かない。CTAは押しつけない。
+
+出力形式(厳守):
+1行目: 「CATEGORY: pricing」または「CATEGORY: other」だけを書く
+2行目: 「---」
+3行目以降: そのまま送れる返信本文の完成形(宛名から書き出す)。末尾に下記の署名をそのまま入れる:
+${SIGNATURE}`;
+
+    let out = { failed: true };
+    if (paidKey) out = await callGeminiModels(paidKey, models, [{ text: prompt }], "flash", false, 4096);
+    if (out.failed) {
+      const start = Math.floor(Math.random() * freeKeys.length);
+      for (let i = 0; i < freeKeys.length; i++) {
+        out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: prompt }], "flash", false, 4096);
+        if (!out.failed) break;
+      }
+    }
+    if (out.failed) {
+      console.error("inbound: AI生成失敗");
+      await notifySuperMail("【メカノAI・要対応】受信メール(AI生成に失敗)",
+        "AIの返信生成に失敗しました。手動で対応してください。\n\n差出人: " + fromEmail + "\n件名: " + subject + "\n本文:\n" + cleanBody);
+      await inRef.set({ status: "要対応(生成失敗)" }, { merge: true });
+      return res.status(200).send("ok");
+    }
+
+    // 出力パース(CATEGORY 行 → 本文)
+    const rawTxt = String(out.text || "").trim();
+    let category = "other", reply = rawTxt;
+    const mm = rawTxt.match(/^\s*CATEGORY:\s*(pricing|other)\b/i);
+    if (mm) { category = mm[1].toLowerCase(); reply = rawTxt.replace(/^[\s\S]*?---\s*/, "").trim(); }
+    // 保険: 本文に料金系ワードがあれば pricing 扱いに寄せる(取りこぼし防止)
+    if (category !== "pricing" && /(料金|価格|費用|見積|支払|契約|金額|割引|いくら|コスト)/.test(cleanBody)) category = "pricing";
+
+    const replySubject = /^re:/i.test(subject) ? subject : ("Re: " + (subject || "お問い合わせの件"));
+
+    if (category === "pricing") {
+      // 料金/契約系 → 自動送信しない。運営が確認して手動返信。
+      await inRef.set({ status: "要確認(料金)", category, draft: reply, leadId: leadId || null }, { merge: true });
+      await notifySuperMail("【メカノAI・要確認】料金の質問が届きました（返信下書きあり）",
+        "料金・契約に関するご質問のため、自動返信は行っていません。内容をご確認のうえ手動で返信してください。\n\n" +
+        "▼差出人\n" + fromEmail + (lead ? "（" + (lead.company || "") + "）" : "") + "\n\n" +
+        "▼相手の本文\n" + (cleanBody || "(本文なし)") + "\n\n" +
+        "▼AIが用意した返信の下書き（このまま/修正して使えます）\n――――――\n" + reply + "\n――――――");
+      await pushSuper("料金の質問が届きました", fromEmail + " さんから料金の質問。確認して返信してください。");
+      return res.status(200).send("ok");
+    }
+
+    // それ以外 → AIの返信を自動送信
+    const ok = await sendMail(fromEmail, replySubject, reply, replyAddr());
+    await inRef.set({ status: ok ? "AI自動返信済み" : "送信失敗", category, reply, leadId: leadId || null }, { merge: true });
+    if (ok) {
+      await db.collection("salesOutbound").add({
+        leadId: leadId || null, company: lead ? (lead.company || "") : "",
+        email: fromEmail, subject: replySubject, body: reply, kind: "auto-reply", ts: Date.now(),
+      });
+      if (leadId) await db.collection("salesLeads").doc(leadId).set({ status: "商談中", updatedAt: Date.now() }, { merge: true });
+      await pushSuper("AIが自動返信しました", fromEmail + " さんへ返信済み(料金以外)。");
+    }
+    return res.status(200).send("ok");
   });
 
 /* =========================================================================
@@ -1428,7 +1635,7 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
         "※ご契約後は7日間の無料トライアルで、自社の実データのまま全機能をお試しいただけます（カード登録なしでも開始可）。\n\n" +
         "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
         MAIL_SIGN;
-      sendMail(email, "【メカノAI】お問い合わせありがとうございます（自動返信）", ack, cfg().sendgrid.notify).catch(() => {});
+      sendMail(email, "【メカノAI】お問い合わせありがとうございます（自動返信）", ack, replyAddr()).catch(() => {});
     }
 
     // 運営(super)にプッシュ通知

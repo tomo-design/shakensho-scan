@@ -5934,7 +5934,7 @@ function showDemoBanner() {
   if (document.getElementById("demoBanner")) return;
   const b = document.createElement("div"); b.id = "demoBanner";
   b.innerHTML = '<span class="demoTxt">🎬 これは<b>無料デモ</b>です（ログイン不要・サンプルデータ）。本契約で全機能・自社データが使えます。</span>' +
-    '<span class="demoBtns"><a class="demoCta" href="mailto:cablueie.123@gmail.com?subject=' + encodeURIComponent("メカノAI 法人版の申込・相談") + '">申込・相談</a>' +
+    '<span class="demoBtns"><a class="demoCta" href="mailto:ai@reply.mechanoai-cablueie.com?subject=' + encodeURIComponent("メカノAI 法人版の申込・相談") + '">申込・相談</a>' +
     '<button type="button" id="demoExit" class="demoExit">デモ終了</button></span>';
   document.body.appendChild(b);
   document.body.classList.add("hasDemoBanner");
