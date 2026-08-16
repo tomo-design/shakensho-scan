@@ -122,7 +122,7 @@
           <li>整備カルテ・店舗内共有</li>
           <li class="off">AI裏取り検索</li>
         </ul>
-        <a href="#contact" class="btn btn-dark btn-block">このプランを相談</a>
+        <a href="#contact" class="btn btn-dark btn-block plan-cta" data-plan="NA">このプランを相談・申込</a>
       </div>
       <div class="plan feature">
         <div class="ribbon">人気</div>
@@ -135,7 +135,7 @@
           <li><b>AI裏取り検索 月500回</b></li>
           <li>高精度モードの利用</li>
         </ul>
-        <a href="#contact" class="btn btn-accent btn-block">このプランを相談</a>
+        <a href="#contact" class="btn btn-accent btn-block plan-cta" data-plan="ターボ">このプランを相談・申込</a>
       </div>
       <div class="plan">
         <div class="plan-name">ツインターボ</div>
@@ -148,7 +148,7 @@
           <li>検索の指名席 3席</li>
           <li>4席目〜 +¥3,000/月・席</li>
         </ul>
-        <a href="#contact" class="btn btn-dark btn-block">このプランを相談</a>
+        <a href="#contact" class="btn btn-dark btn-block plan-cta" data-plan="ツインターボ">このプランを相談・申込</a>
       </div>
     </div>
     <p class="trial-badge">🎁 ご契約から <b>7日間は無料トライアル</b>。期間中に全機能を自社データでお試しいただけ、初回のご請求は8日目からです。</p>
@@ -161,7 +161,7 @@
   <div class="wrap">
     <h2 class="sec-t">導入はかんたん3ステップ</h2>
     <div class="steps">
-      <div class="step"><span class="step-n">1</span><h3>資料請求・デモ申込</h3><p>下のフォームからご連絡ください。訪問営業はありません。メール・オンラインで完結します。</p></div>
+      <div class="step"><span class="step-n">1</span><h3>資料請求・お申し込み</h3><p>下のフォームからご連絡ください。「資料・デモ希望」でも「今すぐ契約」でもOK。訪問営業はなく、メール・オンラインで完結します。</p></div>
       <div class="step"><span class="step-n">2</span><h3>初期設定・お試し</h3><p>店舗アカウントを発行。メンバー登録や使い方をオンラインでサポートします。</p></div>
       <div class="step"><span class="step-n">3</span><h3>ご契約・運用開始</h3><p>ご契約から7日間は無料トライアル。実データで試してから継続を判断でき、初回請求は8日目からです。</p></div>
     </div>
@@ -183,9 +183,20 @@
 <!-- ===== 申込フォーム ===== -->
 <section id="contact" class="band cta">
   <div class="wrap narrow">
-    <h2 class="sec-t light">資料請求・無料デモのお申し込み</h2>
+    <h2 class="sec-t light">資料請求・お申し込み</h2>
     <p class="sec-sub light">1営業日を目安にご返信します。必須は会社名・お名前と、メールまたは電話です。<br>先に資料をご覧になりたい方は <a href="shiryou.html" target="_blank" rel="noopener" style="color:var(--gold);font-weight:700">サービス紹介資料（PDF可）</a> をどうぞ。</p>
     <form id="bizForm" class="form" novalidate>
+      <div class="intent-box" style="margin-bottom:14px">
+        <span style="display:block;font-weight:700;color:#fff;margin-bottom:6px">お申し込みの種類 <i style="color:var(--gold);font-style:normal;font-size:.8em">必須</i></span>
+        <label class="intent-opt" style="display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border:1px solid rgba(255,255,255,.35);border-radius:8px;margin-bottom:8px;cursor:pointer;color:#fff">
+          <input type="radio" name="intent" value="doc" checked style="margin-top:3px">
+          <span><b>資料がほしい・デモを試したい</b><br><span style="font-size:.85em;opacity:.8">まず検討したい方。資料送付・無料デモをご案内します。</span></span>
+        </label>
+        <label class="intent-opt" style="display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border:1px solid rgba(255,255,255,.35);border-radius:8px;cursor:pointer;color:#fff">
+          <input type="radio" name="intent" value="contract" style="margin-top:3px">
+          <span><b>内容は分かった。契約の手続きを進めたい</b><br><span style="font-size:.85em;opacity:.8">担当より優先してご連絡し、アカウント発行・契約手続きをご案内します（ご契約から7日間は無料トライアル）。</span></span>
+        </label>
+      </div>
       <div class="f2">
         <label>会社名 <i>必須</i><input name="company" required placeholder="〇〇自動車整備"></label>
         <label>お名前 <i>必須</i><input name="name" required placeholder="山田 太郎"></label>
@@ -243,6 +254,16 @@
   var form = document.getElementById("bizForm");
   var msg = document.getElementById("bizMsg");
   var btn = document.getElementById("bizSubmit");
+
+  // プランボタン → フォームのプランを自動選択（「相談・申込」導線）
+  Array.prototype.forEach.call(document.querySelectorAll(".plan-cta"), function (a) {
+    a.addEventListener("click", function () {
+      var p = a.getAttribute("data-plan");
+      var sel = form.querySelector('[name="plan"]');
+      if (sel && p) { sel.value = p; }
+    });
+  });
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     msg.className = "form-msg";
@@ -258,7 +279,9 @@
         if (!res.ok) throw new Error(res.j.error || "送信に失敗しました。");
         form.style.display = "none";
         msg.className = "form-msg ok";
-        msg.innerHTML = "送信ありがとうございます。担当より折り返しご連絡します。";
+        msg.innerHTML = (data.intent === "contract")
+          ? "お申し込みありがとうございます。契約手続きのご案内を担当より<b>優先して</b>ご連絡します。ご登録のメールに受付確認をお送りしました。"
+          : "送信ありがとうございます。担当より折り返しご連絡します。ご登録のメールに受付確認をお送りしました。";
       })
       .catch(function (err) { msg.textContent = err.message; msg.classList.add("err"); btn.disabled = false; btn.textContent = "この内容で送信する"; });
   });

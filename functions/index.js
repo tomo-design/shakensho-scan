@@ -1603,6 +1603,8 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
   const company = clean(d.company, 200), name = clean(d.name, 120);
   const email = clean(d.email, 200), phone = clean(d.phone, 60);
   const kind = clean(d.kind, 60), plan = clean(d.plan, 40), message = clean(d.message, 4000);
+  // 申込の種類: contract=契約手続きを進めたい / doc=資料・デモ希望(既定)
+  const intent = clean(d.intent, 20) === "contract" ? "contract" : "doc";
   if (!company || !name) return res.status(400).json({ error: "会社名とお名前は必須です。" });
   if (!email && !phone) return res.status(400).json({ error: "メールまたは電話のいずれかは必須です。" });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
@@ -1616,26 +1618,49 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     if (dup >= 3) return res.status(429).json({ error: "送信が多すぎます。しばらくして再度お試しください。" });
 
     await db.collection("bizInquiries").add({
-      company, name, email, phone, kind, plan, message,
-      status: "新規", source: "biz-lp",
+      company, name, email, phone, kind, plan, message, intent,
+      status: intent === "contract" ? "申込希望" : "新規", source: "biz-lp",
       ua: clean(req.headers["user-agent"], 300),
       createdAt: Date.now(),
     });
 
-    // ② 自動返信(問い合わせ主へお礼＋資料・デモ導線)。SendGrid未設定なら黙ってスキップ。
+    // ② 自動返信(問い合わせ主へお礼＋導線)。申込の種類で文面を出し分け。SendGrid未設定なら黙ってスキップ。
     if (email) {
-      const ack = name + " 様" + (company ? "（" + company + "）" : "") + "\n\n" +
-        "この度はメカノAIへお問い合わせ・資料請求いただきありがとうございます。\n" +
-        "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
-        (message ? "【お問い合わせ内容】\n" + message + "\n\n" : "") +
-        "お急ぎの場合や、先にサービスをご覧になりたい場合は以下をご利用ください。\n" +
-        "・サービス紹介資料　https://mechanoai-cablueie.com/shiryou.html\n" +
-        "・無料体験デモ（ログイン不要）　https://mechanoai-cablueie.com/?demo=1\n" +
-        "・機能・料金・FAQ　https://mechanoai-cablueie.com/biz.html\n\n" +
-        "※ご契約後は7日間の無料トライアルで、自社の実データのまま全機能をお試しいただけます（カード登録なしでも開始可）。\n\n" +
-        "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
-        MAIL_SIGN;
-      sendMail(email, "【メカノAI】お問い合わせありがとうございます（自動返信）", ack, replyAddr()).catch(() => {});
+      const head = name + " 様" + (company ? "（" + company + "）" : "") + "\n\n";
+      const planLine = plan ? "【ご関心のプラン】" + plan + "\n" : "";
+      const msgLine = message ? "【ご記入内容】\n" + message + "\n\n" : "";
+      let subject, ack;
+      if (intent === "contract") {
+        // 契約希望 → 手続き案内＋優先対応を明言
+        subject = "【メカノAI】お申し込みありがとうございます（契約手続きのご案内）";
+        ack = head +
+          "この度はメカノAIへお申し込みいただきありがとうございます。\n" +
+          "契約手続きを進めたいとのご希望を承りました。担当より優先してご連絡し、契約手続き（アカウント発行・お支払い方法のご案内）を進めます。\n\n" +
+          planLine + msgLine +
+          "▼お手続きの流れ\n" +
+          "1. 担当より折り返しご連絡（1営業日以内を目安）\n" +
+          "2. 店舗アカウントの発行・初期設定のご案内\n" +
+          "3. ご契約（お支払い方法のご登録）→ ご契約から7日間は無料トライアル。初回のご請求は8日目からです。\n\n" +
+          "※お急ぎの場合は、本メールへのご返信またはお電話でも承ります。\n" +
+          "・機能・料金の確認　https://mechanoai-cablueie.com/biz.html\n\n" +
+          "※本メールは送信専用の自動返信です。\n\n" +
+          MAIL_SIGN;
+      } else {
+        // 資料・デモ希望(既定)
+        subject = "【メカノAI】お問い合わせありがとうございます（自動返信）";
+        ack = head +
+          "この度はメカノAIへお問い合わせ・資料請求いただきありがとうございます。\n" +
+          "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
+          planLine + msgLine +
+          "お急ぎの場合や、先にサービスをご覧になりたい場合は以下をご利用ください。\n" +
+          "・サービス紹介資料　https://mechanoai-cablueie.com/shiryou.html\n" +
+          "・無料体験デモ（ログイン不要）　https://mechanoai-cablueie.com/?demo=1\n" +
+          "・機能・料金・FAQ　https://mechanoai-cablueie.com/biz.html\n\n" +
+          "※ご契約後は7日間の無料トライアルで、自社の実データのまま全機能をお試しいただけます（カード登録なしでも開始可）。\n\n" +
+          "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
+          MAIL_SIGN;
+      }
+      sendMail(email, subject, ack, replyAddr()).catch(() => {});
     }
 
     // 運営(super)にプッシュ通知
@@ -1647,7 +1672,10 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
       if (uniqTokens.length) {
         await admin.messaging().sendEachForMulticast({
           tokens: uniqTokens,
-          notification: { title: "メカノAI 法人問い合わせ", body: company + " / " + name + " さんから資料請求・デモ申込が届きました。" },
+          notification: {
+            title: intent === "contract" ? "メカノAI 【契約希望】法人申込" : "メカノAI 法人問い合わせ",
+            body: company + " / " + name + " さんから" + (intent === "contract" ? "契約手続きの希望が届きました（優先対応）。" : "資料請求・デモ申込が届きました。") + (plan ? " 関心プラン:" + plan : ""),
+          },
           webpush: { fcmOptions: { link: "/sales.html" } },
         });
       }
