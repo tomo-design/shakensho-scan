@@ -582,14 +582,12 @@
       const codeLocked = !!(tenantDoc && tenantDoc.codeSetByAdmin) && profile.role !== "super";
       $("cloudStat").innerHTML = "✓ 同期中 — " + who +
         "<br>店舗コード: <b id='myStoreCode'>" + esc(storeCode) + "</b>" +
-        (canEditCode ? " <button class='btn btn-ghost btn-sm' id='btnChangeCode' style='padding:2px 10px;font-size:12px;margin-left:2px'>変更</button>" : "") +
+        (canEditCode && !codeLocked ? " <a href='#' id='btnChangeCode' class='textlink' style='font-size:12px;margin-left:6px'>変更する</a>" : "") +
         (codeLocked ? " <span style='color:var(--dim,#89a);font-size:11px'>（変更済・再変更は運営へ）</span>" : "") +
-        "<br>ログインID: <b id='myLoginId'>" + esc(profile.loginId || "未設定") + "</b>" +
-        " <button class='btn btn-ghost btn-sm' id='btnChangeLoginId' style='padding:2px 10px;font-size:12px;margin-left:2px'>変更</button>" +
         "<br>役割: " + roleJa;
       const bcc = $("btnChangeCode");
-      if (bcc) bcc.onclick = async () => {
-        if (codeLocked) { uiAlert("店舗コードの変更は1回のみです。再変更は運営へお問い合わせください。"); return; }
+      if (bcc) bcc.onclick = async (ev) => {
+        ev.preventDefault();
         const cur = storeCode;
         let nc = (prompt("新しい店舗コードを入力してください。\n（会社名など・半角英数字とハイフン・3〜24文字）\n※管理者による変更は1回のみです。以降は運営へお問い合わせください。", cur) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
         if (!nc || nc === cur) return;
@@ -597,19 +595,7 @@
           const rsp = await window.Cloud.callFn("setTenantCode", { tid: profile.tenantId, code: nc });
           if (tenantDoc) { tenantDoc.code = rsp.code || nc; if (rsp.byAdminLocked) tenantDoc.codeSetByAdmin = true; }
           const el = $("myStoreCode"); if (el) el.textContent = rsp.code || nc;
-          uiAlert("店舗コードを変更しました：" + (rsp.code || nc));
-        } catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
-      };
-      const bcl = $("btnChangeLoginId");
-      if (bcl) bcl.onclick = async () => {
-        const cur = profile.loginId || "";
-        let nid = (prompt("新しいログインIDを入力してください。\n（半角英数字とハイフン、3〜24文字。次回からこのIDでログインできます）", cur) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
-        if (!nid || nid === cur) return;
-        try {
-          const rsp = await window.Cloud.callFn("setLoginId", { loginId: nid });
-          profile.loginId = rsp.loginId || nid;
-          const el = $("myLoginId"); if (el) el.textContent = profile.loginId;
-          uiAlert("ログインIDを変更しました：" + profile.loginId);
+          uiAlert("店舗コードを変更しました：" + (rsp.code || nc) + "\n（変更は1回のみです。以降は運営へお問い合わせください）");
         } catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
       };
     }
