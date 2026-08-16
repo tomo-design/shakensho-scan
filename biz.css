@@ -205,3 +205,10 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
   .form .f2{grid-template-columns:1fr}
   .band{padding:54px 0}
 }
+/* スマホ幅ではヒーロー見出しを2行に収める(改行が3行に崩れるのを防ぐ) */
+@media(max-width:520px){
+  .hero h1{font-size:26px;text-wrap:balance}
+}
+@media(max-width:380px){
+  .hero h1{font-size:23px}
+}
