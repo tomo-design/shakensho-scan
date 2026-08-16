@@ -866,10 +866,24 @@ async function genLoginId(db, company) {
   }
   return base + "-" + Date.now().toString(36).slice(-5);
 }
+// 会社名ベースのシンプルな店舗コード(テナントID)を生成。既存のIDやコードと重複しないもの。
+async function genTenantId(db, company) {
+  const base = asciiSlug(company);
+  const cands = [];
+  if (base !== "shop") cands.push(base);
+  for (let i = 0; i < 40; i++) cands.push(base + (Math.floor(Math.random() * 9000) + 1000));
+  for (const c of cands) {
+    const doc = await db.collection("tenants").doc(c).get();
+    if (doc.exists) continue;
+    const codeDup = await db.collection("tenants").where("code", "==", c).limit(1).get();
+    if (codeDup.empty) return c;
+  }
+  return base + "-" + Date.now().toString(36).slice(-5);
+}
 // 契約者のテナントとStripeトライアルを自動作成し、オンボーディング用トークンを発行して返す。
 async function provisionContract(db, info) {
   const planCode = planCodeFromLabel(info.plan);
-  const tid = db.collection("tenants").doc().id;
+  const tid = await genTenantId(db, info.company);
   let stripeCustomerId = null, trialEnd = null;
   try {
     const stripe = require("stripe")(cfg().stripe.secret);
@@ -961,6 +975,54 @@ exports.loginIdLookup = functions.region(REGION).https.onRequest(async (req, res
   const q = await db.collection("users").where("loginId", "==", id).limit(1).get();
   if (q.empty) return res.status(404).json({ error: "IDが見つかりません。" });
   return res.json({ email: q.docs[0].data().email || "" });
+});
+
+// 店舗コード(表示用の別名)を設定/変更する。
+//  ・代表管理者(admin): 自店舗のみ、変更は1回だけ(2回目以降は運営へ)。
+//  ・運営(super): 任意の店舗を何度でも変更可。
+// ※実データのテナントID(ドキュメントID)は変えず、表示・参加用の別名 code を設定(データ移行不要)。
+exports.setTenantCode = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ。" });
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const u = (await db.collection("users").doc(uid).get()).data();
+  if (!u) return res.status(403).json({ error: "権限がありません。" });
+  const isSup = u.role === "super";
+  const tid = String((req.body && req.body.tid) || u.tenantId || "");
+  if (!tid) return res.status(400).json({ error: "店舗が特定できません。" });
+  if (!isSup && !(u.role === "admin" && u.tenantId === tid)) return res.status(403).json({ error: "代表管理者のみ変更できます。" });
+  const tRef = db.collection("tenants").doc(tid);
+  const t = (await tRef.get()).data() || {};
+  if (!isSup && t.codeSetByAdmin) return res.status(409).json({ error: "店舗コードの変更は1回のみです。再変更は運営へお問い合わせください。" });
+  let code = String((req.body && req.body.code) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  if (code.length < 3 || code.length > 24) return res.status(400).json({ error: "コードは半角英数字・ハイフンで3〜24文字にしてください。" });
+  if (code !== tid) {
+    const asDoc = await tRef.firestore.collection("tenants").doc(code).get();
+    if (asDoc.exists) return res.status(409).json({ error: "そのコードは既に使われています。別のコードをお試しください。" });
+    const asCode = await db.collection("tenants").where("code", "==", code).limit(1).get();
+    if (!asCode.empty && asCode.docs[0].id !== tid) return res.status(409).json({ error: "そのコードは既に使われています。別のコードをお試しください。" });
+  }
+  const patch = { code: code };
+  if (!isSup) patch.codeSetByAdmin = true;   // 管理者の変更は1回で締める(super変更ではフラグを立てない=以後もsuperは可)
+  await tRef.set(patch, { merge: true });
+  return res.json({ ok: true, code: code, byAdminLocked: !isSup });
+});
+
+// 店舗コード(別名 or 実ID) → 実テナントID を解決(参加申請でコード入力を許可するため)。
+exports.tenantResolve = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const q = String((req.query && req.query.q) || (req.body && req.body.q) || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  if (!q) return res.status(400).json({ error: "コードを入力してください。" });
+  const db = admin.firestore();
+  const doc = await db.collection("tenants").doc(q).get();
+  if (doc.exists) return res.json({ tid: q });
+  const byCode = await db.collection("tenants").where("code", "==", q).limit(1).get();
+  if (!byCode.empty) return res.json({ tid: byCode.docs[0].id });
+  return res.status(404).json({ error: "その店舗コードは見つかりません。" });
 });
 
 // ログイン中の本人が自分のログインIDを設定/変更する(重複不可)。

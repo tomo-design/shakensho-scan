@@ -192,10 +192,35 @@
     const formBlock = active
       ? '<details class="planChange"><summary class="secSummary">プランを変更する</summary>' + form + '</details>'
       : form;
-    const body = '<div class="sec-body">' + perkBlock + formBlock +
+    // 8日目の決済導線: 無料お試しが残りわずか/終了なら、画面上にお支払いバナーを出す。
+    let bannerBlock = "";
+    if (tenantDoc && tenantDoc.plan === "trial" && paidUntil) {
+      const dleft = Math.ceil((paidUntil - Date.now()) / 86400000);
+      const ended = paidUntil <= Date.now();
+      if (ended || dleft <= 2) {
+        bannerBlock = '<div style="border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;line-height:1.65;' +
+          (ended ? 'background:#fdecea;border:1px solid #e79a9a' : 'background:#fff7e6;border:1px solid #f0c66b') + '">' +
+          (ended
+            ? '⏰ <b>無料お試し期間が終了しました。</b>続けてご利用いただくには、お支払いのお手続きをお願いします。'
+            : '🎁 無料お試しは<b>残り' + Math.max(dleft, 0) + '日</b>です。期間終了（8日目）に、お支払いのご案内（請求書）をご登録のメールへお送りします。') +
+          '<div style="margin-top:8px"><button class="btn btn-amber btn-sm" id="btnPayNow">お支払いへ進む</button></div>' +
+          '<div id="payNowStat" class="planNote"></div></div>';
+      }
+    }
+    const body = '<div class="sec-body">' + bannerBlock + perkBlock + formBlock +
       (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する</button></div>' : '') +
       '</div>';
     box.innerHTML = '<section><details><summary class="secSummary">契約・プラン</summary>' + body + '</details></section>';
+    const pn = $("btnPayNow"); if (pn) pn.onclick = async () => {
+      pn.disabled = true; const st = $("payNowStat"); if (st) st.textContent = "お支払いページを準備中…";
+      try {
+        let d = await window.Cloud.callFn("getPayLink", { tid: profile.tenantId });
+        if (!d || !d.url) { try { await window.Cloud.callFn("syncPlan", { tid: profile.tenantId }); } catch (e) {} d = await window.Cloud.callFn("getPayLink", { tid: profile.tenantId }); }
+        if (d && d.url) { window.location.href = d.url; return; }
+        if (st) st.innerHTML = "まだ請求書が発行されていません。まもなくご登録のメールにお支払いのご案内が届きます。";
+        pn.disabled = false;
+      } catch (e) { if (st) st.textContent = "取得できませんでした：" + (e.message || e); pn.disabled = false; }
+    };
     const send = $("btnSignupSend"); if (send) send.onclick = async () => {
       const planPref = (document.querySelector('input[name="signupPlan"]:checked') || {}).value || "monthly";
       const tierPref = (document.querySelector('input[name="signupTier"]:checked') || {}).value || "na";
@@ -413,11 +438,19 @@
   async function signup(isNewCompany) {
     const name = $("cloudName").value.trim();
     const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
-    const tid = ($("cloudTenant").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""));
+    let tid = ($("cloudTenant").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""));
     if (!name) { $("cloudAuthStat").textContent = "氏名を入力してください。"; return; }
     if (!email || pw.length < 6) { $("cloudAuthStat").textContent = "メールと6文字以上のパスワードを入力してください。"; return; }
-    if (!tid) { $("cloudAuthStat").textContent = "事業所IDを入力してください(半角英数)。"; return; }
+    if (!tid) { $("cloudAuthStat").textContent = "店舗コードを入力してください(半角英数)。"; return; }
     $("cloudAuthStat").textContent = "登録中…";
+    // 従業員参加: 入力が別名の店舗コードなら実テナントIDに解決する
+    if (!isNewCompany) {
+      try {
+        const rr = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/tenantResolve?q=" + encodeURIComponent(tid));
+        const jj = await rr.json().catch(() => ({}));
+        if (rr.ok && jj.tid) tid = jj.tid;
+      } catch (e) {}
+    }
     // 管理者の新規登録は1社1名: 既に会社が存在していたら拒否
     if (isNewCompany) {
       try {
@@ -544,11 +577,29 @@
     } else if (deviceBlocked) {
       $("cloudStat").innerHTML = who + "<br>会社: <b>" + profile.tenantId + "</b> / 役割: " + roleJa + "<br>⛔ <b>この端末は無料枠を超えています</b>（社内共有は停止中／個人利用は可）。下の端末一覧をご確認ください。";
     } else {
+      const storeCode = (tenantDoc && tenantDoc.code) || profile.tenantId;
+      const canEditCode = (profile.role === "admin" || profile.role === "super");
+      const codeLocked = !!(tenantDoc && tenantDoc.codeSetByAdmin) && profile.role !== "super";
       $("cloudStat").innerHTML = "✓ 同期中 — " + who +
+        "<br>店舗コード: <b id='myStoreCode'>" + esc(storeCode) + "</b>" +
+        (canEditCode ? " <button class='btn btn-ghost btn-sm' id='btnChangeCode' style='padding:2px 10px;font-size:12px;margin-left:2px'>変更</button>" : "") +
+        (codeLocked ? " <span style='color:var(--dim,#89a);font-size:11px'>（変更済・再変更は運営へ）</span>" : "") +
         "<br>ログインID: <b id='myLoginId'>" + esc(profile.loginId || "未設定") + "</b>" +
         " <button class='btn btn-ghost btn-sm' id='btnChangeLoginId' style='padding:2px 10px;font-size:12px;margin-left:2px'>変更</button>" +
-        "<br>役割: " + roleJa +
-        "<br><span style='color:var(--dim,#89a);font-size:11px'>店舗コード: " + esc(profile.tenantId || "—") + "（社内・サポート用）</span>";
+        "<br>役割: " + roleJa;
+      const bcc = $("btnChangeCode");
+      if (bcc) bcc.onclick = async () => {
+        if (codeLocked) { uiAlert("店舗コードの変更は1回のみです。再変更は運営へお問い合わせください。"); return; }
+        const cur = storeCode;
+        let nc = (prompt("新しい店舗コードを入力してください。\n（会社名など・半角英数字とハイフン・3〜24文字）\n※管理者による変更は1回のみです。以降は運営へお問い合わせください。", cur) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+        if (!nc || nc === cur) return;
+        try {
+          const rsp = await window.Cloud.callFn("setTenantCode", { tid: profile.tenantId, code: nc });
+          if (tenantDoc) { tenantDoc.code = rsp.code || nc; if (rsp.byAdminLocked) tenantDoc.codeSetByAdmin = true; }
+          const el = $("myStoreCode"); if (el) el.textContent = rsp.code || nc;
+          uiAlert("店舗コードを変更しました：" + (rsp.code || nc));
+        } catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
+      };
       const bcl = $("btnChangeLoginId");
       if (bcl) bcl.onclick = async () => {
         const cur = profile.loginId || "";
@@ -941,10 +992,11 @@
           const cnt = (byTenant[id] || []).length;
           html += "<div class='mTenant'><div class='mTenantHead' data-toggle>" +
             "<span class='mChevron'>▸</span>" +
-            "<span class='mName'>" + esc(id) + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
+            "<span class='mName'>" + esc(t.code || id) + (t.code ? " <span style='color:var(--dim,#89a);font-size:11px'>(" + esc(id) + ")</span>" : "") + (t.active ? "" : "<span style='color:var(--alert)'>（承認待ち）</span>") + "</span>" +
             "<span class='mCount'>👥 " + cnt + "</span>" +
             "<span class='mtBtns'>" + btn("plan", "t", id, "プラン") +
             btn("syncplan", "t", id, "🔄同期") +
+            btn("tcode", "t", id, "コード変更") +
             btn("aitier", "t", id, "AI:" + tierName(t), tierCode(t) === "na" ? "btn-ghost" : "btn-amber") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
@@ -1084,6 +1136,15 @@
         } catch (e) { uiAlert("検索席の変更に失敗: " + (e.message || e)); }
         finally { if (btnEl) btnEl.disabled = false; }
         return "inplace";
+      }
+      if (act === "tcode") {
+        // 運営(super)は店舗コード(別名)を何度でも変更できる。
+        const cur = (await db.collection("tenants").doc(id).get()).data() || {};
+        let nc = (prompt("店舗「" + (cur.code || id) + "」の店舗コードを変更\n（会社名など・半角英数字とハイフン・3〜24文字）\n※運営は何度でも変更できます。空欄で取消。", cur.code || id) || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+        if (!nc) return;
+        try { const r = await window.Cloud.callFn("setTenantCode", { tid: id, code: nc }); uiAlert("店舗コードを変更しました：" + (r.code || nc)); }
+        catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
+        return;
       }
       if (act === "syncplan") {
         // Stripeの現契約から plan/aiPlan/期限 を取り込む(webフックの取りこぼし救済)。
