@@ -153,13 +153,18 @@
     <h2 class="sec-t">実際の画面</h2>
     <p class="swipe-hint">← 横スワイプでご覧いただけます →</p>
     <p class="sec-sub">スキャンから諸元・診断・修理・記録まで、この流れで使えます。</p>
-    <div class="shots">
-      <figure class="shot"><img src="img/screen-vehicle.png" alt="車両特定画面" loading="lazy"><figcaption><b>① 車両を自動特定</b>車台番号・型式からDB照合。次の作業を選ぶだけ。</figcaption></figure>
-      <figure class="shot"><img src="img/screen-spec.png" alt="メンテナンス諸元画面" loading="lazy"><figcaption><b>② メンテナンス諸元を即表示</b>オイル量・粘度・トルク・容量など。タップで自社値も保存。</figcaption></figure>
-      <figure class="shot"><img src="img/screen-diag.png" alt="AI故障診断画面" loading="lazy"><figcaption><b>③ AI故障診断</b>DTC（例:P0301）や症状から、原因候補を可能性順に。点検手引書つき。</figcaption></figure>
-      <figure class="shot"><img src="img/screen-repair.png" alt="修理サポート画面" loading="lazy"><figcaption><b>④ 修理サポート</b>交換手順・必要工具・締付トルク・部品リストまで。</figcaption></figure>
-      <figure class="shot"><img src="img/screen-karte.png" alt="整備カルテ画面" loading="lazy"><figcaption><b>⑤ 整備カルテ</b>作業記録・部品・担当をデジタルで残して社内共有。</figcaption></figure>
+    <div class="shotsWrap">
+      <button class="shotNav prev" id="shotPrev" type="button" aria-label="前へ">‹</button>
+      <div class="shots" id="shots">
+        <figure class="shot"><img src="img/screen-vehicle.png" alt="車両特定画面" loading="lazy"><figcaption><b>① 車両を自動特定</b>車台番号・型式からDB照合。次の作業を選ぶだけ。</figcaption></figure>
+        <figure class="shot"><img src="img/screen-spec.png" alt="メンテナンス諸元画面" loading="lazy"><figcaption><b>② メンテナンス諸元を即表示</b>オイル量・粘度・トルク・容量など。タップで自社値も保存。</figcaption></figure>
+        <figure class="shot"><img src="img/screen-diag.png" alt="AI故障診断画面" loading="lazy"><figcaption><b>③ AI故障診断</b>DTC（例:P0301）や症状から、原因候補を可能性順に。点検手引書つき。</figcaption></figure>
+        <figure class="shot"><img src="img/screen-repair.png" alt="修理サポート画面" loading="lazy"><figcaption><b>④ 修理サポート</b>交換手順・必要工具・締付トルク・部品リストまで。</figcaption></figure>
+        <figure class="shot"><img src="img/screen-karte.png" alt="整備カルテ画面" loading="lazy"><figcaption><b>⑤ 整備カルテ</b>作業記録・部品・担当をデジタルで残して社内共有。</figcaption></figure>
+      </div>
+      <button class="shotNav next" id="shotNext" type="button" aria-label="次へ">›</button>
     </div>
+    <div class="shotDots" id="shotDots"></div>
   </div>
 </section>
 
@@ -307,6 +312,41 @@
 </footer>
 
 <script>
+/* 実際の画面スライダー(矢印・ドット・自動送り。スマホはスワイプ) */
+(function () {
+  var track = document.getElementById("shots"); if (!track) return;
+  var prev = document.getElementById("shotPrev"), next = document.getElementById("shotNext"), dotsBox = document.getElementById("shotDots");
+  var slides = Array.prototype.slice.call(track.querySelectorAll(".shot"));
+  if (!slides.length) return;
+  var dots = [], timer = null;
+  function step() { return slides.length > 1 ? (slides[1].getBoundingClientRect().left - slides[0].getBoundingClientRect().left) : track.clientWidth; }
+  function perView() { return Math.max(1, Math.round(track.clientWidth / step())); }
+  function maxIndex() { return Math.max(0, slides.length - perView()); }
+  function current() { return Math.max(0, Math.min(maxIndex(), Math.round(track.scrollLeft / step()))); }
+  function go(i) { i = Math.max(0, Math.min(i, maxIndex())); track.scrollTo({ left: i * step(), behavior: "smooth" }); }
+  function buildDots() {
+    dotsBox.innerHTML = ""; var n = maxIndex() + 1;
+    for (var i = 0; i < n; i++) { (function (i) { var b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-label", (i + 1)); b.addEventListener("click", function () { go(i); }); dotsBox.appendChild(b); })(i); }
+    dots = Array.prototype.slice.call(dotsBox.children);
+  }
+  function update() {
+    var c = current();
+    dots.forEach(function (d, i) { d.classList.toggle("on", i === c); });
+    if (prev) prev.disabled = c <= 0;
+    if (next) next.disabled = c >= maxIndex();
+  }
+  function autoNext() { var c = current(); go(c >= maxIndex() ? 0 : c + 1); }
+  function start() { stop(); timer = setInterval(autoNext, 4000); }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  if (prev) prev.addEventListener("click", function () { go(current() - 1); });
+  if (next) next.addEventListener("click", function () { go(current() + 1); });
+  track.addEventListener("scroll", function () { window.requestAnimationFrame(update); }, { passive: true });
+  window.addEventListener("resize", function () { buildDots(); update(); });
+  window.addEventListener("load", function () { buildDots(); update(); });
+  ["mouseenter", "touchstart", "pointerdown"].forEach(function (ev) { track.addEventListener(ev, stop, { passive: true }); });
+  ["mouseleave", "touchend"].forEach(function (ev) { track.addEventListener(ev, start, { passive: true }); });
+  buildDots(); update(); start();
+})();
 (function () {
   var FN = "https://asia-northeast1-mecanoai.cloudfunctions.net/bizInquiry";
   var form = document.getElementById("bizForm");

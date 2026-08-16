@@ -111,17 +111,24 @@ h1,h2,h3{line-height:1.35;margin:0}
 .feat-item h3{font-size:16.5px;margin:6px 0 8px}
 .feat-item p{color:var(--ink2);font-size:14px;margin:0}
 
-/* 実際の画面ギャラリー */
-.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-.shot{margin:0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 6px 20px -10px rgba(15,42,90,.25);display:flex;flex-direction:column}
+/* 実際の画面ギャラリー(スライダー) */
+.shotsWrap{position:relative}
+.shots{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:2px 2px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.shots::-webkit-scrollbar{display:none}
+.shot{flex:0 0 calc((100% - 36px)/3);scroll-snap-align:start;margin:0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 6px 20px -10px rgba(15,42,90,.25);display:flex;flex-direction:column}
 .shot img{width:100%;height:auto;display:block;background:var(--soft);border-bottom:1px solid var(--line)}
 .shot figcaption{padding:14px 16px 16px;font-size:13px;color:var(--ink2);line-height:1.6}
 .shot figcaption b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:3px}
+.shotNav{position:absolute;top:36%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:24px;line-height:1;cursor:pointer;box-shadow:0 8px 20px -8px rgba(15,42,90,.45);z-index:2;display:flex;align-items:center;justify-content:center}
+.shotNav.prev{left:-8px}.shotNav.next{right:-8px}
+.shotNav:disabled{opacity:.3;cursor:default;box-shadow:none}
+.shotDots{display:flex;justify-content:center;gap:7px;margin-top:14px}
+.shotDots button{width:8px;height:8px;border-radius:50%;border:0;background:var(--line);cursor:pointer;padding:0;transition:all .2s}
+.shotDots button.on{background:var(--accent);width:22px;border-radius:4px}
 .swipe-hint{display:none}
-/* スマホでは画面ショットを横スワイプの大きな表示に(3列固定で潰れるのを防ぐ) */
 @media(max-width:880px){
-  .shots{display:flex;grid-template-columns:none;overflow-x:auto;gap:14px;scroll-snap-type:x mandatory;padding:2px 2px 12px;-webkit-overflow-scrolling:touch}
-  .shot{flex:0 0 80%;scroll-snap-align:center}
+  .shot{flex:0 0 80%}
+  .shotNav{display:none}
   .swipe-hint{display:block;text-align:center;color:var(--ink2);font-size:12.5px;margin:-6px 0 12px}
 }
 
