@@ -582,7 +582,7 @@
       const codeLocked = !!(tenantDoc && tenantDoc.codeSetByAdmin) && profile.role !== "super";
       $("cloudStat").innerHTML = "✓ 同期中 — " + who +
         "<br>店舗コード: <b id='myStoreCode'>" + esc(storeCode) + "</b>" +
-        (canEditCode && !codeLocked ? " <a href='#' id='btnChangeCode' class='textlink' style='font-size:12px;margin-left:6px'>変更する</a>" : "") +
+        (canEditCode && !codeLocked ? " <a href='#' id='btnChangeCode' style='font-size:12px;margin-left:8px;color:var(--cyan,#1b9);text-decoration:underline;background:none;border:0;padding:0;font-weight:600'>変更する</a>" : "") +
         (codeLocked ? " <span style='color:var(--dim,#89a);font-size:11px'>（変更済・再変更は運営へ）</span>" : "") +
         "<br>役割: " + roleJa;
       const bcc = $("btnChangeCode");
