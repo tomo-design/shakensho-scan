@@ -78,7 +78,7 @@ h1,h2,h3{line-height:1.35;margin:0}
 .ts-mecha{width:96px;height:auto;object-fit:contain;flex:none}
 .ts-bubble{flex:1;background:#fff;border:2px solid #16233a;border-radius:14px;padding:9px 10px;font-weight:800;font-size:12.5px;color:#16233a;line-height:1.4;text-align:center;box-shadow:0 4px 0 rgba(22,35,58,.12)}
 .ts-cert{flex:1;display:flex;justify-content:center;align-items:center}
-.ts-cert svg{width:100%;max-width:180px;height:auto;display:block;filter:drop-shadow(0 4px 8px rgba(15,27,48,.18))}
+.ts-cert svg{width:100%;max-width:210px;height:auto;display:block;filter:drop-shadow(0 4px 8px rgba(15,27,48,.18))}
 .ts-btns{display:flex;flex-direction:column;gap:8px;margin:8px 4px 0}
 .ts-btn{background:#fff;border:1.5px solid #cdd6e3;border-radius:10px;padding:11px;text-align:center;font-weight:800;color:#1e5aa8;font-size:14px}
 .ts-search{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:10px;text-align:center;color:#39435a;font-size:13px;font-weight:700;margin:8px 4px 0}

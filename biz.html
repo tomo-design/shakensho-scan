@@ -47,35 +47,61 @@
           <div class="ts-head"><img src="img/logo-mark.png" class="ts-logo" alt=""><span class="ts-name">メカノAI<small>MECHANO-AI</small></span></div>
           <div class="ts-hero">
             <img src="img/hero2.png" class="ts-mecha" alt="メカ君">
-            <div class="ts-cert" role="img" aria-label="電子車検証（自動車検査証記録事項）">
-              <svg viewBox="0 0 210 132" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="2" width="206" height="128" rx="10" fill="#fff" stroke="#16233a" stroke-width="2"/>
-                <path d="M2 12a10 10 0 0 1 10-10h186a10 10 0 0 1 10 10v20H2z" fill="#16233a"/>
-                <text x="105" y="22" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="700" font-family="sans-serif">自動車検査証記録事項</text>
-                <!-- 2次元コード -->
-                <rect x="14" y="44" width="48" height="48" rx="2" fill="#0f1b30"/>
-                <g fill="#fff">
-                  <rect x="18" y="48" width="12" height="12"/><rect x="46" y="48" width="12" height="12"/><rect x="18" y="76" width="12" height="12"/>
+            <div class="ts-cert" role="img" aria-label="自動車検査証（電子車検証）">
+              <svg viewBox="0 0 264 164" xmlns="http://www.w3.org/2000/svg" font-family="'Yu Gothic','Hiragino Sans',sans-serif">
+                <rect x="1" y="1" width="262" height="162" rx="5" fill="#eef4fb" stroke="#5b7fb0" stroke-width="1.4"/>
+                <!-- 透かし(車のシルエット) -->
+                <g fill="#cddcef" opacity=".55">
+                  <rect x="214" y="14" width="14" height="8" rx="2"/><rect x="234" y="14" width="14" height="8" rx="2"/>
+                  <rect x="214" y="150" width="14" height="8" rx="2"/><rect x="234" y="150" width="14" height="8" rx="2"/>
                 </g>
-                <g fill="#0f1b30">
-                  <rect x="21" y="51" width="6" height="6"/><rect x="49" y="51" width="6" height="6"/><rect x="21" y="79" width="6" height="6"/>
+                <!-- タイトル帯 -->
+                <text x="60" y="16" text-anchor="middle" font-size="12.5" font-weight="700" fill="#16324f" letter-spacing="2">自動車検査証</text>
+                <text x="112" y="9" font-size="4.6" fill="#33506f">令和4年12月1日　東京運輸支局長</text>
+                <text x="112" y="16" font-size="4.6" fill="#33506f">411230000011</text>
+                <line x1="6" y1="20" x2="258" y2="20" stroke="#5b7fb0" stroke-width="0.7"/>
+                <!-- 記載欄グリッド -->
+                <g stroke="#7f9dc0" stroke-width="0.5">
+                  <line x1="6" y1="32" x2="212" y2="32"/><line x1="6" y1="44" x2="212" y2="44"/>
+                  <line x1="6" y1="56" x2="212" y2="56"/><line x1="6" y1="68" x2="212" y2="68"/>
+                  <line x1="6" y1="80" x2="212" y2="80"/><line x1="6" y1="92" x2="212" y2="92"/>
+                  <line x1="6" y1="24" x2="6" y2="92"/><line x1="212" y1="24" x2="212" y2="92"/>
+                  <line x1="70" y1="24" x2="70" y2="92"/><line x1="120" y1="24" x2="120" y2="92"/><line x1="166" y1="24" x2="166" y2="92"/>
                 </g>
-                <g fill="#fff">
-                  <rect x="34" y="64" width="4" height="4"/><rect x="42" y="64" width="4" height="4"/><rect x="50" y="66" width="4" height="4"/>
-                  <rect x="34" y="72" width="4" height="4"/><rect x="46" y="76" width="4" height="4"/><rect x="52" y="82" width="4" height="4"/>
-                  <rect x="40" y="82" width="4" height="4"/>
+                <g font-size="4.4" fill="#8199b8">
+                  <text x="9" y="29">自動車登録番号</text><text x="73" y="29">登録年月日</text><text x="123" y="29">種別</text><text x="169" y="29">型式指定番号</text>
+                  <text x="9" y="41">車名</text><text x="123" y="41">車体の形状</text>
+                  <text x="9" y="53">車台番号</text><text x="123" y="53">燃料の種類</text>
+                  <text x="9" y="65">型式</text><text x="73" y="65">原動機の型式</text><text x="123" y="65">総排気量</text><text x="169" y="65">出力</text>
+                  <text x="9" y="77">乗車定員</text><text x="73" y="77">車両重量</text><text x="123" y="77">車両総重量</text><text x="169" y="77">長さ</text>
+                  <text x="9" y="89">使用者</text>
                 </g>
-                <!-- ICチップ -->
-                <rect x="14" y="100" width="26" height="20" rx="3" fill="#e4b23c" stroke="#b8892a"/>
-                <path d="M27 100v20M14 110h26" stroke="#b8892a" stroke-width="1"/>
-                <text x="52" y="114" font-size="8.5" fill="#6b4e12" font-weight="700" font-family="sans-serif">ICタグ</text>
-                <!-- 記載行 -->
-                <rect x="78" y="44" width="118" height="7" rx="3.5" fill="#16233a" opacity=".85"/>
-                <rect x="78" y="58" width="96" height="6" rx="3" fill="#c9d4e5"/>
-                <rect x="78" y="70" width="118" height="6" rx="3" fill="#dbe3ef"/>
-                <rect x="78" y="82" width="80" height="6" rx="3" fill="#dbe3ef"/>
-                <rect x="78" y="100" width="118" height="6" rx="3" fill="#dbe3ef"/>
-                <rect x="78" y="112" width="70" height="6" rx="3" fill="#dbe3ef"/>
+                <g font-size="5.4" fill="#16324f" font-weight="600">
+                  <text x="9" y="37">東京 310 お 1001</text><text x="73" y="37">令4年12月</text><text x="123" y="37">普通</text><text x="169" y="37">98765</text>
+                  <text x="9" y="49">コクドコウツウ</text><text x="123" y="49">箱型</text>
+                  <text x="9" y="61">SHADAI-001</text><text x="123" y="61">ガソリン</text>
+                  <text x="9" y="73">ZXX-ABC99</text><text x="73" y="73">ABC-3DE</text><text x="123" y="73">1.59 L</text><text x="169" y="73">1.59</text>
+                  <text x="9" y="85">5人</text><text x="73" y="85">1350kg</text><text x="123" y="85">1625kg</text><text x="169" y="85">448cm</text>
+                </g>
+                <!-- 備考 -->
+                <text x="9" y="100" font-size="4.4" fill="#8199b8">備考</text>
+                <g fill="#c3d2e6"><rect x="9" y="103" width="120" height="2.6"/><rect x="9" y="108" width="120" height="2.6"/><rect x="9" y="113" width="98" height="2.6"/></g>
+                <!-- 2次元コード(右下) -->
+                <g>
+                  <rect x="150" y="122" width="28" height="28" fill="#12233b"/>
+                  <g fill="#eef4fb"><rect x="153" y="125" width="7" height="7"/><rect x="168" y="125" width="7" height="7"/><rect x="153" y="140" width="7" height="7"/></g>
+                  <g fill="#12233b"><rect x="155" y="127" width="3" height="3"/><rect x="170" y="127" width="3" height="3"/><rect x="155" y="142" width="3" height="3"/></g>
+                  <g fill="#eef4fb"><rect x="164" y="136" width="3" height="3"/><rect x="170" y="140" width="3" height="3"/><rect x="164" y="144" width="3" height="3"/></g>
+                  <rect x="182" y="122" width="28" height="28" fill="#12233b"/>
+                  <g fill="#eef4fb"><rect x="185" y="125" width="7" height="7"/><rect x="200" y="125" width="7" height="7"/><rect x="185" y="140" width="7" height="7"/></g>
+                  <g fill="#12233b"><rect x="187" y="127" width="3" height="3"/><rect x="202" y="127" width="3" height="3"/><rect x="187" y="142" width="3" height="3"/></g>
+                  <g fill="#eef4fb"><rect x="196" y="136" width="3" height="3"/><rect x="202" y="144" width="3" height="3"/></g>
+                </g>
+                <!-- 国土交通省 -->
+                <text x="9" y="150" font-size="6" fill="#1c6db0" font-weight="700">🌐 国土交通省</text>
+                <!-- 右端 縦書き注記帯 -->
+                <line x1="214" y1="22" x2="214" y2="158" stroke="#7f9dc0" stroke-width="0.5"/>
+                <text x="228" y="30" font-size="5" fill="#33506f" writing-mode="tb" glyph-orientation-vertical="0">裏面もご覧ください</text>
               </svg>
             </div>
           </div>
