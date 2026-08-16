@@ -890,7 +890,44 @@
     }));
   }
   $("btnAdminReload") && $("btnAdminReload").addEventListener("click", () => { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); });
-  window.CloudAdmin = { open() { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); } };  // app.jsのタブ切替から呼ぶ
+  $("btnInquiryReload") && $("btnInquiryReload").addEventListener("click", () => renderInquiries());
+  window.CloudAdmin = { open() { renderOperatorInfo(); renderSignups(); renderManage("adminBox"); renderInquiries(); } };  // app.jsのタブ切替から呼ぶ
+  /* 問い合わせ一覧(運営のみ)。listInquiriesで取得し、返信(mailto)/対応済み/削除ができる。 */
+  async function renderInquiries() {
+    const box = $("adminInquiries"); if (!box) return;
+    box.className = "hint"; box.textContent = "読み込み中…";
+    let items = [];
+    try { const d = await window.Cloud.callFn("listInquiries", {}); items = (d && d.items) || []; }
+    catch (e) { box.textContent = "⚠ 取得に失敗しました: " + (e.message || e); return; }
+    if (!items.length) { box.textContent = "まだ問い合わせはありません。"; return; }
+    box.className = ""; box.innerHTML = "";
+    items.forEach((it) => {
+      const done = it.status === "done";
+      const card = document.createElement("div"); card.className = "inqCard" + (done ? " inqDone" : "");
+      const dt = it.ts ? new Date(it.ts).toLocaleString("ja-JP") : "";
+      const head = document.createElement("div"); head.className = "inqHead";
+      head.innerHTML = '<b>' + esc(it.company || it.name || "(無題)") + '</b>' +
+        '<span class="inqStat ' + (done ? "d" : "n") + '">' + (done ? "対応済み" : "未対応") + '</span>';
+      const meta = document.createElement("div"); meta.className = "inqMeta";
+      meta.textContent = [it.name, dt].filter(Boolean).join(" ／ ");
+      const contact = document.createElement("div"); contact.className = "inqMeta";
+      contact.textContent = "📧 " + (it.email || "") + (it.phone ? " ／ ☎ " + it.phone : "");
+      const msg = document.createElement("div"); msg.className = "inqMsg"; msg.textContent = it.message || "";
+      const btns = document.createElement("div"); btns.className = "inqBtns";
+      const reply = document.createElement("a"); reply.className = "btn btn-ghost btn-sm"; reply.textContent = "↩ 返信";
+      reply.href = "mailto:" + encodeURIComponent(it.email || "") + "?subject=" + encodeURIComponent("Re: メカノAI お問い合わせ") +
+        "&body=" + encodeURIComponent((it.name || "") + " 様\n\nお問い合わせありがとうございます。\n\n");
+      const mark = document.createElement("button"); mark.type = "button"; mark.className = "btn btn-ghost btn-sm";
+      mark.textContent = done ? "未対応に戻す" : "✓ 対応済みに";
+      mark.onclick = async () => { mark.disabled = true; try { await window.Cloud.callFn("updateInquiry", { id: it.id, status: done ? "new" : "done" }); renderInquiries(); } catch (e) { mark.disabled = false; uiAlert("更新に失敗: " + (e.message || e)); } };
+      const del = document.createElement("button"); del.type = "button"; del.className = "btn btn-ghost btn-sm";
+      del.textContent = "🗑 削除";
+      del.onclick = async () => { if (!confirm("この問い合わせを削除しますか？")) return; del.disabled = true; try { await window.Cloud.callFn("updateInquiry", { id: it.id, del: true }); renderInquiries(); } catch (e) { del.disabled = false; uiAlert("削除に失敗: " + (e.message || e)); } };
+      btns.append(reply, mark, del);
+      card.append(head, meta, contact, msg, btns);
+      box.appendChild(card);
+    });
+  }
   async function renderManage(boxId) {
     const box = $(boxId); if (!box || !profile) return;
     box.innerHTML = "読み込み中…";

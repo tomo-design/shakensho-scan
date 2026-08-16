@@ -617,6 +617,36 @@ exports.submitInquiry = functions.region(REGION).https.onRequest(async (req, res
   }
 });
 
+/* 問い合わせ一覧(運営のみ): POST {} → 新しい順に最大100件。 */
+exports.listInquiries = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const u = (await admin.firestore().collection("users").doc(uid).get()).data();
+  if (!u || u.role !== "super") return res.status(403).json({ error: "運営管理者のみ閲覧できます。" });
+  const snap = await admin.firestore().collection("inquiries").orderBy("ts", "desc").limit(100).get();
+  const items = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+  return res.json({ ok: true, items: items });
+});
+
+/* 問い合わせの状態更新/削除(運営のみ): POST {id, status?:"new"|"done", del?:true}。 */
+exports.updateInquiry = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const u = (await admin.firestore().collection("users").doc(uid).get()).data();
+  if (!u || u.role !== "super") return res.status(403).json({ error: "運営管理者のみ操作できます。" });
+  const id = (req.body && req.body.id) || "";
+  if (!id) return res.status(400).json({ error: "IDがありません。" });
+  const ref = admin.firestore().collection("inquiries").doc(id);
+  if (req.body.del) { await ref.delete(); return res.json({ ok: true, deleted: true }); }
+  const status = req.body.status === "done" ? "done" : "new";
+  await ref.set({ status: status }, { merge: true });
+  return res.json({ ok: true, status: status });
+});
+
 /* 個人版(Google Play)サブスクの購入検証・承認。
    POST {token, sku} → Google Play Developer API で定期購入の状態を確認し、
    未承認なら acknowledge する。ログイン不要(有効な purchaseToken が本人性の担保)。
