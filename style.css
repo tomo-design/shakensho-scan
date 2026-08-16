@@ -967,14 +967,3 @@ body.pwLocked{ overflow:hidden }
 .planPriceRow{ display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap }
 .planPriceRow .planPrice{ margin:0 }
 
-/* 運営: お問い合わせ一覧カード */
-.inqCard{ border:1px solid var(--line,#e2e2e2); border-radius:10px; padding:11px 12px; margin-bottom:10px; background:var(--card,#fff) }
-.inqCard.inqDone{ opacity:.62 }
-.inqHead{ display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:4px }
-.inqStat{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px }
-.inqStat.n{ background:#fde7c8; color:#a05a00 }
-.inqStat.d{ background:#d8efe0; color:#0f7b45 }
-.inqMeta{ font-size:11.5px; color:var(--dim,#888) }
-.inqMsg{ font-size:13px; white-space:pre-wrap; word-break:break-word; margin:8px 0; padding:8px 10px; background:var(--panel2,#f3f5f8); border-radius:8px; line-height:1.7 }
-.inqBtns{ display:flex; flex-wrap:wrap; gap:6px }
-.inqBtns .btn{ flex:0 0 auto }
