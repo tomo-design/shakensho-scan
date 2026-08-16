@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>初回セットアップ｜メカノAI</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<style>
+  :root{--bg:#0e1726;--card:#fff;--ink:#1a2740;--ink2:#5a6b86;--line:#dfe5ee;--accent:#2563eb;--accent-d:#1e50c0;--gold:#f4b02a;--green:#1a9e60;--err:#d64545}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:linear-gradient(160deg,#0e1726,#132339);min-height:100vh;color:var(--ink);display:flex;align-items:flex-start;justify-content:center;padding:28px 16px}
+  .card{background:var(--card);width:100%;max-width:460px;border-radius:18px;padding:26px 24px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6);margin-top:14px}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .brand img{width:36px;height:36px;border-radius:8px}
+  .brand b{font-size:18px;letter-spacing:.02em}
+  .brand small{display:block;font-size:10px;color:var(--ink2);letter-spacing:.16em}
+  h1{font-size:20px;margin:14px 0 4px}
+  .sub{color:var(--ink2);font-size:13px;margin:0 0 18px;line-height:1.7}
+  .info{background:#f4f7fc;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:18px;font-size:14px}
+  .info .row{display:flex;justify-content:space-between;gap:12px;padding:5px 0}
+  .info .row+.row{border-top:1px dashed var(--line)}
+  .info .k{color:var(--ink2)}
+  .info .v{font-weight:700;text-align:right;word-break:break-all}
+  .idbox{background:#fff7e6;border:1px solid #f0d9a0;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:18px}
+  .idbox b{font-size:15px}
+  label{display:block;font-size:13px;font-weight:700;margin-bottom:14px}
+  input[type=password]{width:100%;margin-top:6px;padding:12px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;color:var(--ink)}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.16)}
+  .btn{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .btn:hover{background:var(--accent-d)}
+  .btn[disabled]{opacity:.6;cursor:default}
+  .btn-gold{background:var(--gold);color:#3a2b00}
+  .msg{margin-top:14px;font-size:13.5px;text-align:center;min-height:18px;line-height:1.7}
+  .msg.err{color:var(--err);font-weight:700}
+  .msg.ok{color:var(--green);font-weight:700}
+  .foot{margin-top:18px;text-align:center;font-size:11px;color:var(--ink2)}
+  .center{text-align:center}
+  .hide{display:none}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand"><img src="img/logo-mark.png" alt=""><span><b>メカノAI</b><small>MECHANO-AI</small></span></div>
+
+  <!-- 読み込み中 -->
+  <div id="loading" class="center" style="padding:30px 0;color:var(--ink2)">読み込み中…</div>
+
+  <!-- エラー -->
+  <div id="errPane" class="hide">
+    <h1>リンクを開けませんでした</h1>
+    <p id="errText" class="sub"></p>
+    <a class="btn" href="index.html">アプリのログインへ</a>
+  </div>
+
+  <!-- セットアップ本体 -->
+  <div id="setupPane" class="hide">
+    <h1>初回セットアップ</h1>
+    <p class="sub">パスワードを決めるだけで、すぐに全機能をご利用いただけます。ご契約から7日間は無料でお試しいただけます。</p>
+    <div class="info">
+      <div class="row"><span class="k">会社名</span><span class="v" id="vCompany"></span></div>
+      <div class="row"><span class="k">ご契約プラン</span><span class="v" id="vPlan"></span></div>
+      <div class="row"><span class="k">ログイン用メール</span><span class="v" id="vEmail"></span></div>
+    </div>
+    <div class="idbox">あなたのログインID：<b id="vLoginId"></b><br><span style="color:var(--ink2)">次回以降はこのID、またはメールアドレスでログインできます（IDは設定画面から後で変更できます）。</span></div>
+    <form id="setForm">
+      <label>パスワードを設定（6文字以上）
+        <input type="password" id="pw1" autocomplete="new-password" placeholder="半角英数字6文字以上" minlength="6" required>
+      </label>
+      <label>パスワード（確認）
+        <input type="password" id="pw2" autocomplete="new-password" placeholder="もう一度入力" minlength="6" required>
+      </label>
+      <button type="submit" id="goBtn" class="btn">この内容で開始する</button>
+    </form>
+    <div id="setMsg" class="msg"></div>
+  </div>
+
+  <!-- 完了 -->
+  <div id="donePane" class="hide center">
+    <h1 style="color:var(--green)">セットアップ完了！</h1>
+    <p class="sub">アカウントが有効になりました。ご契約から7日間は無料でお試しいただけます。</p>
+    <div class="idbox center">あなたのログインID：<b id="vLoginId2"></b></div>
+    <a class="btn btn-gold" href="index.html">アプリを開く ▶</a>
+  </div>
+
+  <div class="foot">© 2026 Cablueie — メカノAI</div>
+</div>
+
+<script>
+(function () {
+  var FN = "https://asia-northeast1-mecanoai.cloudfunctions.net/";
+  var firebaseConfig = {
+    apiKey: "AIzaSyAH5tBm9VDMYas1X0pNBBYHxKO3nfTrEYI",
+    authDomain: "mecanoai.firebaseapp.com",
+    projectId: "mecanoai",
+    storageBucket: "mecanoai.firebasestorage.app",
+    messagingSenderId: "126560659288",
+    appId: "1:126560659288:web:627b913aef320e7e76a72d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+
+  var $ = function (id) { return document.getElementById(id); };
+  var token = new URLSearchParams(location.search).get("t") || "";
+  var info = null;
+
+  function show(id) { ["loading", "errPane", "setupPane", "donePane"].forEach(function (p) { $(p).classList.toggle("hide", p !== id); }); }
+  function fail(t) { $("errText").textContent = t || "リンクが無効です。"; show("errPane"); }
+
+  if (!token) { fail("リンクが正しくありません。お手数ですが、届いたメールのリンクを再度お開きください。"); return; }
+
+  // トークンの内容を取得
+  fetch(FN + "onboardStart?t=" + encodeURIComponent(token))
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok) return fail(res.j.error || "リンクが無効です。");
+      info = res.j;
+      $("vCompany").textContent = info.company || "-";
+      $("vPlan").textContent = info.planLabel || "-";
+      $("vEmail").textContent = info.email || "-";
+      $("vLoginId").textContent = info.loginId || "-";
+      $("vLoginId2").textContent = info.loginId || "-";
+      show("setupPane");
+    })
+    .catch(function () { fail("通信に失敗しました。電波の良い場所で再度お試しください。"); });
+
+  $("setForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var msg = $("setMsg"); msg.className = "msg";
+    var p1 = $("pw1").value, p2 = $("pw2").value;
+    if (p1.length < 6) { msg.textContent = "パスワードは6文字以上にしてください。"; msg.classList.add("err"); return; }
+    if (p1 !== p2) { msg.textContent = "パスワードが一致しません。"; msg.classList.add("err"); return; }
+    var btn = $("goBtn"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>設定中…';
+
+    // 1) 認証アカウントを作成（既に存在すればサインイン）
+    auth.createUserWithEmailAndPassword(info.email, p1)
+      .catch(function (err) {
+        if (err && err.code === "auth/email-already-in-use") return auth.signInWithEmailAndPassword(info.email, p1);
+        throw err;
+      })
+      .then(function (cred) { return cred.user.getIdToken(); })
+      // 2) サーバーで権限・テナントを付与して有効化
+      .then(function (idToken) {
+        return fetch(FN + "onboardActivate", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ t: token, idToken: idToken })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.j.error || "有効化に失敗しました。");
+        if (res.j.loginId) { $("vLoginId2").textContent = res.j.loginId; }
+        show("donePane");
+      })
+      .catch(function (err) {
+        var m = (err && err.message) || "設定に失敗しました。";
+        if (err && err.code === "auth/wrong-password") m = "このメールアドレスは既に登録済みです。正しいパスワードを入力するか、アプリのログイン画面からお入りください。";
+        if (err && err.code === "auth/weak-password") m = "パスワードが簡単すぎます。6文字以上で、推測されにくいものにしてください。";
+        msg.textContent = m; msg.classList.add("err");
+        btn.disabled = false; btn.textContent = "この内容で開始する";
+      });
+  });
+})();
+</script>
+</body>
+</html>

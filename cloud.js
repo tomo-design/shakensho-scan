@@ -334,10 +334,22 @@
   $("btnCloudBack") && $("btnCloudBack").addEventListener("click", closeForm);
   $("btnCloudSubmit") && $("btnCloudSubmit").addEventListener("click", async () => {
     if (cloudMode === "login") {
-      const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
-      if (!email || !pw) { $("cloudAuthStat").textContent = "メールとパスワードを入力してください。"; return; }
+      let email = $("cloudEmail").value.trim(); const pw = $("cloudPw").value;
+      if (!email || !pw) { $("cloudAuthStat").textContent = "メール(またはログインID)とパスワードを入力してください。"; return; }
       $("cloudAuthStat").textContent = "ログイン中…";
-      try { await persistReady; await auth.signInWithEmailAndPassword(email, pw); }
+      try {
+        await persistReady;
+        // メール形式でなければ「ログインID」とみなし、サーバーでメールに変換
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          const r = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/loginIdLookup", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loginId: email }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.email) { $("cloudAuthStat").textContent = "⚠ そのログインIDは見つかりません。メールアドレスでもお試しください。"; return; }
+          email = j.email;
+        }
+        await auth.signInWithEmailAndPassword(email, pw);
+      }
       catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
     } else { signup(cloudMode === "new"); }
   });

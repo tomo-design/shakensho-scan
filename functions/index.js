@@ -847,6 +847,142 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
   }
 });
 
+/* =========================================================================
+   契約者の自動オンボーディング(専用リンク方式)。
+   法人LPで「契約希望」が届いたら、テナント＋Stripe 7日トライアルを自動作成し、
+   専用セットアップリンク(トークン)とログインIDを発行してメール送信。
+   相手はリンクでパスワードだけ設定→即ログイン→7日お試し→8日目に決済(既存Stripe)。
+   ========================================================================= */
+const crypto = require("crypto");
+function planCodeFromLabel(s) { s = String(s || ""); if (/ツイン|twin/i.test(s)) return "twinturbo"; if (/ターボ|turbo/i.test(s)) return "turbo"; return "na"; }
+function planLabelFromCode(c) { return c === "twinturbo" ? "ツインターボ" : c === "turbo" ? "ターボ" : "NA"; }
+function asciiSlug(s) { const a = (String(s || "").match(/[a-zA-Z0-9]+/g) || []).join("").toLowerCase().slice(0, 12); return a || "shop"; }
+async function genLoginId(db, company) {
+  const base = asciiSlug(company);
+  for (let i = 0; i < 15; i++) {
+    const cand = base + "-" + Math.random().toString(36).slice(2, 6);
+    const q = await db.collection("users").where("loginId", "==", cand).limit(1).get();
+    if (q.empty) return cand;
+  }
+  return base + "-" + Date.now().toString(36).slice(-5);
+}
+// 契約者のテナントとStripeトライアルを自動作成し、オンボーディング用トークンを発行して返す。
+async function provisionContract(db, info) {
+  const planCode = planCodeFromLabel(info.plan);
+  const tid = db.collection("tenants").doc().id;
+  let stripeCustomerId = null, trialEnd = null;
+  try {
+    const stripe = require("stripe")(cfg().stripe.secret);
+    const c = await stripe.customers.create({ email: info.email, metadata: { tenantId: tid, company: info.company } });
+    stripeCustomerId = c.id;
+    const P = cfg().stripe.prices[planCode] || {};
+    const priceId = P.month || cfg().stripe.price_month;
+    if (priceId) {
+      const sub = await stripe.subscriptions.create({
+        customer: c.id, items: [{ price: priceId }], trial_period_days: 7,
+        collection_method: "send_invoice", days_until_due: 14,
+        metadata: { tenantId: tid, aiPlan: planCode },
+        payment_settings: {
+          payment_method_types: ["card", "konbini", "customer_balance"],
+          save_default_payment_method: "on_subscription",
+          payment_method_options: { customer_balance: { bank_transfer: { type: "jp_bank_transfer" }, funding_type: "bank_transfer" } },
+        },
+      });
+      trialEnd = sub.trial_end ? sub.trial_end * 1000 : null;
+    }
+  } catch (e) { console.error("provision Stripe失敗", e); }
+  if (!trialEnd) trialEnd = Date.now() + 7 * 86400000;
+  const loginId = await genLoginId(db, info.company);
+  await db.collection("tenants").doc(tid).set({
+    name: info.company, aiPlan: planCode, plan: "trial", aiPaidFallback: (planCode !== "na"),
+    paidUntil: trialEnd, stripeCustomerId: stripeCustomerId, seats: 1,
+    provisioned: true, provisionedAt: Date.now(), contactEmail: info.email,
+  }, { merge: true });
+  const token = crypto.randomBytes(24).toString("hex");
+  await db.collection("onboardTokens").doc(token).set({
+    tid, email: String(info.email || "").toLowerCase(), name: info.name || "", company: info.company,
+    planCode, loginId, used: false, exp: Date.now() + 14 * 86400000, createdAt: Date.now(),
+  });
+  return { token, loginId, planCode, trialEnd, tid };
+}
+
+// 専用リンクを開いた時: トークンの内容(会社名・プラン・メール・ログインID)を返す。
+exports.onboardStart = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const token = String((req.query && req.query.t) || (req.body && req.body.t) || "").trim();
+  if (!token) return res.status(400).json({ error: "リンクが正しくありません。" });
+  const db = admin.firestore();
+  const d = (await db.collection("onboardTokens").doc(token).get()).data();
+  if (!d) return res.status(404).json({ error: "リンクが無効です。お手数ですがお問い合わせください。" });
+  if (d.used) return res.status(409).json({ error: "このリンクは既にセットアップ済みです。ログインしてご利用ください。" });
+  if (d.exp && Date.now() > d.exp) return res.status(410).json({ error: "リンクの有効期限が切れています。お問い合わせください。" });
+  return res.json({ ok: true, company: d.company, email: d.email, name: d.name || "", loginId: d.loginId, planLabel: planLabelFromCode(d.planCode) });
+});
+
+// パスワード設定後: 作成済みのFirebase認証アカウント(idToken)にadmin権限とテナントを付与し有効化。
+exports.onboardActivate = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ。" });
+  const b = req.body || {};
+  const token = String(b.t || "").trim();
+  const idToken = String(b.idToken || "").trim();
+  if (!token || !idToken) return res.status(400).json({ error: "情報が不足しています。" });
+  const db = admin.firestore();
+  const ref = db.collection("onboardTokens").doc(token);
+  const d = (await ref.get()).data();
+  if (!d) return res.status(404).json({ error: "リンクが無効です。" });
+  if (d.used) return res.status(409).json({ error: "既にセットアップ済みです。" });
+  if (d.exp && Date.now() > d.exp) return res.status(410).json({ error: "リンクの有効期限が切れています。" });
+  let decoded;
+  try { decoded = await admin.auth().verifyIdToken(idToken); } catch (e) { return res.status(401).json({ error: "認証に失敗しました。" }); }
+  const uid = decoded.uid;
+  const email = String(decoded.email || "").toLowerCase();
+  if (email !== String(d.email || "").toLowerCase()) return res.status(403).json({ error: "リンクのメールアドレスと一致しません。" });
+  let loginId = d.loginId;
+  const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
+  if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
+  await db.collection("users").doc(uid).set({
+    name: d.name || d.company, email: d.email, tenantId: d.tid, role: "admin",
+    active: true, rejected: false, loginId: loginId, createdAt: Date.now(),
+  }, { merge: true });
+  await ref.set({ used: true, usedAt: Date.now(), uid: uid }, { merge: true });
+  return res.json({ ok: true, tenantId: d.tid, loginId: loginId });
+});
+
+// ログインID → メールアドレス を引く(ログイン画面でID入力を許可するため)。
+exports.loginIdLookup = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const id = String((req.body && req.body.loginId) || "").trim();
+  if (!id) return res.status(400).json({ error: "IDを入力してください。" });
+  const db = admin.firestore();
+  const q = await db.collection("users").where("loginId", "==", id).limit(1).get();
+  if (q.empty) return res.status(404).json({ error: "IDが見つかりません。" });
+  return res.json({ email: q.docs[0].data().email || "" });
+});
+
+// トライアル満了後の決済リンク(未払い/送付済みの請求書のURL)を返す。8日目の画面導線用。POST {tid}。
+exports.getPayLink = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const u = (await db.collection("users").doc(uid).get()).data();
+  const tid = (req.body && req.body.tid) || (u && u.tenantId);
+  if (!u || !tid || (u.tenantId !== tid && u.role !== "super")) return res.status(403).json({ error: "権限がありません。" });
+  const t = (await db.collection("tenants").doc(tid).get()).data() || {};
+  if (!t.stripeCustomerId) return res.json({ url: null });
+  try {
+    const stripe = require("stripe")(cfg().stripe.secret);
+    const invs = await stripe.invoices.list({ customer: t.stripeCustomerId, limit: 5 });
+    const open = (invs.data || []).find((i) => i.status === "open") || (invs.data || []).find((i) => (i.amount_due || 0) > 0);
+    return res.json({ url: open ? (open.hosted_invoice_url || null) : null });
+  } catch (e) { return res.json({ url: null }); }
+});
+
 /* Stripeの現契約から店舗のプランを取り込んで同期(webフックの取りこぼし救済)。POST {tid}。
    運営(super) or 自店舗の代表管理者(admin)が実行可。契約のプラン(NA/ターボ/ツインターボ)・期限を反映する。 */
 exports.syncPlan = functions.region(REGION).https.onRequest(async (req, res) => {
@@ -1617,51 +1753,63 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     let dup = 0; recent.forEach((x) => { const q = x.data(); if ((email && q.email === email) || (phone && q.phone === phone)) dup++; });
     if (dup >= 3) return res.status(429).json({ error: "送信が多すぎます。しばらくして再度お試しください。" });
 
-    await db.collection("bizInquiries").add({
+    const inqRef = await db.collection("bizInquiries").add({
       company, name, email, phone, kind, plan, message, intent,
       status: intent === "contract" ? "申込希望" : "新規", source: "biz-lp",
       ua: clean(req.headers["user-agent"], 300),
       createdAt: Date.now(),
     });
 
-    // ② 自動返信(問い合わせ主へお礼＋導線)。申込の種類で文面を出し分け。SendGrid未設定なら黙ってスキップ。
+    // ② 自動返信。申込の種類で分岐。契約希望かつメール有→専用リンクを自動発行(完全自動)。
+    let provisioned = false;
     if (email) {
       const head = name + " 様" + (company ? "（" + company + "）" : "") + "\n\n";
       const planLine = plan ? "【ご関心のプラン】" + plan + "\n" : "";
       const msgLine = message ? "【ご記入内容】\n" + message + "\n\n" : "";
-      let subject, ack;
-      if (intent === "contract") {
-        // 契約希望 → 手続き案内＋優先対応を明言
-        subject = "【メカノAI】お申し込みありがとうございます（契約手続きのご案内）";
-        ack = head +
-          "この度はメカノAIへお申し込みいただきありがとうございます。\n" +
-          "契約手続きを進めたいとのご希望を承りました。担当より優先してご連絡し、契約手続き（アカウント発行・お支払い方法のご案内）を進めます。\n\n" +
-          planLine + msgLine +
-          "▼お手続きの流れ\n" +
-          "1. 担当より折り返しご連絡（1営業日以内を目安）\n" +
-          "2. 店舗アカウントの発行・初期設定のご案内\n" +
-          "3. ご契約（お支払い方法のご登録）→ ご契約から7日間は無料トライアル。初回のご請求は8日目からです。\n\n" +
-          "※お急ぎの場合は、本メールへのご返信またはお電話でも承ります。\n" +
-          "・機能・料金の確認　https://mechanoai-cablueie.com/biz.html\n\n" +
-          "※本メールは送信専用の自動返信です。\n\n" +
-          MAIL_SIGN;
-      } else {
-        // 資料・デモ希望(既定)
-        subject = "【メカノAI】お問い合わせありがとうございます（自動返信）";
-        ack = head +
+      const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+
+      if (intent === "contract" && cfg().stripe.secret) {
+        // 契約希望 → テナント＋7日トライアルを自動作成し、専用セットアップリンクとログインIDを発行
+        try {
+          const pr = await provisionContract(db, { company, name, email, plan });
+          provisioned = true;
+          const onboardUrl = appUrl + "onboard.html?t=" + pr.token;
+          const subject = "【メカノAI】お申し込みありがとうございます（初回セットアップのご案内）";
+          const ack = head +
+            "この度はメカノAIをお申し込みいただき、誠にありがとうございます。\n" +
+            "下記の専用リンクから初回セットアップ（パスワードの設定）を行うだけで、すぐに全機能をご利用いただけます。\n\n" +
+            "▼初回セットアップ（専用リンク）\n" + onboardUrl + "\n\n" +
+            "▼あなたのログインID\n" + pr.loginId + "\n（次回以降はこのIDまたはメールアドレスでログインできます。IDは後から変更できます）\n\n" +
+            "▼ご契約プラン\n" + planLabelFromCode(pr.planCode) + "\n" +
+            "　ご契約から7日間は無料でお試しいただけます。初回のご請求は8日目からで、お支払い方法のご案内（請求書）をメールでお送りします。アプリ画面にもお支払いのご案内が表示されます。\n\n" +
+            "※この専用リンクの有効期限は14日間です。\n" +
+            "※本メールにお心当たりがない場合は、お手数ですが破棄してください。\n" +
+            "※ご不明点は本メールへのご返信、またはお電話でも承ります。\n\n" +
+            MAIL_SIGN;
+          sendMail(email, subject, ack, replyAddr()).catch(() => {});
+        } catch (e) {
+          console.error("契約自動発行エラー", e);
+        }
+      }
+
+      if (!provisioned) {
+        // 資料・デモ希望、または契約自動発行できなかった場合のフォールバック
+        const subject = "【メカノAI】お問い合わせありがとうございます（自動返信）";
+        const ack = head +
           "この度はメカノAIへお問い合わせ・資料請求いただきありがとうございます。\n" +
           "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
           planLine + msgLine +
           "お急ぎの場合や、先にサービスをご覧になりたい場合は以下をご利用ください。\n" +
-          "・サービス紹介資料　https://mechanoai-cablueie.com/shiryou.html\n" +
-          "・無料体験デモ（ログイン不要）　https://mechanoai-cablueie.com/?demo=1\n" +
-          "・機能・料金・FAQ　https://mechanoai-cablueie.com/biz.html\n\n" +
-          "※ご契約後は7日間の無料トライアルで、自社の実データのまま全機能をお試しいただけます（カード登録なしでも開始可）。\n\n" +
+          "・サービス紹介資料　" + appUrl + "shiryou.html\n" +
+          "・アプリを体験（ログイン不要）　" + appUrl + "?demo=1\n" +
+          "・機能・料金・FAQ　" + appUrl + "biz.html\n\n" +
+          "※ご契約から7日間は無料でお試しいただけます（実データのまま全機能・初回請求は8日目から）。\n\n" +
           "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
           MAIL_SIGN;
+        sendMail(email, subject, ack, replyAddr()).catch(() => {});
       }
-      sendMail(email, subject, ack, replyAddr()).catch(() => {});
     }
+    if (provisioned) { try { await inqRef.set({ status: "自動発行済み" }, { merge: true }); } catch (e) {} }
 
     // 運営(super)にプッシュ通知
     try {
@@ -1673,8 +1821,11 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
         await admin.messaging().sendEachForMulticast({
           tokens: uniqTokens,
           notification: {
-            title: intent === "contract" ? "メカノAI 【契約希望】法人申込" : "メカノAI 法人問い合わせ",
-            body: company + " / " + name + " さんから" + (intent === "contract" ? "契約手続きの希望が届きました（優先対応）。" : "資料請求・デモ申込が届きました。") + (plan ? " 関心プラン:" + plan : ""),
+            title: intent === "contract" ? "メカノAI 【契約】法人申込" : "メカノAI 法人問い合わせ",
+            body: company + " / " + name + " さんから" +
+              (intent === "contract"
+                ? (provisioned ? "契約申込→専用リンクを自動発行しました。" : "契約手続きの希望が届きました（要対応）。")
+                : "資料請求・デモ申込が届きました。") + (plan ? " プラン:" + plan : ""),
           },
           webpush: { fcmOptions: { link: "/sales.html" } },
         });
