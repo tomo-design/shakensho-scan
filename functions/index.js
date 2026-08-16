@@ -91,7 +91,43 @@ const cfg = () => ({
     },
   },
   app: { url: process.env.APP_URL },
+  // 営業ファネルのメール送信(SendGrid)。key=APIキー / from=認証済み送信元 / notify=運営通知先
+  sendgrid: {
+    key: process.env.SENDGRID_API_KEY,
+    from: process.env.SENDGRID_FROM,
+    fromName: process.env.SENDGRID_FROM_NAME || "メカノAI",
+    notify: process.env.INQUIRY_NOTIFY || "cablueie.123@gmail.com",
+  },
 });
+/* SendGrid でメール送信(依存ライブラリ不要・HTTP API直叩き)。成功でtrue。 */
+async function sendMail(to, subject, text, replyTo) {
+  const sg = cfg().sendgrid;
+  if (!sg.key || !sg.from) { console.error("SendGrid未設定のため送信スキップ"); return false; }
+  try {
+    const body = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: sg.from, name: sg.fromName },
+      subject: subject,
+      content: [{ type: "text/plain", value: text }],
+    };
+    if (replyTo) body.reply_to = { email: replyTo };
+    const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + sg.key, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { console.error("SendGrid送信失敗", r.status, await r.text().catch(() => "")); return false; }
+    return true;
+  } catch (e) { console.error("SendGrid例外", e); return false; }
+}
+// メール共通署名(プレーンテキスト・実データ固定)
+const MAIL_SIGN = "――――――――――――\n" +
+  "メカノAI（MECHANO-AI）\n" +
+  "Cablueie（カブリエ）　担当：中江\n" +
+  "〒894-0062 鹿児島県奄美市名瀬有屋町36-2\n" +
+  "TEL：080-3692-0101　Mail：cablueie.123@gmail.com\n" +
+  "詳細・お申し込み：https://mechanoai-cablueie.com/biz.html\n" +
+  "――――――――――――";
 // price ID → プランコード(webフックで購入プランを店舗に反映するため)
 function tierFromPriceId(pid) {
   if (!pid) return "";
@@ -968,6 +1004,31 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       // 購入プラン(NA・ターボ・ツインターボ)を店舗に反映(検索上限/席数の切替)。
       if (tier) { patch.aiPlan = tier; patch.aiPaidFallback = (tier !== "na"); }
       await ref.set(patch, { merge: true });
+      // ④ 契約時の自動お礼・はじめ方メール(初回のみ)。送信成功時だけwelcomeSentを立てる。
+      if (tier && !cur.welcomeSent) {
+        try {
+          let toEmail = "";
+          if (cur.stripeCustomerId) { const c = await stripe.customers.retrieve(cur.stripeCustomerId); toEmail = (c && c.email) || ""; }
+          if (toEmail) {
+            const TNAME = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" }[tier] || tier;
+            const welcome =
+              "この度はメカノAI（" + TNAME + "プラン）をご契約いただき、誠にありがとうございます。\n\n" +
+              "▼ ご利用の始め方\n" +
+              "1. アプリを開く　https://mechanoai-cablueie.com/\n" +
+              "2. 代表管理者のメール・パスワードでログイン\n" +
+              "3. 車検証をスキャン → 諸元・故障診断・整備カルテがすぐ使えます\n" +
+              "　（従業員は招待で参加、1人2端末まで。車両DB・記録は社内で自動共有されます）\n\n" +
+              "▼ 無料トライアル\n" +
+              "ご契約から7日間は無料です。自社の実データのまま全機能をお試しください（初回請求は8日目以降）。\n\n" +
+              "▼ こまったときは\n" +
+              "使い方のご相談・設定サポートは本メールへの返信、またはお電話で承ります。\n\n" +
+              "今後ともよろしくお願いいたします。\n\n" +
+              MAIL_SIGN;
+            const ok = await sendMail(toEmail, "【メカノAI】ご契約ありがとうございます（はじめ方のご案内）", welcome, cfg().sendgrid.notify);
+            if (ok) await ref.set({ welcomeSent: true }, { merge: true });
+          }
+        } catch (e) { console.error("welcomeメール失敗", e); }
+      }
     } else {
       await ref.set({ plan: "suspended" }, { merge: true });
     }
@@ -1026,6 +1087,74 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
   } catch (e) { console.error("webhook処理エラー", e); }
   return res.json({ received: true });
 });
+
+/* 配信停止(オプトアウト): GET /unsub?e=メール → mailSuppress に登録して以後ドリップ送信しない。 */
+exports.unsub = functions.region(REGION).https.onRequest(async (req, res) => {
+  const email = String((req.query && req.query.e) || "").trim().toLowerCase();
+  res.set("Content-Type", "text/html; charset=utf-8");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).send("<meta charset='utf-8'><p style='font-family:sans-serif'>メールアドレスが正しくありません。</p>");
+  }
+  try {
+    const id = Buffer.from(email).toString("base64").replace(/[^a-zA-Z0-9]/g, "");
+    await admin.firestore().collection("mailSuppress").doc(id).set({ email: email, ts: Date.now() }, { merge: true });
+  } catch (e) { console.error("unsub失敗", e); }
+  return res.send("<meta charset='utf-8'><div style='font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;line-height:1.8'>" +
+    "<h2 style='color:#1e5aa8'>配信を停止しました</h2><p>" + email.replace(/[<>&]/g, "") + " 宛の営業メールは今後お送りしません。<br>ご不便をおかけしました。</p>" +
+    "<p style='color:#888;font-size:13px'>メカノAI（Cablueie）</p></div>");
+});
+
+/* ① 営業メールの自動ドリップ送信(1日数件)。毎朝スケジュール実行。
+   salesConfig/main.dripEnabled=true のときだけ、salesLeads(status=見込み・email有)へ
+   AI生成のコールドメール(配信停止＋署名つき)を dripPerDay 件送り、状況を「アプローチ中」に更新。 */
+exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "512MB" })
+  .pubsub.schedule("every day 09:30").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    if (!conf.dripEnabled) { console.log("drip: 無効のためスキップ"); return null; }
+    if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("drip: SendGrid未設定のためスキップ"); return null; }
+    const perDay = Math.min(Math.max(parseInt(conf.dripPerDay, 10) || 3, 1), 20);
+    const freeKeys = cfg().geminiFree || [];
+    if (!freeKeys.length) { console.log("drip: Geminiキー未設定"); return null; }
+    const latest = await latestModels(freeKeys[0]);
+    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+    // 対象候補(見込み・メール有)を古い順に多めに取得(スキップ分の余裕を持たせる)
+    const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 4).get();
+    let sent = 0;
+    for (const doc of snap.docs) {
+      if (sent >= perDay) break;
+      const l = doc.data(); const email = String(l.email || "").trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+      // 配信停止チェック
+      const supId = Buffer.from(email).toString("base64").replace(/[^a-zA-Z0-9]/g, "");
+      const sup = await db.collection("mailSuppress").doc(supId).get();
+      if (sup.exists) { await doc.ref.set({ status: "配信停止", updatedAt: Date.now() }, { merge: true }); continue; }
+      // 本文をAI生成(本文のみ。件名・署名・配信停止文はこちらで付ける)
+      const prompt = SALES_STAFF.writer.sys + "\n\n" + PRODUCT_KB + "\n\n" + NEWS_KB + "\n\n" +
+        "次の見込み先へ送る初回コールドメールの【本文のみ】を書いてください（件名・署名・配信停止文は付けない＝こちらで付けます）。\n" +
+        "・宛先: " + (l.company || "") + "（業種:" + (l.kind || "整備関連") + "）" + (l.contact ? " 担当:" + l.contact : "") + "\n" +
+        "・メモ: " + (l.note || "（特記なし）") + "\n" +
+        "・訴求は『整備士不足・若手の即戦力化』を主軸に、業種に合う時事を1つだけ自然に触れて『だからメカノAIが効く』に着地。\n" +
+        "・30秒で読める短さ。押し売り・誇張・古い統計の断定はしない。CTAは体験デモ/LPの1つに集約。\n" +
+        "・宛名（例：〇〇 御中）から書き出し、前置きの自己説明は最小限に。";
+      let body = "";
+      try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
+      catch (e) { console.error("drip生成エラー", e); }
+      if (!body) continue;
+      const unsubUrl = "https://" + REGION + "-mecanoai.cloudfunctions.net/unsub?e=" + encodeURIComponent(email);
+      const optout = "――――――――――――\n本メールは、貴社が公開されている連絡先へ整備業向けツールのご案内としてお送りしています。\n今後の配信を希望されない場合は本メールに「配信停止」とご返信いただくか、次のリンクからお手続きください（以後お送りしません）。\n配信停止：" + unsubUrl;
+      const text = body + "\n\n" + optout + "\n\n" + MAIL_SIGN;
+      const subject = "整備現場の“調べ物”を減らすツールのご案内（メカノAI）";
+      const ok = await sendMail(email, subject, text, cfg().sendgrid.notify);
+      if (ok) {
+        await doc.ref.set({ status: "アプローチ中", approachedAt: Date.now(), updatedAt: Date.now() }, { merge: true });
+        await db.collection("salesOutbound").add({ leadId: doc.id, company: l.company || "", email: email, subject: subject, body: text, ts: Date.now() });
+        sent++;
+      }
+    }
+    console.log("drip: 送信 " + sent + " 件");
+    return null;
+  });
 
 /* =========================================================================
    営業ルーム(社内専用) — AI社員が働く疑似会社ツール。運営(super)専用。
@@ -1160,6 +1289,22 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     return res.json({ ok: true });
   }
 
+  // ---- 自動送信(ドリップ)の設定 ----
+  if (action === "getConfig") {
+    const c = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    const sgReady = !!(cfg().sendgrid.key && cfg().sendgrid.from);
+    return res.json({ config: { dripEnabled: !!c.dripEnabled, dripPerDay: c.dripPerDay || 3 }, sgReady: sgReady });
+  }
+  if (action === "setConfig") {
+    const c = data.config || {};
+    await db.collection("salesConfig").doc("main").set({
+      dripEnabled: !!c.dripEnabled,
+      dripPerDay: Math.min(Math.max(parseInt(c.dripPerDay, 10) || 3, 1), 20),
+      updatedAt: Date.now(),
+    }, { merge: true });
+    return res.json({ ok: true });
+  }
+
   // ---- 法人LPからの問い合わせ受信(inbound) ----
   if (action === "listInquiries") {
     const snap = await db.collection("bizInquiries").orderBy("createdAt", "desc").limit(300).get();
@@ -1269,6 +1414,22 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
       ua: clean(req.headers["user-agent"], 300),
       createdAt: Date.now(),
     });
+
+    // ② 自動返信(問い合わせ主へお礼＋資料・デモ導線)。SendGrid未設定なら黙ってスキップ。
+    if (email) {
+      const ack = name + " 様" + (company ? "（" + company + "）" : "") + "\n\n" +
+        "この度はメカノAIへお問い合わせ・資料請求いただきありがとうございます。\n" +
+        "以下の内容で受け付けました。担当より2営業日以内にご連絡いたします。\n\n" +
+        (message ? "【お問い合わせ内容】\n" + message + "\n\n" : "") +
+        "お急ぎの場合や、先にサービスをご覧になりたい場合は以下をご利用ください。\n" +
+        "・サービス紹介資料　https://mechanoai-cablueie.com/shiryou.html\n" +
+        "・無料体験デモ（ログイン不要）　https://mechanoai-cablueie.com/?demo=1\n" +
+        "・機能・料金・FAQ　https://mechanoai-cablueie.com/biz.html\n\n" +
+        "※ご契約後は7日間の無料トライアルで、自社の実データのまま全機能をお試しいただけます（カード登録なしでも開始可）。\n\n" +
+        "※本メールは送信専用の自動返信です。ご質問は本メールへの返信、またはお電話でも承ります。\n\n" +
+        MAIL_SIGN;
+      sendMail(email, "【メカノAI】お問い合わせありがとうございます（自動返信）", ack, cfg().sendgrid.notify).catch(() => {});
+    }
 
     // 運営(super)にプッシュ通知
     try {

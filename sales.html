@@ -134,6 +134,22 @@
         </div>
       </header>
 
+      <div class="panel" id="dripPanel">
+        <div class="field" style="margin:0 0 6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="dripEnabled" style="width:auto"> <b>🤖 自動送信を有効にする（毎朝ドリップ）</b>
+          </label>
+        </div>
+        <p class="vsub" style="margin:0 0 10px">未接触の見込み客（状況＝見込み・メールあり）へ、1日あたり指定件数だけAI作成のコールドメール（配信停止リンク・署名つき）を毎朝自動送信します。送信した相手は自動で「アプローチ中」になり、二重送信しません。</p>
+        <div class="form-grid">
+          <div class="field"><label>1日の送信件数</label><input type="number" id="dripPerDay" min="1" max="20" value="3"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnSaveDrip" class="btn btn-accent btn-sm">保存</button>
+          <span id="dripStat" class="muted"></span>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="form-grid">
           <div class="field">

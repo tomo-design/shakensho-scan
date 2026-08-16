@@ -103,7 +103,7 @@
       show("tab-leads", tab === "leads");
       show("tab-camp", tab === "camp");
       show("tab-inbox", tab === "inbox");
-      if (tab === "camp") updateCampCount();
+      if (tab === "camp") { updateCampCount(); loadDripConfig(); }
       if (tab === "inbox") loadInbox();
     };
   });
@@ -363,6 +363,27 @@
   }
   function updateCampCount() { $("cpTargetN").textContent = filteredLeads().length; }
   ["cpKind", "cpStatus"].forEach((id) => { const e = $(id); if (e) e.onchange = updateCampCount; });
+
+  // ---------- 自動送信(ドリップ)設定 ----------
+  async function loadDripConfig() {
+    try {
+      const j = await api("getConfig");
+      const c = j.config || {};
+      if ($("dripEnabled")) $("dripEnabled").checked = !!c.dripEnabled;
+      if ($("dripPerDay")) $("dripPerDay").value = c.dripPerDay || 3;
+      if ($("dripStat")) $("dripStat").textContent = j.sgReady ? "" : "⚠ メール送信(SendGrid)が未設定です。設定するまで実際の送信は行われません。";
+    } catch (e) { if ($("dripStat")) $("dripStat").textContent = e.message; }
+  }
+  const _sd = $("btnSaveDrip");
+  if (_sd) _sd.onclick = async () => {
+    _sd.disabled = true;
+    try {
+      await api("setConfig", { config: { dripEnabled: $("dripEnabled").checked, dripPerDay: parseInt($("dripPerDay").value, 10) || 3 } });
+      toast("自動送信の設定を保存しました");
+      loadDripConfig();
+    } catch (e) { toast(e.message); }
+    finally { _sd.disabled = false; }
+  };
 
   let campStop = false, campResults = [];
   $("btnStopCamp").onclick = () => { campStop = true; toast("中止しました"); };
