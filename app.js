@@ -1508,7 +1508,7 @@ async function runVehAsk() {
       const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
       if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
       // 思考量に上限を設けて高速化(診断と同様)。JSON応答なので逐次表示はしない。
-      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 256 }, null);
+      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null);
     } else {
       // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。思考上限で高速化。
       r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
@@ -3344,6 +3344,15 @@ function capModeByPlan(mode) {
   if (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && !window.Cloud.aiPaidOn()) return "flash";
   return mode;
 }
+/* 写真・動画解析のモード: プラン準拠。NA=標準Flash / ターボ・ツインターボ=高精度Pro(思考あり)。 */
+function mediaModeByPlan() {
+  return (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? "pro" : "flash";
+}
+/* 写真・動画解析の思考量: Pro(有料プラン)は精度重視で多め、NA(Flash)は最小で高速。opts優先。 */
+function mediaThinking(opts) {
+  if (opts && typeof opts.thinkingBudget === "number") return opts.thinkingBudget;
+  return mediaModeByPlan() === "pro" ? 1024 : 256;   // Proでも思考は抑えめにして速度を確保
+}
 function renderAiMode() {
   const mode = getAiMode();
   document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("mode-active", b.dataset.mode === mode));
@@ -4924,7 +4933,7 @@ async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: "flash", media });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media });
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
     throw new Error("AIから回答が得られませんでした");
   }
@@ -4978,14 +4987,14 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
     // 契約店舗: サーバーのストリーミングプロキシへ(写真/動画も送る)。未対応時は従来のgeminiAskMediaへ。
     if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
       try {
-        // 写真・動画解析は速度優先でFlash固定(映像の読み取りはFlashで十分速い。Proの重い思考が遅延の主因)。
+        // 写真・動画解析はプラン準拠(NA=Flash / ターボ・ツインターボ=Pro)。Proでも思考は抑えめで最速化。
         return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: "flash", media, thinkingBudget: (typeof opts.thinkingBudget === "number" ? opts.thinkingBudget : 256) }, onChunk);
+          { prompt, mode: mediaModeByPlan(), media, thinkingBudget: mediaThinking(opts) }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
     return geminiAskMedia(prompt, media);
   }
-  const mode = "flash";   // 写真・動画は速度優先でFlash固定
+  const mode = getAiMode();   // 自前キー(個人利用)はトグル準拠
   aiAbort = new AbortController();
   let lastErr = null;
   for (const model of GEMINI_MEDIA_MODELS[mode]) {
@@ -4993,7 +5002,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
       // 3系/2.5系/-latest は思考量に上限を設けて速く仕上げる(写真解析は無制限思考まで不要)
       if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
-        const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? 3072 : 512);
+        const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? 1024 : 256);
         genCfg.thinkingConfig = { thinkingBudget: tb };
       }
       const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
@@ -5330,7 +5339,7 @@ async function diagMediaAnalyze() {
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
     stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
     let streamed = false;
-    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 256 }, (acc, done) => {
+    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, {}, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;

@@ -496,9 +496,8 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const pc = planConfig(g.t);   // プラン: na(検索なし)/turbo(月500)/twinturbo(無制限・席数)
-  const hasMedia = Array.isArray(data.media) && data.media.length > 0;   // 写真・動画は速度優先でFlash固定
-  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。メディア添付時も速度優先でFlash。
-  const mode = (data.mode === "pro" && pc.plan !== "na" && !hasMedia) ? "pro" : "flash";
+  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。ターボ/ツインターボはPro(写真・動画も)。
+  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
@@ -575,9 +574,8 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const pc = planConfig(g.t);
-  const hasMedia = Array.isArray(data.media) && data.media.length > 0;   // 写真・動画は速度優先でFlash固定
-  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。メディア添付時も速度優先でFlash。
-  const mode = (data.mode === "pro" && pc.plan !== "na" && !hasMedia) ? "pro" : "flash";
+  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。ターボ/ツインターボはPro(写真・動画も)。
+  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
@@ -922,6 +920,41 @@ async function provisionContract(db, info) {
     planCode, loginId, used: false, exp: Date.now() + 14 * 86400000, createdAt: Date.now(),
   });
   return { token, loginId, planCode, trialEnd, tid };
+}
+
+// 契約者アカウントを直接発行(テナント＋7日トライアル＋Authユーザー＋初期パスワード)し、
+// ログイン情報＋アプリQR＋案内メール本文一式を返す。自動返信・営業コンソール両方で共用。
+async function issueContractAccount(db, info) {
+  const pr = await provisionContract(db, info);
+  const planLabel = planLabelFromCode(pr.planCode);
+  const email = String(info.email || "").trim().toLowerCase();
+  const name = String(info.name || "").trim();
+  const company = String(info.company || "").trim();
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let pw = ""; for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  let uid;
+  try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; await admin.auth().updateUser(uid, { password: pw }); }
+  catch (e) { const u = await admin.auth().createUser({ email, password: pw, displayName: name || company }); uid = u.uid; }
+  let loginId = pr.loginId;
+  const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
+  if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
+  await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, createdAt: Date.now() }, { merge: true });
+  try { await db.collection("onboardTokens").doc(pr.token).set({ used: true }, { merge: true }); } catch (e) {}
+  const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+  const corpUrl = appUrl + "?corp=1";
+  const qrUrl = "https://quickchart.io/qr?size=300&margin=1&text=" + encodeURIComponent(corpUrl);
+  const subject = "【メカノAI】ご契約ありがとうございます（ログイン情報のご案内）";
+  const body = (name ? name + " 様" : company + " 御中") + "\n\n" +
+    "この度はメカノAI（" + planLabel + "プラン）をご契約いただき、誠にありがとうございます。\n" +
+    "下記のログイン情報で、すぐにご利用いただけます。\n\n" +
+    "▼ログインID\n" + loginId + "\n（メールアドレス " + email + " でもログインできます）\n\n" +
+    "▼初期パスワード\n" + pw + "\n（安全のため、初回ログイン後に『設定 → クラウド同期 → 🔑パスワード変更』で任意のパスワードへ変更してください）\n\n" +
+    "▼ご契約プラン\n" + planLabel + "（ご契約から7日間は無料。初回のご請求は8日目からで、請求書をメールでお送りします）\n\n" +
+    "▼アプリを開く\n" + corpUrl + "\n" +
+    "　スマホで下のQRコードを読み取っても開けます（社内メンバーへの参加案内にもお使いいただけます）:\n" + qrUrl + "\n\n" +
+    "▼はじめ方\n設定 → クラウド同期 でログイン → 車検証をスキャンして開始。従業員の方は同じ画面の『会社に参加』から申請 → 代表管理者（今回のあなた）が承認すると追加されます。\n\n" +
+    MAIL_SIGN;
+  return { loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl, qrUrl, subject, body };
 }
 
 // 専用リンクを開いた時: トークンの内容(会社名・プラン・メール・ログインID)を返す。
@@ -1758,48 +1791,18 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     return res.json({ id: ref.id });
   }
 
-  // ---- 契約者アカウントの直接発行(ログインID＋パスワード＋QR＋案内メール) ----
+  // ---- 契約者アカウントの直接発行(ログインID＋パスワード＋QR＋案内メール)。自動返信と同じ処理を共用 ----
   if (action === "issueAccount") {
     const company = String(data.company || "").trim();
     const name = String(data.name || "").trim();
     const email = String(data.email || "").trim().toLowerCase();
-    const planLabel0 = String(data.plan || "ターボ");
+    const plan = String(data.plan || "ターボ");
     if (!company || !email) return res.status(400).json({ error: "会社名とメールアドレスは必須です。" });
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
-    // 1) テナント＋7日トライアル＋ログインID
-    const pr = await provisionContract(db, { company, name, email, plan: planLabel0 });
-    const planLabel = planLabelFromCode(pr.planCode);
-    // 2) Authユーザー作成＆初期パスワード発行(既存メールなら再設定)
-    const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-    let pw = ""; for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
-    let uid;
-    try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; await admin.auth().updateUser(uid, { password: pw }); }
-    catch (e) { const u = await admin.auth().createUser({ email, password: pw, displayName: name || company }); uid = u.uid; }
-    // 3) usersドキュメント(有効な代表管理者)
-    let loginId = pr.loginId;
-    const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
-    if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
-    await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, createdAt: Date.now() }, { merge: true });
-    try { await db.collection("onboardTokens").doc(pr.token).set({ used: true }, { merge: true }); } catch (e) {}   // 直接発行のためリンクは無効化
-    // 4) URL/QR
-    const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
-    const corpUrl = appUrl + "?corp=1";
-    const qrUrl = "https://quickchart.io/qr?size=300&margin=1&text=" + encodeURIComponent(corpUrl);
-    // 5) 案内メール本文
-    const subject = "【メカノAI】ご契約ありがとうございます（ログイン情報のご案内）";
-    const body = (name ? name + " 様" : company + " 御中") + "\n\n" +
-      "この度はメカノAI（" + planLabel + "プラン）をご契約いただき、誠にありがとうございます。\n" +
-      "下記のログイン情報で、すぐにご利用いただけます。\n\n" +
-      "▼ログインID\n" + loginId + "\n（メールアドレス " + email + " でもログインできます）\n\n" +
-      "▼初期パスワード\n" + pw + "\n（安全のため、初回ログイン後に『設定 → クラウド同期 → 🔑パスワード変更』で任意のパスワードへ変更してください）\n\n" +
-      "▼ご契約プラン\n" + planLabel + "（ご契約から7日間は無料。初回のご請求は8日目からで、請求書をメールでお送りします）\n\n" +
-      "▼アプリを開く\n" + corpUrl + "\n" +
-      "　スマホで下のQRコードを読み取っても開けます（社内メンバーへの参加案内にもお使いいただけます）:\n" + qrUrl + "\n\n" +
-      "▼はじめ方\n設定 → クラウド同期 でログイン → 車検証をスキャンして開始。従業員の方は同じ画面の『会社に参加』から申請 → 代表管理者（今回のあなた）が承認すると追加されます。\n\n" +
-      MAIL_SIGN;
+    const acc = await issueContractAccount(db, { company, name, email, plan });
     let sent = false;
-    if (data.send === true) { try { await sendMail(email, subject, body, replyAddr()); sent = true; } catch (e) {} }
-    return res.json({ ok: true, loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl, qrUrl, subject, body, sent });
+    if (data.send === true) { try { await sendMail(acc.email, acc.subject, acc.body, replyAddr()); sent = true; } catch (e) {} }
+    return res.json({ ok: true, loginId: acc.loginId, email: acc.email, password: acc.password, planLabel: acc.planLabel, tid: acc.tid, corpUrl: acc.corpUrl, qrUrl: acc.qrUrl, subject: acc.subject, body: acc.body, sent: sent });
   }
 
   // ---- AI社員による生成 ----
@@ -1895,24 +1898,12 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
       const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
 
       if (intent === "contract" && cfg().stripe.secret) {
-        // 契約希望 → テナント＋7日トライアルを自動作成し、専用セットアップリンクとログインIDを発行
+        // 契約希望 → テナント＋7日トライアル＋Authユーザー＋初期パスワードを自動発行し、
+        // ログインID・初期パスワード・アプリQR入りの案内メールを自動返送(運営の手作業ゼロ)。
         try {
-          const pr = await provisionContract(db, { company, name, email, plan });
+          const acc = await issueContractAccount(db, { company, name, email, plan });
           provisioned = true;
-          const onboardUrl = appUrl + "onboard.html?t=" + pr.token;
-          const subject = "【メカノAI】お申し込みありがとうございます（初回セットアップのご案内）";
-          const ack = head +
-            "この度はメカノAIをお申し込みいただき、誠にありがとうございます。\n" +
-            "下記の専用リンクから初回セットアップ（パスワードの設定）を行うだけで、すぐに全機能をご利用いただけます。\n\n" +
-            "▼初回セットアップ（専用リンク）\n" + onboardUrl + "\n\n" +
-            "▼あなたのログインID\n" + pr.loginId + "\n（次回以降はこのIDまたはメールアドレスでログインできます。IDは後から変更できます）\n\n" +
-            "▼ご契約プラン\n" + planLabelFromCode(pr.planCode) + "\n" +
-            "　ご契約から7日間は無料でお試しいただけます。初回のご請求は8日目からで、お支払い方法のご案内（請求書）をメールでお送りします。アプリ画面にもお支払いのご案内が表示されます。\n\n" +
-            "※この専用リンクの有効期限は14日間です。\n" +
-            "※本メールにお心当たりがない場合は、お手数ですが破棄してください。\n" +
-            "※ご不明点は本メールへのご返信、またはお電話でも承ります。\n\n" +
-            MAIL_SIGN;
-          sendMail(email, subject, ack, replyAddr()).catch(() => {});
+          sendMail(email, acc.subject, acc.body, replyAddr()).catch(() => {});
         } catch (e) {
           console.error("契約自動発行エラー", e);
         }
