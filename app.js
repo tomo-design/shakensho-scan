@@ -4910,7 +4910,7 @@ async function imageToCompressedBase64(file, maxDim, quality) {
 async function attachToMedia(a) {
   const f = a.file;
   if (/^image\//.test(f.type || "") && (a.kind !== "video")) {
-    const data = await imageToCompressedBase64(f);
+    const data = await imageToCompressedBase64(f, 1024, 0.65);   // 送信軽量化で解析を高速化
     if (data) return { mimeType: "image/jpeg", data: data };
   }
   return { mimeType: cleanMime(f.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(f) };
