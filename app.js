@@ -1537,6 +1537,15 @@ function addRepairShareBar(box, rec) {
   sh.addEventListener("click", () => shareRepairRecord(rec));
   bar.append(sp, sh); box.appendChild(bar);
 }
+/* 診断セクションの見出し右端に共有ボタンを置く(バッジは左寄せ) */
+function addDiagHeadShare(sec, rec) {
+  if (!sec || !rec) return;
+  const h2 = sec.querySelector("h2"); if (!h2 || h2.querySelector(".diagHeadShare")) return;
+  const b = document.createElement("button"); b.type = "button"; b.className = "diagHeadShare";
+  b.textContent = "📤 共有";
+  b.addEventListener("click", () => shareDiagRecord(rec));
+  h2.appendChild(b);
+}
 /* 診断結果(メディア/コード)の末尾に共有ボタンを右寄せで置く */
 function addDiagShareBar(box, rec) {
   if (!rec) return;
@@ -4281,6 +4290,7 @@ async function runDiagAI(text) {
     body.appendChild(note);
     // 結果を履歴に保存(別車両を検索して画面がクリアされても後から一覧で閲覧できる)
     const rec = saveDiagRecord(text, r.text, getAiMode());
+    addDiagHeadShare(sec, rec);   // 見出し右端に共有(バッジは左寄せ)
     // 上位の原因候補ぶんの点検手引書をバックグラウンドで先に作っておく(時短)。進捗を表示。
     const guideNote = document.createElement("div"); guideNote.className = "hint guidePrep";
     body.appendChild(guideNote);
@@ -5357,7 +5367,7 @@ async function diagMediaAnalyze() {
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
     const rec = saveDiagRecord(text || "写真・動画による診断", r.text, getAiMode());   // 結果を履歴に保存
-    addDiagShareBar(body, rec);   // メディア診断にも共有ボタン
+    addDiagHeadShare(sec, rec);   // 見出し右端に共有(バッジは左寄せ)
     const guideNote = document.createElement("div"); guideNote.className = "hint guidePrep"; body.appendChild(guideNote);
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
     autoGenGuides(causes, rec, guideNote);   // 上位候補の点検手引書を先に用意(時短)
