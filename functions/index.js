@@ -495,7 +495,9 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);   // 店舗ごとの回数上限(赤字防止の最終弁)
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
-  const mode = data.mode === "pro" ? "pro" : "flash";
+  const pc = planConfig(g.t);   // プラン: na(検索なし)/turbo(月500)/twinturbo(無制限・席数)
+  // ★プラン準拠でPro可否を上限管理: NAプランはProを使わせず標準Flashに固定(トライアル中も選択プラン準拠)。
+  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
@@ -508,7 +510,6 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
   const tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
 
-  const pc = planConfig(g.t);   // プラン: na(検索なし)/turbo(月500)/twinturbo(無制限・席数)
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
   const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);   // 無料キーはFlashのみ(Proは無料枠429)
 
@@ -572,7 +573,9 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const cap = await enforceUsage(g.tid, "mecha", g.u && g.u.role);
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
-  const mode = data.mode === "pro" ? "pro" : "flash";
+  const pc = planConfig(g.t);
+  // ★プラン準拠でPro可否を上限管理: NAプランはProを使わせず標準Flashに固定(トライアル中も選択プラン準拠)。
+  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
@@ -581,7 +584,6 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   const tb = clampThinking(data.thinkingBudget);
-  const pc = planConfig(g.t);
   const paidCapable = pc.plan !== "na" && !!paidKey;
   const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
   let effSearch = false;
