@@ -1546,13 +1546,14 @@ function addDiagHeadShare(sec, rec) {
   b.addEventListener("click", () => shareDiagRecord(rec));
   h2.appendChild(b);
 }
-/* 診断結果(メディア/コード)の末尾に共有ボタンを右寄せで置く */
+/* 診断結果(メディア/コード)の末尾に共有リンクを右寄せで置く(ボタン式ではなくテキストリンク) */
 function addDiagShareBar(box, rec) {
   if (!rec) return;
   const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
   const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
-  const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
-  sh.addEventListener("click", () => shareDiagRecord(rec));
+  const sh = document.createElement("a"); sh.href = "#"; sh.className = "diagShareLink"; sh.textContent = "📤 共有";
+  sh.style.cssText = "color:var(--cyan,#1b9);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
+  sh.addEventListener("click", (e) => { e.preventDefault(); shareDiagRecord(rec); });
   bar.append(sp, sh); box.appendChild(bar);
 }
 /* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章)。hasMedia=添付写真あり */
