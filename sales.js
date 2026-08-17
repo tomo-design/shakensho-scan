@@ -428,14 +428,53 @@
         const j = await api("generate", { role: "writer", task, lead: l });
         text = j.text || "(応答なし)";
       } catch (e) { text = "⚠️ " + e.message; err = true; }
-      campResults.push({ company: l.company, kind: l.kind || "", channel, text });
+      campResults.push({ company: l.company, kind: l.kind || "", channel, text, email: (l.email || "").trim(), id: l.id || "", err });
       appendCampCard(l.company, l.kind || "", text, err);
       $("cpBar").style.width = Math.round(((i + 1) / targets.length) * 100) + "%";
     }
     $("btnRunCamp").disabled = false;
     show("btnStopCamp", false);
     show("btnCsv", campResults.length > 0);
+    show("btnBulkSend", campResults.length > 0);
     toast(campStop ? "中止しました" : "生成が完了しました（" + campResults.length + "件）");
+  };
+
+  // 生成した文面を、対象の見込み客へメールで一括送信
+  function extractSubject(text) {
+    const first = String(text || "").split("\n")[0] || "";
+    const m = first.match(/^\s*(?:件名|タイトル|subject)\s*[:：]\s*(.+)$/i);
+    return m ? m[1].trim() : "";
+  }
+  function bodyWithoutSubject(text) {
+    const lines = String(text || "").split("\n");
+    if (/^\s*(?:件名|タイトル|subject)\s*[:：]/i.test(lines[0] || "")) return lines.slice(1).join("\n").replace(/^\n+/, "");
+    return text;
+  }
+  const _bs = $("btnBulkSend");
+  if (_bs) _bs.onclick = async () => {
+    const sendable = campResults.filter((r) => !r.err && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email));
+    const noMail = campResults.filter((r) => !r.err && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)).length;
+    if (!sendable.length) { toast("送信できる宛先（メール登録済み）がありません"); return; }
+    let msg = sendable.length + " 件へメールを送信します。よろしいですか？";
+    if (noMail) msg += "\n（メール未登録の " + noMail + " 件は送信されません）";
+    if (!confirm(msg)) return;
+    _bs.disabled = true; $("btnRunCamp").disabled = true; show("btnCsv", false);
+    show("cpSendBar", true); $("cpSendBarInner").style.width = "0%";
+    let ok = 0, ng = 0;
+    for (let i = 0; i < sendable.length; i++) {
+      const r = sendable[i];
+      $("cpSendStat").textContent = "送信中… " + (i + 1) + "/" + sendable.length + "（" + r.company + "）";
+      const subject = extractSubject(r.text) || "メカノAI のご案内";
+      const body = bodyWithoutSubject(r.text);
+      try {
+        await api("sendMail", { to: r.email, subject, body, leadId: r.id });
+        ok++;
+      } catch (e) { ng++; }
+      $("cpSendBarInner").style.width = Math.round(((i + 1) / sendable.length) * 100) + "%";
+    }
+    $("cpSendStat").textContent = "完了：送信 " + ok + " 件" + (ng ? " / 失敗 " + ng + " 件" : "") + (noMail ? " / 未送信(メール未登録) " + noMail + " 件" : "");
+    _bs.disabled = false; $("btnRunCamp").disabled = false; show("btnCsv", true);
+    toast("一括送信が完了しました（成功 " + ok + " 件）");
   };
 
   function appendCampCard(company, kind, text, err) {
