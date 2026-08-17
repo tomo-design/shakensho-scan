@@ -1805,6 +1805,20 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     return res.json({ ok: true, loginId: acc.loginId, email: acc.email, password: acc.password, planLabel: acc.planLabel, tid: acc.tid, corpUrl: acc.corpUrl, qrUrl: acc.qrUrl, subject: acc.subject, body: acc.body, sent: sent });
   }
 
+  // ---- 営業コンソールから直接メール送信 ----
+  if (action === "sendMail") {
+    const to = String(data.to || "").trim().toLowerCase();
+    const subject = (String(data.subject || "").replace(/\s+/g, " ").trim().slice(0, 200)) || "メカノAI のご案内";
+    let body = String(data.body || "").replace(/\r\n/g, "\n").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: "送信先メールアドレスが正しくありません。" });
+    if (!body) return res.status(400).json({ error: "本文が空です。" });
+    if (body.indexOf("――") < 0) body += "\n\n" + MAIL_SIGN;   // 署名が無ければ付与(差出人・連絡先)
+    try { await sendMail(to, subject, body, replyAddr()); }
+    catch (e) { return res.status(502).json({ error: "送信に失敗しました: " + (e.message || String(e)) }); }
+    if (data.leadId) { try { await db.collection("salesLeads").doc(String(data.leadId)).set({ status: "アプローチ中", lastMailAt: Date.now(), updatedAt: Date.now() }, { merge: true }); } catch (e) {} }
+    return res.json({ ok: true, sent: true });
+  }
+
   // ---- AI社員による生成 ----
   const staff = SALES_STAFF[data.role] || SALES_STAFF.bucho;
   const freeKeys = cfg().geminiFree || [];

@@ -128,6 +128,22 @@
   function copy(text) {
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("コピーしました")).catch(() => toast("コピーできませんでした"));
   }
+  // AI生成文をそのまま見込み客へメール送信(件名は本文先頭「件名：」を自動抽出。宛先は選択中の見込み客)
+  async function sendMailFromChat(text) {
+    text = String(text || "").trim(); if (!text) return;
+    let subject = "", body = text;
+    const lines = text.split("\n");
+    const m = lines[0].match(/^\s*(?:件名|タイトル|subject)\s*[:：]\s*(.+)$/i);
+    if (m) { subject = m[1].trim(); body = lines.slice(1).join("\n").replace(/^\s+/, ""); }
+    const lead = curLeadId ? leads.find((l) => l.id === curLeadId) : null;
+    let to = (prompt("送信先メールアドレス", (lead && lead.email) || "") || "").trim();
+    if (!to) return;
+    subject = (prompt("件名", subject || "メカノAI のご案内") || "").trim();
+    if (!subject) return;
+    if (!confirm(to + " 宛に送信します。よろしいですか？\n件名: " + subject + "\n（署名・差出人は自動付与されます）")) return;
+    try { await api("sendMail", { to, subject, body, leadId: (lead && lead.id) || "" }); toast("✓ 送信しました"); }
+    catch (e) { toast("送信失敗"); alert("送信に失敗しました: " + (e.message || e)); }
+  }
   function renderChat() {
     const log = $("chatLog");
     const s = staffOf(curStaff);
@@ -138,9 +154,10 @@
     }
     log.innerHTML = hist.map((m, i) => {
       if (m.role === "user") return `<div class="turn me"><span class="ava">私</span><div class="bubble">${esc(m.text)}</div></div>`;
-      return `<div class="turn ai">${avaHtml(s)}<div class="bubble"><span class="who">${esc(s.name)}</span>${esc(m.text)}<span class="copy" data-i="${i}">コピー</span></div></div>`;
+      return `<div class="turn ai">${avaHtml(s)}<div class="bubble"><span class="who">${esc(s.name)}</span>${esc(m.text)}<span class="msgacts"><span class="copy" data-i="${i}">📋 コピー</span><span class="sendmail" data-i="${i}">✉ メール送信</span></span></div></div>`;
     }).join("");
     log.querySelectorAll(".copy").forEach((c) => c.onclick = () => copy(hist[+c.dataset.i].text));
+    log.querySelectorAll(".sendmail").forEach((c) => c.onclick = () => sendMailFromChat(hist[+c.dataset.i].text));
     log.scrollTop = log.scrollHeight;
   }
 

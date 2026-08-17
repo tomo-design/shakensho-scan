@@ -135,6 +135,10 @@ textarea{resize:none;line-height:1.6}
 .turn.me .bubble{background:#3a4150;color:#fff;border-top-right-radius:4px}
 .turn .who{font-size:11px;color:var(--ink2);margin-bottom:3px;font-weight:600}
 .turn .copy{display:inline-block;margin-top:7px;font-size:11px;color:var(--accent-d);cursor:pointer;font-weight:600}
+.turn .msgacts{display:flex;gap:14px;margin-top:7px}
+.turn .msgacts .copy{margin-top:0}
+.turn .sendmail{display:inline-block;font-size:11px;color:#1e7a46;cursor:pointer;font-weight:700}
+.turn .sendmail:active,.turn .copy:active{opacity:.6}
 .turn.typing .bubble{color:var(--ink2);font-style:italic}
 
 .composer{display:flex;gap:10px;align-items:flex-end;margin-top:14px}
