@@ -3527,7 +3527,7 @@ async function geminiAsk(prompt, opts) {
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
-    const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "proxy" };
+    const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
   }
@@ -4291,8 +4291,8 @@ async function runDiagAI(text) {
 /* 実際に使われたAIエンジンのバッジ(高精度Pro / 標準Flash)。モデル名にproを含むかで判定。
    店舗版で「Proが使われているか」を現場で目視確認できるようにする。 */
 function engineBadge(model) {
-  if (!model || model === "cache") return null;
-  const pro = /pro/i.test(model);
+  if (!model || model === "cache" || model === "proxy" || model === "demo") return null;
+  const pro = /pro/i.test(model) && !/^proxy$/i.test(model);
   const b = document.createElement("span");
   b.className = "engBadge " + (pro ? "pro" : "flash");
   b.textContent = pro ? "高精度Pro" : "標準Flash";
@@ -4934,7 +4934,7 @@ async function geminiAskMedia(prompt, media) {
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media });
-    if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
+    if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: (d && d.model) || "" };
     throw new Error("AIから回答が得られませんでした");
   }
   if (!key) throw new Error("Gemini APIキーが未設定です。");
