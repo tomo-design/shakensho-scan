@@ -496,8 +496,9 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const pc = planConfig(g.t);   // プラン: na(検索なし)/turbo(月500)/twinturbo(無制限・席数)
-  // ★プラン準拠でPro可否を上限管理: NAプランはProを使わせず標準Flashに固定(トライアル中も選択プラン準拠)。
-  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
+  const hasMedia = Array.isArray(data.media) && data.media.length > 0;   // 写真・動画は速度優先でFlash固定
+  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。メディア添付時も速度優先でFlash。
+  const mode = (data.mode === "pro" && pc.plan !== "na" && !hasMedia) ? "pro" : "flash";
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
@@ -574,8 +575,9 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   if (!cap.ok) return res.status(429).json({ error: usageErrMsg(cap) });
   const data = req.body || {};
   const pc = planConfig(g.t);
-  // ★プラン準拠でPro可否を上限管理: NAプランはProを使わせず標準Flashに固定(トライアル中も選択プラン準拠)。
-  const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
+  const hasMedia = Array.isArray(data.media) && data.media.length > 0;   // 写真・動画は速度優先でFlash固定
+  // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。メディア添付時も速度優先でFlash。
+  const mode = (data.mode === "pro" && pc.plan !== "na" && !hasMedia) ? "pro" : "flash";
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])

@@ -1508,7 +1508,7 @@ async function runVehAsk() {
       const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
       if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
       // 思考量に上限を設けて高速化(診断と同様)。JSON応答なので逐次表示はしない。
-      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 1024 }, null);
+      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 256 }, null);
     } else {
       // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。思考上限で高速化。
       r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
@@ -4924,7 +4924,7 @@ async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(getAiMode()), media });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: "flash", media });
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
     throw new Error("AIから回答が得られませんでした");
   }
@@ -4978,13 +4978,14 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
     // 契約店舗: サーバーのストリーミングプロキシへ(写真/動画も送る)。未対応時は従来のgeminiAskMediaへ。
     if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
       try {
+        // 写真・動画解析は速度優先でFlash固定(映像の読み取りはFlashで十分速い。Proの重い思考が遅延の主因)。
         return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: capModeByPlan(getAiMode()), media, thinkingBudget: opts.thinkingBudget }, onChunk);
+          { prompt, mode: "flash", media, thinkingBudget: (typeof opts.thinkingBudget === "number" ? opts.thinkingBudget : 256) }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
     return geminiAskMedia(prompt, media);
   }
-  const mode = getAiMode();
+  const mode = "flash";   // 写真・動画は速度優先でFlash固定
   aiAbort = new AbortController();
   let lastErr = null;
   for (const model of GEMINI_MEDIA_MODELS[mode]) {
@@ -5329,7 +5330,7 @@ async function diagMediaAnalyze() {
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
     stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
     let streamed = false;
-    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 1024 }, (acc, done) => {
+    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 256 }, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;
