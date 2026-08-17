@@ -3344,6 +3344,12 @@ function capModeByPlan(mode) {
   if (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && !window.Cloud.aiPaidOn()) return "flash";
   return mode;
 }
+/* 契約店舗か(plan有効)。契約店舗は端末に個人キーが残っていてもプラン準拠のサーバー経路を最優先する。
+   ← これが無いと、開発端末等に個人APIキーが残っていると個人利用経路(モード切替Pro)に流れ、
+     NAプランなのに「高精度Pro」で解析されてしまう(プランゲート迂回)。 */
+function contractAi() {
+  return !!(window.Cloud && typeof window.Cloud.aiReady === "function" && window.Cloud.aiReady());
+}
 /* 写真・動画解析のモード: プラン準拠。NA=標準Flash / ターボ・ツインターボ=高精度Pro(思考あり)。 */
 function mediaModeByPlan() {
   return (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? "pro" : "flash";
@@ -3524,8 +3530,8 @@ async function geminiAsk(prompt, opts) {
     const cached = aiCacheGet(ck);
     if (cached) return { text: cached.text, truncated: cached.truncated, model: "cache" };
   }
-  // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
-  if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
+  // 契約店舗はサーバー(mecha)経由=プラン準拠を最優先(個人キーが残っていてもプランゲートを効かせる)。非契約+自前キーのみローカル。
+  if (contractAi()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
@@ -3600,15 +3606,15 @@ async function geminiAskStream(prompt, opts, onChunk) {
   opts = opts || {};
   if (typeof isDemo === "function" && isDemo()) return geminiAsk(prompt, opts);
   const key = localStorage.getItem(LS.gemini);
-  if (!key) {
-    // 契約店舗(自前キー無し): サーバーのストリーミングプロキシ経由。未対応時は従来のgeminiAsk(mecha)へ。
-    if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
+  if (!key || contractAi()) {
+    // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAsk(mecha)へ。
+    if (contractAi() && typeof window.Cloud.callFnStream === "function") {
       try {
         return await window.Cloud.callFnStream("mechaStream",
           { prompt, mode: capModeByPlan(opts.mode || getAiMode()), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; /* それ以外は従来経路へ */ }
     }
-    return geminiAsk(prompt, opts);
+    if (!key) return geminiAsk(prompt, opts);
   }
   const mode = opts.mode || getAiMode();
   const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
@@ -4931,8 +4937,8 @@ async function geminiAskMedia(prompt, media) {
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: 固定サンプル回答
   const key = localStorage.getItem(LS.gemini);
-  // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
-  if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
+  // 契約店舗はサーバー(mecha)経由=プラン準拠を最優先(個人キーが残っていてもゲートを効かせる)。
+  if (contractAi()) {
     const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media });
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: (d && d.model) || "" };
     throw new Error("AIから回答が得られませんでした");
@@ -4983,16 +4989,16 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
-  if (!key) {
-    // 契約店舗: サーバーのストリーミングプロキシへ(写真/動画も送る)。未対応時は従来のgeminiAskMediaへ。
-    if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
+  if (!key || contractAi()) {
+    // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAskMediaへ。
+    if (contractAi() && typeof window.Cloud.callFnStream === "function") {
       try {
         // 写真・動画解析はプラン準拠(NA=Flash / ターボ・ツインターボ=Pro)。Proでも思考は抑えめで最速化。
         return await window.Cloud.callFnStream("mechaStream",
           { prompt, mode: mediaModeByPlan(), media, thinkingBudget: mediaThinking(opts) }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
-    return geminiAskMedia(prompt, media);
+    if (!key) return geminiAskMedia(prompt, media);
   }
   const mode = getAiMode();   // 自前キー(個人利用)はトグル準拠
   aiAbort = new AbortController();
