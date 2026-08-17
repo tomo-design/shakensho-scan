@@ -214,3 +214,13 @@ textarea{resize:none;line-height:1.6}
   .empty-block{background:#171b22}
   .st-見込み{background:#2b303a;color:#c2c8d2}
 }
+
+/* 契約発行 */
+.isCreds{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.isRow{display:flex;justify-content:space-between;gap:12px;padding:8px 2px;border-bottom:1px solid var(--line,#2c313b);font-size:14px}
+.isRow span{color:var(--muted,#9aa3b2)}
+.isRow b{color:#fff;text-align:right;word-break:break-all}
+.isRow b.isPw{font-family:monospace;letter-spacing:.06em;color:#ffd34d}
+.isQrWrap{text-align:center;margin:8px 0}
+.isQr{width:180px;height:180px;background:#fff;border-radius:10px;padding:8px}
+.isMail{width:100%;box-sizing:border-box;margin-top:6px;background:#0f1218;border:1px solid var(--line,#2c313b);border-radius:10px;color:#e7e9ee;font-size:13px;line-height:1.6;padding:12px;resize:vertical}

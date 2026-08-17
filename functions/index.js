@@ -1754,6 +1754,50 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     return res.json({ id: ref.id });
   }
 
+  // ---- 契約者アカウントの直接発行(ログインID＋パスワード＋QR＋案内メール) ----
+  if (action === "issueAccount") {
+    const company = String(data.company || "").trim();
+    const name = String(data.name || "").trim();
+    const email = String(data.email || "").trim().toLowerCase();
+    const planLabel0 = String(data.plan || "ターボ");
+    if (!company || !email) return res.status(400).json({ error: "会社名とメールアドレスは必須です。" });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+    // 1) テナント＋7日トライアル＋ログインID
+    const pr = await provisionContract(db, { company, name, email, plan: planLabel0 });
+    const planLabel = planLabelFromCode(pr.planCode);
+    // 2) Authユーザー作成＆初期パスワード発行(既存メールなら再設定)
+    const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+    let pw = ""; for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    let uid;
+    try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; await admin.auth().updateUser(uid, { password: pw }); }
+    catch (e) { const u = await admin.auth().createUser({ email, password: pw, displayName: name || company }); uid = u.uid; }
+    // 3) usersドキュメント(有効な代表管理者)
+    let loginId = pr.loginId;
+    const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
+    if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
+    await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, createdAt: Date.now() }, { merge: true });
+    try { await db.collection("onboardTokens").doc(pr.token).set({ used: true }, { merge: true }); } catch (e) {}   // 直接発行のためリンクは無効化
+    // 4) URL/QR
+    const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+    const corpUrl = appUrl + "?corp=1";
+    const qrUrl = "https://quickchart.io/qr?size=300&margin=1&text=" + encodeURIComponent(corpUrl);
+    // 5) 案内メール本文
+    const subject = "【メカノAI】ご契約ありがとうございます（ログイン情報のご案内）";
+    const body = (name ? name + " 様" : company + " 御中") + "\n\n" +
+      "この度はメカノAI（" + planLabel + "プラン）をご契約いただき、誠にありがとうございます。\n" +
+      "下記のログイン情報で、すぐにご利用いただけます。\n\n" +
+      "▼ログインID\n" + loginId + "\n（メールアドレス " + email + " でもログインできます）\n\n" +
+      "▼初期パスワード\n" + pw + "\n（安全のため、初回ログイン後に『設定 → クラウド同期 → 🔑パスワード変更』で任意のパスワードへ変更してください）\n\n" +
+      "▼ご契約プラン\n" + planLabel + "（ご契約から7日間は無料。初回のご請求は8日目からで、請求書をメールでお送りします）\n\n" +
+      "▼アプリを開く\n" + corpUrl + "\n" +
+      "　スマホで下のQRコードを読み取っても開けます（社内メンバーへの参加案内にもお使いいただけます）:\n" + qrUrl + "\n\n" +
+      "▼はじめ方\n設定 → クラウド同期 でログイン → 車検証をスキャンして開始。従業員の方は同じ画面の『会社に参加』から申請 → 代表管理者（今回のあなた）が承認すると追加されます。\n\n" +
+      MAIL_SIGN;
+    let sent = false;
+    if (data.send === true) { try { await sendMail(email, subject, body, replyAddr()); sent = true; } catch (e) {} }
+    return res.json({ ok: true, loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl, qrUrl, subject, body, sent });
+  }
+
   // ---- AI社員による生成 ----
   const staff = SALES_STAFF[data.role] || SALES_STAFF.bucho;
   const freeKeys = cfg().geminiFree || [];

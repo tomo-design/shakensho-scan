@@ -57,6 +57,10 @@
         <svg viewBox="0 0 24 24" class="ic"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
         <span>一括作成</span>
       </button>
+      <button class="tab" data-tab="issue">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <span>契約発行</span>
+      </button>
     </nav>
     <div class="side-links">
       <div class="sl-head">営業ツール・リンク</div>
@@ -202,6 +206,46 @@
       </div>
 
       <div id="campResults" class="campresults"></div>
+    </section>
+
+    <!-- ============ 契約発行 ============ -->
+    <section id="tab-issue" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>契約者アカウント発行</h1>
+          <p class="vsub">契約者の店舗アカウント（代表管理者）を作成し、ログインID・初期パスワード・アプリQR付きの案内メールを発行します。</p>
+        </div>
+      </header>
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field"><label>会社名 <span class="req">必須</span></label><input id="isCompany" placeholder="〇〇自動車整備"></div>
+          <div class="field"><label>ご担当者名</label><input id="isName" placeholder="山田 太郎"></div>
+          <div class="field"><label>メールアドレス <span class="req">必須</span></label><input id="isEmail" type="email" placeholder="you@example.com"></div>
+          <div class="field"><label>プラン</label>
+            <select id="isPlan">
+              <option value="ターボ">ターボ</option>
+              <option value="ツインターボ">ツインターボ</option>
+              <option value="NA">NA</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnIssue" class="btn btn-accent">🔑 アカウント発行</button>
+          <span id="isStat" class="muted"></span>
+        </div>
+      </div>
+      <div id="isResult" class="panel hidden">
+        <h3 style="margin:0 0 10px">発行結果</h3>
+        <div id="isCreds" class="isCreds"></div>
+        <div class="isQrWrap"><img id="isQr" alt="アプリQR" class="isQr"><div class="muted" id="isQrCap">アプリを開くQR（法人版・?corp=1）</div></div>
+        <label style="display:block;margin-top:12px;font-weight:700;font-size:13px">案内メール（このままコピーして送信できます）</label>
+        <textarea id="isMail" class="isMail" rows="14" readonly></textarea>
+        <div class="panel-actions">
+          <button id="btnIssueCopy" class="btn btn-dark btn-sm">📋 メール本文をコピー</button>
+          <button id="btnIssueSend" class="btn btn-accent btn-sm">✉ この内容で送信する</button>
+          <span id="isSendStat" class="muted"></span>
+        </div>
+      </div>
     </section>
   </main>
 </div>
