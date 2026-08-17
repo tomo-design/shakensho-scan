@@ -1508,7 +1508,7 @@ async function runVehAsk() {
       const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
       if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
       // 思考量に上限を設けて高速化(診断と同様)。JSON応答なので逐次表示はしない。
-      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 3072 }, null);
+      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, { thinkingBudget: 1024 }, null);
     } else {
       // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。思考上限で高速化。
       r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
@@ -1535,6 +1535,15 @@ function addRepairShareBar(box, rec) {
   const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
   const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
   sh.addEventListener("click", () => shareRepairRecord(rec));
+  bar.append(sp, sh); box.appendChild(bar);
+}
+/* 診断結果(メディア/コード)の末尾に共有ボタンを右寄せで置く */
+function addDiagShareBar(box, rec) {
+  if (!rec) return;
+  const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
+  const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
+  const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
+  sh.addEventListener("click", () => shareDiagRecord(rec));
   bar.append(sp, sh); box.appendChild(bar);
 }
 /* 修理質問プロンプト(作業名なら構造化JSON、質問なら文章)。hasMedia=添付写真あり */
@@ -3329,6 +3338,12 @@ function aiCacheSet(k, v) {
   } catch (e) {}
 }
 function getAiMode() { return localStorage.getItem(LS.aimode) === "pro" ? "pro" : "flash"; }
+/* 契約店舗(自分の鍵なし)の実効AIモード: 契約プランに合わせてProの利用可否を上限管理。
+   NAプランはProを使わせない(標準Flash)。ターボ/ツインターボはProのまま。トライアル中も“選んだプラン”準拠。 */
+function capModeByPlan(mode) {
+  if (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && !window.Cloud.aiPaidOn()) return "flash";
+  return mode;
+}
 function renderAiMode() {
   const mode = getAiMode();
   document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("mode-active", b.dataset.mode === mode));
@@ -3502,7 +3517,7 @@ async function geminiAsk(prompt, opts) {
   }
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由。鍵がある人は従来どおりローカル利用(壊さない)。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode, search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "proxy" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
@@ -3581,7 +3596,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
     if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
       try {
         return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: opts.mode || getAiMode(), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
+          { prompt, mode: capModeByPlan(opts.mode || getAiMode()), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; /* それ以外は従来経路へ */ }
     }
     return geminiAsk(prompt, opts);
@@ -4909,7 +4924,7 @@ async function geminiAskMedia(prompt, media) {
   const key = localStorage.getItem(LS.gemini);
   // 自分の鍵が無い契約店舗のみサーバー(mecha)経由(画像/動画も渡す)。鍵がある人は従来どおり。
   if (!key && window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: getAiMode(), media });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(getAiMode()), media });
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: "proxy" };
     throw new Error("AIから回答が得られませんでした");
   }
@@ -4964,7 +4979,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
     if (window.Cloud && window.Cloud.aiReady && window.Cloud.aiReady() && typeof window.Cloud.callFnStream === "function") {
       try {
         return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: getAiMode(), media, thinkingBudget: opts.thinkingBudget }, onChunk);
+          { prompt, mode: capModeByPlan(getAiMode()), media, thinkingBudget: opts.thinkingBudget }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
     return geminiAskMedia(prompt, media);
@@ -5314,7 +5329,7 @@ async function diagMediaAnalyze() {
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
     stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
     let streamed = false;
-    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 3072 }, (acc, done) => {
+    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, { thinkingBudget: 1024 }, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;
@@ -5326,6 +5341,7 @@ async function diagMediaAnalyze() {
     note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
     const rec = saveDiagRecord(text || "写真・動画による診断", r.text, getAiMode());   // 結果を履歴に保存
+    addDiagShareBar(body, rec);   // メディア診断にも共有ボタン
     const guideNote = document.createElement("div"); guideNote.className = "hint guidePrep"; body.appendChild(guideNote);
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
     autoGenGuides(causes, rec, guideNote);   // 上位候補の点検手引書を先に用意(時短)
