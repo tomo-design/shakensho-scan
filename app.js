@@ -1537,13 +1537,14 @@ function addRepairShareBar(box, rec) {
   sh.addEventListener("click", () => shareRepairRecord(rec));
   bar.append(sp, sh); box.appendChild(bar);
 }
-/* 診断セクションの見出し右端に共有ボタンを置く(バッジは左寄せ) */
+/* 診断セクションの見出し右端に共有リンクを置く(ボタン式ではなくテキストリンク。バッジは左寄せ) */
 function addDiagHeadShare(sec, rec) {
   if (!sec || !rec) return;
   const h2 = sec.querySelector("h2"); if (!h2 || h2.querySelector(".diagHeadShare")) return;
-  const b = document.createElement("button"); b.type = "button"; b.className = "diagHeadShare";
+  const b = document.createElement("a"); b.href = "#"; b.className = "diagHeadShare";
   b.textContent = "📤 共有";
-  b.addEventListener("click", () => shareDiagRecord(rec));
+  b.style.cssText = "margin-left:auto;color:var(--cyan,#1b9);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
+  b.addEventListener("click", (e) => { e.preventDefault(); shareDiagRecord(rec); });
   h2.appendChild(b);
 }
 /* 診断結果(メディア/コード)の末尾に共有リンクを右寄せで置く(ボタン式ではなくテキストリンク) */

@@ -945,9 +945,9 @@ body.pwLocked{ overflow:hidden }
 .engBadge.pro{ background:#0f7b6c; color:#fff }
 .engBadge.flash{ background:#e7ebf0; color:#5a6472 }
 /* 診断ヘッダー右端の共有ボタン(バッジを左に寄せた分の右側スペースへ) */
-.diagHeadShare{ margin-left:auto; flex:0 0 auto; font:inherit; font-size:11px; font-weight:700;
-  background:#fff; color:#1e5aa8; border:1px solid var(--line); border-radius:14px; padding:4px 12px; cursor:pointer }
-.diagHeadShare:active{ transform:translateY(1px) }
+.diagHeadShare{ margin-left:auto; flex:0 0 auto; font:inherit; font-size:12px; font-weight:600;
+  background:none; color:#1e5aa8; border:0; padding:0 2px; text-decoration:underline; cursor:pointer }
+.diagHeadShare:active{ opacity:.55 }
 
 /* 契約プラン: 期間表示・有料席追加ボタン・解約リンクを控えめに */
 .planPeriod{ font-size:11px; font-weight:500; color:var(--dim) }
