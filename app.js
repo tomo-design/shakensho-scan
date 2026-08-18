@@ -326,15 +326,6 @@ function formatKata(k) {
   return s;
 }
 
-/* 排出ガス規制記号: 型式のハイフンより前の識別記号(例 3BA-GK5 → 3BA / 2PG-FW74HZ → 2PG)。
-   ハイフンが無い型式(旧車・輸入車など)は規制記号の記載が無いのでnull。 */
-function emissionFromType(type) {
-  if (!type) return null;
-  const t = String(type).toUpperCase().trim();
-  const m = t.match(/^([0-9A-Z]{1,4})-[A-Z]/);
-  return m ? m[1] : null;
-}
-
 function parseStructured(codes) {
   const out = {};
   for (const code of codes) {
@@ -849,7 +840,7 @@ $("qrPhotoIn").addEventListener("change", async e => {
 function updateScanProgress(d) {
   const box = $("scanProgress");
   const items = [
-    ["車台番号", d.vin], ["排出ガス規制記号", emissionFromType(d.type)], ["原動機型式", d.engine], ["登録番号", d.plate], ["指定・類別", formatKata(d.kataShitei)],
+    ["車台番号", d.vin], ["原動機型式", d.engine], ["登録番号", d.plate], ["指定・類別", formatKata(d.kataShitei)],
   ];
   box.innerHTML = items.map(([label, val]) =>
     '<div class="progRow ' + (val ? "got" : "") + '">' +
@@ -1007,7 +998,6 @@ async function runAiQrParse(fromAuto) {
     applyAiQr(obj);
     const lines = [];
     if (obj.type) lines.push("型式: " + obj.type);
-    { const em = emissionFromType(obj.type); if (em) lines.push("排出ガス規制記号: " + em); }
     if (obj.engine) lines.push("原動機型式: " + obj.engine);
     if (obj.vin) lines.push("車台番号: " + obj.vin);
     if (obj.plate) lines.push("登録番号: " + obj.plate);
@@ -1866,7 +1856,6 @@ function showResult(d, opt = {}) {
   aiQrDone = false;
   // スキャン由来で未取得項目がある時は、メカ君のQR解析を自動で開始(ワンタップ不要)
   if (opt && opt.fromScan && !opt.noAutoAi && current.qrRaw.length > 0 && missing) setTimeout(() => { if (!aiQrDone) runAiQrParse(true); }, 60);
-  setText("rEmission", emissionFromType(d.type) || "記載なし");
   setText("rEngine", han(d.engine) || "—");
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
