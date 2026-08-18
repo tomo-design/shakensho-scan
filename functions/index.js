@@ -943,16 +943,18 @@ async function issueContractAccount(db, info) {
   const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
   const corpUrl = appUrl + "?corp=1";
   const qrUrl = "https://quickchart.io/qr?size=300&margin=1&text=" + encodeURIComponent(corpUrl);
-  const subject = "【メカノAI】ご契約ありがとうございます（ログイン情報のご案内）";
+  const storeCode = pr.tid;   // 店舗コード(従業員の参加用) = テナントID
+  const subject = "【メカノAI】お申し込みありがとうございます（ログイン情報のご案内）";
   const body = (name ? name + " 様" : company + " 御中") + "\n\n" +
-    "この度はメカノAI（" + planLabel + "プラン）をご契約いただき、誠にありがとうございます。\n" +
-    "下記のログイン情報で、すぐにご利用いただけます。\n\n" +
+    "この度はメカノAI（" + planLabel + "プラン）にお申し込みいただき、誠にありがとうございます。\n" +
+    "下記の情報で、すぐにご利用いただけます。\n\n" +
     "▼ログインID\n" + loginId + "\n（メールアドレス " + email + " でもログインできます）\n\n" +
     "▼初期パスワード\n" + pw + "\n（安全のため、初回ログイン後に『設定 → クラウド同期 → 🔑パスワード変更』で任意のパスワードへ変更してください）\n\n" +
-    "▼ご契約プラン\n" + planLabel + "（ご契約から7日間は無料。初回のご請求は8日目からで、請求書をメールでお送りします）\n\n" +
+    "▼店舗コード（従業員の参加用）\n" + storeCode + "\n（従業員の方は、アプリの『設定 → クラウド同期 → 会社に参加』で、この店舗コードとご自身のメール・パスワードを入力して参加を申請します。代表管理者であるあなたが承認すると、車両データやカルテが社内メンバー全員で共有されます）\n\n" +
+    "▼ご契約プラン\n" + planLabel + "（お申し込みから7日間は無料でお試しいただけます。初回のご請求は8日目からで、請求書をメールでお送りします）\n\n" +
     "▼アプリを開く\n" + corpUrl + "\n" +
     "　スマホで下のQRコードを読み取っても開けます（社内メンバーへの参加案内にもお使いいただけます）:\n" + qrUrl + "\n\n" +
-    "▼はじめ方\n設定 → クラウド同期 でログイン → 車検証をスキャンして開始。従業員の方は同じ画面の『会社に参加』から申請 → 代表管理者（今回のあなた）が承認すると追加されます。\n\n" +
+    "▼はじめ方\n① 設定 → クラウド同期 でログイン → 車検証をスキャンして開始。\n② 従業員の方は同じ画面の『会社に参加』から、上記の店舗コードで参加申請 →（代表管理者の）あなたが承認すると追加されます。\n\n" +
     MAIL_SIGN;
   return { loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl, qrUrl, subject, body };
 }
@@ -1333,19 +1335,19 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
           if (toEmail) {
             const TNAME = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" }[tier] || tier;
             const welcome =
-              "この度はメカノAI（" + TNAME + "プラン）をご契約いただき、誠にありがとうございます。\n\n" +
+              "この度はメカノAI（" + TNAME + "プラン）にお申し込みいただき、誠にありがとうございます。\n\n" +
               "▼ ご利用の始め方\n" +
               "1. アプリを開く　https://mechanoai-cablueie.com/\n" +
               "2. 代表管理者のメール・パスワードでログイン\n" +
               "3. 車検証をスキャン → 諸元・故障診断・整備カルテがすぐ使えます\n" +
-              "　（従業員は招待で参加、1人2端末まで。車両DB・記録は社内で自動共有されます）\n\n" +
+              "　（従業員は『会社に参加』で店舗コードを入力し申請 → あなたが承認。1人2端末まで。車両DB・記録は社内で自動共有されます）\n\n" +
               "▼ 無料トライアル\n" +
-              "ご契約から7日間は無料です。自社の実データのまま全機能をお試しください（初回請求は8日目以降）。\n\n" +
+              "お申し込みから7日間は無料です。自社の実データのまま全機能をお試しください（初回請求は8日目以降）。\n\n" +
               "▼ こまったときは\n" +
               "使い方のご相談・設定サポートは本メールへの返信、またはお電話で承ります。\n\n" +
               "今後ともよろしくお願いいたします。\n\n" +
               MAIL_SIGN;
-            const ok = await sendMail(toEmail, "【メカノAI】ご契約ありがとうございます（はじめ方のご案内）", welcome, replyAddr());
+            const ok = await sendMail(toEmail, "【メカノAI】お申し込みありがとうございます（はじめ方のご案内）", welcome, replyAddr());
             if (ok) await ref.set({ welcomeSent: true }, { merge: true });
           }
         } catch (e) { console.error("welcomeメール失敗", e); }
