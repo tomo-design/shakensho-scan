@@ -1552,6 +1552,19 @@ exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, me
     const latest = await latestModels(freeKeys[0]);
     const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
     const staff = SALES_STAFF.cs;
+
+    // ★パスワード再設定の依頼を検知したら、実際の再設定リンクを発行して返信本文へ差し込む
+    const pwAsk = /(パスワード|ぱすわーど|password)/i.test(text) && /(忘|再設定|リセット|reset|わから|分から|できない|入れ|ログイン)/i.test(text);
+    let pwBlock = "";
+    if (pwAsk) {
+      let resetLink = "";
+      try { resetLink = await admin.auth().generatePasswordResetLink(fromEmail); } catch (e) { /* アカウント無し等 */ }
+      if (resetLink) {
+        pwBlock = "\n【最重要・パスワード再設定】相手はログインパスワードの再設定を希望しています。返信本文に、次の『パスワード再設定リンク』を一字一句そのまま（改変・短縮せず）必ず記載し、(1)リンクを開く (2)新しいパスワードを入力して保存 (3)そのパスワードでログイン、という手順と、セキュリティのためリンクには有効期限がある旨を案内してください。『折り返し案内します』ではなく、このリンクをその場で提示すること。\nパスワード再設定リンク: " + resetLink + "\n";
+      } else {
+        pwBlock = "\n【最重要・パスワード再設定】相手はパスワード再設定を希望していますが、この差出人メールアドレスに紐づくアカウントが見つかりませんでした。ご登録のメールアドレス（またはログインID）のご確認をお願いする旨を丁寧に案内し、確認後に再設定リンクをお送りする、と伝えてください。推測でリンクは記載しないこと。\n";
+      }
+    }
     const prompt = `${staff.sys}
 
 ${PRODUCT_KB}
@@ -1564,7 +1577,7 @@ ${NEWS_KB}
 【相手の本文】
 ${cleanBody || "(本文なし)"}
 ${lastOut ? "\n【こちらが直前に送った内容(参考)】\n" + lastOut + "\n" : ""}
-
+${pwBlock}
 やること:
 1) この相手の用件が「料金・価格・費用・見積・支払・契約条件・割引」に関する質問や交渉を含むか判定する。
 2) 返信メールの本文を、CS担当として丁寧かつ簡潔に作成する。製品KBの事実のみを根拠にし、金額はKB記載の範囲で正確に。答えられない点は「担当より折り返す」と案内。誇張・虚偽は書かない。CTAは押しつけない。
