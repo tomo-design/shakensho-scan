@@ -1579,6 +1579,7 @@ function buildRepairPrompt(q, hasMedia) {
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明な場合のみ要確認とし、創作はしない。",
     "年式・グレードでサイズが異なる場合は、どの年式・グレードの値かを明記して具体値を書く。トルクは整備書(FAINES)での最終確認を促す。",
     "■対象車両: " + vehicleDesc(),
+    officialSpecsText(),
     "■質問/作業: " + q,
     (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
   ].filter(Boolean).join("\n");
@@ -3077,11 +3078,36 @@ let SYMPTOM_DB = [];
 let GUIDE_DB = [];
 
 let OIL_DB = null;   // HKS車種別オイル適合表(db/oil.json): 標準粘度・純正オイル量
+let SPECS_DB = null; // メーカー公式の定期点検整備基準(db/specs.json): 型式別の正式値
 async function loadDiagDB() {
   try { DTC_DB = await (await fetch("db/dtc.json")).json(); } catch (e) {}
   try { SYMPTOM_DB = (await (await fetch("db/symptoms.json")).json()).symptoms || []; } catch (e) {}
   try { GUIDE_DB = (await (await fetch("db/guides.json")).json()).guides || []; } catch (e) {}
   try { OIL_DB = await (await fetch("db/oil.json")).json(); } catch (e) {}
+  try { SPECS_DB = (await (await fetch("db/specs.json")).json()).specs || []; } catch (e) {}
+}
+/* 公式整備基準(specs.json)から、この車両の型式に一致する正式値を返す。型式は "2KG-CVR60C" のように
+   排出ガス記号が前置される場合があるので、コアコード(CVR60C)を含むかで一致させる。 */
+function officialSpecsLookup(d) {
+  d = d || current; if (!SPECS_DB || !d) return null;
+  const norm = s => String(s || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const type = norm(d.type);          // 例: 2KGCVR60C
+  const eng = norm(d.engine);         // 例: 6NX1
+  if (!type && !eng) return null;
+  // 型式一致(コアコードを含む)を最優先。無ければ原動機型式一致で候補提示。
+  let hit = SPECS_DB.find(s => { const m = norm(s.model); return m && type && type.indexOf(m) >= 0; });
+  return hit || null;
+}
+/* 公式整備基準を、メカ君プロンプトに差し込む厳守ブロックとして整形。該当が無ければ空文字。 */
+function officialSpecsText() {
+  const s = officialSpecsLookup();
+  if (!s || !s.items) return "";
+  const lines = Object.keys(s.items).map(k => "・" + k + ": " + s.items[k]);
+  return [
+    "【メーカー公式・整備基準(最優先で使用)】次は " + (s.name || "") + " " + s.model + "(" + (s.engine || "") + ") のメーカー公式値。",
+    "オイル量・冷却水量・締付トルク・バルブクリアランス・タイヤ空気圧・各種基準値は、以下の公式値をそのまま用いること(AIの推定値で上書きしない)。該当項目が下記に無い場合のみ推定・検索で補う。",
+    ...lines
+  ].join("\n");
 }
 /* HKSオイル適合表から、この車両(原動機型式 or 車両型式)の {visc,oil,oilFilter,name,engine} を探す */
 function hksOilLookup(d) {
@@ -3792,6 +3818,7 @@ function buildDiagPrompt(text) {
     lines.push("\n■車両: 型式 " + current.type + (v ? "（" + v.name + "）" : ""));
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
+  { const os = officialSpecsText(); if (os) lines.push(os); }
   const dtcs = extractDTCs(text);
   if (dtcs.length) {
     const named = dtcs.map(c => { const d = lookupDTC(c); return c + (d.exact ? "（" + d.name + "）" : ""); });
@@ -3808,6 +3835,7 @@ function buildInspectManualPrompt(cause, kirikake) {
   return [
     "あなたは経験豊富な整備士『メカ君』。指定された『疑う原因』を、実車で確定または除外するための点検手引書を作成する。",
     "対象車両: " + (typeof vehicleDesc === "function" ? vehicleDesc() : ""),
+    officialSpecsText(),
     lastDiagInput ? "現在の症状・問診: " + lastDiagInput : "",
     "疑う原因: " + cause,
     kirikake ? "想定される切り分けの方針: " + kirikake : "",
@@ -4748,6 +4776,7 @@ function buildSpecPrompt(known, missOnly) {
     );
   }
   head.push("■対象車両: " + vehicleDesc());
+  { const os = officialSpecsText(); if (os) head.push(os); }
   return head.join("\n");
 }
 async function runSpecAI(srcBtn) {
@@ -5091,6 +5120,7 @@ function buildMediaDiagPrompt() {
     lines.push("■車両: " + (current.type ? "型式 " + current.type : "車台番号 " + current.vin) + (v ? "（" + v.name + "）" : ""));
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
+  { const os = officialSpecsText(); if (os) lines.push(os); }
   const extra = $("diagText").value.trim();
   if (extra) lines.push("■整備士の補足メモ: " + extra);
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
