@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>メカノAI お申し込み・ご相談</title>
+<link rel="stylesheet" href="biz.css">
+<style>
+  .apply-wrap{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    background:radial-gradient(900px 420px at 50% -20%,#173b73,var(--navy) 60%,#0b1f45);padding:0 16px 48px}
+  .apply-card{width:100%;max-width:520px;margin:26px auto 0}
+  .apply-head{text-align:center;color:#fff;margin-bottom:18px}
+  .apply-head .logo{justify-content:center;margin-bottom:14px}
+  .apply-head h1{font-size:24px;margin:0 0 8px}
+  .apply-head p{color:#c8d6ef;font-size:14px;margin:0}
+  .apply-trial{margin:14px auto 0;max-width:460px;background:rgba(255,177,0,.14);border:1px solid rgba(255,177,0,.4);color:var(--gold);font-weight:700;font-size:13px;padding:9px 14px;border-radius:10px;text-align:center}
+  .apply-foot{color:#9fb3d8;font-size:12px;text-align:center;margin-top:16px}
+  .apply-foot a{color:#cdd9ef}
+</style>
+</head>
+<body>
+<div class="apply-wrap">
+  <div class="apply-card">
+    <div class="apply-head">
+      <div class="logo"><img src="img/logo-mark.png" class="lp-logo" alt="メカノAI"><span class="lg-txt light">メカノAI<small>MECHANO-AI</small></span></div>
+      <h1>お申し込み・ご相談</h1>
+      <p>下記をご記入のうえ送信してください。1営業日を目安にご返信します。<br>必須は会社名・お名前と、メールまたは電話です。</p>
+      <div class="apply-trial">🎁 ご契約から7日間は無料トライアル（実データでお試し）</div>
+    </div>
+
+    <form id="applyForm" class="form" novalidate>
+      <div class="f2">
+        <label>会社名 <i>必須</i><input name="company" required placeholder="〇〇自動車整備"></label>
+        <label>お名前 <i>必須</i><input name="name" required placeholder="山田 太郎"></label>
+      </div>
+      <div class="f2">
+        <label>メールアドレス<input name="email" type="email" placeholder="info@example.com"></label>
+        <label>電話番号<input name="phone" placeholder="000-0000-0000"></label>
+      </div>
+      <div class="f2">
+        <label>業種
+          <select name="kind">
+            <option value="">選択してください</option>
+            <option>整備工場</option><option>ガソリンスタンド（整備併設）</option>
+            <option>運送会社</option><option>ディーラー</option><option>板金/塗装</option><option>その他</option>
+          </select>
+        </label>
+        <label>ご希望プラン
+          <select name="plan" id="planSel">
+            <option value="">相談したい・未定</option>
+            <option value="NA">NA（¥7,980/月〜）</option>
+            <option value="ターボ">ターボ（¥12,800/月〜）</option>
+            <option value="ツインターボ">ツインターボ（¥19,800/月〜）</option>
+          </select>
+        </label>
+      </div>
+      <div class="f2">
+        <label>お支払い周期
+          <select name="interval">
+            <option value="">未定</option>
+            <option value="月額">月額</option>
+            <option value="年額">年額（約2か月分お得）</option>
+          </select>
+        </label>
+        <label>ご希望の連絡方法
+          <select name="contactpref">
+            <option value="">どちらでも</option>
+            <option value="メール">メール</option>
+            <option value="電話">電話</option>
+          </select>
+        </label>
+      </div>
+      <label>ご質問・ご要望<textarea name="message" rows="4" placeholder="例：スタッフ5名。まずデモを見たいです。"></textarea></label>
+      <div class="hp" aria-hidden="true"><label>この欄は入力しないでください<input name="hp" tabindex="-1" autocomplete="off"></label></div>
+      <label class="agree"><input type="checkbox" id="agree"> <span><a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意します</span></label>
+      <button type="submit" id="applySubmit" class="btn btn-gold btn-block">この内容で申し込む</button>
+      <div id="applyMsg" class="form-msg"></div>
+    </form>
+
+    <div class="apply-foot">
+      じっくり検討したい方は <a href="biz.html">サービス詳細（法人LP）</a>／<a href="shiryou.html">資料</a> もご覧いただけます。<br>
+      提供：Cablueie（カブリエ）　© 2026 Cablueie
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var FN = "https://asia-northeast1-mecanoai.cloudfunctions.net/bizInquiry";
+  var form = document.getElementById("applyForm");
+  var msg = document.getElementById("applyMsg");
+  var btn = document.getElementById("applySubmit");
+  // ?plan=turbo などで事前選択
+  try {
+    var p = (new URLSearchParams(location.search).get("plan") || "").toLowerCase();
+    var map = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ", "ツインターボ": "ツインターボ" };
+    if (map[p]) document.getElementById("planSel").value = map[p];
+  } catch (e) {}
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    msg.className = "form-msg";
+    if (!document.getElementById("agree").checked) { msg.textContent = "プライバシーポリシーへの同意が必要です。"; msg.classList.add("err"); return; }
+    var fd = new FormData(form), data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
+    if (!data.company || !data.name) { msg.textContent = "会社名とお名前を入力してください。"; msg.classList.add("err"); return; }
+    if (!data.email && !data.phone) { msg.textContent = "メールまたは電話のいずれかを入力してください。"; msg.classList.add("err"); return; }
+    // 周期・連絡方法・プランを本文にも残す（受信側で分かるように）
+    var extra = [];
+    if (data.plan) extra.push("希望プラン:" + data.plan);
+    if (data.interval) extra.push("周期:" + data.interval);
+    if (data.contactpref) extra.push("連絡方法:" + data.contactpref);
+    var payload = {
+      company: data.company, name: data.name, email: data.email, phone: data.phone, kind: data.kind, plan: data.plan,
+      message: (extra.length ? "【" + extra.join(" / ") + "】\n" : "") + (data.message || ""), hp: data.hp
+    };
+    btn.disabled = true; btn.textContent = "送信中…";
+    fetch(FN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.j.error || "送信に失敗しました。");
+        form.style.display = "none";
+        msg.className = "form-msg ok";
+        msg.innerHTML = "お申し込みありがとうございます。担当より1営業日を目安にご連絡します。";
+      })
+      .catch(function (err) { msg.textContent = err.message; msg.classList.add("err"); btn.disabled = false; btn.textContent = "この内容で申し込む"; });
+  });
+})();
+</script>
+</body>
+</html>
