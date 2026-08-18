@@ -1016,6 +1016,30 @@ exports.loginIdLookup = functions.region(REGION).https.onRequest(async (req, res
   return res.json({ email: q.docs[0].data().email || "" });
 });
 
+// ★一時★ 本人アカウントのログイン復旧(パスワード再設定)。実行後に削除する。秘密キーで保護。
+exports.emergencyPwReset = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const secret = String((req.body && req.body.secret) || "");
+  if (secret !== "ac16baceb55b9bab186ff88b60aeb5004fd8") return res.status(403).json({ error: "forbidden" });
+  const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+  const pw = String((req.body && req.body.pw) || "");
+  if (!email || pw.length < 6) return res.status(400).json({ error: "bad params" });
+  const auth = admin.auth();
+  let u;
+  try { u = await auth.getUserByEmail(email); }
+  catch (e) { return res.status(404).json({ error: "USER_NOT_FOUND", code: e.code || String(e) }); }
+  await auth.updateUser(u.uid, { password: pw, disabled: false });
+  let doc = null;
+  try {
+    const db = admin.firestore();
+    const snap = await db.collection("users").doc(u.uid).get();
+    doc = snap.exists ? { role: snap.data().role, active: snap.data().active, tenantId: snap.data().tenantId, loginId: snap.data().loginId } : null;
+    if (snap.exists && snap.data().active !== true) await snap.ref.set({ active: true }, { merge: true });
+  } catch (e) {}
+  return res.json({ ok: true, uid: u.uid, disabled: u.disabled, doc });
+});
+
 // 店舗コード(表示用の別名)を設定/変更する。
 //  ・代表管理者(admin): 自店舗のみ、変更は1回だけ(2回目以降は運営へ)。
 //  ・運営(super): 任意の店舗を何度でも変更可。
@@ -1779,6 +1803,18 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   if (action === "delInquiry") {
     if (data.id) await db.collection("bizInquiries").doc(String(data.id)).delete();
     return res.json({ ok: true });
+  }
+  // ---- パスワード再設定リンクの発行(返信メールに貼るため) ----
+  if (action === "resetLink") {
+    const email = String(data.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+    try {
+      const link = await admin.auth().generatePasswordResetLink(email);
+      return res.json({ link: link, email: email });
+    } catch (e) {
+      if (e && e.code === "auth/user-not-found") return res.status(404).json({ error: "このメールアドレスのアカウントが見つかりません。ログインIDやメールをご確認ください。" });
+      return res.status(500).json({ error: "リンク発行に失敗しました: " + (e.message || e) });
+    }
   }
   if (action === "inquiryToLead") {
     const q = data.id ? (await db.collection("bizInquiries").doc(String(data.id)).get()).data() : null;

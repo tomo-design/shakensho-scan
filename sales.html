@@ -110,7 +110,10 @@
           <h1>問い合わせ受信</h1>
           <p class="vsub">法人LP（biz.html）の申込フォームから届いた問い合わせです。見込み客に変換できます。</p>
         </div>
-        <button id="btnReloadInbox" class="btn btn-ghost btn-sm">再読み込み</button>
+        <div style="display:flex;gap:8px">
+          <button id="btnResetLink" class="btn btn-accent btn-sm">🔑 再設定リンク付き返信</button>
+          <button id="btnReloadInbox" class="btn btn-ghost btn-sm">再読み込み</button>
+        </div>
       </header>
       <div class="lead-toolbar"><span id="inboxCount" class="muted"></span></div>
       <div id="inboxList" class="leadlist"></div>

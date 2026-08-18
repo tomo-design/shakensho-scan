@@ -299,6 +299,26 @@
   }
   const _rb = $("btnReloadInbox"); if (_rb) _rb.onclick = () => loadInbox();
 
+  // パスワード再設定リンクを発行し、それを本文に埋め込んだ返信文をAI(CS)に作らせる
+  const _rl = $("btnResetLink");
+  if (_rl) _rl.onclick = async () => {
+    const email = (prompt("パスワード再設定リンクを発行する相手のメールアドレスを入力してください。\n（登録済みのメール／ログインIDに紐づくメール）") || "").trim();
+    if (!email) return;
+    let j;
+    try { j = await api("resetLink", { email }); }
+    catch (e) { toast(e.message); return; }
+    try { await navigator.clipboard.writeText(j.link); } catch (e) {}
+    replyCtx = null; curLeadId = "";
+    document.querySelector('.tab[data-tab="team"]').click();
+    selectStaff("cs");
+    if ($("leadSelect")) $("leadSelect").value = "";
+    updateReplyBanner();
+    ta.value = "パスワードをお忘れの方への返信メールを作成して。流れは、お礼とお詫び → 下記の『パスワード再設定リンク』を本文にそのまま明記 → リンクを開いて新しいパスワードを設定する手順（3ステップ程度）→ セキュリティのためリンクには有効期限がある旨、を丁寧に。リンクのURLは一字一句そのまま貼ること（短縮・改変しない）。\n\n【パスワード再設定リンク（そのまま本文に貼る）】\n" + j.link;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    sendTask();
+    toast("再設定リンクを発行（コピー済み）。返信文を作成中…");
+  };
+
   // 問い合わせから、そのまま返信メールをAI(ライター)に作らせる
   function replyToInquiry(q) {
     replyCtx = {
