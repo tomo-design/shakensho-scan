@@ -120,8 +120,9 @@
       .then(function (res) {
         if (!res.ok) throw new Error(res.j.error || "送信に失敗しました。");
         form.style.display = "none";
-        msg.className = "form-msg ok";
-        msg.innerHTML = "お申し込みありがとうございます。担当より1営業日を目安にご連絡します。";
+        msg.className = "form-msg sent";
+        msg.innerHTML = "<div class='sent-check'>✓</div><div class='sent-t'>お申し込みを受け付けました。ありがとうございます！</div>" +
+          "<div class='sent-sub'>担当より<b>1営業日を目安に</b>ご連絡いたします。今しばらくお待ちください。<br>お急ぎの場合は cablueie.123@gmail.com までご連絡ください。</div>";
       })
       .catch(function (err) { msg.textContent = err.message; msg.classList.add("err"); btn.disabled = false; btn.textContent = "この内容で申し込む"; });
   });

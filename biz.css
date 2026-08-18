@@ -184,6 +184,11 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
 .form-msg{margin-top:14px;font-size:14px;text-align:center;min-height:18px}
 .form-msg.err{color:#d64545}
 .form-msg.ok{color:var(--green);font-weight:700;font-size:15px}
+/* 送信完了パネル(お礼) */
+.form-msg.sent{margin-top:0;background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px 24px;box-shadow:0 30px 80px -30px rgba(0,0,0,.5);color:var(--ink);font-weight:400}
+.form-msg.sent .sent-check{width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:var(--green);color:#fff;font-size:30px;font-weight:800;display:grid;place-items:center;box-shadow:0 8px 20px -6px rgba(21,128,61,.6)}
+.form-msg.sent .sent-t{font-size:19px;font-weight:800;color:var(--ink);margin-bottom:8px}
+.form-msg.sent .sent-sub{font-size:14px;color:var(--ink2);line-height:1.7}
 
 /* ============ フッター ============ */
 .foot{background:#0f1218;color:#c8cdd6;padding:44px 0 26px}
