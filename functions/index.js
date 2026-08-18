@@ -932,9 +932,21 @@ async function issueContractAccount(db, info) {
   const company = String(info.company || "").trim();
   const chars = "abcdefghjkmnpqrstuvwxyz23456789";
   let pw = ""; for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
-  let uid;
-  try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; await admin.auth().updateUser(uid, { password: pw }); }
-  catch (e) { const u = await admin.auth().createUser({ email, password: pw, displayName: name || company }); uid = u.uid; }
+  let uid = null, existedInAuth = false;
+  try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; existedInAuth = true; }
+  catch (e) { uid = null; }
+  if (existedInAuth) {
+    // ★乗っ取り防止(厳格)★ 既に存在するアカウントのパスワード・役割・IDは、契約発行フローからは一切上書きしない。
+    //   これをしないと「自分のメールで契約申込/テスト発行」→ 既存ログインのパスワードが勝手に変わる事故が起きる。
+    //   既存Authが1件でもあれば自動発行は中止し、フォールバック(手動対応/受付メール)に回す。
+    const existing = await db.collection("users").doc(uid).get();
+    if (existing.exists && (existing.data() || {}).role === "super") {
+      throw new Error("このメールアドレスは運営アカウントです。契約発行の対象にできません。");
+    }
+    throw new Error("このメールアドレスは既に登録済みです。既存ログイン(パスワード/ID)を保護するため自動発行を中止しました。別のメールで発行するか、手動でご対応ください。");
+  }
+  const u = await admin.auth().createUser({ email, password: pw, displayName: name || company });
+  uid = u.uid;
   let loginId = pr.loginId;
   const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
   if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
@@ -1014,30 +1026,6 @@ exports.loginIdLookup = functions.region(REGION).https.onRequest(async (req, res
   const q = await db.collection("users").where("loginId", "==", id).limit(1).get();
   if (q.empty) return res.status(404).json({ error: "IDが見つかりません。" });
   return res.json({ email: q.docs[0].data().email || "" });
-});
-
-// ★一時★ 本人アカウントのログイン復旧(パスワード再設定)。実行後に削除する。秘密キーで保護。
-exports.emergencyPwReset = functions.region(REGION).https.onRequest(async (req, res) => {
-  setCors(res);
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  const secret = String((req.body && req.body.secret) || "");
-  if (secret !== "ac16baceb55b9bab186ff88b60aeb5004fd8") return res.status(403).json({ error: "forbidden" });
-  const email = String((req.body && req.body.email) || "").trim().toLowerCase();
-  const pw = String((req.body && req.body.pw) || "");
-  if (!email || pw.length < 6) return res.status(400).json({ error: "bad params" });
-  const auth = admin.auth();
-  let u;
-  try { u = await auth.getUserByEmail(email); }
-  catch (e) { return res.status(404).json({ error: "USER_NOT_FOUND", code: e.code || String(e) }); }
-  await auth.updateUser(u.uid, { password: pw, disabled: false });
-  let doc = null;
-  try {
-    const db = admin.firestore();
-    const snap = await db.collection("users").doc(u.uid).get();
-    doc = snap.exists ? { role: snap.data().role, active: snap.data().active, tenantId: snap.data().tenantId, loginId: snap.data().loginId } : null;
-    if (snap.exists && snap.data().active !== true) await snap.ref.set({ active: true }, { merge: true });
-  } catch (e) {}
-  return res.json({ ok: true, uid: u.uid, disabled: u.disabled, doc });
 });
 
 // 店舗コード(表示用の別名)を設定/変更する。
