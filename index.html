@@ -517,6 +517,17 @@
 
 <!-- ============ VIEW: SETTINGS ============ -->
 <div id="view-settings" class="view">
+  <!-- 事務用: 入庫管理専用モード(この端末をボードだけの全画面に) -->
+  <section id="secOfficeMode" class="corpOnly" style="margin-top:14px">
+    <details class="foldSec">
+    <summary class="foldSecSum">🗂 事務用（入庫管理専用モード）</summary>
+    <div class="sec-body">
+      <p class="note">この端末を<b>入庫ボードだけの画面</b>にします。スキャン・AI・DB編集などは表示されず、事務の方が入庫状況の確認・出庫・費用回収の管理・コメントだけを行えます。整備士がスキャンして入庫すると<b>音とポップアップ</b>で通知します。</p>
+      <label class="offToggle"><input type="checkbox" id="officeModeChk"> 入庫管理専用モードにする</label>
+      <p class="note" style="margin-top:6px">※ 解除は専用画面の「設定に戻る」から行えます。</p>
+    </div>
+    </details>
+  </section>
   <!-- 個人モードのみ表示: 自分のAPIキーで動くことを最初に案内 -->
   <div id="personalKeyBanner" class="keyBanner">
     <div class="keyBannerTtl">🔑 このアプリはご自身のAPIキーで動きます</div>
@@ -807,6 +818,12 @@
     <button class="ab-k" data-assign="expiry">有効期限</button>
   </div>
   <button class="ab-c" id="abClose">×</button>
+</div>
+
+<!-- 事務用: 入庫管理専用モードの上部バー(専用モード時のみ表示) -->
+<div id="officeBar" class="officeBar hidden">
+  <span class="obTitle">🗂 入庫管理</span>
+  <button type="button" id="obExit" class="obExit">設定に戻る</button>
 </div>
 
 <!-- bottom nav -->

@@ -2778,6 +2778,7 @@ function dedupeHistory(list) {
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
       karte: mergeKarte(a.karte, h.karte),
       intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
+      feePaid: pick("feePaid"), officeMemo: pick("officeMemo"),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
   }
@@ -2870,6 +2871,7 @@ function setIntake(rid, kind) {
   t.intakeKind = kind; t.intakeAt = Date.now(); t.intakeOut = null; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
+  if (_intakeSeen) _intakeSeen.add(rid);   // 自端末の登録は自分に通知しない
   renderIntakeBoard(); renderHistory();
 }
 /* 出庫(ボードから外す。履歴・カルテは残る) */
@@ -2906,14 +2908,87 @@ function openIntakePopup(d) {
   modal.addEventListener("click", e => { if (e.target === modal) toggle("intakeModal", false); });
 })();
 /* ボード描画: ホームで現在庫を区分色カードで表示 */
+let _intakeSeen = null;   // 既知の入庫rid集合(新規入庫の通知判定用)
+function notifyNewIntakes(list) {
+  const ids = list.map(h => h.rid).filter(Boolean);
+  if (_intakeSeen === null) { _intakeSeen = new Set(ids); return; }   // 初回は通知せず記録のみ
+  const fresh = list.filter(h => h.rid && !_intakeSeen.has(h.rid));
+  _intakeSeen = new Set(ids);
+  if (!fresh.length) return;
+  const h = fresh[0];
+  const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind };
+  const name = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
+  const more = fresh.length > 1 ? "（ほか" + (fresh.length - 1) + "台）" : "";
+  notifyAttention("🚗 新しい入庫", "【" + info.label + "】" + name + more + " が入庫しました。", () => { try { goHome(); } catch (e) {} });
+}
+/* 事務モード(入庫管理専用): この端末をボードだけの全画面にする */
+function officeMode() { return localStorage.getItem("ss_office") === "1"; }
+/* 費用回収・コメントの編集ができるか(事務モード or 管理者) */
+function canEditIntake() { return officeMode() || (typeof isManager === "function" && isManager()); }
+/* 費用回収状況の切替(未回収⇄回収済) */
+function toggleFee(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  t.feePaid = !t.feePaid; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  renderIntakeBoard();
+}
+/* 車両ごとのコメント編集 */
+function editIntakeMemo(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const v = prompt("この車両のコメント（費用の内訳・連絡事項など）", t.officeMemo || "");
+  if (v === null) return;
+  t.officeMemo = v.trim() || null; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  renderIntakeBoard();
+}
+/* 手動で入庫を追加(電話予約など未スキャンの車)。ナンバー＋区分だけ */
+function addManualIntake() {
+  const plate = prompt("入庫する車のナンバー／使用者名を入力してください");
+  if (plate === null || !plate.trim()) return;
+  const kinds = Object.keys(INTAKE_KINDS);
+  const kLabel = kinds.map((k, i) => (i + 1) + ":" + INTAKE_KINDS[k].label).join("  ");
+  const sel = prompt("区分を番号で選んでください\n" + kLabel, "1");
+  if (sel === null) return;
+  const kind = kinds[(parseInt(sel, 10) || 1) - 1] || kinds[0];
+  const rid = newRid();
+  const t = { id: Date.now(), rid, type: null, vin: null, plate: plate.trim(), name: null,
+    intakeKind: kind, intakeAt: Date.now(), intakeOut: null, feePaid: false, officeMemo: null,
+    at: new Date().toISOString(), updatedAt: Date.now() };
+  const hist = getHistory(); hist.unshift(t);
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  if (_intakeSeen) _intakeSeen.add(rid);
+  renderIntakeBoard(); renderHistory();
+  showToast("入庫を追加しました（" + INTAKE_KINDS[kind].label + "）");
+}
 function renderIntakeBoard() {
   const sec = $("intakeBoard"), box = $("ibList"); if (!sec || !box) return;
   const list = activeIntakes();
+  notifyNewIntakes(list);   // 他端末からの新規入庫を音＋ポップアップで通知
   const cnt = $("ibCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
-  // ホーム(mechaHero表示中=車両非表示)でのみ、かつ在庫がある時だけ出す
+  const office = officeMode();
+  const editable = canEditIntake();
+  // 手動追加ボタン(事務/管理者のみ)
+  let addBtn = $("ibAdd");
+  if (editable) {
+    if (!addBtn) {
+      addBtn = document.createElement("button"); addBtn.id = "ibAdd"; addBtn.className = "ibAdd";
+      addBtn.textContent = "＋ 手動で入庫追加";
+      addBtn.addEventListener("click", addManualIntake);
+      const head = sec.querySelector(".ibHead"); if (head) head.appendChild(addBtn);
+    }
+    addBtn.classList.remove("hidden");
+  } else if (addBtn) addBtn.classList.add("hidden");
+  // 事務モードは常に全画面表示。通常はホーム(車両非表示)かつ在庫がある時だけ
   const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
-  if (!list.length || !onHome) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
+  if (!office && (!list.length || !onHome)) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
   box.innerHTML = "";
+  if (office && !list.length) {
+    box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
+    toggle("intakeBoard", true); return;
+  }
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const card = document.createElement("div"); card.className = "ibCard " + info.cls;
@@ -2924,13 +2999,58 @@ function renderIntakeBoard() {
     info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    info2.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
+    // 事務モードでは車両詳細を開かない(他機能を出さない)。通常は詳細へ
+    if (!office) info2.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
+    else info2.style.cursor = "default";
+    card.appendChild(info2);
+
+    // 費用回収・コメント(事務/管理者)
+    if (editable) {
+      const meta = document.createElement("div"); meta.className = "ibMeta";
+      const fee = document.createElement("button");
+      fee.className = "ibFee " + (h.feePaid ? "feePaid" : "feeUnpaid");
+      fee.textContent = h.feePaid ? "回収済" : "未回収";
+      fee.title = "費用の回収状況(タップで切替)";
+      fee.addEventListener("click", e => { e.stopPropagation(); toggleFee(h.rid); });
+      const memo = document.createElement("button");
+      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
+      memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
+      memo.addEventListener("click", e => { e.stopPropagation(); editIntakeMemo(h.rid); });
+      meta.appendChild(fee); meta.appendChild(memo);
+      card.appendChild(meta);
+    }
+
     const out = document.createElement("button"); out.className = "ibOut"; out.textContent = "出庫";
     out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) clearIntake(h.rid); });
-    card.appendChild(info2); card.appendChild(out); box.appendChild(card);
+    card.appendChild(out); box.appendChild(card);
   });
   toggle("intakeBoard", true);
 }
+/* 事務モードのON/OFFを画面へ反映(全画面ボード) */
+function applyOfficeMode() {
+  const on = officeMode();
+  document.body.classList.toggle("officeMode", on);
+  const hdr = $("officeBar"); if (hdr) toggle("officeBar", on);
+  const chk = $("officeModeChk"); if (chk) chk.checked = on;
+  if (on) { try { switchView("scan"); } catch (e) {} }
+  try { renderIntakeBoard(); } catch (e) {}
+}
+(function bindOfficeMode() {
+  const chk = document.getElementById("officeModeChk");
+  if (chk) chk.addEventListener("change", () => {
+    if (chk.checked) {
+      if (!confirm("この端末を入庫管理専用モードにします。スキャンやAIなどは表示されなくなります。よろしいですか？")) { chk.checked = false; return; }
+      localStorage.setItem("ss_office", "1");
+    } else localStorage.removeItem("ss_office");
+    applyOfficeMode();
+  });
+  const exit = document.getElementById("obExit");
+  if (exit) exit.addEventListener("click", () => {
+    localStorage.removeItem("ss_office");
+    applyOfficeMode();
+    try { switchView("settings"); } catch (e) {}
+  });
+})();
 /* 満了日等のYYYY/MM/DD整形(timestamp or Date) */
 function fmtYMD(v) {
   const d = v instanceof Date ? v : new Date(v);
@@ -5888,6 +6008,60 @@ function showToast(msg) {
   showToast._t = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
+/* ===== 確実に鳴る通知(音＋アプリ内ポップアップ) =====
+   iOS Safari/PWAでは new Notification() が動かず無音で失敗するため、
+   システム通知に頼らず WebAudio のビープ音 + 画面内モーダルで確実に知らせる。 */
+let _audioCtx = null;
+function unlockAudio() {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+  } catch (e) {}
+}
+// 初回の操作で音声を解禁(iOSはユーザー操作が必須)
+["pointerdown", "touchstart", "keydown"].forEach(ev =>
+  window.addEventListener(ev, unlockAudio, { once: false, passive: true }));
+/* ピンポン♪ の注意音を2回鳴らす */
+function playChime() {
+  try {
+    unlockAudio(); if (!_audioCtx) return;
+    const ctx = _audioCtx, t0 = ctx.currentTime;
+    [[880, 0], [1174, 0.18], [880, 0.5], [1174, 0.68]].forEach(([f, dt]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + dt);
+      g.gain.exponentialRampToValueAtTime(0.35, t0 + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.16);
+      o.connect(g).connect(ctx.destination); o.start(t0 + dt); o.stop(t0 + dt + 0.18);
+    });
+  } catch (e) {}
+}
+/* 画面内の注意ポップアップ(音付き)。onOpenで詳細画面へ誘導できる */
+function notifyAttention(title, body, onOpen) {
+  playChime();
+  if (navigator.vibrate) { try { navigator.vibrate([120, 60, 120]); } catch (e) {} }
+  let m = document.getElementById("notifyPop");
+  if (!m) {
+    m = document.createElement("div"); m.id = "notifyPop"; m.className = "notifyPop hidden";
+    m.innerHTML = '<div class="npCard"><div class="npIcon">🔔</div>' +
+      '<div class="npBody"><div class="npTitle"></div><div class="npText"></div></div>' +
+      '<div class="npBtns"><button type="button" class="npOpen">確認</button>' +
+      '<button type="button" class="npClose">閉じる</button></div></div>';
+    document.body.appendChild(m);
+  }
+  m.querySelector(".npTitle").textContent = title || "お知らせ";
+  m.querySelector(".npText").textContent = body || "";
+  const openBtn = m.querySelector(".npOpen"), closeBtn = m.querySelector(".npClose");
+  openBtn.style.display = onOpen ? "" : "none";
+  openBtn.onclick = () => { toggle("notifyPop", false); try { onOpen && onOpen(); } catch (e) {} };
+  closeBtn.onclick = () => toggle("notifyPop", false);
+  toggle("notifyPop", true);
+  // システム通知が使える環境ではそれも出す(バックグラウンド時の保険)
+  try { if ("Notification" in window && Notification.permission === "granted") new Notification(title || "メカノAI", { body: body || "", icon: "icons/icon-192.png" }); } catch (e) {}
+}
+window.notifyAttention = notifyAttention;
+window.playChime = playChime;
+
 (async function init() {
   applyAppMode();   // 個人/法人モードを反映(同期・契約タブの表示切替)
   loadCustomDB();
@@ -5902,6 +6076,7 @@ function showToast(msg) {
   renderAiMode();
   renderDiagHistList();   // 保存済み診断結果の一覧を復元
   renderRepairHistList();   // 保存済み点検手引書の一覧を復元
+  applyOfficeMode();   // 事務用: 入庫管理専用モードならボード全画面に
   // Stripe決済から戻ってきた時のお礼(?paid=1)。プラン有効化は数秒後にサーバー側で反映される。
   try {
     if (/[?&]paid=1/.test(location.search)) {

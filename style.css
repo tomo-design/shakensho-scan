@@ -1009,3 +1009,59 @@ body.pwLocked{ overflow:hidden }
 .ikBtn:active{filter:brightness(.92)}
 .ikLater{display:block;width:100%;margin-top:14px;background:none;border:0;color:var(--dim);
   font-size:13px;font-weight:600;padding:6px;cursor:pointer;text-decoration:underline}
+
+/* ===== 注意ポップアップ(参加申請・新規入庫) ===== */
+.notifyPop{position:fixed;left:0;right:0;top:0;z-index:500;display:flex;justify-content:center;padding:12px;
+  pointer-events:none;animation:npDrop .3s ease}
+.notifyPop.hidden{display:none}
+@keyframes npDrop{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}
+.npCard{pointer-events:auto;background:var(--panel);border:2px solid #2563EB;border-radius:14px;
+  box-shadow:0 10px 34px rgba(0,0,0,.3);padding:14px 16px;max-width:420px;width:100%;
+  display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
+.npIcon{font-size:26px;grid-row:span 2}
+.npTitle{font-size:15px;font-weight:800;color:var(--txt)}
+.npText{font-size:13px;color:var(--dim);line-height:1.5}
+.npBtns{grid-column:2;display:flex;gap:8px;margin-top:6px}
+.npOpen{background:#2563EB;color:#fff;border:0;border-radius:9px;font-size:13px;font-weight:700;padding:8px 16px;cursor:pointer}
+.npClose{background:var(--panel2);color:var(--dim);border:0;border-radius:9px;font-size:13px;font-weight:700;padding:8px 14px;cursor:pointer}
+
+/* ===== 入庫ボード: 費用回収・コメント・手動追加 ===== */
+.ibHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ibAdd{margin-left:auto;background:#2563EB;color:#fff;border:0;border-radius:9px;
+  font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
+.ibAdd.hidden{display:none}
+.ibCard{flex-wrap:wrap}
+.ibMeta{flex-basis:100%;display:flex;gap:8px;align-items:center;padding:0 12px 10px;flex-wrap:wrap}
+.ibFee{border:0;border-radius:999px;font-size:12px;font-weight:800;padding:5px 14px;cursor:pointer;color:#fff}
+.ibFee.feeUnpaid{background:#DC2626}
+.ibFee.feePaid{background:#16A34A}
+.ibMemo{flex:1;min-width:120px;text-align:left;background:var(--panel2);border:1px dashed var(--line);
+  border-radius:8px;font-size:12px;color:var(--dim);padding:6px 10px;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibMemo.hasMemo{border-style:solid;color:var(--txt);background:var(--panel)}
+.ibEmpty{text-align:center;color:var(--dim);font-size:13px;line-height:1.7;padding:30px 10px}
+
+/* ===== 事務用: 入庫管理専用モード ===== */
+.offToggle{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--txt);cursor:pointer;margin-top:8px}
+.offToggle input{width:18px;height:18px}
+.officeBar{position:fixed;top:0;left:0;right:0;z-index:220;display:flex;align-items:center;gap:10px;
+  background:#1B2530;color:#fff;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.officeBar.hidden{display:none}
+body.officeMode{padding-top:56px}
+.obTitle{font-size:16px;font-weight:800}
+.obExit{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:8px;
+  font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
+/* 専用モード: ボード以外を全部隠す */
+body.officeMode header,
+body.officeMode #tabs,
+body.officeMode #mechaHero,
+body.officeMode #scanBack,
+body.officeMode #lastVehicle,
+body.officeMode #view-scan > section:not(#intakeBoard),
+body.officeMode #view-scan > div:not(#intakeBoard):not(#officeBar),
+body.officeMode #view-scan > button,
+body.officeMode #view-history,
+body.officeMode #view-db,
+body.officeMode #view-settings{display:none !important}
+body.officeMode #intakeBoard{display:block !important;margin-top:0}
+body.officeMode #view-scan{padding-top:0}
