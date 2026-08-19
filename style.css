@@ -1035,6 +1035,7 @@ body.pwLocked{ overflow:hidden }
 .ibFee{border:0;border-radius:999px;font-size:12px;font-weight:800;padding:5px 14px;cursor:pointer;color:#fff}
 .ibFee.feeUnpaid{background:#DC2626}
 .ibFee.feePaid{background:#16A34A}
+.ibFee.feeAdvance{background:#7C3AED}
 .ibMemo{flex:1;min-width:120px;text-align:left;background:var(--panel2);border:1px dashed var(--line);
   border-radius:8px;font-size:12px;color:var(--dim);padding:6px 10px;cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1047,7 +1048,8 @@ body.pwLocked{ overflow:hidden }
 .officeBar{position:fixed;top:0;left:0;right:0;z-index:220;display:flex;align-items:center;gap:10px;
   background:#1B2530;color:#fff;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
 .officeBar.hidden{display:none}
-body.officeMode{padding-top:56px}
+body.officeMode{padding-top:84px}
+body.officeMode #intakeBoard .ibHead{margin-top:6px}
 .obTitle{font-size:16px;font-weight:800}
 .obExit{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:8px;
   font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}

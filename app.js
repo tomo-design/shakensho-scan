@@ -2778,7 +2778,7 @@ function dedupeHistory(list) {
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
       karte: mergeKarte(a.karte, h.karte),
       intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
-      feePaid: pick("feePaid"), officeMemo: pick("officeMemo"),
+      feePaid: pick("feePaid"), feeStatus: pick("feeStatus"), officeMemo: pick("officeMemo"),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
   }
@@ -2949,10 +2949,23 @@ function notifyNewIntakes(list) {
 function officeMode() { return localStorage.getItem("ss_office") === "1"; }
 /* 費用回収・コメントの編集ができるか(事務モード or 管理者) */
 function canEditIntake() { return officeMode() || (typeof isManager === "function" && isManager()); }
-/* 費用回収状況の切替(未回収⇄回収済) */
-function toggleFee(rid) {
+/* 費用の状況: 未回収 / 回収済 / 自社立替(法定費用などを店が立て替え) */
+const FEE_STATES = {
+  unpaid: { label: "未回収", cls: "feeUnpaid" },
+  paid: { label: "回収済", cls: "feePaid" },
+  advance: { label: "自社立替", cls: "feeAdvance" },
+};
+const FEE_ORDER = ["unpaid", "paid", "advance"];
+/* 旧データ(feePaid真偽)からも状況を判定 */
+function feeStateOf(h) {
+  if (h && FEE_STATES[h.feeStatus]) return h.feeStatus;
+  return (h && h.feePaid === true) ? "paid" : "unpaid";
+}
+/* 費用の状況を次へ切替(未回収→回収済→自社立替→…) */
+function cycleFee(rid) {
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
-  t.feePaid = !t.feePaid; t.updatedAt = Date.now();
+  const next = FEE_ORDER[(FEE_ORDER.indexOf(feeStateOf(t)) + 1) % FEE_ORDER.length];
+  t.feeStatus = next; t.feePaid = (next === "paid"); t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
@@ -3037,10 +3050,11 @@ function renderIntakeBoard() {
     if (editable) {
       const meta = document.createElement("div"); meta.className = "ibMeta";
       const fee = document.createElement("button");
-      fee.className = "ibFee " + (h.feePaid ? "feePaid" : "feeUnpaid");
-      fee.textContent = h.feePaid ? "回収済" : "未回収";
-      fee.title = "費用の回収状況(タップで切替)";
-      fee.addEventListener("click", e => { e.stopPropagation(); toggleFee(h.rid); });
+      const fs = FEE_STATES[feeStateOf(h)];
+      fee.className = "ibFee " + fs.cls;
+      fee.textContent = fs.label;
+      fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
+      fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
       const memo = document.createElement("button");
       memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
       memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
