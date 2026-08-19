@@ -2938,6 +2938,7 @@ function notifyNewIntakes(list) {
   if (_intakeSeen === null) { _intakeSeen = new Set(ids); return; }   // 初回は通知せず記録のみ
   const fresh = list.filter(h => h.rid && !_intakeSeen.has(h.rid));
   _intakeSeen = new Set(ids);
+  if (!officeMode()) return;   // 通知は事務用モードの端末のみ(通常ログインには出さない)
   if (!fresh.length) return;
   const h = fresh[0];
   const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind };
@@ -3018,9 +3019,8 @@ function renderIntakeBoard() {
     }
     addBtn.classList.remove("hidden");
   } else if (addBtn) addBtn.classList.add("hidden");
-  // 事務モードは常に全画面表示。通常はホーム(車両非表示)かつ在庫がある時だけ
-  const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
-  if (!office && (!list.length || !onHome)) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
+  // 入庫ボードは事務用モードの端末のみ表示(通常ログインのホームには出さない)
+  if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
   box.innerHTML = "";
   if (office && !list.length) {
     box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';

@@ -348,7 +348,7 @@
     show("cloudChoice", false); show("cloudForm", true);
     show("tenantField", mode !== "login");
     show("nameField", mode !== "login");
-    show("officeLoginRow", mode === "login");   // 事務用の専用ログインはログイン時のみ選べる
+    show("officeLoginRow", true);   // 事務用の専用モードは ログイン・新規参加・会社登録 いずれでも選べる
     $("cloudFormTitle").textContent = mode === "new" ? "管理者として会社を新規登録（1社1名）" : mode === "join" ? "従業員として会社に参加（承認待ちになります）" : "ログイン";
     $("btnCloudSubmit").textContent = mode === "new" ? "会社を登録" : mode === "join" ? "参加を申請" : "ログイン";
     $("cloudAuthStat").textContent = "";
@@ -485,6 +485,12 @@
       } else {
         await db.collection("users").doc(uid).set({ name, email, tenantId: tid, role: "staff", active: false, rejected: false, createdAt: Date.now() });
         $("cloudAuthStat").textContent = "✓ 参加申請しました。会社の代表管理者の承認をお待ちください。";
+      }
+      // 事務用: 選択されていればこの端末を入庫管理専用に(承認/ログイン後に反映されるようフラグのみ保存)
+      const off = $("officeLoginChk");
+      if (off && off.checked) {
+        localStorage.setItem("ss_office", "1");
+        $("cloudAuthStat").textContent += "（承認後、この端末は入庫管理専用画面になります）";
       }
     } catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
   }
