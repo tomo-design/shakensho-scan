@@ -348,6 +348,7 @@
     show("cloudChoice", false); show("cloudForm", true);
     show("tenantField", mode !== "login");
     show("nameField", mode !== "login");
+    show("officeLoginRow", mode === "login");   // 事務用の専用ログインはログイン時のみ選べる
     $("cloudFormTitle").textContent = mode === "new" ? "管理者として会社を新規登録（1社1名）" : mode === "join" ? "従業員として会社に参加（承認待ちになります）" : "ログイン";
     $("btnCloudSubmit").textContent = mode === "new" ? "会社を登録" : mode === "join" ? "参加を申請" : "ログイン";
     $("cloudAuthStat").textContent = "";
@@ -374,6 +375,9 @@
           email = j.email;
         }
         await auth.signInWithEmailAndPassword(email, pw);
+        // 事務用: 専用ログインが選択されていればこの端末を入庫管理専用モードに
+        const off = $("officeLoginChk");
+        if (off && off.checked) { localStorage.setItem("ss_office", "1"); if (typeof applyOfficeMode === "function") applyOfficeMode(); }
       }
       catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
     } else { signup(cloudMode === "new"); }

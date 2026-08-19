@@ -1076,3 +1076,11 @@ body.officeMode #view-scan{padding-top:0}
 .hIntake.ikRepair{background:#EA8C00}
 .hIntake.ikJiko{background:#DC2626}
 .hIntake.hIntakeSet{background:var(--panel2);color:var(--amber);border:1px dashed var(--amber)}
+
+/* ログイン時: 事務用の専用ログイン選択 */
+.offLoginRow{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:12px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);
+  font-size:13.5px;font-weight:700;color:var(--txt);cursor:pointer}
+.offLoginRow.hidden{display:none}
+.offLoginRow input{width:18px;height:18px;flex:none}
+.offLoginRow small{flex-basis:100%;font-weight:500;color:var(--dim);font-size:11.5px;padding-left:26px}
