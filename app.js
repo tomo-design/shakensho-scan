@@ -3112,21 +3112,23 @@ function renderHistory() {
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     div.appendChild(main);
-    // 入庫区分: 未設定なら「＋区分」、設定済みなら区分チップ。どちらもタップでポップアップ
-    if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化(区分操作の対象にする)
-    const active = h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut;
-    const ik = document.createElement("button");
-    if (active) {
-      const info = INTAKE_KINDS[h.intakeKind];
-      ik.className = "hIntake " + info.cls; ik.textContent = info.label + " ▾";
-      ik.title = "入庫区分（タップで変更）";
-      ik.addEventListener("click", e => { e.stopPropagation(); changeIntakeKind(h.rid); });
-    } else {
-      ik.className = "hIntake hIntakeSet"; ik.textContent = "＋区分";
-      ik.title = "入庫区分を設定してボードに追加";
-      ik.addEventListener("click", e => { e.stopPropagation(); openIntakeModalFor(h.rid, title, "new"); });
+    // 入庫区分: 管理者のみ操作可(未設定なら「＋区分」、設定済みなら区分チップ)。どちらもタップでポップアップ
+    if (isManager()) {
+      if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化(区分操作の対象にする)
+      const active = h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut;
+      const ik = document.createElement("button");
+      if (active) {
+        const info = INTAKE_KINDS[h.intakeKind];
+        ik.className = "hIntake " + info.cls; ik.textContent = info.label + " ▾";
+        ik.title = "入庫区分（タップで変更）";
+        ik.addEventListener("click", e => { e.stopPropagation(); changeIntakeKind(h.rid); });
+      } else {
+        ik.className = "hIntake hIntakeSet"; ik.textContent = "＋区分";
+        ik.title = "入庫区分を設定してボードに追加";
+        ik.addEventListener("click", e => { e.stopPropagation(); openIntakeModalFor(h.rid, title, "new"); });
+      }
+      div.appendChild(ik);
     }
-    div.appendChild(ik);
     if (isManager()) {   // 履歴の削除は管理者のみ
       const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
       del.addEventListener("click", () => {
