@@ -34,11 +34,14 @@
   .cover-band .sub{color:#dbe4f4;font-size:14.5px;max-width:600px;margin:0;position:relative;z-index:1}
   .cover-band .tag{display:inline-block;margin-top:16px;background:rgba(255,177,0,.16);border:1px solid rgba(255,177,0,.45);color:var(--gold);font-weight:800;font-size:13.5px;padding:7px 16px;border-radius:999px;position:relative;z-index:1}
 
-  .kv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:2mm 0 6mm}
-  .kv .k{border:1px solid var(--line);border-radius:12px;padding:14px 14px 15px;background:var(--soft);text-align:center}
-  .kv .k .n{font-size:26px;font-weight:900;color:var(--blue);line-height:1.1}
-  .kv .k .n small{font-size:13px;font-weight:800}
-  .kv .k .l{font-size:12px;color:var(--ink2);margin-top:5px;line-height:1.55;word-break:keep-all;overflow-wrap:anywhere}
+  .kv{display:grid;grid-template-columns:1fr 1fr 1fr;margin:3mm 0 6mm;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+  .kv .k{display:flex;align-items:center;gap:13px;padding:16px 18px;border-left:1px solid var(--line)}
+  .kv .k:first-child{border-left:0}
+  .kv .k .ic{flex:none;width:42px;height:42px;border-radius:12px;background:linear-gradient(150deg,#e8f0ff,#dbe7ff);display:flex;align-items:center;justify-content:center;font-size:21px}
+  .kv .k .tx{min-width:0}
+  .kv .k .n{font-size:24px;font-weight:900;color:var(--navy);line-height:1.05;letter-spacing:-.01em}
+  .kv .k .n small{font-size:12px;font-weight:800;color:var(--blue);margin-left:1px}
+  .kv .k .l{font-size:11.5px;color:var(--ink2);margin-top:3px;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}
 
   h2{font-size:19px;border-left:5px solid var(--blue);padding-left:12px;margin:9mm 0 5mm}
   h2:first-of-type{margin-top:2mm}
@@ -127,6 +130,8 @@
     .sheet{width:100%;min-height:auto;padding:22px 18px}
     .cover-band{margin:-22px -18px 18px;padding:24px 18px}
     .kv,.pain,.grow .g3,.shots,ol.flow,.memo .grid{grid-template-columns:1fr}
+    .kv .k{border-left:0;border-top:1px solid var(--line)}
+    .kv .k:first-child{border-top:0}
     .cover-band h1{font-size:23px}
     .cta-row{grid-template-columns:1fr}
     .company .r{grid-template-columns:74px 1fr}
@@ -163,9 +168,9 @@
   </div>
 
   <div class="kv">
-    <div class="k"><div class="n">1<small>台</small></div><div class="l">スキャン・諸元・診断・カルテまで完結</div></div>
-    <div class="k"><div class="n">2<small>言語</small></div><div class="l">日本語／英語対応で外国人スタッフも戦力化</div></div>
-    <div class="k"><div class="n">7<small>日間</small></div><div class="l">無料トライアルで試してから判断できる</div></div>
+    <div class="k"><div class="ic">📱</div><div class="tx"><div class="n">1<small>台で完結</small></div><div class="l">スキャン・諸元・診断・カルテ</div></div></div>
+    <div class="k"><div class="ic">🌐</div><div class="tx"><div class="n">2<small>言語対応</small></div><div class="l">日本語／英語で外国人も戦力化</div></div></div>
+    <div class="k"><div class="ic">🎁</div><div class="tx"><div class="n">7<small>日間無料</small></div><div class="l">試してから継続を判断できる</div></div></div>
   </div>
 
   <h2>こんな現場の“困った”に<span class="en">Pain Points</span></h2>
