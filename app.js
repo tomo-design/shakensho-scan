@@ -3652,9 +3652,9 @@ async function geminiAsk(prompt, opts) {
 async function geminiAskStream(prompt, opts, onChunk) {
   opts = opts || {};
   if (typeof isDemo === "function" && isDemo()) return geminiAsk(prompt, opts);
-  // iOSはfetchのストリーミング応答が最初のチャンクで打ち切られ「見解が1文字」になる不具合があるため、
-  // ストリーミングを使わず一括取得(geminiAsk)にフォールバックする。結果は全文が一度に表示される。
-  if (isIOS()) return geminiAsk(prompt, opts);
+  // iOS + 自前キー直叩き(Google直のfetch SSE)は最初のチャンクで打ち切られる不具合があるため一括取得にする。
+  // 契約店舗(サーバープロキシ)はXHRストリーミング対応済みなのでiOSでも逐次表示する(体感速度を確保)。
+  if (isIOS() && !contractAi()) return geminiAsk(prompt, opts);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAsk(mecha)へ。
@@ -5046,8 +5046,8 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   opts = opts || {};
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
-  // iOSはfetchストリーミングが1チャンクで切れる不具合があるため一括取得にフォールバック(全文が一度に出る)。
-  if (isIOS()) return geminiAskMedia(prompt, media);
+  // iOS + 自前キー直叩きは1チャンクで切れるため一括取得。契約店舗はXHRストリーミング対応済みでiOSでも逐次表示。
+  if (isIOS() && !contractAi()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAskMediaへ。

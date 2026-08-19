@@ -846,7 +846,58 @@
     async callFnStream(name, payload, onChunk) {
       if (!me) throw new Error("ログインが必要です。");
       const idToken = await auth.currentUser.getIdToken();
-      const r = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/" + name, {
+      const url = "https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/" + name;
+      // iOS Safariは fetch の ReadableStream を最初のチャンクで打ち切ることがある(見解が1文字)。
+      // iOSでは XHR の responseText を逐次読み取る方式でストリーミングする(全端末で全文が少しずつ出る)。
+      const IS_IOS_CLIENT = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (IS_IOS_CLIENT) {
+        return await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", url, true);
+          xhr.setRequestHeader("Content-Type", "application/json");
+          xhr.setRequestHeader("Authorization", "Bearer " + idToken);
+          let seen = 0, full = "", truncated = false, usedModel = "", isStream = null;
+          const parseSSE = (all) => {
+            let chunk = all.slice(seen);
+            let idx;
+            while ((idx = chunk.indexOf("\n\n")) >= 0) {
+              const evt = chunk.slice(0, idx); chunk = chunk.slice(idx + 2); seen = all.length - chunk.length;
+              const line = evt.split("\n").find(l => l.indexOf("data:") === 0);
+              if (!line) continue;
+              const js = line.slice(5).trim(); if (!js) continue;
+              try {
+                const o = JSON.parse(js);
+                if (o.t) { full += o.t; if (onChunk) onChunk(full, false); }
+                if (o.done) { truncated = !!o.truncated; if (o.model) usedModel = o.model; }
+              } catch (e) {}
+            }
+          };
+          xhr.onprogress = () => {
+            const ct = (xhr.getResponseHeader("content-type") || "");
+            if (isStream === null) isStream = ct.indexOf("text/event-stream") >= 0;
+            if (isStream) parseSSE(xhr.responseText);
+          };
+          xhr.onload = () => {
+            const ct = (xhr.getResponseHeader("content-type") || "");
+            const streamed = ct.indexOf("text/event-stream") >= 0;
+            if (xhr.status >= 200 && xhr.status < 300 && streamed) {
+              parseSSE(xhr.responseText);
+              if (!full) return reject(new Error("AIから回答が得られませんでした"));
+              if (onChunk) onChunk(full, true);
+              return resolve({ text: full, truncated: truncated, model: usedModel || "proxy-stream" });
+            }
+            // 非ストリーム(エラーJSON or 通常JSON)
+            let data = {}; try { data = JSON.parse(xhr.responseText); } catch (e) {}
+            if (xhr.status < 200 || xhr.status >= 300) return reject(new Error((data && data.error) || ("サーバーエラー " + xhr.status)));
+            if (data && typeof data.text === "string") { if (onChunk) onChunk(data.text, true); return resolve({ text: data.text, truncated: !!data.truncated, model: "proxy" }); }
+            reject(new Error("AIから回答が得られませんでした"));
+          };
+          xhr.onerror = () => reject(new Error("通信に失敗しました"));
+          xhr.send(JSON.stringify(payload || {}));
+        });
+      }
+      const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
         body: JSON.stringify(payload || {}),
