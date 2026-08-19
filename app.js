@@ -1861,6 +1861,10 @@ function showResult(d, opt = {}) {
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
+  // 先に履歴へ統合保存(=ridを確定)してから「前回車両」カードを書く。
+  // これをしないと、車台番号・登録番号が無い型式のみの車両で、カードのrid/使用者名/原動機型式が
+  // 古いまま残り、再読み込み後に手動修正が元に戻る(rid未確定→findHistEntry不一致→古いカードに戻る)。
+  if (opt.fromScan && (d.type || d.vin)) addHistory(d);
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
 
@@ -1939,7 +1943,7 @@ function showResult(d, opt = {}) {
     const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
     c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
   });
-  if (opt.fromScan && (d.type || d.vin)) addHistory(d);
+  // 履歴への統合保存は上部(pushRecentVehicleの直前)で実施済み。
   toggle("karteForm", false); renderKarte();   // 整備カルテ(車両ごとの作業記録)
   $("result").scrollIntoView({ behavior: "smooth" });
 }
@@ -3387,6 +3391,12 @@ function capModeByPlan(mode) {
 function contractAi() {
   return !!(window.Cloud && typeof window.Cloud.aiReady === "function" && window.Cloud.aiReady());
 }
+/* iOS(iPhone/iPad)判定。iOS Safariはfetchのストリーミング応答を最初のチャンクで打ち切ることがあり、
+   SSEストリームだと「見解が1文字」になる不具合がある。iOSではストリーミングを使わず一括取得にする。 */
+function isIOS() {
+  const ua = navigator.userAgent || "";
+  return /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document);
+}
 /* 写真・動画解析のモード: プラン準拠。NA=標準Flash / ターボ・ツインターボ=高精度Pro(思考あり)。 */
 function mediaModeByPlan() {
   return (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? "pro" : "flash";
@@ -3642,6 +3652,9 @@ async function geminiAsk(prompt, opts) {
 async function geminiAskStream(prompt, opts, onChunk) {
   opts = opts || {};
   if (typeof isDemo === "function" && isDemo()) return geminiAsk(prompt, opts);
+  // iOSはfetchのストリーミング応答が最初のチャンクで打ち切られ「見解が1文字」になる不具合があるため、
+  // ストリーミングを使わず一括取得(geminiAsk)にフォールバックする。結果は全文が一度に表示される。
+  if (isIOS()) return geminiAsk(prompt, opts);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAsk(mecha)へ。
@@ -5033,6 +5046,8 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   opts = opts || {};
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
+  // iOSはfetchストリーミングが1チャンクで切れる不具合があるため一括取得にフォールバック(全文が一度に出る)。
+  if (isIOS()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAskMediaへ。
@@ -5710,8 +5725,9 @@ function pushRecentVehicle(d) {
   if (!d || !(d.type || d.vin || d.kataShitei)) return;
   try {
     let arr = JSON.parse(localStorage.getItem("ss_recentVeh") || "[]");
-    const nm = (findHistEntry(getHistory(), d) || {}).name || d.name || null;
-    const card = { type: d.type || null, vin: d.vin || null, kataShitei: d.kataShitei || null, plate: d.plate || null, name: nm, rid: d.rid || null, at: Date.now() };
+    const he = findHistEntry(getHistory(), d) || {};
+    const nm = he.name || d.name || null;
+    const card = { type: d.type || null, vin: d.vin || null, kataShitei: d.kataShitei || null, plate: d.plate || null, engine: d.engine || he.engine || null, name: nm, rid: d.rid || he.rid || null, at: Date.now() };
     arr = arr.filter(v => vehId(v) !== vehId(card));   // 同一車両は重複させない
     arr.unshift(card);
     localStorage.setItem("ss_recentVeh", JSON.stringify(arr.slice(0, 6)));
