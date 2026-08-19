@@ -5392,9 +5392,8 @@ async function diagMediaAnalyze() {
   if (text) { const dtcs = extractDTCs(text); renderDiagResults(dtcs, matchSymptoms(text), matchVehicleFaults(text, dtcs), text); }
   let stopTimer = null;
   try {
-    // 写真は自動圧縮してから送信(枚数が多くても収まる)。圧縮後の合計で上限チェック。
-    const media = [];
-    for (const a of diagAttachments) media.push(await attachToMedia(a));
+    // 写真は自動圧縮してから送信(枚数が多くても収まる)。複数枚は並列圧縮で最適化を高速化。
+    const media = await Promise.all(diagAttachments.map(a => attachToMedia(a)));
     const totalB64 = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
     if (totalB64 * 0.75 > ATTACH_MAX) {
       st.textContent = "⚠ 添付の合計サイズが大きすぎます(" + Math.round(totalB64 * 0.75 / 1048576) + "MB)。動画は1本・30秒程度に、写真は枚数を減らしてください。";
