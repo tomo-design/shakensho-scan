@@ -112,7 +112,7 @@ h1,h2,h3{line-height:1.35;margin:0}
 .feat-item p{color:var(--ink2);font-size:14px;margin:0}
 
 /* 育てるコンセプト */
-.grow-band{background:radial-gradient(900px 420px at 50% -20%,#173b73,var(--navy) 60%,#0b1f45);color:#fff}
+.grow-band{background:radial-gradient(900px 420px at 50% -20%,#173b73,#0f2a5a 60%,#0b1f45);color:#fff}
 .grow-eyebrow{display:block;text-align:center;color:var(--gold);font-weight:700;font-size:13px;letter-spacing:.12em;margin-bottom:8px}
 .grow3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}
 .grow-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:24px 20px}
