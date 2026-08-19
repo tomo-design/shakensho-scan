@@ -144,6 +144,13 @@
     .sheet+.sheet{margin-top:0;page-break-before:always}
     .cover-band{margin:0 0 8mm}
     h2,.grow,table.price,.company,.demo,.memo,.pain .p,ol.flow li,.shots figure{break-inside:avoid}
+    /* 印刷時: 見出しと直後のブロックを離さない＋余白を詰める(改ページ空白を防ぐ) */
+    h2{break-after:avoid;margin:6mm 0 3.5mm}
+    .grow,.g3{break-inside:avoid}
+    /* スクショは縦長で改ページ境界に丸ごと収まらず次ページへ飛び空白を生む。
+       印刷時は高さを抑え(縦横比は保持)、見出しと同一ページに収める */
+    .shots{margin-top:3mm}
+    .shots img{height:58mm;width:auto;max-width:100%;margin:0 auto}
     .pnum{color:#c2cad6}
     @page{size:A4;margin:12mm}
   }
