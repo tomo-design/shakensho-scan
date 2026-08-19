@@ -2874,6 +2874,17 @@ function setIntake(rid, kind) {
   if (_intakeSeen) _intakeSeen.add(rid);   // 自端末の登録は自分に通知しない
   renderIntakeBoard(); renderHistory();
 }
+/* 入庫区分だけ変更(入庫日時はそのまま) */
+function setIntakeKindOnly(rid, kind) {
+  if (!INTAKE_KINDS[kind]) return;
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  t.intakeKind = kind; if (t.intakeOut) { t.intakeOut = null; if (!t.intakeAt) t.intakeAt = Date.now(); }
+  t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  if (_intakeSeen) _intakeSeen.add(rid);
+  renderIntakeBoard();
+}
 /* 出庫(ボードから外す。履歴・カルテは残る) */
 function clearIntake(rid) {
   const hist = getHistory();
@@ -2890,18 +2901,31 @@ function openIntakePopup(d) {
   if (!rid) return;
   const cur = getHistory().find(h => h.rid === rid);
   if (cur && cur.intakeKind && !cur.intakeOut) return;   // 既に入庫中: 二重登録しない
+  openIntakeModalFor(rid, [dispText(d.plate), dispText(d.name)].filter(Boolean).join(" ／ ") || dispText(d.type) || "この車両", "new");
+}
+/* 区分の変更(既に入庫中の車両)。ボードの区分タグから呼ぶ */
+function changeIntakeKind(rid) {
+  const h = getHistory().find(x => x.rid === rid); if (!h) return;
+  openIntakeModalFor(rid, [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "この車両", "change");
+}
+function openIntakeModalFor(rid, label, mode) {
   const modal = $("intakeModal"); if (!modal) return;
-  const label = [dispText(d.plate), dispText(d.name)].filter(Boolean).join(" ／ ") || dispText(d.type) || "この車両";
   $("ikVeh").textContent = label;
-  modal.dataset.rid = rid;
+  const ttl = modal.querySelector(".ikTitle"); if (ttl) ttl.textContent = mode === "change" ? "入庫区分を変更しますか？" : "この車の入庫目的は？";
+  modal.dataset.rid = rid; modal.dataset.mode = mode || "new";
   toggle("intakeModal", true);
 }
 (function bindIntakeModal() {
   const modal = document.getElementById("intakeModal"); if (!modal) return;
   modal.querySelectorAll(".ikBtn").forEach(b => b.addEventListener("click", () => {
-    setIntake(modal.dataset.rid, b.dataset.kind);
+    if (modal.dataset.mode === "change") {
+      setIntakeKindOnly(modal.dataset.rid, b.dataset.kind);
+      showToast("入庫区分を変更しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
+    } else {
+      setIntake(modal.dataset.rid, b.dataset.kind);
+      showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
+    }
     toggle("intakeModal", false);
-    showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
   }));
   const later = document.getElementById("ikLater");
   if (later) later.addEventListener("click", () => toggle("intakeModal", false));
@@ -2996,10 +3020,15 @@ function renderIntakeBoard() {
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
     const info2 = document.createElement("div"); info2.className = "ibMain";
-    info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
+    info2.innerHTML = '<span class="ibTag' + (editable ? ' ibTagEdit' : '') + '">' + esc(info.label) + (editable ? " ▾" : "") + '</span>' +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    // 事務モードでは車両詳細を開かない(他機能を出さない)。通常は詳細へ
+    // 区分タグ: 事務/管理者はタップで区分変更
+    if (editable) {
+      const tagEl = info2.querySelector(".ibTag");
+      tagEl.addEventListener("click", e => { e.stopPropagation(); changeIntakeKind(h.rid); });
+    }
+    // 事務モードでは車両詳細を開かない(他機能を出さない)。通常はタイトル部から詳細へ
     if (!office) info2.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
     else info2.style.cursor = "default";
     card.appendChild(info2);

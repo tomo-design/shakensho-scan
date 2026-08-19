@@ -1065,3 +1065,5 @@ body.officeMode #view-db,
 body.officeMode #view-settings{display:none !important}
 body.officeMode #intakeBoard{display:block !important;margin-top:0}
 body.officeMode #view-scan{padding-top:0}
+
+.ibTagEdit{cursor:pointer}
