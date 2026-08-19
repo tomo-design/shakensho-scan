@@ -105,6 +105,12 @@
   </div>
   <button type="button" id="lastVehicle" class="lastVeh hidden"></button>
 
+  <!-- 入庫ボード: 現在庫の車両を区分色で一覧(ホームのみ) -->
+  <section id="intakeBoard" class="intakeBoard hidden">
+    <div class="ibHead"><h2>入庫中の車両 <span id="ibCount" class="ibCount"></span></h2></div>
+    <div id="ibList" class="ibList"></div>
+  </section>
+
   <div id="plateArea" class="hidden">
     <section>
       <h2>車両検索</h2>
@@ -810,6 +816,21 @@
   <button data-view="db"><span class="ico">🔧</span>DB編集</button>
   <button data-view="settings"><span class="ico">⚙️</span>設定</button>
 </nav>
+
+<!-- 入庫区分の選択ポップアップ(スキャン確定時) -->
+<div id="intakeModal" class="ikModal hidden">
+  <div class="ikCard">
+    <div class="ikTitle">この車の入庫目的は？</div>
+    <div id="ikVeh" class="ikVeh"></div>
+    <div class="ikBtns">
+      <button type="button" class="ikBtn" data-kind="車検">車検</button>
+      <button type="button" class="ikBtn" data-kind="点検">定期点検</button>
+      <button type="button" class="ikBtn" data-kind="修理">一般修理</button>
+      <button type="button" class="ikBtn" data-kind="事故">事故</button>
+    </div>
+    <button type="button" id="ikLater" class="ikLater">あとで / 登録しない</button>
+  </div>
+</div>
 
 <script src="app.js"></script>
 <script src="cloud.js"></script>

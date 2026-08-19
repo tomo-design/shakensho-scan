@@ -971,3 +971,41 @@ body.pwLocked{ overflow:hidden }
 .planPriceRow{ display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap }
 .planPriceRow .planPrice{ margin:0 }
 
+
+/* ===== 入庫ボード ===== */
+.intakeBoard{margin-top:14px}
+.intakeBoard .ibHead h2{font-size:14px;margin:0 0 8px;color:var(--txt);display:flex;align-items:center;gap:6px}
+.ibCount{font-size:12px;color:var(--dim);font-weight:600}
+.ibList{display:flex;flex-direction:column;gap:8px}
+.ibCard{display:flex;align-items:stretch;gap:0;background:var(--panel);border:1px solid var(--line);
+  border-left:5px solid var(--line);border-radius:10px;overflow:hidden}
+.ibCard .ibMain{flex:1;min-width:0;padding:9px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.ibTag{align-self:flex-start;font-size:10.5px;font-weight:700;color:#fff;border-radius:6px;padding:1px 7px;margin-bottom:2px}
+.ibTitle{font-size:14px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibSub{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibOut{flex:none;border:0;border-left:1px solid var(--line);background:var(--panel2);color:var(--dim);
+  font-size:12px;font-weight:700;padding:0 14px;cursor:pointer}
+.ibOut:active{background:var(--line)}
+/* 区分色 */
+.ibCard.ikShaken{border-left-color:#2563EB}   .ikShaken .ibTag{background:#2563EB}
+.ibCard.ikTenken{border-left-color:#16A34A}   .ikTenken .ibTag{background:#16A34A}
+.ibCard.ikRepair{border-left-color:#EA8C00}   .ikRepair .ibTag{background:#EA8C00}
+.ibCard.ikJiko{border-left-color:#DC2626}     .ikJiko  .ibTag{background:#DC2626}
+
+/* ===== 入庫区分ポップアップ ===== */
+.ikModal{position:fixed;inset:0;z-index:400;background:rgba(20,28,38,.5);
+  display:flex;align-items:center;justify-content:center;padding:22px}
+.ikModal.hidden{display:none}
+.ikCard{background:var(--panel);border-radius:16px;padding:20px 18px 16px;width:100%;max-width:340px;
+  box-shadow:0 12px 40px rgba(0,0,0,.28)}
+.ikTitle{font-size:16px;font-weight:800;color:var(--txt);text-align:center}
+.ikVeh{font-size:13px;color:var(--dim);text-align:center;margin:6px 0 14px;font-weight:600}
+.ikBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ikBtn{border:0;border-radius:12px;color:#fff;font-size:15px;font-weight:800;padding:16px 0;cursor:pointer}
+.ikBtn[data-kind="車検"]{background:#2563EB}
+.ikBtn[data-kind="点検"]{background:#16A34A}
+.ikBtn[data-kind="修理"]{background:#EA8C00}
+.ikBtn[data-kind="事故"]{background:#DC2626}
+.ikBtn:active{filter:brightness(.92)}
+.ikLater{display:block;width:100%;margin-top:14px;background:none;border:0;color:var(--dim);
+  font-size:13px;font-weight:600;padding:6px;cursor:pointer;text-decoration:underline}

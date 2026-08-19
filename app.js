@@ -1866,7 +1866,7 @@ function showResult(d, opt = {}) {
   // 先に履歴へ統合保存(=ridを確定)してから「前回車両」カードを書く。
   // これをしないと、車台番号・登録番号が無い型式のみの車両で、カードのrid/使用者名/原動機型式が
   // 古いまま残り、再読み込み後に手動修正が元に戻る(rid未確定→findHistEntry不一致→古いカードに戻る)。
-  if (opt.fromScan && (d.type || d.vin)) addHistory(d);
+  if (opt.fromScan && (d.type || d.vin)) { addHistory(d); setTimeout(() => openIntakePopup(d), 400); }
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
 
@@ -2777,6 +2777,7 @@ function dedupeHistory(list) {
       model: pick("model"), kataShitei: pick("kataShitei"), firstReg: pick("firstReg"), expiry: pick("expiry"),
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
       karte: mergeKarte(a.karte, h.karte),
+      intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
   }
@@ -2847,6 +2848,95 @@ function saveUserName(name) {
   // 空欄("")は「意図的に消した」印として保持し、統合時に古い名前へ戻らないようにする(null=未入力とは区別)
   if (t) { t.name = noEmail(name); t.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(h2)); renderHistory(); if (window.Cloud) window.Cloud.pushRecord(t); }
 }
+/* ===== 入庫ボード: スキャンした車両を区分色で現在庫一覧 ===== */
+const INTAKE_KINDS = {
+  "車検": { label: "車検", cls: "ikShaken" },
+  "点検": { label: "定期点検", cls: "ikTenken" },
+  "修理": { label: "一般修理", cls: "ikRepair" },
+  "事故": { label: "事故", cls: "ikJiko" },
+};
+/* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す */
+function activeIntakes() {
+  return getHistory()
+    .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)
+    .sort((a, b) => (b.intakeAt || 0) - (a.intakeAt || 0));
+}
+/* 履歴レコードに入庫区分を設定(=ボードへ) */
+function setIntake(rid, kind) {
+  if (!INTAKE_KINDS[kind]) return;
+  const hist = getHistory();
+  const t = hist.find(h => h.rid === rid) || (current && findHistEntry(hist, current));
+  if (!t) return;
+  t.intakeKind = kind; t.intakeAt = Date.now(); t.intakeOut = null; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
+  renderIntakeBoard(); renderHistory();
+}
+/* 出庫(ボードから外す。履歴・カルテは残る) */
+function clearIntake(rid) {
+  const hist = getHistory();
+  const t = hist.find(h => h.rid === rid);
+  if (!t) return;
+  t.intakeOut = Date.now(); t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  renderIntakeBoard(); renderHistory();
+}
+/* スキャン確定時の入庫区分ポップアップ。既に入庫中なら出さない */
+function openIntakePopup(d) {
+  const rid = d && d.rid;
+  if (!rid) return;
+  const cur = getHistory().find(h => h.rid === rid);
+  if (cur && cur.intakeKind && !cur.intakeOut) return;   // 既に入庫中: 二重登録しない
+  const modal = $("intakeModal"); if (!modal) return;
+  const label = [dispText(d.plate), dispText(d.name)].filter(Boolean).join(" ／ ") || dispText(d.type) || "この車両";
+  $("ikVeh").textContent = label;
+  modal.dataset.rid = rid;
+  toggle("intakeModal", true);
+}
+(function bindIntakeModal() {
+  const modal = document.getElementById("intakeModal"); if (!modal) return;
+  modal.querySelectorAll(".ikBtn").forEach(b => b.addEventListener("click", () => {
+    setIntake(modal.dataset.rid, b.dataset.kind);
+    toggle("intakeModal", false);
+    showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
+  }));
+  const later = document.getElementById("ikLater");
+  if (later) later.addEventListener("click", () => toggle("intakeModal", false));
+  modal.addEventListener("click", e => { if (e.target === modal) toggle("intakeModal", false); });
+})();
+/* ボード描画: ホームで現在庫を区分色カードで表示 */
+function renderIntakeBoard() {
+  const sec = $("intakeBoard"), box = $("ibList"); if (!sec || !box) return;
+  const list = activeIntakes();
+  const cnt = $("ibCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
+  // ホーム(mechaHero表示中=車両非表示)でのみ、かつ在庫がある時だけ出す
+  const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
+  if (!list.length || !onHome) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  list.forEach(h => {
+    const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
+    const card = document.createElement("div"); card.className = "ibCard " + info.cls;
+    const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
+    const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
+    const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
+    const info2 = document.createElement("div"); info2.className = "ibMain";
+    info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
+      '<span class="ibTitle">' + esc(title) + '</span>' +
+      '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
+    info2.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
+    const out = document.createElement("button"); out.className = "ibOut"; out.textContent = "出庫";
+    out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) clearIntake(h.rid); });
+    card.appendChild(info2); card.appendChild(out); box.appendChild(card);
+  });
+  toggle("intakeBoard", true);
+}
+/* 満了日等のYYYY/MM/DD整形(timestamp or Date) */
+function fmtYMD(v) {
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d)) return "";
+  return d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0");
+}
 function histToResult(h) {
   return {
     rid: h.rid || null,
@@ -2858,6 +2948,7 @@ function histToResult(h) {
   };
 }
 function renderHistory() {
+  try { renderIntakeBoard(); } catch (e) {}   // 入庫ボードも同期(クラウド反映時に最新化)
   const hist = dedupeHistoryStore();
   const box = $("histList"); box.innerHTML = "";
   if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
@@ -5675,6 +5766,7 @@ function goHome() {
   }
   current = null;
   renderLastVehicle();
+  renderIntakeBoard();   // ホームに入庫ボード
   window.scrollTo(0, 0);
 }
 /* iOS対策: カメラ起動中にアプリを背面化/画面ロックするとWKWebViewが固まることがある。
