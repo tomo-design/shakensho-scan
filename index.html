@@ -554,7 +554,6 @@
             <button class="btn btn-amber" id="btnCloudSubmit">実行</button>
             <button class="btn btn-ghost btn-sm" id="btnCloudBack" style="flex:0 0 28%">戻る</button>
           </div>
-          <div class="linkrow"><button class="textlink" id="lnkResetPw" type="button">パスワードを忘れた方（再設定メール）</button></div>
         </div>
         <div class="hint" style="margin-top:8px;color:var(--dim)">ログインでお困りの場合は、会社の代表管理者または運営（<a href="mailto:ai@reply.mechanoai-cablueie.com" style="color:var(--cyan)">お問い合わせ</a>）へご連絡ください。</div>
         <div id="cloudAuthStat" class="hint" style="margin-top:8px"></div>
@@ -578,6 +577,7 @@
         <div id="cloudSyncMsg" class="hint" style="margin-top:6px;color:var(--dim)"></div>
         <div class="cloudActs" style="margin-top:8px">
           <button class="btn btn-ghost btn-sm hidden" id="btnCloudManage">👥 メンバー管理</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btnEnablePush">🔔 通知を有効にする</button>
           <button class="btn btn-ghost btn-sm" id="btnCloudChangePw">🔑 パスワード変更</button>
           <button class="btn btn-ghost btn-sm" id="btnCloudChangeEmail">✉ メール変更</button>
           <button class="btn btn-ghost btn-sm" id="btnCloudLogout">↩ ログアウト</button>
@@ -814,7 +814,7 @@
 <!-- 事務用: 入庫管理専用モードの上部バー(専用モード時のみ表示) -->
 <div id="officeBar" class="officeBar hidden">
   <span class="obTitle">🗂 入庫管理</span>
-  <button type="button" id="obExit" class="obExit">設定に戻る</button>
+  <button type="button" id="obExit" class="obExit">ログアウト</button>
 </div>
 
 <!-- bottom nav -->

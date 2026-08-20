@@ -458,7 +458,7 @@ let liveStream = null, scanning = false, scanRaf = null, tickBusy = false, tickN
 let scanStartAt = 0;   // スキャン開始時刻(開始直後に重い処理を走らせないため)
 
 /* 統合アキュムレータ: QR・OCR・手動のどれからでも項目を埋めていく */
-function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, raw: [] }; }
+function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, rid: null, raw: [] }; }
 let acc = freshAcc();
 function mergeAcc(d) {
   // 読み取り順に依存せず、正しい値を採用する:
@@ -472,11 +472,12 @@ function mergeAcc(d) {
     if (k === "plate" && !isValidPlate(nv)) continue;                       // 登録番号は数字のみ不可(地名を含むこと)
     if (!acc[k] || (fillable.has(k) && typeof acc[k] === "string" && isFiller(acc[k]))) acc[k] = nv;  // 空 or 既存フィラーなら採用
   }
+  if (d.rid && !acc.rid) acc.rid = d.rid;   // 表示中の車両IDを引き継ぐ(同じ車として追記・別レコード化を防ぐ)
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
 function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
-function accResult() { return { ...acc, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
+function accResult() { return { ...acc, rid: acc.rid || null, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
@@ -1042,7 +1043,11 @@ ocrIn.addEventListener("change", async e => {
   ocrIn.value = "";
   toggle("ocrBox", true);
   $("ocrPreview").src = URL.createObjectURL(file);
+  // 既に車両を表示中に写真スキャンする場合、その車両を引き継いで“同じ車”として追記する
+  // (車台番号を写真で取り切れなくても別レコード化・履歴欠落・入庫未記録を防ぐ)
+  const keep = (current && (current.type || current.vin || current.plate || current.kataShitei)) ? current : null;
   if (scanComplete) resetScan();
+  if (keep) mergeAcc({ type: keep.type, vin: keep.vin, engine: keep.engine, plate: keep.plate, kataShitei: keep.kataShitei, rid: keep.rid });
   // ① AI Vision(メカ君)が使えるなら、写真から全項目を高精度で直接読み取る(最優先)
   if (aiOK()) {
     $("ocrStatus").innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が車検証を読み取り中…（高精度）';
@@ -3033,33 +3038,30 @@ function renderIntakeBoard() {
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
     const info2 = document.createElement("div"); info2.className = "ibMain";
-    info2.innerHTML = '<span class="ibTag' + (editable ? ' ibTagEdit' : '') + '">' + esc(info.label) + (editable ? " ▾" : "") + '</span>' +
+    // 入庫管理側では区分は操作できない(整備士/管理者がスキャン時に設定)。区分は表示のみ
+    info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    // 区分タグ: 事務/管理者はタップで区分変更
-    if (editable) {
-      const tagEl = info2.querySelector(".ibTag");
-      tagEl.addEventListener("click", e => { e.stopPropagation(); changeIntakeKind(h.rid); });
-    }
-    // 事務モードでは車両詳細を開かない(他機能を出さない)。通常はタイトル部から詳細へ
-    if (!office) info2.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
-    else info2.style.cursor = "default";
+    info2.style.cursor = "default";
     card.appendChild(info2);
 
-    // 費用回収・コメント(事務/管理者)
+    // 費用回収・コメント。費用は車検時のみ(それ以外の区分では回収ボタンを出さない)
     if (editable) {
       const meta = document.createElement("div"); meta.className = "ibMeta";
-      const fee = document.createElement("button");
-      const fs = FEE_STATES[feeStateOf(h)];
-      fee.className = "ibFee " + fs.cls;
-      fee.textContent = fs.label;
-      fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
-      fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
+      if (h.intakeKind === "車検") {
+        const fee = document.createElement("button");
+        const fs = FEE_STATES[feeStateOf(h)];
+        fee.className = "ibFee " + fs.cls;
+        fee.textContent = fs.label;
+        fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
+        fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
+        meta.appendChild(fee);
+      }
       const memo = document.createElement("button");
       memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
       memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
       memo.addEventListener("click", e => { e.stopPropagation(); editIntakeMemo(h.rid); });
-      meta.appendChild(fee); meta.appendChild(memo);
+      meta.appendChild(memo);
       card.appendChild(meta);
     }
 
@@ -3089,9 +3091,12 @@ function applyOfficeMode() {
   });
   const exit = document.getElementById("obExit");
   if (exit) exit.addEventListener("click", () => {
+    if (!confirm("入庫管理を終了してログアウトします。よろしいですか？")) return;
     localStorage.removeItem("ss_office");
     applyOfficeMode();
     try { switchView("settings"); } catch (e) {}
+    // ログイン画面へ戻す(ログアウト)
+    try { if (window.Cloud && typeof window.Cloud.signOut === "function") window.Cloud.signOut(); else { const b = document.getElementById("btnCloudLogout"); if (b) b.click(); } } catch (e) {}
   });
 })();
 /* 満了日等のYYYY/MM/DD整形(timestamp or Date) */

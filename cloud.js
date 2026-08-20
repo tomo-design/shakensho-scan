@@ -613,6 +613,8 @@
     renderDevices();
     // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
+    // 通知の有効化は管理者(admin/super)向け。参加申請などのプッシュを受け取る端末で押す
+    show("btnEnablePush", profile && profile.active && (profile.role === "admin" || profile.role === "super"));
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
   }
 
@@ -965,7 +967,22 @@
       // ハード削除ではなく墓標(deleted)で論理削除。古い端末の再アップロードで蘇るのを防ぐ
       db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r))
         .set({ deleted: true, vin: r.vin || null, rid: r.rid || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
-    }
+    },
+    signOut() { try { auth.signOut(); } catch (e) {} },
+    /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
+    async enablePush() {
+      try {
+        if (!("Notification" in window)) return { ok: false, msg: "この端末は通知に対応していません。" };
+        if (typeof firebase.messaging !== "function") return { ok: false, msg: "通知機能を初期化できませんでした。" };
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return { ok: false, msg: "通知が許可されませんでした。ブラウザの設定から許可してください。" };
+        const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+        const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+        if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。" };
+        if (me) await db.collection("users").doc(me.uid).set({ fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
+        return { ok: true, msg: "✓ 通知を有効にしました。参加申請などがこの端末に届きます。" };
+      } catch (e) { return { ok: false, msg: "通知の有効化に失敗しました（" + ((e && e.message) || e) + "）" }; }
+    },
   };
 
   /* ---------- メンバー/会社 管理 (admin=自社cloudManageBox / super=運営タブadminBox) ---------- */
@@ -973,6 +990,13 @@
     const box = $("cloudManageBox");
     if (!box.classList.contains("hidden")) { show("cloudManageBox", false); return; }
     show("cloudManageBox", true); renderManage("cloudManageBox");
+  });
+  $("btnEnablePush") && $("btnEnablePush").addEventListener("click", async () => {
+    const b = $("btnEnablePush"); const old = b.textContent; b.disabled = true; b.textContent = "設定中…";
+    const r = await window.Cloud.enablePush();
+    b.disabled = false; b.textContent = old;
+    const el = $("cloudSyncMsg"); if (el) el.textContent = r.msg;
+    try { alert(r.msg); } catch (e) {}
   });
   // 運営管理者(自分)の情報を運営タブ上部に表示
   function renderOperatorInfo() {
