@@ -105,6 +105,12 @@
   </div>
   <button type="button" id="lastVehicle" class="lastVeh hidden"></button>
 
+  <!-- ホームの入庫状況(管理者のみ・前回の車両の下)。閲覧＋出庫。入庫管理ボードと同じデータ -->
+  <section id="homeIntake" class="homeIntake hidden">
+    <div class="hiHead"><h2>現在の入庫状況 <span id="hiCount" class="hiCount"></span></h2></div>
+    <div id="hiList" class="hiList"></div>
+  </section>
+
   <!-- 入庫ボード: 現在庫の車両を区分色で一覧(ホームのみ) -->
   <section id="intakeBoard" class="intakeBoard hidden">
     <div class="ibHead"><h2>入庫中の車両 <span id="ibCount" class="ibCount"></span></h2></div>

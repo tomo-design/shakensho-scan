@@ -360,8 +360,10 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .histItem .hMain{flex:1;min-width:0;cursor:pointer}
 .histItem .hType{font-family:'Chakra Petch';font-weight:700;font-size:15px;letter-spacing:.05em}
 .histItem .hSub{font-size:11px;color:var(--dim);margin-top:2px;word-break:break-all}
-.histItem .hDel{flex:none;background:var(--panel2);border:1px solid var(--line);color:var(--alert);
-  border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;min-height:44px}
+.histItem .hDel{flex:none;background:transparent;border:0;color:var(--dim);
+  border-radius:8px;padding:6px 8px;font-size:12px;font-weight:600;opacity:.7}
+.histItem .hDel:active{background:var(--panel2);opacity:1}
+.histItem .hActs{flex:none;display:flex;align-items:center;gap:6px}
 .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:13px;line-height:1.8}
 
 /* db editor */
@@ -1070,14 +1072,14 @@ body.officeMode #view-scan{padding-top:0}
 
 .ibTagEdit{cursor:pointer}
 
-/* 履歴行の入庫区分チップ */
-.hIntake{flex:none;border:0;border-radius:999px;font-size:11.5px;font-weight:800;
-  padding:5px 11px;cursor:pointer;color:#fff;white-space:nowrap;align-self:center}
+/* 履歴行の入庫区分チップ(スマートな小型ピル) */
+.hIntake{flex:none;border:0;border-radius:7px;font-size:11px;font-weight:700;
+  padding:4px 9px;cursor:pointer;color:#fff;white-space:nowrap;align-self:center;letter-spacing:.02em}
 .hIntake.ikShaken{background:#2563EB}
 .hIntake.ikTenken{background:#16A34A}
 .hIntake.ikRepair{background:#EA8C00}
 .hIntake.ikJiko{background:#DC2626}
-.hIntake.hIntakeSet{background:var(--panel2);color:var(--amber);border:1px dashed var(--amber)}
+.hIntake.hIntakeSet{background:transparent;color:var(--dim);border:1px dashed var(--line);font-weight:600}
 
 /* ログイン時: 事務用の専用ログイン選択 */
 .offLoginRow{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:12px;
@@ -1115,9 +1117,12 @@ body.officeMode #view-scan{padding-top:0}
 .ibDetOut:active{background:var(--line)}
 .ibDetEmpty{color:var(--dim);font-size:13px;padding:30px 10px;text-align:center}
 @media(min-width:900px){
-  body.officeMode #intakeBoard{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:start}
+  /* 事務モードのPC表示: 画面を広く使い、左=一覧/右=詳細の2ペインに */
+  body.officeMode{max-width:1080px}
+  nav#tabs{max-width:1080px}
+  body.officeMode #intakeBoard{display:grid !important;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
   body.officeMode #intakeBoard .ibHead{grid-column:1 / -1}
-  body.officeMode .ibDetail{display:block;position:sticky;top:76px}
+  body.officeMode .ibDetail{display:block;position:sticky;top:80px}
 }
 
 /* ログインゲート(法人・未ログイン時の全画面) */
@@ -1139,3 +1144,23 @@ body.gated{overflow:hidden}
 .agBtn:active{filter:brightness(.95)}
 .agDiv{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px;margin:14px 2px 4px}
 .agDiv::before,.agDiv::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ホームの入庫状況(管理者のみ・コンパクト) */
+.homeIntake{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
+.homeIntake .hiHead h2{font-size:13.5px;margin:0 0 8px;color:var(--txt);display:flex;align-items:center;gap:6px;border:0;padding:0}
+.hiCount{font-size:12px;color:var(--dim);font-weight:600}
+.hiList{display:flex;flex-direction:column;gap:6px}
+.hiRow{display:flex;align-items:center;gap:8px;border-left:4px solid var(--line);background:var(--panel2);border-radius:8px;padding:8px 10px}
+.hiRow.ikShaken{border-left-color:#2563EB}
+.hiRow.ikTenken{border-left-color:#16A34A}
+.hiRow.ikRepair{border-left-color:#EA8C00}
+.hiRow.ikJiko{border-left-color:#DC2626}
+.hiMain{flex:1;min-width:0;display:flex;align-items:center;gap:8px;cursor:pointer}
+.hiTag{flex:none;font-size:10.5px;font-weight:800;color:#fff;border-radius:5px;padding:2px 7px}
+.hiRow.ikShaken .hiTag{background:#2563EB}
+.hiRow.ikTenken .hiTag{background:#16A34A}
+.hiRow.ikRepair .hiTag{background:#EA8C00}
+.hiRow.ikJiko .hiTag{background:#DC2626}
+.hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hiOut{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer}
+.hiOut:active{background:var(--line)}

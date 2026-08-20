@@ -3195,6 +3195,28 @@ function applyOfficeMode() {
     try { if (window.Cloud && typeof window.Cloud.signOut === "function") window.Cloud.signOut(); else { const b = document.getElementById("btnCloudLogout"); if (b) b.click(); } } catch (e) {}
   });
 })();
+/* ホームの入庫状況(管理者のみ・前回の車両の下)。閲覧＋出庫。入庫管理ボードと同じデータに反映 */
+function renderHomeIntake() {
+  const sec = $("homeIntake"), box = $("hiList"); if (!sec || !box) return;
+  const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
+  const show = onHome && !officeMode() && (typeof isManager === "function" && isManager());
+  const list = show ? activeIntakes() : [];
+  if (!list.length) { toggle("homeIntake", false); box.innerHTML = ""; return; }
+  const cnt = $("hiCount"); if (cnt) cnt.textContent = "（" + list.length + "台）";
+  box.innerHTML = "";
+  list.forEach(h => {
+    const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
+    const row = document.createElement("div"); row.className = "hiRow " + info.cls;
+    const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
+    const main = document.createElement("div"); main.className = "hiMain";
+    main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
+    main.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
+    const out = document.createElement("button"); out.className = "hiOut"; out.textContent = "出庫";
+    out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
+    row.appendChild(main); row.appendChild(out); box.appendChild(row);
+  });
+  toggle("homeIntake", true);
+}
 /* 満了日等のYYYY/MM/DD整形(timestamp or Date) */
 function fmtYMD(v) {
   const d = v instanceof Date ? v : new Date(v);
@@ -3213,6 +3235,7 @@ function histToResult(h) {
 }
 function renderHistory() {
   try { renderIntakeBoard(); } catch (e) {}   // 入庫ボードも同期(クラウド反映時に最新化)
+  try { renderHomeIntake(); } catch (e) {}   // ホームの入庫状況(管理者)も最新化
   const hist = dedupeHistoryStore();
   const box = $("histList"); box.innerHTML = "";
   if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
@@ -3227,9 +3250,10 @@ function renderHistory() {
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     div.appendChild(main);
-    // 入庫区分: 管理者のみ操作可(未設定なら「＋区分」、設定済みなら区分チップ)。どちらもタップでポップアップ
+    // 操作(区分・削除)は管理者のみ。右側にまとめてスマートに配置
     if (isManager()) {
-      if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化(区分操作の対象にする)
+      const acts = document.createElement("div"); acts.className = "hActs";
+      if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化
       const active = h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut;
       const ik = document.createElement("button");
       if (active) {
@@ -3238,20 +3262,19 @@ function renderHistory() {
         ik.title = "入庫区分（タップで変更）";
         ik.addEventListener("click", e => { e.stopPropagation(); changeIntakeKind(h.rid); });
       } else {
-        ik.className = "hIntake hIntakeSet"; ik.textContent = "＋区分";
+        ik.className = "hIntake hIntakeSet"; ik.textContent = "＋ 区分";
         ik.title = "入庫区分を設定してボードに追加";
         ik.addEventListener("click", e => { e.stopPropagation(); openIntakeModalFor(h.rid, title, "new"); });
       }
-      div.appendChild(ik);
-    }
-    if (isManager()) {   // 履歴の削除は管理者のみ
+      acts.appendChild(ik);
       const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
       del.addEventListener("click", () => {
         if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
         localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
         renderHistory();
       });
-      div.appendChild(del);
+      acts.appendChild(del);
+      div.appendChild(acts);
     }
     box.appendChild(div);
   });
@@ -6047,7 +6070,8 @@ function goHome() {
   }
   current = null;
   renderLastVehicle();
-  renderIntakeBoard();   // ホームに入庫ボード
+  renderIntakeBoard();   // 事務モードの入庫ボード
+  renderHomeIntake();    // ホームの入庫状況(管理者のみ)
   window.scrollTo(0, 0);
 }
 /* iOS対策: カメラ起動中にアプリを背面化/画面ロックするとWKWebViewが固まることがある。
