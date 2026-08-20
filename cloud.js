@@ -556,6 +556,7 @@
 
   function renderAuthUI() {
     const inLogged = !!me;
+    if (typeof window.updateAuthGate === "function") window.updateAuthGate();   // 認証状態が確定したのでログインゲートを再評価
     if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
     show("cloudLoggedOut", !inLogged);
     show("cloudLoggedIn", inLogged);
@@ -629,7 +630,7 @@
   }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -698,6 +699,8 @@
           if (!e.rid) e.rid = r.rid || d.id;   // 既存エントリにも不変IDを付与(以降の照合を安定化)
           // 整備カルテは両端末の追加を失わないよう常にunion統合(勝敗判定より前に実施)
           if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
+          // 確認レ点も両端末の打刻を失わないようunion統合(勝敗判定より前に)
+          if (typeof mergeConfirms === "function") e.confirms = mergeConfirms(e.confirms, r.confirms);
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
             // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
             try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}

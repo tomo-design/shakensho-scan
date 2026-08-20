@@ -2784,6 +2784,7 @@ function dedupeHistory(list) {
       karte: mergeKarte(a.karte, h.karte),
       intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
       feePaid: pick("feePaid"), feeStatus: pick("feeStatus"), officeMemo: pick("officeMemo"),
+      confirms: mergeConfirms(a.confirms, h.confirms),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
   }
@@ -2861,6 +2862,41 @@ const INTAKE_KINDS = {
   "修理": { label: "一般修理", cls: "ikRepair" },
   "事故": { label: "事故", cls: "ikJiko" },
 };
+/* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
+const CONFIRM_COLORS = ["#2563EB", "#16A34A", "#EA8C00", "#DC2626", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#CA8A04", "#4F46E5", "#0D9488", "#9333EA"];
+/* uid/名前から固定色を決定的に割当(毎回同じ色) */
+function colorForUser(key) {
+  let h = 0; const s = String(key || "guest");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return CONFIRM_COLORS[h % CONFIRM_COLORS.length];
+}
+/* この端末のログイン者の識別子・表示名・色 */
+function myConfirmId() {
+  const uid = (window.Cloud && typeof window.Cloud.myUid === "function" && window.Cloud.myUid()) || "";
+  const nm = (window.Cloud && typeof window.Cloud.myName === "function" && window.Cloud.myName()) || "";
+  let dev = ""; try { dev = localStorage.getItem("ss_devId") || ""; if (!dev) { dev = "d" + Math.random().toString(36).slice(2, 8); localStorage.setItem("ss_devId", dev); } } catch (e) {}
+  const id = uid || dev;
+  return { id, name: nm || "担当", color: colorForUser(id) };
+}
+/* 確認レ点の配列(uid重複なしでunion。最新atを保持) */
+function mergeConfirms(a, b) {
+  const map = {};
+  (a || []).concat(b || []).forEach(c => { if (c && c.id) { const e = map[c.id]; if (!e || (c.at || 0) >= (e.at || 0)) map[c.id] = c; } });
+  return Object.values(map);
+}
+/* 自分のレ点をトグル(打つ/外す) */
+function toggleConfirm(rid) {
+  const me = myConfirmId();
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const arr = Array.isArray(t.confirms) ? t.confirms.slice() : [];
+  const i = arr.findIndex(c => c.id === me.id);
+  if (i >= 0) arr.splice(i, 1);
+  else arr.push({ id: me.id, name: me.name, color: me.color, at: Date.now() });
+  t.confirms = arr; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  renderIntakeBoard();
+}
 /* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す */
 function activeIntakes() {
   return getHistory()
@@ -2938,6 +2974,7 @@ function openIntakeModalFor(rid, label, mode) {
 })();
 /* ボード描画: ホームで現在庫を区分色カードで表示 */
 let _intakeSeen = null;   // 既知の入庫rid集合(新規入庫の通知判定用)
+let _ibSelected = null;   // PC2ペインで右側に表示中の車両rid
 function notifyNewIntakes(list) {
   const ids = list.map(h => h.rid).filter(Boolean);
   if (_intakeSeen === null) { _intakeSeen = new Set(ids); return; }   // 初回は通知せず記録のみ
@@ -3042,8 +3079,36 @@ function renderIntakeBoard() {
     info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    info2.style.cursor = "default";
+    // PC2ペイン(事務モード・広い画面): カードをクリックで右側に詳細表示
+    if (office) {
+      if (h.rid === _ibSelected) card.classList.add("ibSel");
+      info2.style.cursor = "pointer";
+      info2.addEventListener("click", () => { _ibSelected = h.rid; renderIntakeBoard(); });
+    } else info2.style.cursor = "default";
     card.appendChild(info2);
+
+    // レ点(確認済み): 右上に横1列。確認した人の色で✓。自分の分はタップでトグル
+    if (editable) {
+      const me = myConfirmId();
+      const conf = Array.isArray(h.confirms) ? h.confirms : [];
+      const wrap = document.createElement("div"); wrap.className = "ibConfirms";
+      conf.forEach(c => {
+        const ck = document.createElement("span"); ck.className = "ibCk"; ck.style.background = c.color || "#888";
+        ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
+        wrap.appendChild(ck);
+      });
+      const mine = conf.some(c => c.id === me.id);
+      const add = document.createElement("button");
+      add.className = "ibCkAdd" + (mine ? " on" : "");
+      add.style.color = mine ? "#fff" : me.color;
+      add.style.background = mine ? me.color : "transparent";
+      add.style.borderColor = me.color;
+      add.textContent = mine ? "✓ 確認済" : "レ点";
+      add.title = mine ? "自分の確認を外す" : "確認済みにする(あなたの色: " + me.color + ")";
+      add.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
+      wrap.appendChild(add);
+      card.appendChild(wrap);
+    }
 
     // 費用回収・コメント。費用は車検時のみ(それ以外の区分では回収ボタンを出さない)
     if (editable) {
@@ -3069,7 +3134,38 @@ function renderIntakeBoard() {
     out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) clearIntake(h.rid); });
     card.appendChild(out); box.appendChild(card);
   });
+  renderIntakeDetail(list);
   toggle("intakeBoard", true);
+}
+/* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
+function renderIntakeDetail(list) {
+  const box = $("ibDetail"); if (!box) return;
+  const sel = (list || []).find(h => h.rid === _ibSelected) || null;
+  if (!sel) {
+    box.innerHTML = '<div class="ibDetEmpty">左の一覧から車両を選ぶと、ここに詳細が表示されます。</div>';
+    return;
+  }
+  const info = INTAKE_KINDS[sel.intakeKind] || { label: sel.intakeKind, cls: "" };
+  const rows = [
+    ["区分", info.label],
+    ["ナンバー", dispText(sel.plate) || "—"],
+    ["使用者", dispText(sel.name) || "—"],
+    ["型式", dispText(sel.type) || "—"],
+    ["車台番号", dispText(sel.vin) || "—"],
+    ["原動機", dispText(sel.engine) || "—"],
+    ["満了日", sel.expiry ? fmtYMD(sel.expiry) : "—"],
+    ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
+  ];
+  box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
+    '<div class="ibDetTag">' + esc(info.label) + '</div>' +
+    '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
+    '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") + '</table>' +
+    '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
+  const ob = $("ibDetOut");
+  if (ob) ob.addEventListener("click", () => {
+    const title = dispText(sel.plate) || dispText(sel.type) || "この車両";
+    if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) { _ibSelected = null; clearIntake(sel.rid); }
+  });
 }
 /* 事務モードのON/OFFを画面へ反映(全画面ボード) */
 function applyOfficeMode() {
@@ -6342,6 +6438,31 @@ const DEMO_REPAIR = {
   answer: ""
 };
 function isDemo() { try { return sessionStorage.getItem("ss_demo") === "1"; } catch (e) { return false; } }
+/* ログインゲート: 法人モードで未ログイン&非デモなら全画面のログイン案内を出す(誰でも使える状態にしない) */
+let _authResolved = false;
+function refreshAuthGate() {
+  const gate = $("authGate"); if (!gate) return;
+  const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
+  const personal = (typeof getAppMode === "function" && getAppMode() === "personal");
+  // 認証状態が未解決の初回はゲートを出さない(ログイン済みユーザーへのちらつき防止)
+  const block = _authResolved && !personal && !isDemo() && !loggedIn;
+  gate.classList.toggle("hidden", !block);
+  document.body.classList.toggle("gated", block);
+}
+window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); };
+(function bindAuthGate() {
+  const g = document.getElementById("authGate"); if (!g) return;
+  const toSettings = (mode) => {
+    try { switchView("settings"); } catch (e) {}
+    const b = document.getElementById(mode === "login" ? "btnModeLogin" : "btnModeNew");
+    // 一旦ゲートを隠してログインフォームを操作できるように
+    g.classList.add("hidden"); document.body.classList.remove("gated");
+    setTimeout(() => { if (b) b.click(); const el = document.getElementById("secCloudSync"); if (el) el.scrollIntoView({ behavior: "smooth" }); }, 60);
+  };
+  const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => toSettings("login"));
+  const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("new"));
+  const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
+})();
 /* デモ用のAI固定回答。プロンプト内容から諸元/修理/会話を判定して返す(ネットワーク未使用) */
 function demoAnswer(prompt) {
   const p = String(prompt || "");

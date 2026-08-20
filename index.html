@@ -109,6 +109,7 @@
   <section id="intakeBoard" class="intakeBoard hidden">
     <div class="ibHead"><h2>入庫中の車両 <span id="ibCount" class="ibCount"></span></h2></div>
     <div id="ibList" class="ibList"></div>
+    <div id="ibDetail" class="ibDetail"></div>
   </section>
 
   <div id="plateArea" class="hidden">
@@ -809,6 +810,18 @@
     <button class="ab-k" data-assign="expiry">有効期限</button>
   </div>
   <button class="ab-c" id="abClose">×</button>
+</div>
+
+<!-- ログインゲート: 法人利用は未ログインだと使えない(誰でも使える状態にしない)。デモのみ開放 -->
+<div id="authGate" class="authGate hidden">
+  <div class="agCard">
+    <div class="agLogo"><img src="img/logo-mark.png" alt="メカノAI"><div><b>メカノAI</b><small>車両整備サポート</small></div></div>
+    <p class="agLead">ご利用にはログインが必要です。<br>社内で共有された車両データ・整備記録・入庫管理をご利用いただけます。</p>
+    <button type="button" class="agBtn agPrimary" id="agLogin">ログイン</button>
+    <button type="button" class="agBtn" id="agNew">会社を新規登録 / 従業員として参加</button>
+    <div class="agDiv"><span>または</span></div>
+    <button type="button" class="agBtn agGhost" id="agDemo">🎬 ログインせずにデモを試す</button>
+  </div>
 </div>
 
 <!-- 事務用: 入庫管理専用モードの上部バー(専用モード時のみ表示) -->
