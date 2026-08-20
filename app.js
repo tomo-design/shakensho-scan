@@ -3077,9 +3077,6 @@ function renderIntakeBoard() {
   renderIntakeFilter(all, filter);
   const list = filter ? all.filter(h => h.intakeKind === filter) : all;
   const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + (filter ? list.length + "/" + all.length : all.length) + "台）" : "";
-  // 上部サマリー: 未回収(車検で費用未回収)の件数を一目で
-  const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
-  const sm = $("ibSummary"); if (sm) sm.textContent = unpaid ? "未回収 " + unpaid + "件" : "";
   box.innerHTML = "";
   if (!list.length) {
     box.innerHTML = '<div class="ibEmpty">' + (all.length ? "この区分の入庫車両はありません。" : "現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。") + '</div>';
@@ -3110,22 +3107,14 @@ function renderIntakeBoard() {
     if (editable) {
       const me = myConfirmId();
       const conf = Array.isArray(h.confirms) ? h.confirms : [];
-      // 右上: 確認レ点(色付き✓)のみ
       const tr = document.createElement("div"); tr.className = "ibTopRight";
+      const ckRow = document.createElement("div"); ckRow.className = "ibCkRow";
       conf.forEach(c => {
         const ck = document.createElement("span"); ck.className = "ibCk" + (c.id === me.id ? " mine" : "");
         ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
-        tr.appendChild(ck);
+        ckRow.appendChild(ck);
       });
-      card.appendChild(tr);
-
-      // コメント行: コメント(左)＋費用回収ボタン(右・車検のみ)
-      const meta = document.createElement("div"); meta.className = "ibMeta";
-      const memo = document.createElement("button");
-      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
-      memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
-      memo.addEventListener("click", e => { e.stopPropagation(); editIntakeMemo(h.rid); });
-      meta.appendChild(memo);
+      tr.appendChild(ckRow);
       if (h.intakeKind === "車検") {
         const fee = document.createElement("button");
         const fs = FEE_STATES[feeStateOf(h)];
@@ -3133,8 +3122,17 @@ function renderIntakeBoard() {
         fee.textContent = fs.label;
         fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
         fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
-        meta.appendChild(fee);
+        tr.appendChild(fee);
       }
+      card.appendChild(tr);
+
+      // コメント(全幅)
+      const meta = document.createElement("div"); meta.className = "ibMeta";
+      const memo = document.createElement("button");
+      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
+      memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
+      memo.addEventListener("click", e => { e.stopPropagation(); editIntakeMemo(h.rid); });
+      meta.appendChild(memo);
       card.appendChild(meta);
     }
     box.appendChild(card);
@@ -3163,15 +3161,11 @@ function renderIntakeDetail(list) {
     ["満了日", sel.expiry ? fmtYMD(sel.expiry) : "—"],
     ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
   ];
-  // 車検は右上に費用回収ボタン(オレンジ枠位置)
-  let feeBtn = "";
-  if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
-    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div>' + feeBtn + '</div>' +
+    '<div class="ibDetTag">' + esc(info.label) + '</div>' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
     '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") + '</table>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
-  const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", () => {
     const title = dispText(sel.plate) || dispText(sel.type) || "この車両";
