@@ -1192,9 +1192,17 @@ body.gated{overflow:hidden}
   body.officeMode .ibDetail{position:sticky;top:80px;max-height:calc(100vh - 150px);overflow-y:auto}
 }
 
-/* 入庫ボード: 並び替え(ドラッグ) */
-body.officeMode .ibCard{cursor:grab}
-body.officeMode .ibCard:active{cursor:grabbing}
-.ibCard.ibDragging{opacity:.5;box-shadow:0 8px 20px rgba(0,0,0,.18)}
 /* 履歴の削除ボタン(長押しで表示) */
 .histItem .hDel.hidden{display:none}
+
+/* 入庫ボード: 区分フィルター(グループ表示) */
+.ibFilter{display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 10px}
+.ibFchip{border:1px solid var(--line);background:var(--panel);color:var(--dim);border-radius:999px;
+  font-size:12px;font-weight:700;padding:6px 13px;cursor:pointer}
+.ibFchip.on{color:#fff;border-color:transparent;background:#334155}
+.ibFchip.on.ibFall{background:#334155}
+.ibFchip.on.ikShaken{background:#2563EB}
+.ibFchip.on.ikTenken{background:#16A34A}
+.ibFchip.on.ikRepair{background:#EA8C00}
+.ibFchip.on.ikJiko{background:#DC2626}
+@media(min-width:900px){ body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1} }

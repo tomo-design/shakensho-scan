@@ -2897,31 +2897,14 @@ function toggleConfirm(rid) {
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
 }
-/* 入庫ボードの並び順(この端末で記憶)。ドラッグで変更した順を保持 */
-function getIntakeOrder() { try { return JSON.parse(localStorage.getItem("ss_intakeOrder") || "[]"); } catch (e) { return []; } }
-/* ドラッグ中カードの挿入位置(カーソルより下で最も近いカード)を返す */
-function ibDragAfter(box, y) {
-  const cards = [...box.querySelectorAll(".ibCard:not(.ibDragging)")];
-  let closest = null, closestOff = -Infinity;
-  for (const c of cards) {
-    const r = c.getBoundingClientRect(); const off = y - r.top - r.height / 2;
-    if (off < 0 && off > closestOff) { closestOff = off; closest = c; }
-  }
-  return closest;
-}
-function saveIntakeOrder(rids) { try { localStorage.setItem("ss_intakeOrder", JSON.stringify(rids)); } catch (e) {} }
-/* 現在入庫中(出庫していない)の履歴レコードを返す。手動並び順があれば優先、無ければ新しい順 */
+/* 入庫ボードの区分フィルター(この端末で記憶)。"" =すべて / 区分キー */
+function getIntakeFilter() { try { return localStorage.getItem("ss_intakeFilter") || ""; } catch (e) { return ""; } }
+function setIntakeFilter(k) { try { if (k) localStorage.setItem("ss_intakeFilter", k); else localStorage.removeItem("ss_intakeFilter"); } catch (e) {} renderIntakeBoard(); }
+/* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す */
 function activeIntakes() {
-  const list = getHistory().filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut);
-  const order = getIntakeOrder();
-  list.sort((a, b) => {
-    const ia = order.indexOf(a.rid), ib = order.indexOf(b.rid);
-    if (ia >= 0 && ib >= 0) return ia - ib;   // 両方 手動順にある → その順
-    if (ia >= 0) return -1;                    // 手動順にある方を上へ
-    if (ib >= 0) return 1;
-    return (b.intakeAt || 0) - (a.intakeAt || 0);   // 未設定は新しい順
-  });
-  return list;
+  return getHistory()
+    .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)
+    .sort((a, b) => (b.intakeAt || 0) - (a.intakeAt || 0));
 }
 /* 履歴レコードに入庫区分を設定(=ボードへ) */
 function setIntake(rid, kind) {
@@ -3063,38 +3046,46 @@ function addManualIntake() {
   renderIntakeBoard(); renderHistory();
   showToast("入庫を追加しました（" + INTAKE_KINDS[kind].label + "）");
 }
+/* 区分フィルターのチップを描画(すべて＋在庫のある区分)。件数付き・選択状態を記憶 */
+function renderIntakeFilter(all, filter) {
+  const box = $("ibFilter"); if (!box) return;
+  box.innerHTML = "";
+  const mk = (key, label, n, active) => {
+    const b = document.createElement("button");
+    b.className = "ibFchip" + (active ? " on " + (key ? (INTAKE_KINDS[key] || {}).cls : "ibFall") : "");
+    b.textContent = label + "（" + n + "）";
+    b.addEventListener("click", () => setIntakeFilter(key));
+    return b;
+  };
+  box.appendChild(mk("", "すべて", all.length, !filter));
+  Object.keys(INTAKE_KINDS).forEach(k => {
+    const n = all.filter(h => h.intakeKind === k).length;
+    if (n > 0 || filter === k) box.appendChild(mk(k, INTAKE_KINDS[k].label, n, filter === k));
+  });
+}
 function renderIntakeBoard() {
   const sec = $("intakeBoard"), box = $("ibList"); if (!sec || !box) return;
-  const list = activeIntakes();
-  notifyNewIntakes(list);   // 他端末からの新規入庫を音＋ポップアップで通知
-  const cnt = $("ibCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
+  const all = activeIntakes();
+  notifyNewIntakes(all);   // 他端末からの新規入庫を音＋ポップアップで通知
   const office = officeMode();
   const editable = canEditIntake();
   const oldAdd = $("ibAdd"); if (oldAdd) oldAdd.remove();   // 手動追加ボタンは廃止
   // 入庫ボードは事務用モードの端末のみ表示(通常ログインのホームには出さない)
   if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
+  // 区分フィルター(この端末で記憶): すべて / 車検 / 点検 / 修理 / 事故
+  const filter = getIntakeFilter();
+  renderIntakeFilter(all, filter);
+  const list = filter ? all.filter(h => h.intakeKind === filter) : all;
+  const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + (filter ? list.length + "/" + all.length : all.length) + "台）" : "";
   box.innerHTML = "";
-  if (office && !list.length) {
-    box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
+  if (!list.length) {
+    box.innerHTML = '<div class="ibEmpty">' + (all.length ? "この区分の入庫車両はありません。" : "現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。") + '</div>';
     toggle("intakeBoard", true); renderIntakeDetail(list); return;
-  }
-  // 並び替え(ドラッグ)を一度だけ配線。ドロップで順序を保存(この端末に記憶)
-  if (!box._dndBound) {
-    box._dndBound = true;
-    box.addEventListener("dragover", e => {
-      e.preventDefault();
-      const dragging = box.querySelector(".ibDragging"); if (!dragging) return;
-      const after = ibDragAfter(box, e.clientY);
-      if (after == null) box.appendChild(dragging); else box.insertBefore(dragging, after);
-    });
-    box.addEventListener("drop", e => { e.preventDefault(); saveIntakeOrder([...box.querySelectorAll(".ibCard")].map(c => c.dataset.rid).filter(Boolean)); });
   }
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const card = document.createElement("div"); card.className = "ibCard " + info.cls;
-    card.dataset.rid = h.rid; card.draggable = true;
-    card.addEventListener("dragstart", () => card.classList.add("ibDragging"));
-    card.addEventListener("dragend", () => card.classList.remove("ibDragging"));
+    card.dataset.rid = h.rid;
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
