@@ -3097,7 +3097,7 @@ function renderIntakeBoard() {
     if (office) {
       if (h.rid === _ibSelected) card.classList.add("ibSel");
       info2.style.cursor = "pointer";
-      info2.addEventListener("click", () => { _ibSelected = h.rid; renderIntakeBoard(); });
+      info2.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
     }
     // ダブルタップで自分のレ点をトグル(専用ボタンは置かない)
     card.addEventListener("dblclick", e => { e.preventDefault(); toggleConfirm(h.rid); });
@@ -3137,8 +3137,6 @@ function renderIntakeBoard() {
     }
     box.appendChild(card);
   });
-  // 選択があるとき: 未選択カードをワントーン暗く、選択カードを明るく
-  box.classList.toggle("hasSel", !!_ibSelected && list.some(h => h.rid === _ibSelected));
   renderIntakeDetail(list);
   toggle("intakeBoard", true);
 }
