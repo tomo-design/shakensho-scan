@@ -2783,7 +2783,7 @@ function dedupeHistory(list) {
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
       karte: mergeKarte(a.karte, h.karte),
       intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
-      feePaid: pick("feePaid"), feeStatus: pick("feeStatus"), officeMemo: pick("officeMemo"),
+      feePaid: pick("feePaid"), feeStatus: pick("feeStatus"), officeMemo: pick("officeMemo"), staff: pick("staff"),
       confirms: mergeConfirms(a.confirms, h.confirms),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
     };
@@ -3016,6 +3016,16 @@ function cycleFee(rid) {
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
 }
+/* 担当者名の編集(手入力) */
+function editIntakeStaff(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const v = prompt("担当者名を入力してください", t.staff || "");
+  if (v === null) return;
+  t.staff = v.trim() || null; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  renderIntakeBoard();
+}
 /* 車両ごとのコメント編集 */
 function editIntakeMemo(rid) {
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
@@ -3121,9 +3131,11 @@ function renderIntakeBoard() {
       // コメント行: コメント(左)＋費用回収ボタン(右・車検のみ)
       const meta = document.createElement("div"); meta.className = "ibMeta";
       const memo = document.createElement("button");
-      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
+      const memoSel = (h.rid === _ibSelected);
+      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "") + (memoSel ? "" : " locked");
       memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
-      memo.addEventListener("click", e => { e.stopPropagation(); editIntakeMemo(h.rid); });
+      // 未選択のカードはコメント不可(選択中のみ入力できる)
+      memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; editIntakeMemo(h.rid); });
       meta.appendChild(memo);
       if (h.intakeKind === "車検") {
         const fee = document.createElement("button");
@@ -3161,14 +3173,17 @@ function renderIntakeDetail(list) {
     ["初度登録", (sel.firstReg && sel.firstReg.year) ? (sel.firstReg.year + "年" + (sel.firstReg.month || "") + "月") : "—"],
     ["満了日", sel.expiry ? fmtYMD(sel.expiry) : "—"],
     ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
+    ["担当", dispText(sel.staff) || "—"],
   ];
   let feeBtn = "";
   if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
+  const staffBtn = '<button type="button" id="ibDetStaff" class="ibStaff' + (sel.staff ? ' on' : '') + '" title="担当者を入力">' + (sel.staff ? "👤 " + esc(sel.staff) : "＋ 担当者") + '</button>';
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
-    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div>' + feeBtn + '</div>' +
+    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div><div class="ibDetTopR">' + staffBtn + feeBtn + '</div></div>' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
     '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") + '</table>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
+  const ds = $("ibDetStaff"); if (ds) ds.addEventListener("click", () => editIntakeStaff(sel.rid));
   const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", () => {
@@ -3220,9 +3235,9 @@ function renderHomeIntake() {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
-    const main = document.createElement("div"); main.className = "hiMain";
+    const main = document.createElement("div"); main.className = "hiMain hiNoTap";
     main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
-    main.addEventListener("click", () => { const e2 = findHistEntry(getHistory(), h); showResult(e2 ? histToResult(e2) : histToResult(h), { fromScan: false }); });
+    // ホームの入庫状況は閲覧のみ。車両タップでは開かない(操作は出庫ボタンのみ)
     const out = document.createElement("button"); out.className = "hiOut"; out.textContent = "出庫";
     out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
     row.appendChild(main); row.appendChild(out); box.appendChild(row);

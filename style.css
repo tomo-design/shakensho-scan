@@ -1219,3 +1219,13 @@ body.gated{overflow:hidden}
   body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1}
   body.officeMode #intakeBoard .ibSubHead{grid-column:1}   /* レ点案内は左カラム(一覧側)の上に置く */
 }
+
+/* 詳細: 担当者ボタン＋右上スロット */
+.ibDetTopR{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ibStaff{border:1px dashed var(--line);background:var(--panel2);color:var(--dim);border-radius:8px;
+  font-size:12px;font-weight:700;padding:5px 11px;cursor:pointer;white-space:nowrap}
+.ibStaff.on{border-style:solid;color:var(--txt);background:var(--panel)}
+/* ホーム入庫状況: 車両部はタップ不可(出庫のみ) */
+.hiMain.hiNoTap{cursor:default}
+
+.ibMemo.locked{cursor:default;opacity:.75}
