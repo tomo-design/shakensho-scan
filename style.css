@@ -1108,7 +1108,7 @@ body.officeMode #view-scan{padding-top:0}
 .ibDetCard.ikTenken .ibDetTag{background:#16A34A}
 .ibDetCard.ikRepair .ibDetTag{background:#EA8C00}
 .ibDetCard.ikJiko .ibDetTag{background:#DC2626}
-.ibDetTitle{font-size:20px;font-weight:800;color:var(--txt);margin-bottom:12px}
+.ibDetTitle{font-size:19px;font-weight:500;color:var(--txt);margin-bottom:12px}
 .ibDetTbl{width:100%;border-collapse:collapse;font-size:14px}
 .ibDetTbl th{text-align:left;color:var(--dim);font-weight:700;padding:7px 10px 7px 0;white-space:nowrap;vertical-align:top;width:84px}
 .ibDetTbl td{padding:7px 0;color:var(--txt);border-bottom:1px solid var(--line)}
