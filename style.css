@@ -1098,7 +1098,10 @@ body.officeMode #view-scan{padding-top:0}
 
 /* 入庫ボード: PC2ペイン(左=一覧 / 右=選択車両の詳細) */
 .ibDetail{display:none}
-.ibCard.ibSel{box-shadow:inset 0 0 0 2.5px #2563EB;border-color:#2563EB}
+.ibCard{transition:opacity .15s,box-shadow .15s,filter .15s}
+/* 選択があるとき: 未選択は一段暗く、選択は明るく前面に */
+.ibList.hasSel .ibCard{opacity:.5;filter:saturate(.8)}
+.ibList.hasSel .ibCard.ibSel{opacity:1;filter:none;box-shadow:0 3px 14px rgba(0,0,0,.14)}
 .ibDetCard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
 .ibDetTag{display:inline-block;font-size:12px;font-weight:800;color:#fff;background:#555;border-radius:6px;padding:2px 10px;margin-bottom:6px}
 .ibDetCard.ikShaken .ibDetTag{background:#2563EB}

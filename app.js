@@ -3137,6 +3137,8 @@ function renderIntakeBoard() {
     }
     box.appendChild(card);
   });
+  // 選択があるとき: 未選択カードをワントーン暗く、選択カードを明るく
+  box.classList.toggle("hasSel", !!_ibSelected && list.some(h => h.rid === _ibSelected));
   renderIntakeDetail(list);
   toggle("intakeBoard", true);
 }
@@ -3157,6 +3159,7 @@ function renderIntakeDetail(list) {
     ["型式", dispText(sel.type) || "—"],
     ["車台番号", dispText(sel.vin) || "—"],
     ["原動機", dispText(sel.engine) || "—"],
+    ["初度登録", (sel.firstReg && sel.firstReg.year) ? (sel.firstReg.year + "年" + (sel.firstReg.month || "") + "月") : "—"],
     ["満了日", sel.expiry ? fmtYMD(sel.expiry) : "—"],
     ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
   ];
