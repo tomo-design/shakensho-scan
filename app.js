@@ -2897,11 +2897,31 @@ function toggleConfirm(rid) {
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
 }
-/* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す */
+/* 入庫ボードの並び順(この端末で記憶)。ドラッグで変更した順を保持 */
+function getIntakeOrder() { try { return JSON.parse(localStorage.getItem("ss_intakeOrder") || "[]"); } catch (e) { return []; } }
+/* ドラッグ中カードの挿入位置(カーソルより下で最も近いカード)を返す */
+function ibDragAfter(box, y) {
+  const cards = [...box.querySelectorAll(".ibCard:not(.ibDragging)")];
+  let closest = null, closestOff = -Infinity;
+  for (const c of cards) {
+    const r = c.getBoundingClientRect(); const off = y - r.top - r.height / 2;
+    if (off < 0 && off > closestOff) { closestOff = off; closest = c; }
+  }
+  return closest;
+}
+function saveIntakeOrder(rids) { try { localStorage.setItem("ss_intakeOrder", JSON.stringify(rids)); } catch (e) {} }
+/* 現在入庫中(出庫していない)の履歴レコードを返す。手動並び順があれば優先、無ければ新しい順 */
 function activeIntakes() {
-  return getHistory()
-    .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)
-    .sort((a, b) => (b.intakeAt || 0) - (a.intakeAt || 0));
+  const list = getHistory().filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut);
+  const order = getIntakeOrder();
+  list.sort((a, b) => {
+    const ia = order.indexOf(a.rid), ib = order.indexOf(b.rid);
+    if (ia >= 0 && ib >= 0) return ia - ib;   // 両方 手動順にある → その順
+    if (ia >= 0) return -1;                    // 手動順にある方を上へ
+    if (ib >= 0) return 1;
+    return (b.intakeAt || 0) - (a.intakeAt || 0);   // 未設定は新しい順
+  });
+  return list;
 }
 /* 履歴レコードに入庫区分を設定(=ボードへ) */
 function setIntake(rid, kind) {
@@ -3058,9 +3078,23 @@ function renderIntakeBoard() {
     box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
     toggle("intakeBoard", true); renderIntakeDetail(list); return;
   }
+  // 並び替え(ドラッグ)を一度だけ配線。ドロップで順序を保存(この端末に記憶)
+  if (!box._dndBound) {
+    box._dndBound = true;
+    box.addEventListener("dragover", e => {
+      e.preventDefault();
+      const dragging = box.querySelector(".ibDragging"); if (!dragging) return;
+      const after = ibDragAfter(box, e.clientY);
+      if (after == null) box.appendChild(dragging); else box.insertBefore(dragging, after);
+    });
+    box.addEventListener("drop", e => { e.preventDefault(); saveIntakeOrder([...box.querySelectorAll(".ibCard")].map(c => c.dataset.rid).filter(Boolean)); });
+  }
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const card = document.createElement("div"); card.className = "ibCard " + info.cls;
+    card.dataset.rid = h.rid; card.draggable = true;
+    card.addEventListener("dragstart", () => card.classList.add("ibDragging"));
+    card.addEventListener("dragend", () => card.classList.remove("ibDragging"));
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
@@ -3078,11 +3112,18 @@ function renderIntakeBoard() {
     card.addEventListener("dblclick", e => { e.preventDefault(); toggleConfirm(h.rid); });
     card.appendChild(info2);
 
-    // 右上: 費用(車検のみ)＋確認レ点(控えめに色付き✓)
+    // 右上: 上段=確認レ点(色付き✓)、下段=費用(車検のみ)
     if (editable) {
       const me = myConfirmId();
       const conf = Array.isArray(h.confirms) ? h.confirms : [];
       const tr = document.createElement("div"); tr.className = "ibTopRight";
+      const ckRow = document.createElement("div"); ckRow.className = "ibCkRow";
+      conf.forEach(c => {
+        const ck = document.createElement("span"); ck.className = "ibCk" + (c.id === me.id ? " mine" : "");
+        ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
+        ckRow.appendChild(ck);
+      });
+      tr.appendChild(ckRow);
       if (h.intakeKind === "車検") {
         const fee = document.createElement("button");
         const fs = FEE_STATES[feeStateOf(h)];
@@ -3092,11 +3133,6 @@ function renderIntakeBoard() {
         fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
         tr.appendChild(fee);
       }
-      conf.forEach(c => {
-        const ck = document.createElement("span"); ck.className = "ibCk" + (c.id === me.id ? " mine" : "");
-        ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
-        tr.appendChild(ck);
-      });
       card.appendChild(tr);
 
       // コメント(全幅)
@@ -3244,14 +3280,17 @@ function renderHistory() {
         ik.addEventListener("click", e => { e.stopPropagation(); openIntakeModalFor(h.rid, title, "new"); });
       }
       acts.appendChild(ik);
-      const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
+      const del = document.createElement("button"); del.className = "hDel hidden"; del.textContent = "🗑 削除";
       del.addEventListener("click", () => {
+        if (!confirm("この履歴を削除しますか？")) return;
         if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
         localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
         renderHistory();
       });
       acts.appendChild(del);
       div.appendChild(acts);
+      // 長押しで削除ボタンを表示(誤削除防止・普段はすっきり)
+      addLongPress(div, () => { del.classList.toggle("hidden"); if (!del.classList.contains("hidden")) del.scrollIntoView({ block: "nearest" }); });
     }
     box.appendChild(div);
   });
@@ -6170,6 +6209,21 @@ function showToast(msg) {
   showToast._t = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
+/* 長押し検出(タッチ/マウス両対応)。長押し後の通常クリックは抑制する */
+function addLongPress(el, cb, ms) {
+  ms = ms || 500; let timer = null, fired = false, sx = 0, sy = 0;
+  const start = e => { fired = false; const p = (e.touches && e.touches[0]) || e; sx = p.clientX; sy = p.clientY; timer = setTimeout(() => { fired = true; try { cb(); } catch (_) {} if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {} }, ms); };
+  const move = e => { const p = (e.touches && e.touches[0]) || e; if (Math.abs(p.clientX - sx) > 10 || Math.abs(p.clientY - sy) > 10) clearTimeout(timer); };
+  const end = () => clearTimeout(timer);
+  el.addEventListener("touchstart", start, { passive: true });
+  el.addEventListener("touchmove", move, { passive: true });
+  el.addEventListener("touchend", end);
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mousemove", move);
+  el.addEventListener("mouseup", end);
+  el.addEventListener("mouseleave", end);
+  el.addEventListener("click", e => { if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+}
 /* ===== 確実に鳴る通知(音＋アプリ内ポップアップ) =====
    iOS Safari/PWAでは new Notification() が動かず無音で失敗するため、
    システム通知に頼らず WebAudio のビープ音 + 画面内モーダルで確実に知らせる。 */

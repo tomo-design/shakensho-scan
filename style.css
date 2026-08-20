@@ -1098,7 +1098,7 @@ body.officeMode #view-scan{padding-top:0}
 
 /* 入庫ボード: PC2ペイン(左=一覧 / 右=選択車両の詳細) */
 .ibDetail{display:none}
-.ibCard.ibSel{outline:3px solid #2563EB;outline-offset:1px}
+.ibCard.ibSel{box-shadow:inset 0 0 0 2.5px #2563EB;border-color:#2563EB}
 .ibDetCard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
 .ibDetTag{display:inline-block;font-size:12px;font-weight:800;color:#fff;background:#555;border-radius:6px;padding:2px 10px;margin-bottom:6px}
 .ibDetCard.ikShaken .ibDetTag{background:#2563EB}
@@ -1165,7 +1165,8 @@ body.gated{overflow:hidden}
 .ibHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .ibHead h2{padding-left:6px}
 .ibHint{font-size:11px;color:var(--dim);font-weight:500;margin-left:auto}
-.ibTopRight{position:absolute;top:8px;right:12px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:62%}
+.ibTopRight{position:absolute;top:8px;right:12px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;max-width:62%}
+.ibCkRow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .ibCk.mine{outline:2px solid rgba(0,0,0,.12)}
 .ibConfirms{display:none}
 /* 詳細ペインは一覧の先頭カードと上端を揃える */
@@ -1190,3 +1191,10 @@ body.gated{overflow:hidden}
   body.officeMode #ibList{max-height:calc(100vh - 150px);overflow-y:auto;padding-right:4px}
   body.officeMode .ibDetail{position:sticky;top:80px;max-height:calc(100vh - 150px);overflow-y:auto}
 }
+
+/* 入庫ボード: 並び替え(ドラッグ) */
+body.officeMode .ibCard{cursor:grab}
+body.officeMode .ibCard:active{cursor:grabbing}
+.ibCard.ibDragging{opacity:.5;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+/* 履歴の削除ボタン(長押しで表示) */
+.histItem .hDel.hidden{display:none}
