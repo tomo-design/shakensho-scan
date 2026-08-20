@@ -3050,23 +3050,13 @@ function renderIntakeBoard() {
   const cnt = $("ibCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
   const office = officeMode();
   const editable = canEditIntake();
-  // 手動追加ボタン(事務/管理者のみ)
-  let addBtn = $("ibAdd");
-  if (editable) {
-    if (!addBtn) {
-      addBtn = document.createElement("button"); addBtn.id = "ibAdd"; addBtn.className = "ibAdd";
-      addBtn.textContent = "＋ 手動で入庫追加";
-      addBtn.addEventListener("click", addManualIntake);
-      const head = sec.querySelector(".ibHead"); if (head) head.appendChild(addBtn);
-    }
-    addBtn.classList.remove("hidden");
-  } else if (addBtn) addBtn.classList.add("hidden");
+  const oldAdd = $("ibAdd"); if (oldAdd) oldAdd.remove();   // 手動追加ボタンは廃止
   // 入庫ボードは事務用モードの端末のみ表示(通常ログインのホームには出さない)
   if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
   box.innerHTML = "";
   if (office && !list.length) {
     box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
-    toggle("intakeBoard", true); return;
+    toggle("intakeBoard", true); renderIntakeDetail(list); return;
   }
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
@@ -3075,44 +3065,24 @@ function renderIntakeBoard() {
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
     const info2 = document.createElement("div"); info2.className = "ibMain";
-    // 入庫管理側では区分は操作できない(整備士/管理者がスキャン時に設定)。区分は表示のみ
     info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    // PC2ペイン(事務モード・広い画面): カードをクリックで右側に詳細表示
+    // クリックで右ペインに詳細表示
     if (office) {
       if (h.rid === _ibSelected) card.classList.add("ibSel");
       info2.style.cursor = "pointer";
       info2.addEventListener("click", () => { _ibSelected = h.rid; renderIntakeBoard(); });
-    } else info2.style.cursor = "default";
+    }
+    // ダブルタップで自分のレ点をトグル(専用ボタンは置かない)
+    card.addEventListener("dblclick", e => { e.preventDefault(); toggleConfirm(h.rid); });
     card.appendChild(info2);
 
-    // レ点(確認済み): 右上に横1列。確認した人の色で✓。自分の分はタップでトグル
+    // 右上: 費用(車検のみ)＋確認レ点(控えめに色付き✓)
     if (editable) {
       const me = myConfirmId();
       const conf = Array.isArray(h.confirms) ? h.confirms : [];
-      const wrap = document.createElement("div"); wrap.className = "ibConfirms";
-      conf.forEach(c => {
-        const ck = document.createElement("span"); ck.className = "ibCk"; ck.style.background = c.color || "#888";
-        ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
-        wrap.appendChild(ck);
-      });
-      const mine = conf.some(c => c.id === me.id);
-      const add = document.createElement("button");
-      add.className = "ibCkAdd" + (mine ? " on" : "");
-      add.style.color = mine ? "#fff" : me.color;
-      add.style.background = mine ? me.color : "transparent";
-      add.style.borderColor = me.color;
-      add.textContent = mine ? "✓ 確認済" : "レ点";
-      add.title = mine ? "自分の確認を外す" : "確認済みにする(あなたの色: " + me.color + ")";
-      add.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
-      wrap.appendChild(add);
-      card.appendChild(wrap);
-    }
-
-    // 費用回収・コメント。費用は車検時のみ(それ以外の区分では回収ボタンを出さない)
-    if (editable) {
-      const meta = document.createElement("div"); meta.className = "ibMeta";
+      const tr = document.createElement("div"); tr.className = "ibTopRight";
       if (h.intakeKind === "車検") {
         const fee = document.createElement("button");
         const fs = FEE_STATES[feeStateOf(h)];
@@ -3120,8 +3090,17 @@ function renderIntakeBoard() {
         fee.textContent = fs.label;
         fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
         fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
-        meta.appendChild(fee);
+        tr.appendChild(fee);
       }
+      conf.forEach(c => {
+        const ck = document.createElement("span"); ck.className = "ibCk" + (c.id === me.id ? " mine" : "");
+        ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
+        tr.appendChild(ck);
+      });
+      card.appendChild(tr);
+
+      // コメント(全幅)
+      const meta = document.createElement("div"); meta.className = "ibMeta";
       const memo = document.createElement("button");
       memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "");
       memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
@@ -3129,10 +3108,7 @@ function renderIntakeBoard() {
       meta.appendChild(memo);
       card.appendChild(meta);
     }
-
-    const out = document.createElement("button"); out.className = "ibOut"; out.textContent = "出庫";
-    out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) clearIntake(h.rid); });
-    card.appendChild(out); box.appendChild(card);
+    box.appendChild(card);
   });
   renderIntakeDetail(list);
   toggle("intakeBoard", true);
@@ -3141,6 +3117,7 @@ function renderIntakeBoard() {
 function renderIntakeDetail(list) {
   const box = $("ibDetail"); if (!box) return;
   const sel = (list || []).find(h => h.rid === _ibSelected) || null;
+  box.classList.toggle("show", !!sel);   // 選択時のみ表示(モバイルでは一覧の下に詳細＋出庫が出る)
   if (!sel) {
     box.innerHTML = '<div class="ibDetEmpty">左の一覧から車両を選ぶと、ここに詳細が表示されます。</div>';
     return;

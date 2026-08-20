@@ -1099,11 +1099,7 @@ body.officeMode #view-scan{padding-top:0}
 /* 入庫ボード: PC2ペイン(左=一覧 / 右=選択車両の詳細) */
 .ibDetail{display:none}
 .ibCard.ibSel{outline:3px solid #2563EB;outline-offset:1px}
-.ibDetCard{border:1px solid var(--line);border-left:6px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
-.ibDetCard.ikShaken{border-left-color:#2563EB}
-.ibDetCard.ikTenken{border-left-color:#16A34A}
-.ibDetCard.ikRepair{border-left-color:#EA8C00}
-.ibDetCard.ikJiko{border-left-color:#DC2626}
+.ibDetCard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
 .ibDetTag{display:inline-block;font-size:12px;font-weight:800;color:#fff;background:#555;border-radius:6px;padding:2px 10px;margin-bottom:6px}
 .ibDetCard.ikShaken .ibDetTag{background:#2563EB}
 .ibDetCard.ikTenken .ibDetTag{background:#16A34A}
@@ -1164,3 +1160,19 @@ body.gated{overflow:hidden}
 .hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hiOut{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer}
 .hiOut:active{background:var(--line)}
+
+/* 入庫ボード: 右上スロット(費用＋レ点)・案内・ヘッダー配置の調整 */
+.ibHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ibHead h2{padding-left:6px}
+.ibHint{font-size:11px;color:var(--dim);font-weight:500;margin-left:auto}
+.ibTopRight{position:absolute;top:8px;right:12px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:62%}
+.ibCk.mine{outline:2px solid rgba(0,0,0,.12)}
+.ibConfirms{display:none}
+/* 詳細ペインは一覧の先頭カードと上端を揃える */
+@media(min-width:900px){
+  body.officeMode #intakeBoard .ibHead h2{padding-left:14px}
+  body.officeMode .ibDetail{margin-top:0;align-self:start}
+}
+
+.ibDetail.show{display:block;margin-top:10px}
+@media(min-width:900px){body.officeMode .ibDetail,body.officeMode .ibDetail.show{margin-top:0}}
