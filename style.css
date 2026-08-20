@@ -1121,7 +1121,9 @@ body.officeMode #view-scan{padding-top:0}
   nav#tabs{max-width:1080px}
   body.officeMode #intakeBoard{display:grid !important;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
   body.officeMode #intakeBoard .ibHead{grid-column:1 / -1}
-  body.officeMode .ibDetail{display:block;position:sticky;top:80px}
+  /* 左右を明示的に固定(自動配置で入れ替わらないように): 一覧=1列目 / 詳細=2列目 */
+  body.officeMode #intakeBoard #ibList{grid-column:1}
+  body.officeMode #intakeBoard .ibDetail{grid-column:2;display:block;position:sticky;top:80px}
 }
 
 /* ログインゲート(法人・未ログイン時の全画面) */
