@@ -1167,7 +1167,11 @@ body.gated{overflow:hidden}
 /* 入庫ボード: 右上スロット(費用＋レ点)・案内・ヘッダー配置の調整 */
 .ibHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .ibHead h2{padding-left:6px}
-.ibHint{font-size:11px;color:var(--dim);font-weight:500;margin-left:auto}
+.ibHint{font-size:10.5px;color:var(--dim);font-weight:400;opacity:.55}
+.ibSubHead{display:flex;justify-content:flex-end;margin:-4px 0 8px;padding-right:2px}
+.ibSummary{font-size:12px;font-weight:700;color:#DC2626;margin-left:10px}
+.ibDetTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.ibDetTop .ibDetTag{margin-bottom:0}
 .ibTopRight{position:absolute;top:8px;right:12px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;max-width:62%}
 .ibCkRow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .ibCk.mine{outline:2px solid rgba(0,0,0,.12)}
@@ -1208,4 +1212,4 @@ body.gated{overflow:hidden}
 .ibFchip.on.ikTenken{background:#16A34A}
 .ibFchip.on.ikRepair{background:#EA8C00}
 .ibFchip.on.ikJiko{background:#DC2626}
-@media(min-width:900px){ body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1} }
+@media(min-width:900px){ body.officeMode #intakeBoard .ibFilter,body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1} }
