@@ -773,9 +773,11 @@
       if (!(profile && (profile.role === "admin" || profile.role === "super"))) return;   // 通知対象は管理者のみ
       if (typeof firebase.messaging !== "function" || !("serviceWorker" in navigator)) return;
       if (!VAPID_KEY || VAPID_KEY.indexOf("PASTE_") === 0) return;   // 鍵未設定なら在アプリ通知のみで運用
+      try { if (firebase.messaging && typeof firebase.messaging.isSupported === "function" && !(await firebase.messaging.isSupported())) return; } catch (e) { return; }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") return;
-      const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+      // 専用スコープに登録(アプリ本体SW '/' を置き換えない)
+      const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js", { scope: "/firebase-cloud-messaging-push-scope" });
       const messaging = firebase.messaging();
       const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
       if (token) {
@@ -976,17 +978,25 @@
     signOut() { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} try { auth.signOut(); } catch (e) {} },
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {
+      const IAB = "この画面はアプリ内ブラウザで開かれています。通知を使うには、右上メニューから「Chrome / Safari で開く」か、ホーム画面に追加したアプリ（メカノAI）で開いてください。";
       try {
-        if (!("Notification" in window)) return { ok: false, msg: "この端末は通知に対応していません。" };
-        if (typeof firebase.messaging !== "function") return { ok: false, msg: "通知機能を初期化できませんでした。" };
+        if (!("Notification" in window) || !("serviceWorker" in navigator)) return { ok: false, msg: "この端末（またはアプリ内ブラウザ）は通知に対応していません。" + " " + IAB };
+        // 端末/ブラウザがFCMに対応しているか事前判定(アプリ内ブラウザ等は非対応)
+        let supported = true;
+        try { if (firebase.messaging && typeof firebase.messaging.isSupported === "function") supported = await firebase.messaging.isSupported(); } catch (e) { supported = false; }
+        if (!supported || typeof firebase.messaging !== "function") return { ok: false, msg: "この環境では通知（プッシュ）が使えません。" + IAB };
         const perm = await Notification.requestPermission();
         if (perm !== "granted") return { ok: false, msg: "通知が許可されませんでした。ブラウザの設定から許可してください。" };
-        const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js");
+        const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js", { scope: "/firebase-cloud-messaging-push-scope" });
         const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-        if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。" };
+        if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。もう一度お試しください。" };
         if (me) await db.collection("users").doc(me.uid).set({ fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
         return { ok: true, msg: "✓ 通知を有効にしました。参加申請などがこの端末に届きます。" };
-      } catch (e) { return { ok: false, msg: "通知の有効化に失敗しました（" + ((e && e.message) || e) + "）" }; }
+      } catch (e) {
+        const m = (e && e.message) || String(e);
+        if (/evaluation failed|unsupported|not supported|AbortError/i.test(m)) return { ok: false, msg: "この環境では通知（プッシュ）が使えません。" + IAB };
+        return { ok: false, msg: "通知の有効化に失敗しました（" + m + "）" };
+      }
     },
   };
 
