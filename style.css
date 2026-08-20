@@ -355,15 +355,16 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
   padding:3px 11px;min-height:auto;font-size:15px}
 
 /* history */
-.histItem{display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.histItem{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
 .histItem:last-child{border-bottom:0}
+.hSlide{display:flex;align-items:center;gap:10px;padding:13px 14px;background:var(--panel);position:relative;z-index:1;will-change:transform}
 .histItem .hMain{flex:1;min-width:0;cursor:pointer}
 .histItem .hType{font-family:'Chakra Petch';font-weight:700;font-size:15px;letter-spacing:.05em}
 .histItem .hSub{font-size:11px;color:var(--dim);margin-top:2px;word-break:break-all}
-.histItem .hDel{flex:none;background:transparent;border:0;color:var(--dim);
-  border-radius:8px;padding:6px 8px;font-size:12px;font-weight:600;opacity:.7}
-.histItem .hDel:active{background:var(--panel2);opacity:1}
-.histItem .hActs{flex:none;display:flex;align-items:center;gap:6px}
+/* 左スワイプで出現する削除ボタン(行の右側に固定) */
+.histItem .hDel{position:absolute;top:0;right:0;height:100%;width:84px;z-index:0;
+  background:var(--alert,#DC2626);border:0;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+.histItem .hDel:active{filter:brightness(.92)}
 .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:13px;line-height:1.8}
 
 /* db editor */
@@ -1214,4 +1215,7 @@ body.gated{overflow:hidden}
 .ibFchip.on.ikTenken{background:#16A34A}
 .ibFchip.on.ikRepair{background:#EA8C00}
 .ibFchip.on.ikJiko{background:#DC2626}
-@media(min-width:900px){ body.officeMode #intakeBoard .ibFilter,body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1} }
+@media(min-width:900px){
+  body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1}
+  body.officeMode #intakeBoard .ibSubHead{grid-column:1}   /* レ点案内は左カラム(一覧側)の上に置く */
+}

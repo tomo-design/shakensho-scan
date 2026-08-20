@@ -2860,7 +2860,7 @@ const INTAKE_KINDS = {
   "車検": { label: "車検", cls: "ikShaken" },
   "点検": { label: "定期点検", cls: "ikTenken" },
   "修理": { label: "一般修理", cls: "ikRepair" },
-  "事故": { label: "事故", cls: "ikJiko" },
+  "事故": { label: "板金", cls: "ikJiko" },
 };
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
 const CONFIRM_COLORS = ["#2563EB", "#16A34A", "#EA8C00", "#DC2626", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#CA8A04", "#4F46E5", "#0D9488", "#9333EA"];
@@ -3253,6 +3253,7 @@ function renderHistory() {
   if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
   hist.forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
+    const slide = document.createElement("div"); slide.className = "hSlide";
     const main = document.createElement("div"); main.className = "hMain";
     const dt = new Date(h.at);
     const title = [h.plate, h.name].map(dispText).filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
@@ -3261,10 +3262,9 @@ function renderHistory() {
       dt.getFullYear() + "/" + String(dt.getMonth()+1).padStart(2,"0") + "/" + String(dt.getDate()).padStart(2,"0") +
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
-    div.appendChild(main);
-    // 操作(区分・削除)は管理者のみ。右側にまとめてスマートに配置
+    slide.appendChild(main);
+    // 入庫区分(管理者のみ)はスライド内の右側に表示
     if (isManager()) {
-      const acts = document.createElement("div"); acts.className = "hActs";
       if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化
       const active = h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut;
       const ik = document.createElement("button");
@@ -3278,18 +3278,20 @@ function renderHistory() {
         ik.title = "入庫区分を設定してボードに追加";
         ik.addEventListener("click", e => { e.stopPropagation(); openIntakeModalFor(h.rid, title, "new"); });
       }
-      acts.appendChild(ik);
-      const del = document.createElement("button"); del.className = "hDel hidden"; del.textContent = "🗑 削除";
+      slide.appendChild(ik);
+    }
+    div.appendChild(slide);
+    // 削除(管理者のみ): 行を左にスワイプすると右側から出現
+    if (isManager()) {
+      const del = document.createElement("button"); del.className = "hDel"; del.textContent = "削除";
       del.addEventListener("click", () => {
         if (!confirm("この履歴を削除しますか？")) return;
         if (window.Cloud) window.Cloud.deleteRecord(h);   // クラウドからも削除(復活防止)
         localStorage.setItem(LS.hist, JSON.stringify(getHistory().filter(x => x.id !== h.id)));
         renderHistory();
       });
-      acts.appendChild(del);
-      div.appendChild(acts);
-      // 長押しで削除ボタンを表示(誤削除防止・普段はすっきり)
-      addLongPress(div, () => { del.classList.toggle("hidden"); if (!del.classList.contains("hidden")) del.scrollIntoView({ block: "nearest" }); });
+      div.appendChild(del);
+      addSwipeReveal(div, slide);
     }
     box.appendChild(div);
   });
@@ -6222,6 +6224,33 @@ function addLongPress(el, cb, ms) {
   el.addEventListener("mouseup", end);
   el.addEventListener("mouseleave", end);
   el.addEventListener("click", e => { if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
+}
+/* 左スワイプで削除ボタンを出す(iOS風)。slideを左へ最大Wまで移動、半分超で開いた状態を保持 */
+function addSwipeReveal(item, slide) {
+  const W = 84; let x0 = 0, y0 = 0, drag = false, moved = false, open = false;
+  slide.style.touchAction = "pan-y";
+  const setTx = v => { slide.style.transform = "translateX(" + v + "px)"; };
+  const start = e => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    x0 = e.clientX; y0 = e.clientY; drag = true; moved = false; slide.style.transition = "none";
+    try { slide.setPointerCapture(e.pointerId); } catch (_) {}
+  };
+  const move = e => {
+    if (!drag) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!moved) { if (Math.abs(dx) < 6) return; if (Math.abs(dy) > Math.abs(dx)) { drag = false; return; } moved = true; }
+    let tx = (open ? -W : 0) + dx; tx = Math.max(-W, Math.min(0, tx)); setTx(tx);
+  };
+  const end = e => {
+    if (!drag) return; drag = false; slide.style.transition = "transform .18s";
+    const base = (open ? -W : 0) + (e.clientX - x0); open = base < -W / 2; setTx(open ? -W : 0);
+  };
+  slide.addEventListener("pointerdown", start);
+  slide.addEventListener("pointermove", move);
+  slide.addEventListener("pointerup", end);
+  slide.addEventListener("pointercancel", end);
+  // スワイプ操作の直後のクリック(車両を開く/区分変更)を抑制
+  slide.addEventListener("click", e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
 }
 /* ===== 確実に鳴る通知(音＋アプリ内ポップアップ) =====
    iOS Safari/PWAでは new Notification() が動かず無音で失敗するため、
