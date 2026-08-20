@@ -3206,7 +3206,10 @@ function applyOfficeMode() {
 function renderHomeIntake() {
   const sec = $("homeIntake"), box = $("hiList"); if (!sec || !box) return;
   const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
-  const show = onHome && !officeMode() && (typeof isManager === "function" && isManager());
+  const isDemoNow = (typeof isDemo === "function" && isDemo());
+  // デモ版では実データの入庫状況を出さない。ログイン中の管理者のみ表示
+  const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
+  const show = onHome && !officeMode() && !isDemoNow && loggedInMgr;
   const list = show ? activeIntakes() : [];
   if (!list.length) { toggle("homeIntake", false); box.innerHTML = ""; return; }
   const cnt = $("hiCount"); if (cnt) cnt.textContent = "（" + list.length + "台）";
