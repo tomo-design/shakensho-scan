@@ -3180,7 +3180,7 @@ function applyOfficeMode() {
   const chk = document.getElementById("officeModeChk");
   if (chk) chk.addEventListener("change", () => {
     if (chk.checked) {
-      if (!confirm("この端末を入庫管理専用モードにします。スキャンやAIなどは表示されなくなります。よろしいですか？")) { chk.checked = false; return; }
+      if (!confirm("この端末を入庫管理画面にします。スキャンやAIなどは表示されなくなります。よろしいですか？")) { chk.checked = false; return; }
       localStorage.setItem("ss_office", "1");
     } else localStorage.removeItem("ss_office");
     applyOfficeMode();
@@ -6468,8 +6468,10 @@ function refreshAuthGate() {
   const gate = $("authGate"); if (!gate) return;
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
   const personal = (typeof getAppMode === "function" && getAppMode() === "personal");
+  // 一度ログインした端末は再ログインを求めない(更新・再読込で認証復元が遅れてもゲートを出さない)
+  let hadSession = false; try { hadSession = localStorage.getItem("ss_hadSession") === "1"; } catch (e) {}
   // 認証状態が未解決の初回はゲートを出さない(ログイン済みユーザーへのちらつき防止)
-  const block = _authResolved && !personal && !isDemo() && !loggedIn;
+  const block = _authResolved && !personal && !isDemo() && !loggedIn && !hadSession;
   gate.classList.toggle("hidden", !block);
   document.body.classList.toggle("gated", block);
 }

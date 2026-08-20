@@ -382,7 +382,7 @@
       catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
     } else { signup(cloudMode === "new"); }
   });
-  $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => auth.signOut());
+  $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} auth.signOut(); });
   /* パスワード変更(ログイン中の本人が任意のパスワードへ) */
   $("btnCloudChangePw") && $("btnCloudChangePw").addEventListener("click", async () => {
     const user = auth.currentUser;
@@ -490,7 +490,7 @@
       const off = $("officeLoginChk");
       if (off && off.checked) {
         localStorage.setItem("ss_office", "1");
-        $("cloudAuthStat").textContent += "（承認後、この端末は入庫管理専用画面になります）";
+        $("cloudAuthStat").textContent += "（承認後、この端末は入庫管理画面になります）";
       }
     } catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
   }
@@ -556,6 +556,8 @@
 
   function renderAuthUI() {
     const inLogged = !!me;
+    // 一度ログインした端末は記録。更新・再読込で認証復元が一瞬遅れてもログイン画面を出さない(再ログイン防止)
+    try { if (inLogged) localStorage.setItem("ss_hadSession", "1"); } catch (e) {}
     if (typeof window.updateAuthGate === "function") window.updateAuthGate();   // 認証状態が確定したのでログインゲートを再評価
     if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
     show("cloudLoggedOut", !inLogged);
@@ -971,7 +973,7 @@
       db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r))
         .set({ deleted: true, vin: r.vin || null, rid: r.rid || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     },
-    signOut() { try { auth.signOut(); } catch (e) {} },
+    signOut() { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} try { auth.signOut(); } catch (e) {} },
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {
       try {
