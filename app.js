@@ -6289,21 +6289,27 @@ function addLongPress(el, cb, ms) {
 /* 左スワイプで削除ボタンを出す(iOS風)。slideを左へ最大Wまで移動、半分超で開いた状態を保持 */
 function addSwipeReveal(item, slide) {
   const W = 84; let x0 = 0, y0 = 0, drag = false, moved = false, open = false;
-  slide.style.touchAction = "pan-y";
+  slide.style.touchAction = "pan-y";   // 縦スクロールはブラウザに任せる
   const setTx = v => { slide.style.transform = "translateX(" + v + "px)"; };
   const start = e => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     x0 = e.clientX; y0 = e.clientY; drag = true; moved = false; slide.style.transition = "none";
-    try { slide.setPointerCapture(e.pointerId); } catch (_) {}
+    // ここではポインタを捕捉しない(縦スクロールを妨げないため)。横スワイプ確定後に捕捉する。
   };
   const move = e => {
     if (!drag) return;
     const dx = e.clientX - x0, dy = e.clientY - y0;
-    if (!moved) { if (Math.abs(dx) < 6) return; if (Math.abs(dy) > Math.abs(dx)) { drag = false; return; } moved = true; }
+    if (!moved) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;          // まだ方向が定まらない
+      if (Math.abs(dx) <= Math.abs(dy)) { drag = false; return; } // 縦方向 → スワイプ扱いしない(削除は出さない)
+      moved = true;
+      try { slide.setPointerCapture(e.pointerId); } catch (_) {}  // 横スワイプ確定後のみ捕捉
+    }
     let tx = (open ? -W : 0) + dx; tx = Math.max(-W, Math.min(0, tx)); setTx(tx);
   };
   const end = e => {
     if (!drag) return; drag = false; slide.style.transition = "transform .18s";
+    if (!moved) { setTx(open ? -W : 0); return; }   // 縦スクロール等で横移動していない → 状態を維持
     const base = (open ? -W : 0) + (e.clientX - x0); open = base < -W / 2; setTx(open ? -W : 0);
   };
   slide.addEventListener("pointerdown", start);
