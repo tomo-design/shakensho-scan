@@ -1986,8 +1986,27 @@ $("abClose").addEventListener("click", hideAssign);
 
 /* メンテナンス諸元 [{k,v}] を表形式で表示 */
 let shownSpecs = [];        // 現在表示中の諸元(訂正の初期値に使う)
+/* 初度登録年月からOBD検査(OBD確認検査)の対象時期かを端末側で判定して諸元行を返す。
+   AI任せだと『確証なし』で省かれるため、初度登録が令和3年10月以降なら必ず表示する。 */
+function obdSpec() {
+  const d = current || {};
+  const fr = d.firstReg;
+  if (!fr || !fr.year || !fr.month) return null;
+  const ym = fr.year * 100 + fr.month;
+  if (ym < 202110) return null;   // 令和3年10月より前の初度登録は対象外
+  const reg = fr.year + "年" + fr.month + "月";
+  // 令和6年10月以降の初度登録は検査が実適用される時期。それ以前は対象車の可能性(型式指定日で確定)。
+  const v = (ym >= 202410)
+    ? "対象車（初度登録 " + reg + "・令和6年10月〜適用）"
+    : "対象車の可能性（初度登録 " + reg + "／型式指定日で確定・車検証備考も確認）";
+  return { k: "OBD検査", v: v };
+}
 function renderSpecs(specs, source) {
   shownSpecs = dedupSpecs(normalizeSpecs(specs || []));   // 固まった値は項目ごとに分解し、同義項目の重複は統合して表示
+  const realCount = shownSpecs.length;
+  // OBD検査対象は初度登録から端末側で判定して必ず表示(未収録なら先頭付近に追加)
+  const obd = obdSpec();
+  if (obd && !shownSpecs.some(s => /OBD/i.test(String(s.k || "")))) shownSpecs.push(obd);
   const dl = $("specList"); dl.innerHTML = "";
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
@@ -4243,18 +4262,24 @@ async function continueIfTruncated(basePrompt, r, opts, onChunk) {
   let tries = 0;
   while (r && r.truncated && tries < 2) {
     tries++;
-    const tail = String(r.text || "").slice(-600);
+    const full = String(r.text || "");
+    // 途中で切れた最後の行は不完全なことが多い。行単位で区切って続きを生成し、継ぎ目を自然にする。
+    const lastNl = full.lastIndexOf("\n");
+    const head = lastNl > 0 ? full.slice(0, lastNl) : full;
+    const ctx = head.slice(-800);
     const contPrompt = [
-      "先ほどの回答が途中で切れました。下の【ここまで】の続きを、重複せずに自然につなげて最後まで出力してください。",
-      "前置き・免責・繰り返しは不要。元と同じ出力形式(番号・『理由:』『切り分け:』等)を保つこと。",
-      "【当初の指示(要約)】" + String(basePrompt).slice(0, 800),
-      "【ここまで】…" + tail,
+      "先ほどの回答が途中で切れました。下の【ここまで】の直後から、自然に続けて最後まで出力してください。",
+      "重要: 【ここまで】に既にある内容は絶対に繰り返さない。続きだけを出す。前置き・見出しの言い直し・免責・挨拶は不要。",
+      "元と同じ出力形式(番号付き候補／各候補に『理由:』『切り分け:』／最後に『■最初の1手』)を維持し、途中だった候補があれば次の番号から続ける。",
+      "【当初の指示(要約)】" + String(basePrompt).slice(0, 700),
+      "【ここまで】\n" + ctx,
     ].join("\n");
     let cont;
     try { cont = await geminiAsk(contPrompt, { mode: opts.mode || "flash", thinkingBudget: 512, noCache: true }); }
     catch (e) { break; }
     if (!cont || !cont.text) break;
-    r = { text: (r.text || "") + (r.text && !/\n$/.test(r.text) ? "\n" : "") + cont.text, truncated: !!cont.truncated, model: r.model };
+    const add = String(cont.text).replace(/^[\s　]+/, "");
+    r = { text: head + "\n" + add, truncated: !!cont.truncated, model: r.model };
     if (onChunk) onChunk(r.text, false);
   }
   return r;
