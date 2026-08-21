@@ -344,7 +344,7 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
     if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }
     if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok || !r.body) { lastErr = "http " + r.status; continue; }
-    let full = "", truncated = false, headed = false, buf = "";
+    let full = "", truncated = false, headed = false, buf = "", finishReason = "";
     const usedModel = model;
     const dec = new TextDecoder();
     try {
@@ -364,11 +364,14 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
               if (!headed) { sendSseHeaders(res); headed = true; }
               res.write("data: " + JSON.stringify({ t: piece }) + "\n\n");
             }
-            if (cand && cand.finishReason === "MAX_TOKENS") truncated = true;
+            if (cand && cand.finishReason) finishReason = cand.finishReason;
           } catch (e) {}
         }
       }
-    } catch (e) { lastErr = "stream " + (e && e.message); if (headed) return { started: true, truncated: truncated, model: usedModel }; continue; }
+      // STOP(正常終了)以外は「途中で切れた」扱い(MAX_TOKENS/SAFETY/RECITATION/OTHER)。
+      // finishReasonが一度も来ずに終わった=異常終了も切れ扱い。
+      truncated = (finishReason !== "STOP");
+    } catch (e) { lastErr = "stream " + (e && e.message); if (headed) return { started: true, truncated: true, model: usedModel }; continue; }
     if (full) return { started: true, truncated: truncated, model: usedModel };
     lastErr = "empty"; continue;   // 本文ゼロ(ヘッダ未送信) → 次モデル/次キーへ
   }

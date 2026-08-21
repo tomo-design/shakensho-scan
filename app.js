@@ -4236,6 +4236,29 @@ function aiLangDirective() {
     : "";
 }
 
+/* 回答が途中で切れた(truncated)場合、続きを取得して結合する。最大2回まで自動継続。
+   onChunk があれば、結合後の全文を逐次表示に反映する。 */
+async function continueIfTruncated(basePrompt, r, opts, onChunk) {
+  opts = opts || {};
+  let tries = 0;
+  while (r && r.truncated && tries < 2) {
+    tries++;
+    const tail = String(r.text || "").slice(-600);
+    const contPrompt = [
+      "先ほどの回答が途中で切れました。下の【ここまで】の続きを、重複せずに自然につなげて最後まで出力してください。",
+      "前置き・免責・繰り返しは不要。元と同じ出力形式(番号・『理由:』『切り分け:』等)を保つこと。",
+      "【当初の指示(要約)】" + String(basePrompt).slice(0, 800),
+      "【ここまで】…" + tail,
+    ].join("\n");
+    let cont;
+    try { cont = await geminiAsk(contPrompt, { mode: opts.mode || "flash", thinkingBudget: 512, noCache: true }); }
+    catch (e) { break; }
+    if (!cont || !cont.text) break;
+    r = { text: (r.text || "") + (r.text && !/\n$/.test(r.text) ? "\n" : "") + cont.text, truncated: !!cont.truncated, model: r.model };
+    if (onChunk) onChunk(r.text, false);
+  }
+  return r;
+}
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
@@ -4748,18 +4771,21 @@ async function runDiagAI(text) {
   let streamed = false;
   try {
     // ストリーミングで逐次表示＋思考量に上限を設けて、結果が出るまでの待ち時間を短縮する。
-    const r = await geminiAskStream(buildDiagPrompt(text), { mode: "pro", thinkingBudget: 3072 }, (acc, done) => {
+    const dp = buildDiagPrompt(text);
+    let r = await geminiAskStream(dp, { mode: "pro", thinkingBudget: 3072 }, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;   // 生成されたぶんから先に読める
     });
+    // 途中で切れていたら続きを自動取得して結合(ジェミニのストリーム途中終了対策)
+    if (r && r.truncated) { p.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(dp, r, { mode: "flash" }, (acc) => { p.textContent = acc; }); }
     stopTimer();
     p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
     const eb = engineBadge(r.model); if (eb) { const h2 = sec.querySelector("h2"); if (h2) h2.appendChild(eb); }
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
-    note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。症状を絞って再度相談してください。 " : "")
+    note.textContent = (r.truncated ? "⚠ 回答が長いため一部省略された可能性があります。 " : "")
       + "※ AIの回答は参考情報です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
     // 結果を履歴に保存(別車両を検索して画面がクリアされても後から一覧で閲覧できる)
@@ -5069,6 +5095,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
       } else {
         r = await geminiAsk(prompt, { mode: "pro" });   // 故障診断は常に高精度(思考ON)
       }
+      if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }); }
       lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
       renderAiAnswer(ans, r.text, { linkCauses: true });
       // この相談欄は使い終わったので入力部を畳み、質問内容だけ残す(入力枠が重複して並ぶのを防ぐ)
@@ -5851,16 +5878,18 @@ async function diagMediaAnalyze() {
     lastDiagInput = (text || "") || "写真・動画による診断";   // 手引書生成に文脈を反映
     stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
     let streamed = false;
-    const r = await geminiAskMediaStream(buildMediaDiagPrompt(), media, {}, (acc, done) => {
+    const mdp = buildMediaDiagPrompt();
+    let r = await geminiAskMediaStream(mdp, media, {}, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;
     });
+    if (r && r.truncated) { p.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(mdp, r, { mode: "flash" }, (acc) => { p.textContent = acc; }); }
     stopTimer(); p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
     const eb = engineBadge(r.model); if (eb) { const h2 = sec.querySelector("h2"); if (h2) h2.appendChild(eb); }
     const note = document.createElement("div"); note.className = "hint"; note.style.marginTop = "10px";
-    note.textContent = (r.truncated ? "⚠ 回答が長すぎて一部省略されました。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
+    note.textContent = (r.truncated ? "⚠ 回答が長いため一部省略された可能性があります。 " : "") + "※ 映像・音声からの推定です。必ず実測・実点検で裏取りしてください。";
     body.appendChild(note);
     const rec = saveDiagRecord(text || "写真・動画による診断", r.text, getAiMode());   // 結果を履歴に保存
     addDiagHeadShare(sec, rec);   // 見出し右端に共有(バッジは左寄せ)
