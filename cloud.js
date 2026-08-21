@@ -871,11 +871,11 @@
       if (!me) throw new Error("ログインが必要です。");
       const idToken = await auth.currentUser.getIdToken();
       const url = "https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/" + name;
-      // iOS Safariは fetch の ReadableStream を最初のチャンクで打ち切ることがある(見解が1文字)。
-      // iOSでは XHR の responseText を逐次読み取る方式でストリーミングする(全端末で全文が少しずつ出る)。
-      const IS_IOS_CLIENT = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      // iOS/Android(特にアプリ内ブラウザ)は fetch の ReadableStream を途中で打ち切ることがあり、
+      // 回答が中途半端に終わる。モバイルでは XHR の responseText を逐次読み取る方式で全文を確実に受ける。
+      const IS_MOBILE_CLIENT = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      if (IS_IOS_CLIENT) {
+      if (IS_MOBILE_CLIENT) {
         return await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", url, true);

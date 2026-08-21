@@ -3826,6 +3826,8 @@ function isIOS() {
   const ua = navigator.userAgent || "";
   return /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document);
 }
+/* モバイル(iOS/Android)。アプリ内ブラウザ等でfetchストリームが途中で切れるため、個人キーは一括取得に切替える */
+function isMobile() { return isIOS() || /Android/i.test(navigator.userAgent || ""); }
 /* 写真・動画解析のモード: プラン準拠。NA=標準Flash / ターボ・ツインターボ=高精度Pro(思考あり)。 */
 function mediaModeByPlan() {
   return (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? "pro" : "flash";
@@ -4083,7 +4085,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
   if (typeof isDemo === "function" && isDemo()) return geminiAsk(prompt, opts);
   // iOS + 自前キー直叩き(Google直のfetch SSE)は最初のチャンクで打ち切られる不具合があるため一括取得にする。
   // 契約店舗(サーバープロキシ)はXHRストリーミング対応済みなのでiOSでも逐次表示する(体感速度を確保)。
-  if (isIOS() && !contractAi()) return geminiAsk(prompt, opts);
+  if (isMobile() && !contractAi()) return geminiAsk(prompt, opts);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAsk(mecha)へ。
@@ -5044,7 +5046,17 @@ function appendAiFollowup(body, origText, prevAnswer) {
     try {
       const prompt = [
         "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。前回の見解で解決しなかったため、整備士の追加情報(文章・写真・動画)を踏まえ、悩みを正確に理解して的確に助言してください。",
-        "前回の原因候補は試して効果が無かった前提で、見落としやすい原因・上流の根本原因・確定診断の手順を可能性の高い順に最大5つ。各項目に切り分け(工具・測定値の目安)を簡潔に。最後に『次の確定的な一手』を1行。前置き・免責不要、Markdown記号なし。",
+        "前回の原因候補は試して効果が無かった前提で、見落としやすい原因・上流の根本原因を可能性の高い順に挙げる。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+        "",
+        "■原因候補（可能性が高い順）",
+        "1. 原因名（一言で）",
+        "理由: なぜこの症状・情報からこの原因を疑うのか、根拠を1文で簡潔に。",
+        "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
+        "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
+        "",
+        "■最初の1手",
+        "現場で最初にやるべきことを1〜2文で。",
+        "",
         "■当初の相談内容: " + origText,
         "■前回の見解(試して無効): " + String(prevAnswer).slice(0, 1200),
         "■追加情報(整備士の実施内容・結果・追加症状): " + (tried || "(テキストなし。添付を参照)"),
@@ -5059,7 +5071,12 @@ function appendAiFollowup(body, origText, prevAnswer) {
       }
       lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
       renderAiAnswer(ans, r.text, { linkCauses: true });
-      // さらに追い相談できるよう、回答の下に次の相談欄を連鎖
+      // この相談欄は使い終わったので入力部を畳み、質問内容だけ残す(入力枠が重複して並ぶのを防ぐ)
+      [lab, ta, icons, preview, btn].forEach(el => { try { el.remove(); } catch (e) {} });
+      const asked = document.createElement("div"); asked.className = "hint"; asked.style.marginBottom = "6px";
+      asked.textContent = "🔧 追加相談: " + (tried || "(添付のみ)");
+      wrap.insertBefore(asked, ans);
+      // さらに追い相談できるよう、回答の下に次の相談欄を1つだけ連鎖
       appendAiFollowup(body, origText + " / " + tried, r.text);
     } catch (e) {
       if (e.message !== "__cancelled__") ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -5476,7 +5493,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
   // iOS + 自前キー直叩きは1チャンクで切れるため一括取得。契約店舗はXHRストリーミング対応済みでiOSでも逐次表示。
-  if (isIOS() && !contractAi()) return geminiAskMedia(prompt, media);
+  if (isMobile() && !contractAi()) return geminiAskMedia(prompt, media);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAskMediaへ。
