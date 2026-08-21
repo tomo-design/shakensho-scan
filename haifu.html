@@ -140,14 +140,15 @@
   @media print{
     body{background:#fff;padding:0}
     .bar{display:none}
-    .sheet{width:auto;min-height:auto;margin:0;padding:0;box-shadow:none}
-    .sheet+.sheet{margin-top:0;page-break-before:always}
-    .cover-band{margin:0 0 8mm}
-    h2,.grow,table.price,.company,.demo,.memo,.pain .p,ol.flow li,.shots figure{break-inside:avoid}
-    /* 印刷時: 見出しと直後のブロックを離さない＋余白を詰める(改ページ空白を防ぐ) */
+    /* 固定3枚をやめ、内容を連続で流す。各ブロックはページ途中で割らない */
+    .sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;break-before:auto}
+    .sheet+.sheet{margin-top:0;break-before:auto}
+    .cover-band{margin:0 0 7mm}
+    h2,.pain .p,ul.feat li,.grow .c,ol.flow li,.shots figure,table.price,.cta-row,.demo,.company,.memo{break-inside:avoid}
+    /* 見出しと直後のブロックを離さない＋余白を詰める */
     h2{break-after:avoid;margin:6mm 0 3.5mm}
-    .grow,.g3{break-inside:avoid}
-    .pnum{color:#c2cad6}
+    h2:first-of-type{margin-top:2mm}
+    .pnum{display:none}
     @page{size:A4;margin:12mm}
   }
 </style>
