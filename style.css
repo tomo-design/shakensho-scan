@@ -1152,7 +1152,8 @@ body.gated{overflow:hidden}
 .homeIntake .hiHead h2{font-size:13.5px;margin:0 0 8px;color:var(--txt);display:flex;align-items:center;gap:6px;border:0;padding:0}
 .hiCount{font-size:12px;color:var(--dim);font-weight:600}
 .hiList{display:flex;flex-direction:column;gap:6px}
-.hiRow{display:flex;align-items:center;gap:8px;border-left:4px solid var(--line);background:var(--panel2);border-radius:8px;padding:8px 10px}
+.hiRow{position:relative;overflow:hidden;border-left:4px solid var(--line);background:var(--panel2);border-radius:8px}
+.hiSlide{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);position:relative;z-index:1;touch-action:pan-y;will-change:transform}
 .hiRow.ikShaken{border-left-color:#2563EB}
 .hiRow.ikTenken{border-left-color:#16A34A}
 .hiRow.ikRepair{border-left-color:#EA8C00}
@@ -1164,8 +1165,28 @@ body.gated{overflow:hidden}
 .hiRow.ikRepair .hiTag{background:#EA8C00}
 .hiRow.ikJiko .hiTag{background:#DC2626}
 .hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hiOut{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer}
-.hiOut:active{background:var(--line)}
+/* 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ */
+.hiStaff{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hiStaff.on{background:#eef4ff;border-color:#9dbdf5;color:#2455b8}
+:root[data-theme="dark"] .hiStaff.on,:root:not([data-theme="light"]) .hiStaff.on{background:#22314f;border-color:#3a5488;color:#bcd2fb}
+/* 横スワイプで出現する出庫ボタン(行の背後・右端) */
+.hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:#e9573f;border-radius:0 8px 8px 0}
+.hiOut{background:transparent;border:none;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer}
+.hiOut:active{opacity:.85}
+
+/* 担当者 名簿ポップアップ */
+.staffPickOv{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:18px}
+.staffPick{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:100%;max-width:340px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.spHead{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:12px;text-align:center}
+.spList{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;max-height:46vh;overflow-y:auto}
+.spName{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;font-size:13px;font-weight:700;padding:9px 14px;cursor:pointer}
+.spName.on{background:#2563EB;border-color:#2563EB;color:#fff}
+.spEmpty{font-size:12px;color:var(--dim);padding:6px 2px;line-height:1.6}
+.spActs{display:flex;gap:8px;flex-wrap:wrap}
+.spActs button{flex:1;min-width:90px;border-radius:9px;font-size:12.5px;font-weight:700;padding:9px 8px;cursor:pointer;border:1px solid var(--line)}
+.spAdd{background:#eef4ff;border-color:#9dbdf5 !important;color:#2455b8}
+.spClear{background:var(--panel2);color:var(--dim)}
+.spClose{background:var(--panel2);color:var(--txt)}
 
 /* 入庫ボード: 右上スロット(費用＋レ点)・案内・ヘッダー配置の調整 */
 .ibHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}

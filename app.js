@@ -3196,13 +3196,12 @@ function renderIntakeDetail(list) {
   ];
   let feeBtn = "";
   if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
-  const staffBtn = '<button type="button" id="ibDetStaff" class="ibStaff' + (sel.staff ? ' on' : '') + '" title="担当者を入力">' + (sel.staff ? "👤 " + esc(sel.staff) : "＋ 担当者") + '</button>';
+  // 担当者は事務ボードでは編集しない(メインツールのホーム入庫状況で設定)。ここでは表示のみ。
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
-    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div><div class="ibDetTopR">' + staffBtn + feeBtn + '</div></div>' +
+    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div><div class="ibDetTopR">' + feeBtn + '</div></div>' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
     '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") + '</table>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
-  const ds = $("ibDetStaff"); if (ds) ds.addEventListener("click", () => editIntakeStaff(sel.rid));
   const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", () => {
@@ -3252,16 +3251,82 @@ function renderHomeIntake() {
   box.innerHTML = "";
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
-    const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
+    // 行 = 表示部(横スワイプで動く .hiSlide) + 背後の出庫ボタン(.hiOutWrap)
+    const row = document.createElement("div"); row.className = "hiRow " + info.cls;
+    const slide = document.createElement("div"); slide.className = "hiSlide";
     const main = document.createElement("div"); main.className = "hiMain hiNoTap";
     main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
-    // ホームの入庫状況は閲覧のみ。車両タップでは開かない(操作は出庫ボタンのみ)
+    // 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ→担当者を設定
+    const staff = document.createElement("button");
+    staff.className = "hiStaff" + (h.staff ? " on" : "");
+    staff.textContent = h.staff ? "👤 " + h.staff : "＋ 担当";
+    staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
+    slide.appendChild(main); slide.appendChild(staff);
+    // 横スワイプで出現する出庫ボタン
+    const outWrap = document.createElement("div"); outWrap.className = "hiOutWrap";
     const out = document.createElement("button"); out.className = "hiOut"; out.textContent = "出庫";
     out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
-    row.appendChild(main); row.appendChild(out); box.appendChild(row);
+    outWrap.appendChild(out);
+    row.appendChild(slide); row.appendChild(outWrap); box.appendChild(row);
+    addSwipeReveal(row, slide);
   });
   toggle("homeIntake", true);
+}
+/* 担当者の名簿(この事業所で共有せずローカル記憶。名前は後から追加編集できる) */
+const STAFF_ROSTER_LS = "ss_staffRoster";
+function getStaffRoster() {
+  try { const a = JSON.parse(localStorage.getItem(STAFF_ROSTER_LS) || "[]"); return Array.isArray(a) ? a.filter(Boolean) : []; }
+  catch (e) { return []; }
+}
+function setStaffRoster(arr) {
+  const uniq = []; (arr || []).forEach(n => { n = String(n || "").trim(); if (n && !uniq.includes(n)) uniq.push(n); });
+  localStorage.setItem(STAFF_ROSTER_LS, JSON.stringify(uniq));
+  return uniq;
+}
+/* 車両に担当者を設定(名簿ポップアップ) */
+function pickStaff(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const apply = name => {
+    t.staff = name || null; t.updatedAt = Date.now();
+    localStorage.setItem(LS.hist, JSON.stringify(hist));
+    if (window.Cloud) window.Cloud.pushRecord(t);
+    renderHomeIntake(); try { renderIntakeBoard(); } catch (e) {}
+  };
+  openStaffPicker(t.staff || "", apply);
+}
+/* 名簿モーダルを表示。onPick(name|"") で確定 */
+function openStaffPicker(current, onPick) {
+  let ov = $("staffPickOv");
+  if (ov) ov.remove();
+  ov = document.createElement("div"); ov.id = "staffPickOv"; ov.className = "staffPickOv";
+  const roster = getStaffRoster();
+  const namesHtml = roster.length
+    ? roster.map(n => '<button type="button" class="spName' + (n === current ? " on" : "") + '" data-n="' + esc(n) + '">' + esc(n) + '</button>').join("")
+    : '<div class="spEmpty">名簿がまだありません。「＋ 名前を追加」から登録してください。</div>';
+  ov.innerHTML =
+    '<div class="staffPick">' +
+      '<div class="spHead">担当者を選択</div>' +
+      '<div class="spList">' + namesHtml + '</div>' +
+      '<div class="spActs">' +
+        '<button type="button" class="spAdd" id="spAdd">＋ 名前を追加</button>' +
+        '<button type="button" class="spClear" id="spClear">担当なし</button>' +
+        '<button type="button" class="spClose" id="spClose">閉じる</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.querySelectorAll(".spName").forEach(b =>
+    b.addEventListener("click", () => { onPick(b.getAttribute("data-n")); close(); }));
+  const add = $("spAdd"); if (add) add.addEventListener("click", () => {
+    const v = prompt("担当者名を入力してください"); if (v === null) return;
+    const n = v.trim(); if (!n) return;
+    setStaffRoster(getStaffRoster().concat(n));
+    onPick(n); close();
+  });
+  const clr = $("spClear"); if (clr) clr.addEventListener("click", () => { onPick(""); close(); });
+  const cls = $("spClose"); if (cls) cls.addEventListener("click", close);
 }
 /* 満了日等のYYYY/MM/DD整形(timestamp or Date) */
 function fmtYMD(v) {
