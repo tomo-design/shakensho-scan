@@ -78,7 +78,7 @@
   /* 画面 */
   .shots{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:2mm}
   .shots figure{margin:0}
-  .shots img{width:100%;height:250px;object-fit:cover;object-position:top;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+  .shots img{width:100%;height:360px;object-fit:cover;object-position:top;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
   .shots figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px;text-align:center}
   .shots figcaption b{color:var(--ink);display:block}
 
@@ -148,7 +148,12 @@
     /* 見出しと直後のブロックを離さない＋余白を詰める */
     h2{break-after:avoid;margin:6mm 0 3.5mm}
     h2:first-of-type{margin-top:2mm}
+    h2.pb{break-before:page;margin-top:2mm}
     .pnum{display:none}
+    /* 実際の画面は専用ページに3枚横並びで大きく(上部基準でトリミング) */
+    .shots{grid-template-columns:repeat(3,1fr);gap:12px;margin-top:5mm}
+    .shots img{height:225mm}
+    .shots figcaption{font-size:12.5px;margin-top:8px}
     @page{size:A4;margin:12mm}
   }
 </style>
@@ -238,14 +243,14 @@
     <p class="g-note">※ 事務端末は入庫管理だけ、整備士はスキャン・診断だけ——役割に合わせて画面を分けられます。</p>
   </div>
 
-  <h2>実際の画面<span class="en">Screens</span></h2>
+  <h2 class="pb">実際の画面<span class="en">Screens</span></h2>
   <div class="shots">
     <figure><img src="img/screen-spec.png" alt="メンテナンス諸元"><figcaption><b>メンテナンス諸元</b>オイル・トルク等を即表示</figcaption></figure>
     <figure><img src="img/screen-diag.png" alt="AI故障診断"><figcaption><b>AI故障診断</b>原因候補を可能性順に</figcaption></figure>
     <figure><img src="img/screen-karte.png" alt="整備カルテ"><figcaption><b>整備カルテ</b>記録・共有まで一元管理</figcaption></figure>
   </div>
 
-  <h2>導入はかんたん3ステップ<span class="en">How to start</span></h2>
+  <h2 class="pb">導入はかんたん3ステップ<span class="en">How to start</span></h2>
   <ol class="flow">
     <li><b>お申し込み</b>専用フォーム（約1分）またはお電話・メールで。本日の担当者へ直接でもOK。</li>
     <li><b>初期設定・お試し</b>店舗アカウントを発行。登録や使い方をサポート。すぐ7日間の無料トライアル開始。</li>
@@ -288,16 +293,6 @@
       <div class="r"><div class="dt">電話</div><div class="dd">080-3692-0101</div></div>
       <div class="r"><div class="dt">メール</div><div class="dd">cablueie.123@gmail.com</div></div>
       <div class="r"><div class="dt">お申込み</div><div class="dd">mechanoai-cablueie.com/apply.html</div></div>
-    </div>
-  </div>
-
-  <div class="memo">
-    <div class="mh">📝 本日のご案内メモ（担当者記入）</div>
-    <div class="grid">
-      <div class="f">ご訪問日<div class="line"></div></div>
-      <div class="f">担当者名<div class="line"></div></div>
-      <div class="f">おすすめプラン<div class="line"></div></div>
-      <div class="f wide">ご相談内容・お見積り・次回のお約束など<div class="line" style="height:34px"></div></div>
     </div>
   </div>
 
