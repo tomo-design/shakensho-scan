@@ -632,7 +632,7 @@
   }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, deleted: false, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */

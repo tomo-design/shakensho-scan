@@ -1005,10 +1005,10 @@ body.pwLocked{ overflow:hidden }
 .ikVeh{font-size:13px;color:var(--dim);text-align:center;margin:6px 0 14px;font-weight:600}
 .ikBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ikBtn{border:0;border-radius:12px;color:#fff;font-size:15px;font-weight:800;padding:16px 0;cursor:pointer}
-.ikBtn[data-kind="車検"]{background:#2563EB}
-.ikBtn[data-kind="点検"]{background:#16A34A}
-.ikBtn[data-kind="修理"]{background:#EA8C00}
-.ikBtn[data-kind="事故"]{background:#DC2626}
+.ikBtn[data-kind="車検"]{background:#6b9beb}
+.ikBtn[data-kind="点検"]{background:#5cbd86}
+.ikBtn[data-kind="修理"]{background:#f0b35a}
+.ikBtn[data-kind="事故"]{background:#e78a8a}
 .ikBtn:active{filter:brightness(.92)}
 .ikLater{display:block;width:100%;margin-top:14px;background:none;border:0;color:var(--dim);
   font-size:13px;font-weight:600;padding:6px;cursor:pointer;text-decoration:underline}

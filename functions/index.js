@@ -504,14 +504,14 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);   // 2.0はthinking非対応の最終受け皿
+    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);   // 2.0はthinking非対応の最終受け皿
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
   const tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
-  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);   // 無料キーはFlashのみ(Proは無料枠429)
+  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);   // 無料キーはFlashのみ(Proは無料枠429)
 
   // 検索(裏取り)を実際に使えるか: 検索対応プラン && 今月上限内 && 席内。不可なら検索なしに落として必ず回答を返す。
   let effSearch = false;
@@ -579,13 +579,13 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   const tb = clampThinking(data.thinkingBudget);
   const paidCapable = pc.plan !== "na" && !!paidKey;
-  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);
   let effSearch = false;
   if (data.search && paidCapable && pc.searchCap !== 0) {
     const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;
@@ -1452,7 +1452,7 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.log("drip: Geminiキー未設定"); return null; }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);
     // 対象候補(見込み・メール有)を古い順に多めに取得(スキップ分の余裕を持たせる)
     const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 4).get();
     let sent = 0;
@@ -1550,7 +1550,7 @@ exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, me
     const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
     if (!freeKeys.length) { console.error("inbound: Geminiキー未設定"); return res.status(200).send("ok"); }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);
     const staff = SALES_STAFF.cs;
 
     // ★パスワード再設定の依頼を検知したら、実際の再設定リンクを発行して返信本文へ差し込む
@@ -1867,7 +1867,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
   if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const latest = await latestModels(freeKeys[0]);
-  const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.0-flash"]);
+  const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]);
 
   const lead = data.lead || null;
   const leadBlock = lead ? `\n【対象の見込み客】\n会社名:${lead.company || "-"} / 業種:${lead.kind || "-"} / 担当:${lead.contact || "-"} / 状況:${lead.status || "-"}\nメモ:${lead.note || "-"}\n` : "";
