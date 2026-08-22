@@ -3130,21 +3130,29 @@ function renderIntakeBoard() {
       info2.style.cursor = "pointer";
       info2.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
     }
-    // ダブルタップで自分のレ点をトグル(専用ボタンは置かない)
-    card.addEventListener("dblclick", e => { e.preventDefault(); toggleConfirm(h.rid); });
     card.appendChild(info2);
 
     // 右上: 上段=確認レ点(色付き✓)、下段=費用(車検のみ)
     if (editable) {
       const me = myConfirmId();
       const conf = Array.isArray(h.confirms) ? h.confirms : [];
-      // 右上: 確認レ点(色付き✓)のみ
+      const others = conf.filter(c => c.id !== me.id);
+      const mine = conf.some(c => c.id === me.id);
+      // 右上: 他の担当のレ点(読み取り専用) ＋ 自分用のトグルボタン(単押し)
       const tr = document.createElement("div"); tr.className = "ibTopRight";
-      conf.forEach(c => {
-        const ck = document.createElement("span"); ck.className = "ibCk" + (c.id === me.id ? " mine" : "");
+      others.forEach(c => {
+        const ck = document.createElement("span"); ck.className = "ibCk";
         ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
         tr.appendChild(ck);
       });
+      // 自分のレ点は単押しトグル。確認済み=色付き✓ / 未確認=空丸。カード選択(明暗)には影響しない
+      const ckBtn = document.createElement("button");
+      ckBtn.type = "button";
+      ckBtn.className = "ibCkBtn" + (mine ? " on" : "");
+      if (mine) { ckBtn.style.background = me.color; ckBtn.textContent = "✓"; ckBtn.title = "確認を外す"; }
+      else { ckBtn.textContent = ""; ckBtn.title = "確認レ点を付ける"; }
+      ckBtn.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
+      tr.appendChild(ckBtn);
       card.appendChild(tr);
 
       // コメント行: コメント(左)＋費用回収ボタン(右・車検のみ)
