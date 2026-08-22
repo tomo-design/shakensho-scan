@@ -5212,6 +5212,9 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
   btn.innerHTML = '<img src="img/kangae.png" class="btnMecha" alt="">メカ君に追加で相談';
   const ans = document.createElement("div"); ans.className = "ai-answer hidden"; ans.style.marginTop = "10px";
   btn.addEventListener("click", async () => {
+    // マイクがオンのまま押されたら自動でオフにする(録りっぱなし防止)
+    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+    stopFieldMic();
     const tried = ta.value.trim();
     if (!tried && !atts.length) { ta.focus(); return; }
     if (diagAiBusy) return;
