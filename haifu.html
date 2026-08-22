@@ -88,6 +88,8 @@
   .grow-shot{margin:0;justify-self:center;width:100%;max-width:230px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 8px 22px -12px rgba(15,42,90,.3)}
   .grow-shot img{width:100%;height:auto;display:block;border-bottom:1px solid var(--line)}
   .grow-shot figcaption{padding:9px 12px;font-size:11px;color:var(--ink2);line-height:1.55}
+  .grow-wrap.nyuko{grid-template-columns:1fr 1.15fr}
+  .grow-wrap.nyuko .grow-shot{max-width:none}
   .board{margin:14px 0 0}
   .board img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
   .board figcaption{font-size:12px;color:var(--ink2);margin-top:6px;text-align:center}
@@ -248,17 +250,19 @@
     <p class="g-note">※ AIの回答は参考情報です。作業前には必ず整備書等で最終確認をお願いします。正しさを積み重ねるほど、現場の資産になります。</p>
   </div>
 
-  <h2 class="pb">入庫管理と事務連携<span class="en">Front Desk</span></h2>
+  <h2>入庫管理と事務連携<span class="en">Front Desk</span></h2>
   <div class="grow">
     <p class="g-lead">車検証をスキャンした瞬間に<b>入庫区分</b>を選ぶだけ。今どの車が入庫中かを、事務も工場も<b>ひと目で共有</b>できます。</p>
-    <div class="g3">
-      <div class="c"><div class="num">01</div><b>スキャン→区分を選ぶだけ</b><span>「車検/点検/修理/事故」を色分けボードに自動表示。費用回収（未回収・回収済・自社立替）やコメントも記録。</span></div>
-      <div class="c"><div class="num">02</div><b>事務用の専用モード</b><span>事務の方はログイン時に選ぶだけで、入庫ボードだけの画面に。スキャンやAIは非表示でシンプル。</span></div>
-      <div class="c"><div class="num">03</div><b>入庫を音とポップで通知</b><span>新しい入庫が入るとリアルタイムで通知。区分・費用・コメントは全端末で自動同期。</span></div>
+    <div class="grow-wrap nyuko">
+      <div class="g3">
+        <div class="c"><div class="num">01</div><b>スキャン→区分を選ぶだけ</b><span>「車検/点検/修理/事故」を色分けボードに自動表示。費用回収（未回収・回収済・自社立替）やコメントも記録。</span></div>
+        <div class="c"><div class="num">02</div><b>事務用の専用モード</b><span>事務の方はログイン時に選ぶだけで、入庫ボードだけの画面に。スキャンやAIは非表示でシンプル。</span></div>
+        <div class="c"><div class="num">03</div><b>入庫を音とポップで通知</b><span>新しい入庫が入るとリアルタイムで通知。区分・費用・コメントは全端末で自動同期。</span></div>
+      </div>
+      <figure class="grow-shot board-shot"><img src="img/screen-iriko.png" alt="入庫管理ボード画面"><figcaption>入庫管理ボード：区分ごとに色分け。左のカードを選ぶと右に車両詳細（一部モザイク処理）。</figcaption></figure>
     </div>
     <p class="g-note">※ 事務端末は入庫管理だけ、整備士はスキャン・診断だけ——役割に合わせて画面を分けられます。</p>
   </div>
-  <figure class="board"><img src="img/screen-iriko.png" alt="入庫管理ボード画面"><figcaption>入庫管理ボード：区分ごとに色分け。左のカードを選ぶと右に車両詳細（一部モザイク処理）。</figcaption></figure>
 
   <h2>実際の画面<span class="en">Screens</span></h2>
   <div class="shots">
