@@ -3905,7 +3905,11 @@ function getAiMode() { return localStorage.getItem(LS.aimode) === "pro" ? "pro" 
 /* 契約店舗(自分の鍵なし)の実効AIモード: 契約プランに合わせてProの利用可否を上限管理。
    NAプランはProを使わせない(標準Flash)。ターボ/ツインターボはProのまま。トライアル中も“選んだプラン”準拠。 */
 function capModeByPlan(mode) {
-  if (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && !window.Cloud.aiPaidOn()) return "flash";
+  const c = window.Cloud;
+  // 店舗にログイン中はプラン準拠を厳守。NA(無料)プランはProを使わせない=標準Flash。
+  // 契約が一時的に未確定/期限切れでも、端末に残った個人キーでProに“抜ける”のを防ぐ。
+  const loggedIn = !!(c && typeof c.isLoggedIn === "function" && c.isLoggedIn());
+  if (loggedIn && typeof c.aiPaidOn === "function" && !c.aiPaidOn()) return "flash";
   return mode;
 }
 /* 契約店舗か(plan有効)。契約店舗は端末に個人キーが残っていてもプラン準拠のサーバー経路を最優先する。
@@ -4094,7 +4098,7 @@ async function geminiAsk(prompt, opts) {
   opts = opts || {};
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: API未使用の固定サンプル回答
-  const mode = opts.mode || getAiMode();   // 会話など回数が多い用途は flash 指定で無料枠を節約
+  const mode = capModeByPlan(opts.mode || getAiMode());   // 会話など回数が多い用途は flash 指定で無料枠を節約。NA店舗は個人キーでもProに抜けさせない
   const key = localStorage.getItem(LS.gemini);
   // キャッシュ命中なら無料枠を消費せず即返す(noCache指定時は最新を取得)
   const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
@@ -4191,7 +4195,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
     }
     if (!key) return geminiAsk(prompt, opts);
   }
-  const mode = opts.mode || getAiMode();
+  const mode = capModeByPlan(opts.mode || getAiMode());   // NA店舗は個人キー経路でもProに抜けさせない
   const ck = mode + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
   if (!opts.noCache) {
     const cached = aiCacheGet(ck);
