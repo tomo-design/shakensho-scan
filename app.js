@@ -3208,7 +3208,6 @@ function renderIntakeDetail(list) {
   const info = INTAKE_KINDS[sel.intakeKind] || { label: sel.intakeKind, cls: "" };
   const rows = [
     ["区分", info.label],
-    ["ナンバー", dispText(sel.plate) || "—"],
     ["使用者", dispText(sel.name) || "—"],
     ["型式", dispText(sel.type) || "—"],
     ["車台番号", dispText(sel.vin) || "—"],
@@ -3221,11 +3220,13 @@ function renderIntakeDetail(list) {
   let feeBtn = "";
   if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
   // 担当者は事務ボードでは編集しない(メインツールのホーム入庫状況で設定)。ここでは表示のみ。
-  // 上部の区分タグ・費用バッジは廃止(表の区分行と重複)。費用は車検のみ表の最終行に表示。
+  // 上部の区分タグ・費用バッジは廃止(表の区分行と重複)。費用は車検のみ最終行に表示。
+  // ラベルは左端に固定、値は全幅で中央寄せ → 上のタイトルと同じ中央線に揃う。
+  const rowHtml = (k, vHtml) => '<div class="ibDetRow"><span class="k">' + esc(k) + '</span><span class="v">' + vHtml + '</span></div>';
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
-    '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") +
-      (feeBtn ? '<tr><th>費用</th><td>' + feeBtn + '</td></tr>' : '') + '</table>' +
+    '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], esc(r[1]))).join("") +
+      (feeBtn ? rowHtml("費用", feeBtn) : "") + '</div>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
   const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
