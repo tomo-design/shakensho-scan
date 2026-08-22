@@ -3275,9 +3275,11 @@ function renderHomeIntake() {
 }
 /* 担当者の名簿(この事業所で共有せずローカル記憶。名前は後から追加編集できる) */
 const STAFF_ROSTER_LS = "ss_staffRoster";
+const STAFF_ROSTER_DEFAULT = ["中江", "元山", "中矢", "島田", "関", "積", "大川", "持永", "乾", "保島"];
 function getStaffRoster() {
-  try { const a = JSON.parse(localStorage.getItem(STAFF_ROSTER_LS) || "[]"); return Array.isArray(a) ? a.filter(Boolean) : []; }
-  catch (e) { return []; }
+  try { const a = JSON.parse(localStorage.getItem(STAFF_ROSTER_LS) || "null"); if (Array.isArray(a)) return a.filter(Boolean); }
+  catch (e) {}
+  return STAFF_ROSTER_DEFAULT.slice();
 }
 function setStaffRoster(arr) {
   const uniq = []; (arr || []).forEach(n => { n = String(n || "").trim(); if (n && !uniq.includes(n)) uniq.push(n); });
