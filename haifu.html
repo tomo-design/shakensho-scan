@@ -83,6 +83,9 @@
   .shots img{width:100%;height:360px;object-fit:cover;object-position:top;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
   .shots figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px;text-align:center}
   .shots figcaption b{color:var(--ink);display:block}
+  .board{margin:14px 0 0}
+  .board img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+  .board figcaption{font-size:12px;color:var(--ink2);margin-top:6px;text-align:center}
 
   /* 料金 */
   table.price{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -146,7 +149,7 @@
     .sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;break-before:auto}
     .sheet+.sheet{margin-top:0;break-before:auto}
     .cover-band{margin:0 0 7mm}
-    h2,.pain .p,ul.feat li,.grow .c,ol.flow li,.shots figure,table.price,.cta-row,.demo,.company,.memo{break-inside:avoid}
+    h2,.pain .p,ul.feat li,.grow .c,ol.flow li,.shots figure,.board,table.price,.cta-row,.demo,.company,.memo{break-inside:avoid}
     /* 見出しと直後のブロックを離さない＋余白を詰める */
     h2{break-after:avoid;margin:6mm 0 3.5mm}
     h2:first-of-type{margin-top:2mm}
@@ -246,6 +249,7 @@
     </div>
     <p class="g-note">※ 事務端末は入庫管理だけ、整備士はスキャン・診断だけ——役割に合わせて画面を分けられます。</p>
   </div>
+  <figure class="board"><img src="img/screen-iriko.png" alt="入庫管理ボード画面"><figcaption>入庫管理ボード：区分ごとに色分け。左のカードを選ぶと右に車両詳細（一部モザイク処理）。</figcaption></figure>
 
   <h2>実際の画面<span class="en">Screens</span></h2>
   <div class="shots">
