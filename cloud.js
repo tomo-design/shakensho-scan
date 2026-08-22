@@ -707,16 +707,16 @@
           }
           if (!e) { e = { id: Date.now() + Math.random(), rid: r.rid || d.id }; hist.unshift(e); }
           if (!e.rid) e.rid = r.rid || d.id;   // 既存エントリにも不変IDを付与(以降の照合を安定化)
-          // 整備カルテは両端末の追加を失わないよう常にunion統合(勝敗判定より前に実施)
+          // 整備カルテは追記のみ(削除しない)なので両端末の追加を失わないよう常にunion統合
           if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
-          // 確認レ点も両端末の打刻を失わないようunion統合(勝敗判定より前に)
-          if (typeof mergeConfirms === "function") e.confirms = mergeConfirms(e.confirms, r.confirms);
+          // ★確認レ点はunionしない: unionすると片方で外しても相手の古い打刻と合算され復活してしまう。
+          //   レコードの更新時刻(updatedAt)で新しい方の状態を採用し、外した状態も確実に反映する。
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
             // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
             try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
           } else {
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
-            Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, firstReg: r.firstReg || e.firstReg, expiry: r.expiry || e.expiry, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, intakeKind: (r.intakeKind !== undefined ? r.intakeKind : e.intakeKind), intakeAt: (r.intakeAt !== undefined ? r.intakeAt : e.intakeAt), intakeOut: (r.intakeOut !== undefined ? r.intakeOut : e.intakeOut), feePaid: (r.feePaid !== undefined ? r.feePaid : e.feePaid), feeStatus: (r.feeStatus !== undefined ? r.feeStatus : e.feeStatus), officeMemo: (r.officeMemo !== undefined ? r.officeMemo : e.officeMemo), staff: (r.staff !== undefined ? r.staff : e.staff), at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
+            Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, firstReg: r.firstReg || e.firstReg, expiry: r.expiry || e.expiry, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, intakeKind: (r.intakeKind !== undefined ? r.intakeKind : e.intakeKind), intakeAt: (r.intakeAt !== undefined ? r.intakeAt : e.intakeAt), intakeOut: (r.intakeOut !== undefined ? r.intakeOut : e.intakeOut), feePaid: (r.feePaid !== undefined ? r.feePaid : e.feePaid), feeStatus: (r.feeStatus !== undefined ? r.feeStatus : e.feeStatus), officeMemo: (r.officeMemo !== undefined ? r.officeMemo : e.officeMemo), staff: (r.staff !== undefined ? r.staff : e.staff), confirms: (Array.isArray(r.confirms) ? r.confirms : (r.confirms === null ? [] : e.confirms)), at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
           }
         });
         if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);

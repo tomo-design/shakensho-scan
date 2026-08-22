@@ -1176,8 +1176,9 @@ body.gated{overflow:hidden}
 /* 担当設定済み: 背景色は付けず、文字を通常色にするだけ(人アイコン・色背景なし) */
 .hiStaff.on{background:transparent;border-color:var(--line);color:var(--txt)}
 /* 横スワイプで出現する出庫ボタン(行の背後・右端) */
-.hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:#e9573f;border-radius:0 8px 8px 0}
-.hiOut{background:transparent;border:none;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer}
+/* 背面ラッパは透明(カードから赤がはみ出て“赤い線”に見えるのを防ぐ)。赤はボタン自体だけ。 */
+.hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none}
+.hiOut{background:#e9573f;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;pointer-events:auto}
 .hiOut:active{opacity:.85}
 
 /* 担当者 名簿ポップアップ */
