@@ -1198,9 +1198,9 @@ body.gated{overflow:hidden}
 /* 入庫ボード: 右上スロット(費用＋レ点)・案内・ヘッダー配置の調整 */
 .ibHead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 /* 右上のアプリ更新アイコン(事務端末が一目で最新化) */
-.ibUpdate{margin-left:auto;flex:none;width:38px;height:38px;padding:6px;border:1px solid var(--line);background:var(--panel);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ibUpdate{margin-left:auto;flex:none;width:30px;height:30px;padding:0;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ibUpdate img{width:100%;height:100%;object-fit:contain;display:block}
-.ibUpdate:active{background:var(--line)}
+.ibUpdate:active{opacity:.6}
 .ibUpdate.spin img{animation:ibSpin .8s linear infinite}
 @keyframes ibSpin{to{transform:rotate(360deg)}}
 .ibHead h2{padding-left:6px}
