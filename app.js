@@ -2913,7 +2913,11 @@ function toggleConfirm(rid) {
   else arr.push({ id: me.id, name: me.name, color: me.color, at: Date.now() });
   t.confirms = arr; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));
-  if (window.Cloud) window.Cloud.pushRecord(t);
+  // レ点だけを軽量に反映(全端末への同期を速く)。未対応環境はpushRecordにフォールバック。
+  if (window.Cloud) {
+    if (typeof window.Cloud.updateRecordFields === "function") window.Cloud.updateRecordFields(t, { confirms: t.confirms });
+    else window.Cloud.pushRecord(t);
+  }
   renderIntakeBoard();
 }
 /* 入庫ボードの区分フィルター(この端末で記憶)。"" =すべて / 区分キー */
@@ -3145,13 +3149,15 @@ function renderIntakeBoard() {
         ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
         tr.appendChild(ck);
       });
-      // 自分のレ点は単押しトグル。確認済み=色付き✓ / 未確認=空丸。カード選択(明暗)には影響しない
+      // 自分のレ点は単押しトグル。確認済み=色付き✓ / 未確認=空丸。カード選択(明暗)には影響しない。
+      // ★未選択のカードはレ点操作も不可(コメントと同様。選択中のカードだけ操作できる)。
+      const ckSel = (h.rid === _ibSelected);
       const ckBtn = document.createElement("button");
       ckBtn.type = "button";
-      ckBtn.className = "ibCkBtn" + (mine ? " on" : "");
-      if (mine) { ckBtn.style.background = me.color; ckBtn.textContent = "✓"; ckBtn.title = "確認を外す"; }
-      else { ckBtn.textContent = ""; ckBtn.title = "確認レ点を付ける"; }
-      ckBtn.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
+      ckBtn.className = "ibCkBtn" + (mine ? " on" : "") + (ckSel ? "" : " locked");
+      if (mine) { ckBtn.style.background = me.color; ckBtn.textContent = "✓"; ckBtn.title = ckSel ? "確認を外す" : "選択すると操作できます"; }
+      else { ckBtn.textContent = ""; ckBtn.title = ckSel ? "確認レ点を付ける" : "選択すると操作できます"; }
+      ckBtn.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; toggleConfirm(h.rid); });
       tr.appendChild(ckBtn);
       card.appendChild(tr);
 
@@ -6552,12 +6558,11 @@ window.playChime = playChime;
   const upBtn = document.getElementById("btnAppUpdate");
   // 個人版(ストア版/personalモード)はストア経由で更新されるため不要。法人(Web/PWA)版のみ表示。
   if (upBtn && (isNativeApp || getAppMode() === "personal")) { const w = upBtn.closest("div"); if (w) w.style.display = "none"; else upBtn.style.display = "none"; }
-  else if (upBtn) upBtn.addEventListener("click", async () => {
-    upBtn.disabled = true; upBtn.textContent = "🔄 更新中…";
+  // 更新処理(設定の更新ボタン・入庫ボードの更新アイコン 共通)。何があっても必ずリロードして固まり防止。
+  async function runAppUpdate() {
     let done = false;
     const hardReload = () => { if (done) return; done = true; try { location.reload(); } catch (e) {} };
-    // 何があっても必ずリロード(固まり防止)。新SW有効化(controllerchange)か、3.5秒のどちらか早い方。
-    const fallback = setTimeout(hardReload, 3500);
+    const fallback = setTimeout(hardReload, 3500);   // 新SW有効化(controllerchange)か3.5秒の早い方
     try {
       if (!("serviceWorker" in navigator)) { clearTimeout(fallback); hardReload(); return; }
       const reg = await navigator.serviceWorker.getRegistration();
@@ -6566,9 +6571,14 @@ window.playChime = playChime;
       await reg.update();
       if (reg.waiting) reg.waiting.postMessage("skipWaiting");
       else if (reg.installing) { const nw = reg.installing; nw.addEventListener("statechange", () => { if (nw.state === "installed") nw.postMessage("skipWaiting"); }); }
-      // 新版が無ければ 3.5秒後の hardReload に任せる(通常リロードで最新HTML/JSを取得)
     } catch (e) { clearTimeout(fallback); hardReload(); }
+  }
+  if (upBtn && !(isNativeApp || getAppMode() === "personal")) upBtn.addEventListener("click", () => {
+    upBtn.disabled = true; upBtn.textContent = "🔄 更新中…"; runAppUpdate();
   });
+  // 入庫ボード右上の更新アイコン(事務端末が一目で最新化できるように)
+  const ibUp = document.getElementById("ibUpdate");
+  if (ibUp) ibUp.addEventListener("click", () => { ibUp.classList.add("spin"); ibUp.disabled = true; runAppUpdate(); });
 })();
 
 /* ============ お問い合わせ AIサポートチャット（メカ君） ============

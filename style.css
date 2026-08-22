@@ -1100,6 +1100,8 @@ body.officeMode #view-scan{padding-top:0}
 .ibCkBtn{width:24px;height:24px;flex:none;border-radius:50%;border:2px dashed var(--line);background:transparent;color:#fff;font-size:13px;font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:transform .12s ease,box-shadow .12s ease}
 .ibCkBtn:active{transform:scale(.88)}
 .ibCkBtn.on{border-style:solid;border-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+/* 未選択カードのレ点は操作不可(コメントと同様にロック) */
+.ibCkBtn.locked{opacity:.4;cursor:default;pointer-events:none}
 
 /* 入庫ボード: PC2ペイン(左=一覧 / 右=選択車両の詳細) */
 .ibDetail{display:none}
@@ -1193,14 +1195,20 @@ body.gated{overflow:hidden}
 .spClose{background:var(--panel2);color:var(--txt)}
 
 /* 入庫ボード: 右上スロット(費用＋レ点)・案内・ヘッダー配置の調整 */
-.ibHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ibHead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* 右上のアプリ更新アイコン(事務端末が一目で最新化) */
+.ibUpdate{margin-left:auto;flex:none;width:38px;height:38px;padding:6px;border:1px solid var(--line);background:var(--panel);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ibUpdate img{width:100%;height:100%;object-fit:contain;display:block}
+.ibUpdate:active{background:var(--line)}
+.ibUpdate.spin img{animation:ibSpin .8s linear infinite}
+@keyframes ibSpin{to{transform:rotate(360deg)}}
 .ibHead h2{padding-left:6px}
 .ibHint{font-size:10.5px;color:var(--dim);font-weight:400;opacity:.55}
 .ibSubHead{display:flex;justify-content:flex-end;margin:-4px 0 8px;padding-right:2px}
 .ibSummary{font-size:12px;font-weight:700;color:#DC2626;margin-left:10px}
 .ibDetTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .ibDetTop .ibDetTag{margin-bottom:0}
-.ibTopRight{position:absolute;top:8px;right:12px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;max-width:62%}
+.ibTopRight{position:absolute;top:8px;right:12px;display:flex;flex-direction:row;flex-wrap:wrap;gap:5px;align-items:center;justify-content:flex-end;max-width:62%}
 .ibCkRow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .ibCk.mine{outline:2px solid rgba(0,0,0,.12)}
 .ibConfirms{display:none}

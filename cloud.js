@@ -977,6 +977,13 @@
       if (!this.active || !r || !(r.vin || r.rid)) return;
       db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
     },
+    /* レ点・費用など“小さな更新”を軽量に反映(specs/karte等の重いフィールドを送らず高速化・低コスト)。
+       patch のフィールドだけをmerge。全端末への反映が速くなる。 */
+    updateRecordFields(r, patch) {
+      if (!this.active || !r || !(r.vin || r.rid) || !patch) return;
+      const body = Object.assign({ vin: r.vin || null, rid: r.rid || null, deleted: false, updatedAt: r.updatedAt || Date.now() }, patch);
+      db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)).set(body, { merge: true }).catch(() => {});
+    },
     deleteRecord(r) {
       if (!this.active || !r) return;
       // ハード削除ではなく墓標(deleted)で論理削除。古い端末の再アップロードで蘇るのを防ぐ
