@@ -1117,9 +1117,8 @@ body.officeMode #view-scan{padding-top:0}
 .ibDetCard.ikJiko .ibDetTag{background:#DC2626}
 .ibDetTitle{font-size:19px;font-weight:500;color:var(--txt);margin-bottom:12px;text-align:center}
 .ibDetTbl{width:100%;border-collapse:collapse;font-size:14px}
-/* ラベルは中央寄りに右揃え・値は中央寄りに左揃え → 全体が中央にまとまって見える */
-.ibDetTbl th{text-align:right;color:var(--dim);font-weight:700;padding:7px 12px 7px 0;white-space:nowrap;vertical-align:top;width:45%}
-.ibDetTbl td{text-align:left;padding:7px 0 7px 12px;color:var(--txt);border-bottom:1px solid var(--line)}
+.ibDetTbl th{text-align:left;color:var(--dim);font-weight:700;padding:7px 10px 7px 0;white-space:nowrap;vertical-align:top;width:84px}
+.ibDetTbl td{padding:7px 0;color:var(--txt);border-bottom:1px solid var(--line)}
 .ibDetOut{margin-top:16px;width:100%;background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:10px;font-size:14px;font-weight:700;padding:11px;cursor:pointer}
 .ibDetOut:active{background:var(--line)}
 .ibDetEmpty{color:var(--dim);font-size:13px;padding:30px 10px;text-align:center}
