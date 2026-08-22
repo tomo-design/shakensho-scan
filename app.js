@@ -5695,23 +5695,32 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   try { return await geminiAskMedia(prompt, media); } catch (e) { throw lastErr || e; }
 }
 function buildMediaDiagPrompt() {
+  const extra = $("diagText").value.trim();
   const lines = [
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
-    "添付の写真・動画(整備士が撮影した不具合の様子)を観察し、判断できる症状(異音の種類・発生タイミング、煙や排気の色、振動、警告灯、液漏れ、損傷、異常な挙動など)を読み取ってください。",
-    "動画に音声があれば異音の特徴も考慮すること。映像・音声から判断できないことは断定せず推測には「（要確認）」を付けること。",
-    "【統合診断】写真・動画に複数のDTC(ダイアグコード)や複数の症状(異音・煙・振動・警告灯・漏れ等)が含まれる場合は、1つずつ別々に原因を挙げず、映像・音声から読み取れる全ての手がかりを『1つの故障像』としてまとめて解釈し、それらを一括で説明できる根本原因を最優先で特定すること。表面的なコード名や1つの症状に引っ張られず、原因のコード・症状と結果(二次的)のコード・症状を見分ける。第1位の候補はできるだけ多くのDTC・症状を説明できる根本原因にする。",
+    "【最重要・3点統合の診断】この診断では次の3種類の情報を必ず全て突き合わせ、1つの故障像として統合すること: (1)整備士のコメント/説明、(2)添付の写真、(3)添付の動画(音声を含む)。どれか1つだけで判断しない。",
+    "とりわけ整備士のコメントは、現場で実際に起きている症状・発生条件・作業経緯を伝える最重要の手がかりであり、絶対に無視しないこと。映像から読み取れる事実とコメントの両方を満たす原因を優先する。映像とコメントが食い違う場合は、その食い違い自体を手がかりとして扱い、コメントが示す症状を説明できる原因を重視する。"
+  ];
+  if (extra) {
+    lines.push("", "■整備士のコメント/説明（最重要・必ず診断に反映）:", extra, "");
+  } else {
+    lines.push("", "※整備士のコメントは未入力です。写真・動画のみから判断してください。", "");
+  }
+  lines.push(
+    "添付の写真・動画を観察し、判断できる症状(異音の種類・発生タイミング、煙や排気の色、振動、警告灯、液漏れ、損傷、異常な挙動など)を読み取ってください。動画に音声があれば異音の特徴も考慮すること。映像・音声・コメントから判断できないことは断定せず、推測には「（要確認）」を付けること。",
+    "【統合診断】複数のDTCや複数の症状がある場合は、1つずつ別々に原因を挙げず、全ての手がかり(コメント＋写真＋動画)を『1つの故障像』としてまとめ、それらを一括で説明できる根本原因を最優先で特定する。表面的なコード名や1つの症状に引っ張られず、原因(一次)と結果(二次)を見分ける。第1位は、コメントの症状を含めできるだけ多くの手がかりを1つで説明できる、最も可能性が高い根本原因にすること。",
     "前置き・免責・挨拶は不要。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
-    "■写真・動画から読み取れる症状",
-    "・観察できた症状を箇条書き(判別できなければ『判別不可』)",
+    "■読み取れた症状・状況",
+    "・コメントと写真・動画から読み取れた症状/状況を箇条書き(判別できなければ『判別不可』)。整備士コメントの内容も必ず1項目以上反映する。",
     "■原因候補（可能性が高い順）",
     "1. 原因名（一言で）",
-    "理由: なぜこの症状・映像からこの原因を疑うのか、根拠を1文で簡潔に。",
+    "理由: なぜこの症状・映像・コメントからこの原因を疑うのか、根拠を1文で簡潔に。可能ならコメントのどの記述と整合するかに触れる。",
     "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
     "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
     "■最初の1手",
     "現場で最初にやるべきことを1〜2文で。",
     ""
-  ];
+  );
   if (current.type || current.vin) {
     const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
     const v = code ? findVehicle(code) : null;
@@ -5719,8 +5728,6 @@ function buildMediaDiagPrompt() {
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
   { const os = officialSpecsText(); if (os) lines.push(os); }
-  const extra = $("diagText").value.trim();
-  if (extra) lines.push("■整備士の補足メモ: " + extra);
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
@@ -5989,7 +5996,10 @@ async function diagMediaAnalyze() {
     stopTimer = startThinkingTimer(p, "🔧 メカ君が写真・動画を解析中");
     let streamed = false;
     const mdp = buildMediaDiagPrompt();
-    let r = await geminiAskMediaStream(mdp, media, {}, (acc, done) => {
+    // 故障診断は精度優先。写真・動画・コメントの統合をしっかり推論させるため思考量を引き上げる
+    // (NA=Flashでも256→2048、有料=Proは4096)。会話等の軽用途とは別枠で確保。
+    const diagBudget = (mediaModeByPlan() === "pro") ? 4096 : 2048;
+    let r = await geminiAskMediaStream(mdp, media, { thinkingBudget: diagBudget }, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;
