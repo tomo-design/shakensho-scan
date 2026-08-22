@@ -3217,18 +3217,13 @@ function renderIntakeDetail(list) {
     ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
     ["担当", dispText(sel.staff) || "—"],
   ];
-  let feeBtn = "";
-  if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
   // 担当者は事務ボードでは編集しない(メインツールのホーム入庫状況で設定)。ここでは表示のみ。
-  // 上部の区分タグ・費用バッジは廃止(表の区分行と重複)。費用は車検のみ最終行に表示。
-  // ラベルは左端に固定、値は全幅で中央寄せ → 上のタイトルと同じ中央線に揃う。
+  // 上部の区分タグ・費用は廃止(費用はカード一覧側で操作)。ラベルは左端固定・値は全幅中央寄せ。
   const rowHtml = (k, vHtml) => '<div class="ibDetRow"><span class="k">' + esc(k) + '</span><span class="v">' + vHtml + '</span></div>';
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
-    '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], esc(r[1]))).join("") +
-      (feeBtn ? rowHtml("費用", feeBtn) : "") + '</div>' +
+    '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], esc(r[1]))).join("") + '</div>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
-  const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", () => {
     const title = dispText(sel.plate) || dispText(sel.type) || "この車両";
