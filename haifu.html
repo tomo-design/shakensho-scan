@@ -148,12 +148,13 @@
     /* 見出しと直後のブロックを離さない＋余白を詰める */
     h2{break-after:avoid;margin:6mm 0 3.5mm}
     h2:first-of-type{margin-top:2mm}
-    h2.pb{break-before:page;margin-top:2mm}
+    /* 強制改ページはやめ、内容を上から連続で流す(手前ページの大きな空白を防ぐ) */
+    h2.pb{break-before:auto;margin-top:2mm}
     .pnum{display:none}
-    /* 実際の画面は専用ページに3枚横並びで大きく(上部基準でトリミング) */
-    .shots{grid-template-columns:repeat(3,1fr);gap:12px;margin-top:5mm}
-    .shots img{height:225mm}
-    .shots figcaption{font-size:12.5px;margin-top:8px}
+    /* 実際の画面は3枚横並び。専用ページ化せず、他の内容と一緒に流れるサイズに抑える */
+    .shots{grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4mm}
+    .shots img{height:150mm}
+    .shots figcaption{font-size:11px;margin-top:6px}
     @page{size:A4;margin:12mm}
   }
 </style>
