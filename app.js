@@ -3221,10 +3221,11 @@ function renderIntakeDetail(list) {
   let feeBtn = "";
   if (sel.intakeKind === "車検") { const fs = FEE_STATES[feeStateOf(sel)]; feeBtn = '<button type="button" id="ibDetFee" class="ibFee ' + fs.cls + '" title="費用の状況(タップで切替)">' + fs.label + '</button>'; }
   // 担当者は事務ボードでは編集しない(メインツールのホーム入庫状況で設定)。ここでは表示のみ。
+  // 上部の区分タグ・費用バッジは廃止(表の区分行と重複)。費用は車検のみ表の最終行に表示。
   box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
-    '<div class="ibDetTop"><div class="ibDetTag">' + esc(info.label) + '</div><div class="ibDetTopR">' + feeBtn + '</div></div>' +
     '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
-    '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") + '</table>' +
+    '<table class="ibDetTbl">' + rows.map(r => '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>').join("") +
+      (feeBtn ? '<tr><th>費用</th><td>' + feeBtn + '</td></tr>' : '') + '</table>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
   const df = $("ibDetFee"); if (df) df.addEventListener("click", () => cycleFee(sel.rid));
   const ob = $("ibDetOut");
