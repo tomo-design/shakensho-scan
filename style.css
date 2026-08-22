@@ -1207,9 +1207,10 @@ body.gated{overflow:hidden}
 .ibUpdate.spin img{animation:ibSpin .8s linear infinite}
 @keyframes ibSpin{to{transform:rotate(360deg)}}
 .ibHead h2{padding-left:6px}
-.ibHint{font-size:10.5px;color:var(--dim);font-weight:400;opacity:.55}
-.ibSubHead{display:flex;justify-content:flex-end;margin:-4px 0 8px;padding-right:2px}
-.ibSummary{font-size:12px;font-weight:700;color:#DC2626;margin-left:10px}
+.ibHint{font-size:10.5px;color:var(--dim);font-weight:400;opacity:.55;margin-left:auto}
+.ibSubHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 8px;padding:0 2px}
+.ibSummary{font-size:12.5px;font-weight:800;color:#DC2626}
+.ibSummary:empty{display:none}
 .ibDetTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .ibDetTop .ibDetTag{margin-bottom:0}
 .ibTopRight{position:absolute;top:8px;right:12px;display:flex;flex-direction:row;flex-wrap:wrap;gap:5px;align-items:center;justify-content:flex-end;max-width:62%}
