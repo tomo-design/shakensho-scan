@@ -59,7 +59,9 @@ h1,h2,h3{line-height:1.35;margin:0}
 .hero-in{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-top:74px;padding-bottom:74px}
 .eyebrow{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--gold);background:rgba(255,177,0,.14);border:1px solid rgba(255,177,0,.35);padding:5px 12px;border-radius:999px;margin-bottom:18px}
 .hero h1{font-size:40px;font-weight:900;letter-spacing:.01em}
-.lead{color:#c8cdd6;font-size:16.5px;margin:18px 0 26px;max-width:520px}
+.hero .creed{margin:18px 0 0;padding-left:14px;border-left:3px solid var(--gold);color:#fff;font-size:18px;font-weight:800;line-height:1.6;max-width:560px}
+.hero .creed b{color:var(--gold)}
+.lead{color:#c8cdd6;font-size:16.5px;margin:14px 0 26px;max-width:520px}
 .lead b{color:#fff}
 .hero-btns{display:flex;gap:12px;flex-wrap:wrap}
 .hero-note{margin-top:22px;font-size:12.5px;color:#8b93a2}
