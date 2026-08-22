@@ -154,7 +154,7 @@
     };
     const COMMON = [
       "車両データ・車種DB・整備カルテを社内の全端末で自動共有",
-      "従業員は何人でも参加OK（1人2端末まで）",
+      "メンバーは何人でも参加OK（1人2端末まで）",
       "車検証スキャン・整備カルテをフル機能で利用",
       "更新・新機能を随時反映／優先サポート",
     ];
@@ -349,7 +349,7 @@
     show("tenantField", mode !== "login");
     show("nameField", mode !== "login");
     show("officeLoginRow", true);   // 事務用の専用モードは ログイン・新規参加・会社登録 いずれでも選べる
-    $("cloudFormTitle").textContent = mode === "new" ? "管理者として会社を新規登録（1社1名）" : mode === "join" ? "従業員として会社に参加（承認待ちになります）" : "ログイン";
+    $("cloudFormTitle").textContent = mode === "new" ? "管理者として会社を新規登録（1社1名）" : mode === "join" ? "メンバーとして会社に参加（承認待ちになります）" : "ログイン";
     $("btnCloudSubmit").textContent = mode === "new" ? "会社を登録" : mode === "join" ? "参加を申請" : "ログイン";
     $("cloudAuthStat").textContent = "";
   }
@@ -459,7 +459,7 @@
     if (isNewCompany) {
       try {
         const t = await db.collection("tenants").doc(tid).get();
-        if (t.exists) { $("cloudAuthStat").textContent = "⚠ この事業所IDは既に登録されています。従業員として参加してください。"; return; }
+        if (t.exists) { $("cloudAuthStat").textContent = "⚠ この事業所IDは既に登録されています。メンバーとして参加してください。"; return; }
       } catch (e) {}
     }
     try {
@@ -568,7 +568,7 @@
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
     show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
     if (!inLogged) { closeForm(); show("tabAdmin", false); show("cloudDevices", false); show("cloudPlan", false); return; }
-    const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[profile.role] || profile.role) : "—";
+    const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "メンバー" }[profile.role] || profile.role) : "—";
     const who = profile && profile.name ? profile.name + "（" + me.email + "）" : me.email;
     if (!profile) {
       $("cloudStat").innerHTML = esc(me.email) + " — プロフィール未作成です。<br><button class='btn btn-amber btn-sm' id='cloudRecover' style='margin-top:6px'>会社に参加（再申請）</button>";
@@ -855,7 +855,7 @@
           if (profile.role === "super" && typeof switchView === "function") { switchView("admin"); if (window.CloudAdmin) window.CloudAdmin.open(); }
           else { show("cloudManageBox", true); renderManage("cloudManageBox"); const b = $("cloudManageBox"); if (b) b.scrollIntoView({ behavior: "smooth" }); }
         };
-        if (typeof notifyAttention === "function") notifyAttention("新しい参加申請", "従業員の参加申請が届きました（承認待ち " + n + "件）。承認してください。", openMgr);
+        if (typeof notifyAttention === "function") notifyAttention("新しい参加申請", "メンバーの参加申請が届きました（承認待ち " + n + "件）。承認してください。", openMgr);
         else try { if ("Notification" in window && Notification.permission === "granted") new Notification("メカノAI 参加申請", { body: "新しい参加申請が届きました（承認待ち " + n + "件）。" }); } catch (e) {}
       }
       joinSeen = n;
@@ -1170,7 +1170,7 @@
     return list.map(x => userRow(x.id, x.u, t)).join("");
   }
   function userRow(id, u, t) {
-    const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "従業員" }[u.role] || u.role);
+    const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "メンバー" }[u.role] || u.role);
     // 運営管理者(super)は店舗の管理対象ではない。操作ボタン無しで「在籍」だけ表示(誤って無効化されない)
     if (u.role === "super") {
       const infoS = "<div class='mInfo'><div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span><span class='mRole adm'>運営管理者</span></div>" +
@@ -1205,7 +1205,7 @@
     if (u.active) {
       // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
-        : u.role === "admin" ? btn("demote", "u", id, "従業員に") : "";
+        : u.role === "admin" ? btn("demote", "u", id, "メンバーに") : "";
       btns = seatBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
@@ -1332,7 +1332,7 @@
         if (profile && profile.role === "super" && tu.tenantId) { try { await db.collection("tenants").doc(tu.tenantId).set({ adminName: tu.name || "" }, { merge: true }); } catch (e) {} }
         uiAlert("代表管理者に設定しました。");
       } else if (act === "demote") {
-        if (!confirm("この代表管理者を従業員に降格しますか？")) return;
+        if (!confirm("この代表管理者をメンバーに変更しますか？")) return;
         await db.collection("users").doc(id).update({ role: "staff" });
       } else if (act === "plan") {
         // 手動設定は「早期解除(停止・前倒し)」のみ。延長はできない(延長はStripeの年契約=webhookで行う)。
