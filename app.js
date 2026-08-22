@@ -3241,6 +3241,15 @@ function applyOfficeMode() {
     } else localStorage.removeItem("ss_office");
     applyOfficeMode();
   });
+  // 事務モード端末で通知(プッシュ)を許可 → 新規入庫がアプリ未起動でも届く
+  const push = document.getElementById("obPush");
+  if (push) push.addEventListener("click", async () => {
+    if (!(window.Cloud && typeof window.Cloud.enablePush === "function")) { uiAlert("通知はこの環境では使えません。"); return; }
+    const old = push.textContent; push.disabled = true; push.textContent = "設定中…";
+    try { const r = await window.Cloud.enablePush(); uiAlert(r.msg); if (r.ok) push.textContent = "🔔 通知ON"; else push.textContent = old; }
+    catch (e) { push.textContent = old; }
+    finally { push.disabled = false; }
+  });
   const exit = document.getElementById("obExit");
   if (exit) exit.addEventListener("click", () => {
     if (!confirm("入庫管理を終了してログアウトします。よろしいですか？")) return;

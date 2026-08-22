@@ -29,6 +29,11 @@ exports.notifyJoin = functions.firestore
     const collect = (snap) => snap.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
     collect(admins);
     collect(supers);
+    // 店舗の管理者端末の台帳トークンも併用(通知の取りこぼしを減らす=強化)
+    try {
+      const pt = await db.collection("tenants").doc(tid).collection("pushTokens").where("admin", "==", true).get();
+      pt.forEach((d) => tokens.push(d.id));
+    } catch (e) {}
     const uniq = [...new Set(tokens)].filter(Boolean);
     if (!uniq.length) return null;
 
@@ -60,6 +65,54 @@ exports.notifyJoin = functions.firestore
         }
       });
       await batch.commit();
+    }
+    return null;
+  });
+
+/* 新しい入庫が入ったら、その店舗の「事務(入庫管理)モード端末」と「管理者端末」にプッシュ通知を送る。
+   records ドキュメントが「入庫中(intakeKind有り・出庫していない・削除でない)」に“なった瞬間”だけ送信。
+   配信先は tenants/{tid}/pushTokens の office==true か admin==true のトークン(個人版は登録されない)。 */
+exports.notifyIntake = functions.firestore
+  .document("tenants/{tid}/records/{rid}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : null;
+    const before = change.before.exists ? change.before.data() : null;
+    if (!after || after.deleted === true) return null;
+
+    const isIntakeNow = !!after.intakeKind && !after.intakeOut;
+    const wasIntake = !!before && !!before.intakeKind && !before.intakeOut && before.deleted !== true;
+    if (!isIntakeNow || wasIntake) return null;   // 新たに入庫状態になった時だけ
+
+    const tid = context.params.tid;
+    const db = admin.firestore();
+    let tokens = [];
+    try {
+      const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get();
+      pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) tokens.push(d.id); });
+    } catch (e) {}
+    const uniq = [...new Set(tokens)].filter(Boolean);
+    if (!uniq.length) return null;
+
+    const kindJa = { "車検": "車検", "点検": "定期点検", "修理": "一般修理", "事故": "板金" }[after.intakeKind] || after.intakeKind;
+    const who = after.plate || after.name || after.type || "車両";
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens: uniq,
+      notification: { title: "新しい入庫（" + kindJa + "）", body: who + " が入庫しました。入庫管理ボードをご確認ください。" },
+      webpush: { fcmOptions: { link: "/" } },
+    });
+
+    // 無効トークンを台帳から掃除
+    const stale = [];
+    res.responses.forEach((r, i) => {
+      if (!r.success) {
+        const code = r.error && r.error.code;
+        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") stale.push(uniq[i]);
+      }
+    });
+    if (stale.length) {
+      const batch = db.batch();
+      stale.forEach((t) => batch.delete(db.collection("tenants").doc(tid).collection("pushTokens").doc(t)));
+      try { await batch.commit(); } catch (e) {}
     }
     return null;
   });

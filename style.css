@@ -1054,7 +1054,10 @@ body.pwLocked{ overflow:hidden }
 body.officeMode{padding-top:84px}
 body.officeMode #intakeBoard .ibHead{margin-top:6px}
 .obTitle{font-size:16px;font-weight:800}
-.obExit{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:8px;
+.obPush{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:8px;
+  font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
+.obPush:disabled{opacity:.6}
+.obExit{background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:8px;
   font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
 /* 専用モード: ボード以外を全部隠す */
 body.officeMode header,

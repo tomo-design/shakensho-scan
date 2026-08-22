@@ -546,6 +546,7 @@
       startSync(profile.tenantId);
       startMembersWatch(profile.tenantId);   // 店舗メンバー名簿(カルテ担当者の照合用)
       if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
+      else if (officeNow() && !pushExcluded()) { registerPush(); }   // 事務モード端末も入庫通知の配信先に登録
     }
     // 運営ログイン後の遷移
     if (pendingSuperOpen) {
@@ -616,8 +617,8 @@
     renderDevices();
     // 会社内のメンバー管理は admin のみ(superは「運営」タブで全体管理)
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
-    // 通知の有効化は管理者(admin/super)向け。参加申請などのプッシュを受け取る端末で押す
-    show("btnEnablePush", profile && profile.active && (profile.role === "admin" || profile.role === "super"));
+    // 通知の有効化は管理者(admin/super)＋事務モード端末向け。参加申請・入庫などのプッシュを受け取る端末で押す
+    show("btnEnablePush", profile && profile.active && (profile.role === "admin" || profile.role === "super" || officeNow()) && !pushExcluded());
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
   }
 
@@ -776,9 +777,28 @@
      ↓ 運営(あなた)が一度だけ Firebase Console → Cloud Messaging → ウェブプッシュ証明書 で
        「鍵ペアを生成」して得られる公開鍵(VAPID)をここに貼るだけ。 */
   const VAPID_KEY = "BJyKrW5kitDImGcvoRr9UGJ1_yU4miwENlSbcuf_uBilFohE3lC8J1BGOW2lHADFYGvm23XQhyeE-CGxeHk6Qtw";
+  // 事務(入庫管理)モードの端末か
+  function officeNow() { try { return localStorage.getItem("ss_office") === "1"; } catch (e) { return false; } }
+  // 個人版(ストア/個人モード)は通知の対象外
+  function pushExcluded() {
+    try { if (document.body.classList.contains("storeApp")) return true; } catch (e) {}
+    try { if (window.getAppMode && window.getAppMode() === "personal") return true; } catch (e) {}
+    return false;
+  }
+  /* 店舗レベルのトークン台帳に登録(office/adminを区別)。入庫・申請のプッシュ配信先に使う。 */
+  async function writeTenantPushToken(token) {
+    try {
+      if (!token || !profile || !profile.tenantId || pushExcluded()) return;
+      const isAdmin = profile.role === "admin" || profile.role === "super";
+      await db.collection("tenants").doc(profile.tenantId).collection("pushTokens").doc(token).set(
+        { office: officeNow(), admin: isAdmin, uid: (me && me.uid) || null, at: Date.now() }, { merge: true });
+    } catch (e) {}
+  }
   async function registerPush() {
     try {
-      if (!(profile && (profile.role === "admin" || profile.role === "super"))) return;   // 通知対象は管理者のみ
+      // 通知対象: 管理者(admin/super) または 事務(入庫管理)モードの端末。個人版は除外。
+      if (pushExcluded()) return;
+      if (!(profile && (profile.role === "admin" || profile.role === "super" || officeNow()))) return;
       if (typeof firebase.messaging !== "function" || !("serviceWorker" in navigator)) return;
       if (!VAPID_KEY || VAPID_KEY.indexOf("PASTE_") === 0) return;   // 鍵未設定なら在アプリ通知のみで運用
       try { if (firebase.messaging && typeof firebase.messaging.isSupported === "function" && !(await firebase.messaging.isSupported())) return; } catch (e) { return; }
@@ -791,6 +811,7 @@
       if (token) {
         await db.collection("users").doc(me.uid).set(
           { fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
+        await writeTenantPushToken(token);   // 店舗台帳にも登録(入庫通知の配信先)
       }
       // 前面にいる時に届いた通知も表示
       messaging.onMessage(p => {
@@ -1006,7 +1027,8 @@
         const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
         if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。もう一度お試しください。" };
         if (me) await db.collection("users").doc(me.uid).set({ fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
-        return { ok: true, msg: "✓ 通知を有効にしました。参加申請などがこの端末に届きます。" };
+        await writeTenantPushToken(token);   // 店舗台帳にも登録(入庫・申請のプッシュ配信先)
+        return { ok: true, msg: "✓ 通知を有効にしました。" + (officeNow() ? "新しい入庫がこの端末に届きます。" : "参加申請・入庫などがこの端末に届きます。") };
       } catch (e) {
         const m = (e && e.message) || String(e);
         if (/evaluation failed|unsupported|not supported|AbortError/i.test(m)) return { ok: false, msg: "この環境では通知（プッシュ）が使えません。" + IAB };
