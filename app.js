@@ -3268,7 +3268,7 @@ function renderHomeIntake() {
     // 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ→担当者を設定
     const staff = document.createElement("button");
     staff.className = "hiStaff" + (h.staff ? " on" : "");
-    staff.textContent = h.staff ? "👤 " + h.staff : "＋ 担当";
+    staff.textContent = h.staff ? h.staff : "＋ 担当";
     staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
     slide.appendChild(main); slide.appendChild(staff);
     // 横スワイプで出現する出庫ボタン

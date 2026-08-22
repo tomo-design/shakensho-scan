@@ -1170,9 +1170,9 @@ body.gated{overflow:hidden}
 .hiRow.ikJiko .hiTag{background:#DC2626}
 .hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ */
-.hiStaff{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hiStaff.on{background:#eef4ff;border-color:#9dbdf5;color:#2455b8}
-:root[data-theme="dark"] .hiStaff.on,:root:not([data-theme="light"]) .hiStaff.on{background:#22314f;border-color:#3a5488;color:#bcd2fb}
+.hiStaff{flex:none;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 担当設定済み: 背景色は付けず、文字を通常色にするだけ(人アイコン・色背景なし) */
+.hiStaff.on{background:transparent;border-color:var(--line);color:var(--txt)}
 /* 横スワイプで出現する出庫ボタン(行の背後・右端) */
 .hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:#e9573f;border-radius:0 8px 8px 0}
 .hiOut{background:transparent;border:none;color:#fff;border-radius:7px;font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer}

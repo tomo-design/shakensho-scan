@@ -647,8 +647,16 @@
       }
       let hist = JSON.parse(localStorage.getItem(LS.hist) || "[]");
       if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
+      // 現状のクラウド記録を1回だけ取得して更新時刻を把握(古いローカルでの上書き＝出庫の復活を防ぐ)
+      const cloudMap = {};
+      try { const cs = await db.collection("tenants").doc(tid).collection("records").get(); cs.forEach(d => { cloudMap[d.id] = d.data() || {}; }); } catch (e) {}
       for (const h of hist) {
-        if (h && (h.vin || h.rid) && !h.deleted) try { await db.collection("tenants").doc(tid).collection("records").doc(docKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
+        if (!(h && (h.vin || h.rid) && !h.deleted)) continue;
+        const c = cloudMap[docKey(h)];
+        // クラウドが同等以上に新しい(出庫・削除など後の操作を含む)なら、古いローカルで上書きしない。
+        // 新規/ローカルが新しい場合のみ送信。カルテ等の統合は購読側(onSnapshot)が担う。
+        if (c && (c.updatedAt || 0) >= (h.updatedAt || 0)) continue;
+        try { await db.collection("tenants").doc(tid).collection("records").doc(docKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
         catch (e) { errMsg = (e && e.code) || e.message || String(e); }
       }
     } catch (e) { errMsg = (e && e.code) || e.message || String(e); }
