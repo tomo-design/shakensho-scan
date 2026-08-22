@@ -83,6 +83,11 @@
   .shots img{width:100%;height:360px;object-fit:cover;object-position:top;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
   .shots figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px;text-align:center}
   .shots figcaption b{color:var(--ink);display:block}
+  .grow-wrap{display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:center;margin-top:2mm}
+  .grow-wrap .g3{display:flex;flex-direction:column;gap:12px}
+  .grow-shot{margin:0;justify-self:center;width:100%;max-width:230px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 8px 22px -12px rgba(15,42,90,.3)}
+  .grow-shot img{width:100%;height:auto;display:block;border-bottom:1px solid var(--line)}
+  .grow-shot figcaption{padding:9px 12px;font-size:11px;color:var(--ink2);line-height:1.55}
   .board{margin:14px 0 0}
   .board img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
   .board figcaption{font-size:12px;color:var(--ink2);margin-top:6px;text-align:center}
@@ -149,7 +154,7 @@
     .sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;break-before:auto}
     .sheet+.sheet{margin-top:0;break-before:auto}
     .cover-band{margin:0 0 7mm}
-    h2,.pain .p,ul.feat li,.grow .c,ol.flow li,.shots figure,.board,table.price,.cta-row,.demo,.company,.memo{break-inside:avoid}
+    h2,.pain .p,ul.feat li,.grow .c,.grow-shot,ol.flow li,.shots figure,.board,table.price,.cta-row,.demo,.company,.memo{break-inside:avoid}
     /* 見出しと直後のブロックを離さない＋余白を詰める */
     h2{break-after:avoid;margin:6mm 0 3.5mm}
     h2:first-of-type{margin-top:2mm}
@@ -231,10 +236,13 @@
   <h2 class="pb">使うほど、自社仕様に“育つ”<span class="en">Grows With You</span></h2>
   <div class="grow">
     <p class="g-lead">AIの数値は<b>参考値</b>。違えば直して保存するほど、<b>あなたの工場だけの正しい値</b>が貯まっていきます。</p>
-    <div class="g3">
-      <div class="c"><div class="num">01</div><b>「訂正して保存」で上書き</b><span>違う値はその場で直して保存。次回からは自社の正しい値を表示。</span></div>
-      <div class="c"><div class="num">02</div><b>カルテ更新で自動反映</b><span>作業で使った値は記録の更新でそのまま蓄積・保存。二度手間なし。</span></div>
-      <div class="c"><div class="num">03</div><b>社内で共有・蓄積</b><span>直した知識は店舗で共有。若手・外国人も同じ正解にたどり着く。</span></div>
+    <div class="grow-wrap">
+      <figure class="grow-shot"><img src="img/screen-grow.png" alt="AIの参考値を訂正して保存する画面"><figcaption>AIの参考値はその場で訂正→保存。「✓訂正保存済み」として、次回から自社の値を表示。</figcaption></figure>
+      <div class="g3">
+        <div class="c"><div class="num">01</div><b>「訂正して保存」で上書き</b><span>違う値はその場で直して保存。次回からは自社の正しい値を表示。</span></div>
+        <div class="c"><div class="num">02</div><b>カルテ更新で自動反映</b><span>作業で使った値は記録の更新でそのまま蓄積・保存。二度手間なし。</span></div>
+        <div class="c"><div class="num">03</div><b>社内で共有・蓄積</b><span>直した知識は店舗で共有。若手・外国人も同じ正解にたどり着く。</span></div>
+      </div>
     </div>
     <p class="g-note">※ AIの回答は参考情報です。作業前には必ず整備書等で最終確認をお願いします。正しさを積み重ねるほど、現場の資産になります。</p>
   </div>
