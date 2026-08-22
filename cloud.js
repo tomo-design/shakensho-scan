@@ -1015,14 +1015,19 @@
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {
       const IAB = "この画面はアプリ内ブラウザで開かれています。通知を使うには、右上メニューから「Chrome / Safari で開く」か、ホーム画面に追加したアプリ（メカノAI）で開いてください。";
+      // ブロック済みの時の解除手順(PC/スマホ共通の言い回し)
+      const UNBLOCK = "ブラウザでこのサイトの通知が「ブロック」になっています。アドレスバー左の 🔒 または ⓘ アイコン → サイトの設定 →「通知」を『許可』に変更 → ページを再読み込みしてから、もう一度お試しください。（スマホのChromeは右上「⋮」→ サイト設定→通知）";
       try {
         if (!("Notification" in window) || !("serviceWorker" in navigator)) return { ok: false, msg: "この端末（またはアプリ内ブラウザ）は通知に対応していません。" + " " + IAB };
+        // すでにブロック済みなら要求せず解除手順を案内(requestは即deniedを返すだけ)
+        if (Notification.permission === "denied") return { ok: false, msg: UNBLOCK };
         // 端末/ブラウザがFCMに対応しているか事前判定(アプリ内ブラウザ等は非対応)
         let supported = true;
         try { if (firebase.messaging && typeof firebase.messaging.isSupported === "function") supported = await firebase.messaging.isSupported(); } catch (e) { supported = false; }
         if (!supported || typeof firebase.messaging !== "function") return { ok: false, msg: "この環境では通知（プッシュ）が使えません。" + IAB };
         const perm = await Notification.requestPermission();
-        if (perm !== "granted") return { ok: false, msg: "通知が許可されませんでした。ブラウザの設定から許可してください。" };
+        if (perm === "denied") return { ok: false, msg: UNBLOCK };
+        if (perm !== "granted") return { ok: false, msg: "通知が許可されませんでした（保留）。もう一度「🔔通知を許可」を押し、表示されるダイアログで『許可』を選んでください。" };
         const reg = await navigator.serviceWorker.register("firebase-messaging-sw.js", { scope: "/firebase-cloud-messaging-push-scope" });
         const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
         if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。もう一度お試しください。" };
