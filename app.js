@@ -6671,6 +6671,19 @@ window.playChime = playChime;
   // 入庫ボード右上の更新アイコン(事務端末が一目で最新化できるように)
   const ibUp = document.getElementById("ibUpdate");
   if (ibUp) ibUp.addEventListener("click", () => { ibUp.classList.add("spin"); ibUp.disabled = true; runAppUpdate(); });
+  // 事務(入庫管理)モードのログイン時に自動で最新版チェック→新版があれば適用(controllerchangeで一度だけリロード)。
+  // 新版が無ければ何もしない(=リロードループにならない)。cloud.js のログイン処理から呼ばれる。
+  window.appAutoUpdate = async function () {
+    try {
+      if (isNativeApp || getAppMode() === "personal") return;   // 個人版(ストア)はストア更新のため対象外
+      if (!("serviceWorker" in navigator)) return;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) return;
+      await reg.update();
+      if (reg.waiting) reg.waiting.postMessage("skipWaiting");
+      else if (reg.installing) { const nw = reg.installing; nw.addEventListener("statechange", () => { if (nw.state === "installed" && reg.waiting) reg.waiting.postMessage("skipWaiting"); }); }
+    } catch (e) {}
+  };
 })();
 
 /* ============ お問い合わせ AIサポートチャット（メカ君） ============

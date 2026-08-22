@@ -547,6 +547,8 @@
       startMembersWatch(profile.tenantId);   // 店舗メンバー名簿(カルテ担当者の照合用)
       if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
       else if (officeNow() && !pushExcluded()) { registerPush(); }   // 事務モード端末も入庫通知の配信先に登録
+      // 入庫管理(事務モード)はログイン時に最新版へ自動更新(新版があれば適用・無ければ何もしない)
+      if (officeNow() && !pushExcluded()) { try { if (window.appAutoUpdate) window.appAutoUpdate(); } catch (e) {} }
     }
     // 運営ログイン後の遷移
     if (pendingSuperOpen) {
