@@ -1523,10 +1523,11 @@ async function runVehAsk() {
     // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
     let repairRec = null;
     if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
-    else if (obj && obj.answer) renderAiAnswer(box, obj.answer);
+    else if (obj && obj.answer) { renderAiAnswer(box, obj.answer); repairRec = saveRepairRecord(qFull, obj); }
     else if (obj && obj.isWork) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
-    else renderAiAnswer(box, r.text);
-    if (repairRec) addRepairShareBar(box, repairRec);   // 修理結果にも共有ボタン
+    else { renderAiAnswer(box, r.text); repairRec = saveRepairRecord(qFull, { answer: r.text }); }
+    if (repairRec) addRepairShareBar(box, repairRec);   // 初回の結果にも共有ボタン(過去の点検と同様に)
+    appendAiFollowup(box, qFull, r.text, { kind: "repair" });   // 修理にも追加で質問できる欄
   } catch (e) {
     stopTimer();
     if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -1839,7 +1840,14 @@ function showResult(d, opt = {}) {
   // 別車両に切り替わったら、前車両の作業内容を退避し、選んだ車両の内容を復元(診断・修理を保持)
   const oldKey = current ? vehicleKey(current) : null;
   const newKey = vehicleKey(d);
-  if (oldKey !== newKey) { try { cancelAI(); } catch (e) {} saveVehWork(oldKey); restoreVehWork(newKey); }
+  if (oldKey !== newKey) {
+    try { cancelAI(); } catch (e) {} saveVehWork(oldKey); restoreVehWork(newKey);
+    // 別車両に変えたら、診断・修理の入力欄に残った写真/動画/コメント(添付ステージング)はクリア(前車両の物が混ざらない)
+    try { clearDiagAttachments(); } catch (e) {}
+    try { clearVehAttachments(); } catch (e) {}
+    if ($("diagText")) $("diagText").value = "";
+    if ($("qVehText")) $("qVehText").value = "";
+  }
   current = d;
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
@@ -5021,6 +5029,8 @@ function repairShareText(rec) {
   if (Array.isArray(o.steps) && o.steps.length) sec("手順", o.steps.map((s, i) => (i + 1) + ". " + (s.text || s)));
   if (o.torque) sec("締付トルク", [String(o.torque)]);
   if (o.special && o.special !== "特になし") sec("注意", [String(o.special)]);
+  // 構造化されていない通常回答(答えのみ)も共有できるように
+  if (!o.location && !(Array.isArray(o.order) && o.order.length) && !(Array.isArray(o.steps) && o.steps.length) && o.answer) sec("回答", [String(o.answer)]);
   L.push("", "──────────", "※参考情報です。作業前にFAINES等で正式値を確認してください。 — メカノAI");
   return L.join("\n");
 }
@@ -5120,15 +5130,22 @@ function renderHistPanel(listId, panelId, kindFilter, openFn) {
 function renderDiagHistList() { renderHistPanel("diagHistList", "diagHistPanel", r => r.kind !== "repair", viewDiagRecord); }
 function renderRepairHistList() { renderHistPanel("repairHistList", "repairHistPanel", r => r.kind === "repair", viewRepairRecord); }
 
-/* 各診断の下に「追加で相談」欄(テキスト＋写真/動画添付、会話モードは除く)。回答後さらに追い相談を連鎖 */
-function appendAiFollowup(body, origText, prevAnswer) {
+/* 各診断/修理の下に「追加で相談」欄(テキスト＋写真/動画添付、会話モードは除く)。回答後さらに追い相談を連鎖。
+   opts.kind: "diag"(既定・故障診断) / "repair"(修理・作業手順) */
+function appendAiFollowup(body, origText, prevAnswer, opts) {
+  opts = opts || {};
+  const kind = (opts.kind === "repair") ? "repair" : "diag";
   const wrap = document.createElement("div");
   wrap.style.marginTop = "12px"; wrap.style.paddingTop = "12px"; wrap.style.borderTop = "1px dashed var(--line)";
   const lab = document.createElement("div");
   lab.className = "hint"; lab.style.marginBottom = "6px";
-  lab.textContent = "解決しない・追加で相談したい場合 — 実施内容や追加の症状を書く／写真・動画を添付して、メカ君にもう一度相談できます。";
+  lab.textContent = (kind === "repair")
+    ? "追加で質問したい場合 — 作業の続き・別の箇所・トルクや手順などを書く／写真・動画を添付して、メカ君にもう一度相談できます。"
+    : "解決しない・追加で相談したい場合 — 実施内容や追加の症状を書く／写真・動画を添付して、メカ君にもう一度相談できます。";
   const ta = document.createElement("textarea");
-  ta.placeholder = "例: EGRを清掃したが まだ白煙が出る。圧縮圧は正常。— 写真や動画も添付できます。";
+  ta.placeholder = (kind === "repair")
+    ? "例: 次にラジエーターを外す手順は？ タイミングチェーンのボルト締め付けトルクは？ — 写真や動画も添付できます。"
+    : "例: EGRを清掃したが まだ白煙が出る。圧縮圧は正常。— 写真や動画も添付できます。";
   ta.style.minHeight = "64px";
 
   // 追加相談用の添付(音声入力/写真/写真撮影/動画/動画撮影)
@@ -5136,15 +5153,27 @@ function appendAiFollowup(body, origText, prevAnswer) {
   const icons = document.createElement("div"); icons.className = "fuIcons";
   // 音声入力ボタン
   const micBtn = document.createElement("button"); micBtn.type = "button"; micBtn.className = "diagIco txt"; micBtn.title = "音声で入力"; micBtn.textContent = "🎤";
-  let fuRec = null;
+  let fuRec = null, fuListening = false, fuAccum = "";
   micBtn.addEventListener("click", () => {
-    if (fuRec) { try { fuRec.stop(); } catch (e) {} fuRec = null; return; }
-    const rec = getSpeechRecognition();
-    if (!rec) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
-    fuRec = rec; const base = ta.value; micBtn.textContent = "●"; micBtn.classList.add("sel");
-    rec.onresult = e => { let s = ""; for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; ta.value = (base ? base + " " : "") + s; };
-    rec.onend = () => { fuRec = null; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); };
-    try { rec.start(); } catch (e) { fuRec = null; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); return; }
+    if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    const base = ta.value ? ta.value + " " : "";
+    fuAccum = ""; fuListening = true; micBtn.textContent = "●"; micBtn.classList.add("sel");
+    const startFu = () => {
+      const rec = getSpeechRecognition(); if (!rec) { fuListening = false; return; }
+      rec.continuous = true; rec.interimResults = true; fuRec = rec;
+      let sf = "", fatal = false;
+      rec.onresult = e => { let f = "", interim = ""; for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; } sf = f; ta.value = base + dedupRepeats(fuAccum + f + interim); };
+      rec.onerror = e => { const err = e && e.error; if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") fatal = true; };
+      rec.onend = () => {
+        fuAccum += sf; sf = ""; fuRec = null; ta.value = base + dedupRepeats(fuAccum);
+        // 無音で切れても停止を押すまで自動再開(喋るたびに押す不便を解消)
+        if (fuListening && !fatal) { setTimeout(() => { if (fuListening) startFu(); }, 120); return; }
+        fuListening = false; micBtn.textContent = "🎤"; micBtn.classList.remove("sel");
+      };
+      try { rec.start(); } catch (e) { fuListening = false; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+    };
+    startFu();
   });
   icons.appendChild(micBtn);
   const preview = document.createElement("div"); preview.id = ""; preview.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:8px";
@@ -5188,53 +5217,73 @@ function appendAiFollowup(body, origText, prevAnswer) {
     if (diagAiBusy) return;
     diagAiBusy = true; setBtnLoading(btn, true, "メカ君が考え中…");
     ans.classList.remove("hidden"); ans.textContent = "";
-    // 追加相談も経過秒を表示(初回診断と同じ体感)。ストリーム開始 or 応答到着で停止。
+    // 追加相談も経過秒を表示(初回と同じ体感)。ストリーム開始 or 応答到着で停止。
     const stopFbTimer = startThinkingTimer(ans, "🔧 メカ君が追加で考え中");
     let streamedFb = false;
-    // 故障診断は精度優先。NAでも思考量を確保(2048)、有料は4096。
-    const fbBudget = (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? 4096 : 2048;
+    // 精度優先。NAでも思考量を確保(2048)、有料は4096。
+    const paidOn = !!(window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn());
+    const fbBudget = paidOn ? 4096 : 2048;
     try {
-      const prompt = [
-        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。同じ不具合の“続きの相談”です。前回の診断結果と、整備士が追加で入力したコメント・写真・動画を必ず統合し、精度の高い2回目の原因候補を出してください。",
-        "【最重要・臨機応変】前回の原因候補を全て点検・排除したとは限りません。整備士は点検の途中で気づいたこと・実施した内容・新たな症状を追記しています。追加情報から『すでに確認できた／正常だった』ことは候補から外し、まだ疑わしいもの・新たに浮上した原因を、追加情報＋前回の手がかりを合わせて可能性の高い順に組み直すこと。前回の1位に固執せず、追加情報を最優先で反映する。写真・動画があれば必ず観察して統合する。断定できないことには『（要確認）』を付ける。",
-        "前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
-        "",
-        "■原因候補（可能性が高い順）",
-        "1. 原因名（一言で）",
-        "理由: なぜこの症状・情報からこの原因を疑うのか、根拠を1文で簡潔に。可能なら追加情報のどの記述・映像と整合するかに触れる。",
-        "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
-        "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
-        "",
-        "■最初の1手",
-        "現場で最初にやるべきことを1〜2文で。",
-        "",
-        "■当初の相談内容: " + origText,
-        "■前回の原因候補(診断結果): " + String(prevAnswer).slice(0, 1600),
-        "■今回の追加情報(点検途中で気づいたこと・実施内容・結果・追加症状): " + (tried || "(テキストなし。添付の写真・動画を参照)"),
-      ].join("\n");
       let r;
-      if (atts.length) {
-        const media = [];
-        for (const a of atts) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
-        r = await geminiAskMediaStream(prompt, media, { thinkingBudget: fbBudget }, (acc, done) => {
-          if (done) return;
-          if (!streamedFb) { streamedFb = true; stopFbTimer(); ans.classList.add("streaming"); }
-          ans.textContent = acc;
-        });
+      if (kind === "repair") {
+        // 修理の追加質問: 前回の回答＋今回の質問を文脈にして、修理フォーマット(JSON)で続きを回答。
+        const q = "【この車両の作業についての追加質問です】\n前回の回答(要約): " + String(prevAnswer).slice(0, 1200) +
+          "\n当初の質問: " + origText +
+          "\n今回の追加質問・状況: " + (tried || "(テキストなし。添付の写真・動画を参照)");
+        if (atts.length) {
+          const media = [];
+          for (const a of atts) media.push(await attachToMedia(a));
+          r = await geminiAskMediaStream(buildRepairPrompt(q, true), media, { thinkingBudget: fbBudget }, null);
+        } else {
+          r = await geminiAsk(buildRepairPrompt(q), paidOn ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
+        }
+        stopFbTimer(); ans.classList.remove("streaming");
+        const obj = cleanCiteDeep(extractJson(r.text));
+        if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(ans, obj, tried || origText); }
+        else if (obj && obj.answer) renderAiAnswer(ans, obj.answer);
+        else renderAiAnswer(ans, r.text);
       } else {
-        r = await geminiAsk(prompt, { mode: "pro", thinkingBudget: fbBudget });   // 故障診断は高精度(思考ON)
+        const prompt = [
+          "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。同じ不具合の“続きの相談”です。前回の診断結果と、整備士が追加で入力したコメント・写真・動画を必ず統合し、精度の高い2回目の原因候補を出してください。",
+          "【最重要・臨機応変】前回の原因候補を全て点検・排除したとは限りません。整備士は点検の途中で気づいたこと・実施した内容・新たな症状を追記しています。追加情報から『すでに確認できた／正常だった』ことは候補から外し、まだ疑わしいもの・新たに浮上した原因を、追加情報＋前回の手がかりを合わせて可能性の高い順に組み直すこと。前回の1位に固執せず、追加情報を最優先で反映する。写真・動画があれば必ず観察して統合する。断定できないことには『（要確認）』を付ける。",
+          "前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+          "",
+          "■原因候補（可能性が高い順）",
+          "1. 原因名（一言で）",
+          "理由: なぜこの症状・情報からこの原因を疑うのか、根拠を1文で簡潔に。可能なら追加情報のどの記述・映像と整合するかに触れる。",
+          "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
+          "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
+          "",
+          "■最初の1手",
+          "現場で最初にやるべきことを1〜2文で。",
+          "",
+          "■当初の相談内容: " + origText,
+          "■前回の原因候補(診断結果): " + String(prevAnswer).slice(0, 1600),
+          "■今回の追加情報(点検途中で気づいたこと・実施内容・結果・追加症状): " + (tried || "(テキストなし。添付の写真・動画を参照)"),
+        ].join("\n");
+        if (atts.length) {
+          const media = [];
+          for (const a of atts) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
+          r = await geminiAskMediaStream(prompt, media, { thinkingBudget: fbBudget }, (acc, done) => {
+            if (done) return;
+            if (!streamedFb) { streamedFb = true; stopFbTimer(); ans.classList.add("streaming"); }
+            ans.textContent = acc;
+          });
+        } else {
+          r = await geminiAsk(prompt, { mode: "pro", thinkingBudget: fbBudget });
+        }
+        stopFbTimer(); ans.classList.remove("streaming");
+        if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }, acc => { ans.textContent = acc; }); }
+        lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
+        renderAiAnswer(ans, r.text, { linkCauses: true });
       }
-      stopFbTimer(); ans.classList.remove("streaming");
-      if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }, acc => { ans.textContent = acc; }); }
-      lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
-      renderAiAnswer(ans, r.text, { linkCauses: true });
       // この相談欄は使い終わったので入力部を畳み、質問内容だけ残す(入力枠が重複して並ぶのを防ぐ)
       [lab, ta, icons, preview, btn].forEach(el => { try { el.remove(); } catch (e) {} });
       const asked = document.createElement("div"); asked.className = "hint"; asked.style.marginBottom = "6px";
-      asked.textContent = "🔧 追加相談: " + (tried || "(添付のみ)");
+      asked.textContent = (kind === "repair" ? "🔧 追加質問: " : "🔧 追加相談: ") + (tried || "(添付のみ)");
       wrap.insertBefore(asked, ans);
-      // さらに追い相談できるよう、回答の下に次の相談欄を1つだけ連鎖
-      appendAiFollowup(body, origText + " / " + tried, r.text);
+      // さらに追い相談できるよう、回答の下に次の相談欄を1つだけ連鎖(種別を維持)
+      appendAiFollowup(body, origText + " / " + tried, (kind === "repair" ? (r.text || "") : r.text), { kind });
     } catch (e) {
       try { stopFbTimer(); } catch (_) {}
       if (e.message !== "__cancelled__") ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
@@ -6077,6 +6126,7 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
     const startSession = () => {
       const rec = getSpeechRecognition(); if (!rec) { micListening = false; return; }
       rec.continuous = true; rec.interimResults = true; micRec = rec; sessionFinal = "";
+      let sessionFatal = false;
       rec.onresult = e => {
         let f = "", interim = "";
         for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
@@ -6084,12 +6134,13 @@ function wireFieldMic(btnId, fieldId, idleLabel) {
         fld.value = base + dedupRepeats(accum + f + interim);
         if (typeof autoGrow === "function") autoGrow(fld);
       };
-      rec.onerror = () => {};
+      rec.onerror = e => { const err = e && e.error; if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") sessionFatal = true; };
       rec.onend = () => {
-        // 自動再開しない(再開のたびに開始音=ピコ音が鳴るのを防ぐ)。1回の認識で確定
-        accum += sessionFinal; sessionFinal = ""; micRec = null; micListening = false;
-        btn.textContent = idleLabel; btn.classList.remove("sel");
+        accum += sessionFinal; sessionFinal = ""; micRec = null;
         fld.value = base + dedupRepeats(accum);
+        // ★無音で切れても、停止ボタンを押すまで自動再開して話し続けられるようにする(喋るたびに押す不便を解消)
+        if (micListening && !sessionFatal) { setTimeout(() => { if (micListening) startSession(); }, 120); return; }
+        micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel");
       };
       try { rec.start(); } catch (e) { micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel"); }
     };
