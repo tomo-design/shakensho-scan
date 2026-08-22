@@ -20,20 +20,11 @@ exports.notifyJoin = functions.firestore
     if (!tid) return null;
 
     const db = admin.firestore();
-    const [admins, supers] = await Promise.all([
-      db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get(),
-      db.collection("users").where("role", "==", "super").get(),
-    ]);
+    // 参加申請の通知は「運営管理者(super)」のみに送る。
+    const supers = await db.collection("users").where("role", "==", "super").get();
 
     const tokens = [];
-    const collect = (snap) => snap.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
-    collect(admins);
-    collect(supers);
-    // 店舗の管理者端末の台帳トークンも併用(通知の取りこぼしを減らす=強化)
-    try {
-      const pt = await db.collection("tenants").doc(tid).collection("pushTokens").where("admin", "==", true).get();
-      pt.forEach((d) => tokens.push(d.id));
-    } catch (e) {}
+    supers.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
     const uniq = [...new Set(tokens)].filter(Boolean);
     if (!uniq.length) return null;
 
@@ -591,22 +582,20 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     // 失敗しても下の無料Flashにフォールバックして回答を返す(out.failedのまま)。
   }
 
-  // ② 無料キーでFlash(通常/検索不可/①失敗フォールバック): 全キー試して枠を使い切る。
+  // ② 無料キーでFlash(通常/検索不可/①失敗フォールバック): 全キーを必ず試す。
+  //    ★あるキーがそのモデルで404/429でも、他キーなら回答できることが多い。1キーの失敗で諦めない。
   if (out.failed) {
     out = { failed: true, quota: true };
     const start = Math.floor(Math.random() * freeKeys.length);
     for (let i = 0; i < freeKeys.length; i++) {
       const key = freeKeys[(start + i) % freeKeys.length];
       out = await callGeminiModels(key, freeModels, parts, "flash", false, maxTokens, tb);
-      if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
-      if (!out.failed) break;
-      if (!out.quota) break;
+      if (!out.failed) break;   // 成功で終了。404/429等の失敗は次のキーを試す
     }
-    if (out.failed && out.quota) {
-      freeExhausted = true; await markFreeExhausted(g.tid);
-      if (paidKey) { out = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens, tb); if (!out.failed) tier = "paid"; }
-      if (out.failed) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true });
-    } else if (out.failed) {
+    // 全無料キーで失敗 → 有料キーがあれば最後の砦として試す(モデル未提供の穴埋め)
+    if (out.failed && paidKey) { const o = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens, tb); if (!o.failed) { out = o; tier = "paid"; } }
+    if (out.failed) {
+      if (out.quota) { freeExhausted = true; await markFreeExhausted(g.tid); return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true }); }
       return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
     }
   }
@@ -656,19 +645,18 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
     const out = await callGeminiStream(paidKey, models, parts, mode, effSearch, maxTokens, tb, res);
     if (out.started) { if (effSearch) await bumpPaidUsage(g.tid); finish(out.truncated, "paid", out.model); return; }
   }
-  // ② 無料キー(Flash) → ①失敗のフォールバック
+  // ② 無料キー(Flash) → ①失敗のフォールバック。★全キーを必ず試す(1キーの404/429で諦めない)。
   const start = Math.floor(Math.random() * freeKeys.length);
   let quotaAll = true;
   for (let i = 0; i < freeKeys.length; i++) {
     const key = freeKeys[(start + i) % freeKeys.length];
     const out = await callGeminiStream(key, freeModels, parts, "flash", false, maxTokens, tb, res);
     if (out.started) { clearFreeExhausted(g.tid); finish(out.truncated, "free", out.model); return; }
-    if (!out.quota) { quotaAll = false; break; }
+    if (!out.quota) quotaAll = false;   // 実エラー(404等)があった。それでも次のキーを試す
   }
-  if (quotaAll) {
-    await markFreeExhausted(g.tid);
-    if (paidKey) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res); if (out.started) { finish(out.truncated, "paid", out.model); return; } }
-  }
+  // 全無料キーで失敗 → 有料キーを最後の砦に
+  if (paidKey) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res); if (out.started) { finish(out.truncated, "paid", out.model); return; } }
+  if (quotaAll) { await markFreeExhausted(g.tid); }
   // 一度も本文を送れていない(ヘッダ未送信) → JSONエラーで返す
   if (!res.headersSent) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。" });
   res.end();
