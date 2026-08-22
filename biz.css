@@ -59,7 +59,7 @@ h1,h2,h3{line-height:1.35;margin:0}
 .hero-in{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-top:74px;padding-bottom:74px}
 .eyebrow{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--gold);background:rgba(255,177,0,.14);border:1px solid rgba(255,177,0,.35);padding:5px 12px;border-radius:999px;margin-bottom:18px}
 .hero h1{font-size:40px;font-weight:900;letter-spacing:.01em}
-.hero .creed{margin:18px 0 0;padding-left:14px;border-left:3px solid var(--gold);color:#fff;font-size:18px;font-weight:800;line-height:1.6;max-width:560px}
+.hero .creed{margin:20px 0 0;padding-left:16px;border-left:4px solid var(--gold);color:#fff;font-size:21px;font-weight:900;line-height:1.55;max-width:600px;letter-spacing:.01em}
 .hero .creed b{color:var(--gold)}
 .lead{color:#c8cdd6;font-size:16.5px;margin:14px 0 26px;max-width:520px}
 .lead b{color:#fff}
@@ -114,6 +114,26 @@ h1,h2,h3{line-height:1.35;margin:0}
 .feat-item p{color:var(--ink2);font-size:14px;margin:0}
 
 /* 育てるコンセプト */
+/* ============ ビジョン(強調バンド) ============ */
+.vision{background:radial-gradient(1100px 520px at 50% -30%,#1b3f78,var(--graph) 55%,#0a1b3c);color:#fff;text-align:center;padding:78px 0}
+.vision-eyebrow{display:inline-block;color:var(--gold);font-weight:800;font-size:14px;letter-spacing:.14em;margin-bottom:20px;padding:6px 16px;border:1px solid rgba(255,177,0,.4);border-radius:999px}
+.vision-lead{font-size:34px;font-weight:900;line-height:1.5;margin:0 auto;max-width:900px;letter-spacing:.01em}
+.vision-lead b{color:var(--gold)}
+.vision-sub{margin:24px auto 0;max-width:720px;color:#cdd9ef;font-size:16px;line-height:1.9}
+.sp-br{display:none}
+
+/* ============ 入庫管理 ============ */
+.nyuko-wrap{display:grid;grid-template-columns:1fr 1.15fr;gap:28px;align-items:center;margin-top:36px}
+.nyuko-cards{display:flex;flex-direction:column;gap:14px}
+.nyuko-card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;padding:16px 18px}
+.nyuko-card .nyuko-n{font-size:12.5px;font-weight:900;color:var(--accent);letter-spacing:.08em}
+.nyuko-card h3{margin:4px 0 5px;font-size:16px;color:var(--ink)}
+.nyuko-card p{margin:0;font-size:13.5px;color:var(--ink2);line-height:1.7}
+.nyuko-shot{margin:0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -14px rgba(15,42,90,.3)}
+.nyuko-shot img{width:100%;height:auto;display:block;background:var(--soft);border-bottom:1px solid var(--line)}
+.nyuko-shot figcaption{padding:12px 16px;font-size:12.5px;color:var(--ink2);line-height:1.6}
+.nyuko-note{text-align:center;color:var(--ink2);font-size:12.5px;margin-top:22px}
+
 .grow3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}
 .grow-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:16px;padding:22px 20px}
 .grow-card .grow-n{font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.1em;margin-bottom:8px}
@@ -229,13 +249,17 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
   .hero-btns{justify-content:center}
   .lead{margin-left:auto;margin-right:auto}
   .hero-art{margin-top:10px}
-  .cards3,.feat,.plans,.steps,.grow3{grid-template-columns:1fr}
+  .cards3,.feat,.plans,.steps,.grow3,.nyuko-wrap{grid-template-columns:1fr}
   .plan.feature{transform:none}
   .nav-links{gap:14px;font-size:13px}
   .nav-links a:not(.nav-cta){display:none}
   .sec-t{font-size:24px}
   .form .f2{grid-template-columns:1fr}
   .band{padding:54px 0}
+  .vision{padding:56px 0}
+  .vision-lead{font-size:24px}
+  .vision-sub{font-size:14.5px}
+  .sp-br{display:inline}
 }
 /* スマホ幅ではヒーロー見出しを2行に収める(改行が3行に崩れるのを防ぐ) */
 @media(max-width:520px){
