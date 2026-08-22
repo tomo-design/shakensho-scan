@@ -3891,8 +3891,8 @@ const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
   // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
-  flash: ["gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-3.1-pro-preview", "gemini-pro-latest", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
 const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
@@ -5178,15 +5178,21 @@ function appendAiFollowup(body, origText, prevAnswer) {
     if (!tried && !atts.length) { ta.focus(); return; }
     if (diagAiBusy) return;
     diagAiBusy = true; setBtnLoading(btn, true, "メカ君が考え中…");
-    ans.classList.remove("hidden"); ans.textContent = "🔧 メカ君が追加で考えています…";
+    ans.classList.remove("hidden"); ans.textContent = "";
+    // 追加相談も経過秒を表示(初回診断と同じ体感)。ストリーム開始 or 応答到着で停止。
+    const stopFbTimer = startThinkingTimer(ans, "🔧 メカ君が追加で考え中");
+    let streamedFb = false;
+    // 故障診断は精度優先。NAでも思考量を確保(2048)、有料は4096。
+    const fbBudget = (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? 4096 : 2048;
     try {
       const prompt = [
-        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。前回の見解で解決しなかったため、整備士の追加情報(文章・写真・動画)を踏まえ、悩みを正確に理解して的確に助言してください。",
-        "前回の原因候補は試して効果が無かった前提で、見落としやすい原因・上流の根本原因を可能性の高い順に挙げる。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+        "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。同じ不具合の“続きの相談”です。前回の診断結果と、整備士が追加で入力したコメント・写真・動画を必ず統合し、精度の高い2回目の原因候補を出してください。",
+        "【最重要・臨機応変】前回の原因候補を全て点検・排除したとは限りません。整備士は点検の途中で気づいたこと・実施した内容・新たな症状を追記しています。追加情報から『すでに確認できた／正常だった』ことは候補から外し、まだ疑わしいもの・新たに浮上した原因を、追加情報＋前回の手がかりを合わせて可能性の高い順に組み直すこと。前回の1位に固執せず、追加情報を最優先で反映する。写真・動画があれば必ず観察して統合する。断定できないことには『（要確認）』を付ける。",
+        "前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
         "",
         "■原因候補（可能性が高い順）",
         "1. 原因名（一言で）",
-        "理由: なぜこの症状・情報からこの原因を疑うのか、根拠を1文で簡潔に。",
+        "理由: なぜこの症状・情報からこの原因を疑うのか、根拠を1文で簡潔に。可能なら追加情報のどの記述・映像と整合するかに触れる。",
         "切り分け: 確認方法。使用工具と測定値の目安を含める。1〜2文で簡潔に。",
         "2.（同様に最大5つまで。各候補に必ず『理由:』と『切り分け:』を付ける）",
         "",
@@ -5194,18 +5200,23 @@ function appendAiFollowup(body, origText, prevAnswer) {
         "現場で最初にやるべきことを1〜2文で。",
         "",
         "■当初の相談内容: " + origText,
-        "■前回の見解(試して無効): " + String(prevAnswer).slice(0, 1200),
-        "■追加情報(整備士の実施内容・結果・追加症状): " + (tried || "(テキストなし。添付を参照)"),
+        "■前回の原因候補(診断結果): " + String(prevAnswer).slice(0, 1600),
+        "■今回の追加情報(点検途中で気づいたこと・実施内容・結果・追加症状): " + (tried || "(テキストなし。添付の写真・動画を参照)"),
       ].join("\n");
       let r;
       if (atts.length) {
         const media = [];
         for (const a of atts) media.push({ mimeType: cleanMime(a.file.type, a.kind === "video" ? "video/mp4" : "image/jpeg"), data: await fileToBase64(a.file) });
-        r = await geminiAskMedia(prompt, media);
+        r = await geminiAskMediaStream(prompt, media, { thinkingBudget: fbBudget }, (acc, done) => {
+          if (done) return;
+          if (!streamedFb) { streamedFb = true; stopFbTimer(); ans.classList.add("streaming"); }
+          ans.textContent = acc;
+        });
       } else {
-        r = await geminiAsk(prompt, { mode: "pro" });   // 故障診断は常に高精度(思考ON)
+        r = await geminiAsk(prompt, { mode: "pro", thinkingBudget: fbBudget });   // 故障診断は高精度(思考ON)
       }
-      if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }); }
+      stopFbTimer(); ans.classList.remove("streaming");
+      if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }, acc => { ans.textContent = acc; }); }
       lastDiagInput = origText + (tried ? " / " + tried : "");   // 手引書生成に文脈を反映
       renderAiAnswer(ans, r.text, { linkCauses: true });
       // この相談欄は使い終わったので入力部を畳み、質問内容だけ残す(入力枠が重複して並ぶのを防ぐ)
@@ -5216,6 +5227,7 @@ function appendAiFollowup(body, origText, prevAnswer) {
       // さらに追い相談できるよう、回答の下に次の相談欄を1つだけ連鎖
       appendAiFollowup(body, origText + " / " + tried, r.text);
     } catch (e) {
+      try { stopFbTimer(); } catch (_) {}
       if (e.message !== "__cancelled__") ans.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
     } finally {
       diagAiBusy = false; setBtnLoading(btn, false);
@@ -5571,8 +5583,8 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
-  pro: ["gemini-3.1-pro-preview", "gemini-pro-latest", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+  flash: ["gemini-flash-latest", "gemini-2.5-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
 };
 async function geminiAskMedia(prompt, media) {
   prompt = langDirective(prompt);
