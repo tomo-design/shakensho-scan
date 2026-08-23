@@ -176,8 +176,8 @@ const REGION = "asia-northeast1";
 // 秘密情報は functions/.env から process.env に読み込まれる(Firebaseが自動ロード)
 const cfg = () => ({
   gemini: { key: process.env.GEMINI_KEY },              // 無料キー(1本目・後方互換)
-  // 無料キーのプール: GEMINI_KEY, GEMINI_KEY_2..5 を順番に使い、枠切れ(429)なら次のキーへ。実質 無料枠×本数。
-  geminiFree: [process.env.GEMINI_KEY, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3, process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5].filter(Boolean),
+  // 無料キーのプール: GEMINI_KEY, GEMINI_KEY_2..7 を順番に使い、枠切れ(429)なら次のキーへ。実質 無料枠×本数。
+  geminiFree: [process.env.GEMINI_KEY, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3, process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5, process.env.GEMINI_KEY_6, process.env.GEMINI_KEY_7].filter(Boolean),
   geminiPaid: { key: process.env.GEMINI_KEY_PAID },     // 有料キー(全無料キーが枠切れした時の受け皿。任意)
   vision: { key: process.env.VISION_KEY },
   cse: { key: process.env.CSE_KEY, cx: process.env.CSE_CX },
