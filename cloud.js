@@ -547,6 +547,7 @@
       startMembersWatch(profile.tenantId);   // 店舗メンバー名簿(カルテ担当者の照合用)
       if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
       else if (officeNow() && !pushExcluded()) { registerPush(); }   // 事務モード端末も入庫通知の配信先に登録
+      try { if (window.syncPushBtn) window.syncPushBtn(); } catch (e) {}   // ログイン確定後に通知ボタン表示を最新化
       // 入庫管理(事務モード)はログイン時に最新版へ自動更新(新版があれば適用・無ければ何もしない)
       if (officeNow() && !pushExcluded()) { try { if (window.appAutoUpdate) window.appAutoUpdate(); } catch (e) {} }
     }
@@ -723,8 +724,8 @@
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
             Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, firstReg: r.firstReg || e.firstReg, expiry: r.expiry || e.expiry, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, intakeKind: (r.intakeKind !== undefined ? r.intakeKind : e.intakeKind), intakeAt: (r.intakeAt !== undefined ? r.intakeAt : e.intakeAt), intakeOut: (r.intakeOut !== undefined ? r.intakeOut : e.intakeOut), feePaid: (r.feePaid !== undefined ? r.feePaid : e.feePaid), feeStatus: (r.feeStatus !== undefined ? r.feeStatus : e.feeStatus), officeMemo: (r.officeMemo !== undefined ? r.officeMemo : e.officeMemo), staff: (r.staff !== undefined ? r.staff : e.staff), confirms: (Array.isArray(r.confirms) ? r.confirms : (r.confirms === null ? [] : e.confirms)), at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
           }
-          // 一覧プレビュー(officeMemo)は統合済みコメントの最新に合わせる
-          if (Array.isArray(e.comments) && e.comments.length) e.officeMemo = e.comments[e.comments.length - 1].text;
+          // 一覧プレビュー(officeMemo)は統合済みコメントの最新(削除済みは除く)に合わせる
+          if (Array.isArray(e.comments)) { const live = e.comments.filter(c => c && !c.del); e.officeMemo = live.length ? live[live.length - 1].text : null; }
         });
         if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));

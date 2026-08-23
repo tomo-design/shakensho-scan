@@ -116,10 +116,11 @@ exports.notifyComment = functions.firestore
     const after = change.after.exists ? change.after.data() : null;
     const before = change.before.exists ? change.before.data() : null;
     if (!after || after.deleted === true) return null;
-    const aArr = Array.isArray(after.comments) ? after.comments : [];
-    const bArr = Array.isArray(before && before.comments) ? before.comments : [];
-    if (aArr.length <= bArr.length) return null;   // 新しいコメントが増えた時だけ
-    const added = aArr[aArr.length - 1] || {};     // 追加された最新コメント
+    const aLive = (Array.isArray(after.comments) ? after.comments : []).filter((c) => c && !c.del);
+    const bLive = (Array.isArray(before && before.comments) ? before.comments : []).filter((c) => c && !c.del);
+    if (aLive.length <= bLive.length) return null;   // 有効なコメントが増えた時だけ(削除では通知しない)
+    const added = aLive[aLive.length - 1] || {};     // 追加された最新コメント
+    if (added.del) return null;
     const authorId = added.id || "";
     const authorDev = added.dev || "";
 

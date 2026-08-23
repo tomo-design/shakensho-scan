@@ -1036,15 +1036,15 @@ body.pwLocked{ overflow:hidden }
 .ibAdd.hidden{display:none}
 .ibCard{flex-wrap:wrap}
 .ibMeta{flex-basis:100%;display:flex;gap:8px;align-items:center;padding:0 12px 10px;flex-wrap:wrap}
-.ibFee{border:0;border-radius:999px;font-size:12px;font-weight:800;padding:5px 14px;cursor:pointer;color:#fff}
+.ibFee{border:0;border-radius:999px;font-size:12px;font-weight:800;padding:5px 14px;cursor:pointer;color:#fff;margin-left:auto}
 .ibFee.feeUnpaid{background:#DC2626}
 .ibFee.feePaid{background:#16A34A}
 .ibFee.feeAdvance{background:#7C3AED}
-.ibMemo{flex:1;min-width:120px;text-align:left;background:var(--panel2);border:1px dashed var(--line);
-  border-radius:8px;font-size:12px;color:var(--dim);padding:6px 10px;cursor:pointer;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ibMemo.hasMemo{border-style:solid;color:var(--txt);background:var(--panel);display:flex;align-items:center;gap:6px}
-.ibMemoTx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ibMemo{flex:none;display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;
+  font-size:12px;color:var(--dim);padding:4px 6px;cursor:pointer;border-radius:8px}
+.ibMemo .ibMemoIc{font-size:14px;line-height:1}
+.ibMemoTxt{font-size:12px}
+.ibMemo.hasMemo{color:var(--txt)}
 .ibMemoN{flex:none;background:var(--accent,#2563EB);color:#fff;font-size:10px;font-weight:800;line-height:1;
   border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}
 .ibEmpty{text-align:center;color:var(--dim);font-size:13px;line-height:1.7;padding:30px 10px}
@@ -1064,6 +1064,9 @@ body.pwLocked{ overflow:hidden }
 .cmtDot{width:9px;height:9px;border-radius:50%;flex:none}
 .cmtNm{font-size:11.5px;font-weight:800;color:var(--txt)}
 .cmtTime{font-size:10.5px;color:var(--dim);margin-left:2px}
+.cmtDel{margin-left:auto;background:transparent;border:0;color:var(--dim);font-size:16px;line-height:1;
+  cursor:pointer;padding:0 2px;border-radius:6px}
+.cmtDel:hover{color:var(--alert,#DC2626)}
 .cmtText{font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .cmtInputRow{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
 .cmtInput{flex:1;resize:vertical;min-height:42px;max-height:120px;border:1px solid var(--line);border-radius:10px;

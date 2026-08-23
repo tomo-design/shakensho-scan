@@ -3061,22 +3061,44 @@ function editIntakeStaff(rid) {
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
 }
-/* 車両ごとのコメント履歴(複数人で追記・スレッド表示)。旧データ(単一officeMemo)も1件として表示 */
-function getComments(t) {
+/* 車両ごとのコメント履歴(複数人で追記・スレッド表示)。旧データ(単一officeMemo)も1件として扱う */
+function rawComments(t) {
   if (t && Array.isArray(t.comments)) return t.comments;
   if (t && t.officeMemo) return [{ id: "legacy", name: "", text: t.officeMemo, at: t.updatedAt || Date.now() }];
   return [];
 }
-/* コメントの複数端末統合(投稿を失わないようunion。id+時刻+本文で重複排除し時系列に並べる) */
+/* 表示用: 削除済み(del)を除いたコメント */
+function getComments(t) { return rawComments(t).filter(c => c && !c.del); }
+function cmtKey(c) { return (c.id || "") + "|" + (c.at || "") + "|" + (c.text || ""); }
+/* コメントの複数端末統合(投稿を失わないようunion。削除(del)は優先して残す=消したものが復活しない) */
 function mergeComments(a, b) {
-  const seen = {}; const out = [];
+  const map = {}; const order = [];
   (a || []).concat(b || []).forEach(c => {
     if (!c || !c.text) return;
-    const k = (c.id || "") + "|" + (c.at || "") + "|" + c.text;
-    if (seen[k]) return; seen[k] = 1; out.push(c);
+    const k = cmtKey(c);
+    if (!map[k]) { map[k] = Object.assign({}, c); order.push(k); }
+    else if (c.del) map[k].del = true;   // どちらかで削除されていれば削除状態を採用
   });
-  out.sort((x, y) => (x.at || 0) - (y.at || 0));
-  return out;
+  return order.map(k => map[k]).sort((x, y) => (x.at || 0) - (y.at || 0));
+}
+/* コメント削除(打ち間違い等)。物理削除ではなく削除フラグ(del)で他端末の復活を防ぐ */
+function deleteComment(rid, target) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const arr = rawComments(t).map(c => Object.assign({}, c));
+  const k = cmtKey(target);
+  const hit = arr.find(c => cmtKey(c) === k); if (!hit) return;
+  hit.del = true;
+  t.comments = arr;
+  const live = arr.filter(c => !c.del);
+  t.officeMemo = live.length ? live[live.length - 1].text : null;   // プレビューを更新
+  t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) {
+    if (typeof window.Cloud.updateRecordFields === "function") window.Cloud.updateRecordFields(t, { comments: t.comments, officeMemo: t.officeMemo });
+    else window.Cloud.pushRecord(t);
+  }
+  if (typeof window.__cmtRefresh === "function") window.__cmtRefresh();
+  renderIntakeBoard();
 }
 function fmtCommentTime(ts) {
   if (!ts) return "";
@@ -3113,15 +3135,21 @@ function openIntakeComments(rid) {
     t = getRec() || t;   // 常に最新(他端末の投稿を反映)
     const cs = getComments(t).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
     if (!cs.length) { listEl.innerHTML = '<div class="cmtEmpty">まだコメントはありません。最初のコメントを追加できます。</div>'; return; }
-    listEl.innerHTML = cs.map(c => {
+    listEl.innerHTML = cs.map((c, i) => {
       const mine = c.id === me.id;
       const col = colorForUser(c.id || "legacy");
-      return '<div class="cmtItem' + (mine ? " mine" : "") + '">' +
+      return '<div class="cmtItem' + (mine ? " mine" : "") + '" data-i="' + i + '">' +
         '<div class="cmtMeta"><span class="cmtDot" style="background:' + col + '"></span>' +
         '<span class="cmtNm">' + esc(c.name || "担当") + '</span>' +
-        '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span></div>' +
+        '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span>' +
+        '<button type="button" class="cmtDel" title="このコメントを削除" data-i="' + i + '">×</button></div>' +
         '<div class="cmtText">' + esc(c.text).replace(/\n/g, "<br>") + '</div></div>';
     }).join("");
+    listEl.querySelectorAll(".cmtDel").forEach(btn => btn.addEventListener("click", () => {
+      const c = cs[Number(btn.dataset.i)]; if (!c) return;
+      if (!confirm("このコメントを削除しますか？")) return;
+      deleteComment(rid, c);
+    }));
     listEl.scrollTop = listEl.scrollHeight;
   };
   draw();
@@ -3129,8 +3157,7 @@ function openIntakeComments(rid) {
   const send = () => {
     const v = input.value.trim(); if (!v) return;
     const hist = getHistory(); t = hist.find(h => h.rid === rid); if (!t) return;   // 最新を取得してから追記(他端末の投稿を失わない)
-    let arr = Array.isArray(t.comments) ? t.comments.slice() : [];
-    if (!Array.isArray(t.comments) && t.officeMemo) arr.push({ id: "legacy", name: "", text: t.officeMemo, at: t.updatedAt || Date.now() });
+    let arr = rawComments(t).map(c => Object.assign({}, c));
     arr.push({ id: me.id, name: me.name, text: v, at: Date.now(), dev: myDevId() });
     t.comments = arr;
     t.officeMemo = v;   // 一覧のプレビュー用に最新コメントを保持
@@ -3258,11 +3285,10 @@ function renderIntakeBoard() {
       const memo = document.createElement("button");
       const memoSel = (h.rid === _ibSelected);
       const cs = getComments(h);
-      const last = cs.length ? cs[cs.length - 1] : null;
       memo.className = "ibMemo" + (cs.length ? " hasMemo" : "") + (memoSel ? "" : " locked");
-      memo.innerHTML = last
-        ? '💬 <span class="ibMemoTx">' + esc(last.text) + '</span>' + (cs.length > 1 ? '<span class="ibMemoN">' + cs.length + '</span>' : '')
-        : '💬 コメント';
+      memo.title = cs.length ? (cs.length + "件のコメント") : "コメントを追加";
+      memo.innerHTML = '<span class="ibMemoIc">💬</span>' +
+        (cs.length ? '<span class="ibMemoN">' + cs.length + '</span>' : '<span class="ibMemoTxt">コメント</span>');
       // 未選択のカードはコメント不可(選択中のみ開ける)
       memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; openIntakeComments(h.rid); });
       meta.appendChild(memo);
@@ -3324,6 +3350,7 @@ function applyOfficeMode() {
   const chk = $("officeModeChk"); if (chk) chk.checked = on;
   if (on) { try { switchView("scan"); } catch (e) {} }
   try { renderIntakeBoard(); } catch (e) {}
+  try { if (typeof window.syncPushBtn === "function") window.syncPushBtn(); } catch (e) {}   // 通知ボタン表示も最新化
 }
 (function bindOfficeMode() {
   const chk = document.getElementById("officeModeChk");
@@ -3342,7 +3369,10 @@ function applyOfficeMode() {
     push.textContent = on ? "🔕 通知を無効にする" : "🔔 通知を許可";
     push.classList.toggle("on", !!on);
   }
+  window.syncPushBtn = syncPushBtn;   // Cloud読込後/ログイン後にも再同期できるよう公開
   syncPushBtn();
+  // 起動直後は cloud.js が未ロードのことがある→少し遅れて再同期(更新後にOFF表示へ戻る問題対策)
+  setTimeout(syncPushBtn, 800); setTimeout(syncPushBtn, 2000);
   if (push) push.addEventListener("click", async () => {
     if (!(window.Cloud && typeof window.Cloud.enablePush === "function")) { uiAlert("通知はこの環境では使えません。"); return; }
     const on = typeof window.Cloud.pushEnabled === "function" && window.Cloud.pushEnabled();
