@@ -1537,13 +1537,15 @@ async function runVehAsk() {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
 }
-/* 修理結果の末尾(FAINESリンクの上)に共有ボタンを右寄せで置く */
+/* 修理結果の先頭(右上)に共有ボタンを右寄せで置く */
 function addRepairShareBar(box, rec) {
   const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
+  bar.style.marginTop = "0"; bar.style.marginBottom = "2px";
   const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
   const sh = document.createElement("button"); sh.type = "button"; sh.className = "histShareBtn"; sh.textContent = "📤 共有";
   sh.addEventListener("click", () => shareRepairRecord(rec));
-  bar.append(sp, sh); box.appendChild(bar);
+  bar.append(sp, sh);
+  box.insertBefore(bar, box.firstChild);   // 結果の先頭(右上)へ
 }
 /* 診断セクションの見出し右端に共有リンクを置く(ボタン式ではなくテキストリンク。バッジは左寄せ) */
 function addDiagHeadShare(sec, rec) {
@@ -5025,7 +5027,11 @@ function repairShareText(rec) {
   if (Array.isArray(o.order) && o.order.length) {
     sec("部品注文リスト", o.order.map(p => "・" + (p.name || "") + (p.qty ? " ×" + p.qty : "") + (p.kind && p.kind !== "本体" ? "（" + p.kind + "）" : "")));
   }
-  if (Array.isArray(o.steps) && o.steps.length) sec("手順", o.steps.map((s, i) => (i + 1) + ". " + (s.text || s)));
+  if (Array.isArray(o.steps) && o.steps.length) {
+    const stepLines = [];
+    o.steps.forEach((s, i) => { if (i) stepLines.push(""); stepLines.push((i + 1) + ". " + (s.text || s)); });   // 手順ごとに空行を入れて読みやすく
+    sec("手順", stepLines);
+  }
   if (o.torque) sec("締付トルク", [String(o.torque)]);
   if (o.special && o.special !== "特になし") sec("注意", [String(o.special)]);
   // 構造化されていない通常回答(答えのみ)も共有できるように
