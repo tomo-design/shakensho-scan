@@ -1192,7 +1192,7 @@
       : "";
     const info = "<div class='mInfo'>" +
       "<div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
-      "<span class='mRole" + (isAdmin ? " adm" : "") + "'>" + roleJa + "</span>" + devCtrl + "</div>" +
+      (isAdmin ? "<span class='mRole adm'>" + roleJa + "</span>" : "") + devCtrl + "</div>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
       "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ 端末 " + devN + "/" + devLimit + "台</div></div>";
     // 検索席の指名トグル(ツインターボ店舗の有効メンバーのみ表示)。ON=このメンバーが検索を使える。

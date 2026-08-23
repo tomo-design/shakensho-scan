@@ -6831,13 +6831,21 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const g = document.getElementById("authGate"); if (!g) return;
   const toSettings = (mode) => {
     try { switchView("settings"); } catch (e) {}
-    const b = document.getElementById(mode === "login" ? "btnModeLogin" : "btnModeNew");
     // 一旦ゲートを隠してログインフォームを操作できるように
     g.classList.add("hidden"); document.body.classList.remove("gated");
-    setTimeout(() => { if (b) b.click(); const el = document.getElementById("secCloudSync"); if (el) el.scrollIntoView({ behavior: "smooth" }); }, 60);
+    setTimeout(() => {
+      if (mode === "login") {
+        const b = document.getElementById("btnModeLogin"); if (b) b.click();
+      } else {
+        // 新規登録/メンバー参加は「選択画面」を表示(管理者として新規登録 / メンバーとして参加を自分で選べる)
+        const form = document.getElementById("cloudForm"); if (form) form.classList.add("hidden");
+        const ch = document.getElementById("cloudChoice"); if (ch) ch.classList.remove("hidden");
+      }
+      const el = document.getElementById("secCloudSync"); if (el) el.scrollIntoView({ behavior: "smooth" });
+    }, 60);
   };
   const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => toSettings("login"));
-  const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("new"));
+  const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("choice"));
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
 })();
 /* デモ用のAI固定回答。プロンプト内容から諸元/修理/会話を判定して返す(ネットワーク未使用) */
