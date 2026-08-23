@@ -57,6 +57,27 @@ function uiAlert(msg, title) {
   });
 }
 try { window.uiAlert = uiAlert; } catch (e) {}
+/* アプリ内の確認ダイアログ(ネイティブconfirmに依存しない)。
+   ブラウザで「追加のダイアログを表示しない」を選ぶとconfirm()が常にfalseになり操作不能になるため、自前UIで実装。 */
+function uiConfirm(msg, opt) {
+  opt = opt || {};
+  return new Promise(res => {
+    const ov = document.createElement("div"); ov.className = "uiModalOv";
+    const m = document.createElement("div"); m.className = "uiModal";
+    if (opt.title) { const h = document.createElement("div"); h.className = "uiModalTitle"; h.textContent = String(opt.title); m.appendChild(h); }
+    const body = document.createElement("div"); body.className = "uiModalBody"; body.textContent = String(msg == null ? "" : msg); m.appendChild(body);
+    const btns = document.createElement("div"); btns.className = "uiModalBtns";
+    const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "uiModalCancel"; cancel.textContent = opt.cancelText || "キャンセル";
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "uiModalOk" + (opt.danger ? " danger" : ""); ok.textContent = opt.okText || "OK";
+    btns.appendChild(cancel); btns.appendChild(ok); m.appendChild(btns);
+    ov.appendChild(m); document.body.appendChild(ov);
+    const done = v => { ov.remove(); res(v); };
+    ok.addEventListener("click", () => done(true));
+    cancel.addEventListener("click", () => done(false));
+    ov.addEventListener("click", e => { if (e.target === ov) done(false); });
+  });
+}
+try { window.uiConfirm = uiConfirm; } catch (e) {}
 /* 部品注文リストの各部品→通販(モノタロウ/Amazon)の商品検索へ。アフィリエイトID/リンクを入れると自動でタグ付き。
    ※IDは秘密情報ではないためクライアント同梱で問題なし。空でも通常の商品検索として機能する。 */
 const AFFIL = {
@@ -3148,10 +3169,10 @@ function openIntakeComments(rid) {
         '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span>' + delBtn + '</div>' +
         '<div class="cmtText">' + esc(c.text).replace(/\n/g, "<br>") + '</div></div>';
     }).join("");
-    listEl.querySelectorAll(".cmtDel").forEach(btn => btn.addEventListener("click", () => {
+    listEl.querySelectorAll(".cmtDel").forEach(btn => btn.addEventListener("click", async () => {
       const c = cs[Number(btn.dataset.i)]; if (!c) return;
       if (c.id !== me.id) { uiAlert("他の担当者のコメントは削除できません。"); return; }
-      if (!confirm("このコメントを削除しますか？")) return;
+      if (!(await uiConfirm("このコメントを削除しますか？", { okText: "削除", danger: true }))) return;
       deleteComment(rid, c);
     }));
     listEl.scrollTop = listEl.scrollHeight;
@@ -3341,9 +3362,9 @@ function renderIntakeDetail(list) {
     '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], esc(r[1]))).join("") + '</div>' +
     '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
   const ob = $("ibDetOut");
-  if (ob) ob.addEventListener("click", () => {
+  if (ob) ob.addEventListener("click", async () => {
     const title = dispText(sel.plate) || dispText(sel.type) || "この車両";
-    if (confirm("「" + title + "」を出庫にしてボードから外しますか？")) { _ibSelected = null; clearIntake(sel.rid); }
+    if (await uiConfirm("「" + title + "」を出庫にしてボードから外しますか？", { okText: "出庫", danger: true })) { _ibSelected = null; clearIntake(sel.rid); }
   });
 }
 /* 事務モードのON/OFFを画面へ反映(全画面ボード) */
@@ -7015,6 +7036,8 @@ function startDemo() {
   try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
   // ★URL(?demo=1)経由でもログインゲートを確実に解除(でないとゲートが前面に残り体験ガイドが操作できない)
   try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
+  // ★デモUIが整ってから体験ガイドを確実に開始(QR/URL流入でもガイドが走るように)
+  try { setTimeout(function () { if (window.mechaStartTour) window.mechaStartTour(false); }, 900); } catch (e) {}
 }
 (function initDemo() {
   let on = false;

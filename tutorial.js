@@ -182,6 +182,14 @@
 
   function end() { unbind(); if (ov) ov.remove(); ov = spot = tip = null; masks = []; curEl = null; ensureReplay(); }
   function start() { i = 0; if (!ov) build(); render(); }
+  // 外部(デモ起動側)からタイミングを合わせて確実に開始できるように公開。
+  // force=true で「表示済みフラグ」を無視して開始。表示中(ov有り)なら何もしない(二重起動防止)。
+  window.mechaStartTour = function (force) {
+    if (ov) return;
+    if (!force) { try { if (sessionStorage.getItem("ss_tourDone") === "1") return; } catch (e) {} }
+    try { sessionStorage.setItem("ss_tourDone", "1"); } catch (e) {}
+    start();
+  };
 
   function ensureReplay() {
     if (document.getElementById("tourReplay")) return;
@@ -197,8 +205,8 @@
       tries++;
       if ($("#result") && $("#result").offsetParent !== null) {
         clearInterval(t); ensureReplay();
-        var seen = false; try { seen = sessionStorage.getItem("ss_tourDone") === "1"; } catch (e) {}
-        if (!seen) { try { sessionStorage.setItem("ss_tourDone", "1"); } catch (e) {} start(); }
+        // デモUI描画の直後は再レンダリングでオーバーレイが消えることがあるので、少し待ってから開始
+        setTimeout(function () { try { window.mechaStartTour(false); } catch (e) {} }, 600);
       } else if (tries > 40) { clearInterval(t); ensureReplay(); }
     }, 250);
   }
