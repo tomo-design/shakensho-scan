@@ -813,6 +813,10 @@ details[open] > .secSummary::after{content:"▴"}
 .uiModal .uiModalBody{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
 .uiModal .uiModalOk{margin-top:16px;width:100%;padding:12px;border:0;border-radius:10px;background:#1e5aa8;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
 .uiModal .uiModalOk:active{opacity:.85}
+.uiModal .uiModalBtns{display:flex;gap:10px;margin-top:16px}
+.uiModal .uiModalBtns .uiModalOk,.uiModal .uiModalBtns .uiModalCancel{margin-top:0;flex:1}
+.uiModal .uiModalCancel{padding:12px;border:1px solid var(--line,#D5DDE8);border-radius:10px;background:transparent;color:var(--txt,#1B2530);font-weight:800;font-size:15px;cursor:pointer}
+.uiModal .uiModalOk.danger{background:#DC2626}
 
 /* 修理タブ: 手動の整備モード手順(目立たない折り畳み) */
 .manualMode{margin:6px 0 2px;border:1px dashed var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;background:var(--panel)}

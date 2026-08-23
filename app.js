@@ -2991,6 +2991,10 @@ function clearIntake(rid) {
   const t = hist.find(h => h.rid === rid);
   if (!t) return;
   t.intakeOut = Date.now(); t.updatedAt = Date.now();
+  // 出庫したらこの入庫のコメント記録・確認レ点はクリア(次回入庫に持ち越さない)。
+  // コメントは削除フラグ(del)で消す=union同期で他端末でも復活しない。
+  t.comments = rawComments(t).map(c => Object.assign({}, c, { del: true }));
+  t.officeMemo = null; t.confirms = [];
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard(); renderHistory();

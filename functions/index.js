@@ -83,7 +83,8 @@ exports.notifyIntake = functions.firestore
       pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) tokens.push(d.id); });
     } catch (e) {}
     const uniq = [...new Set(tokens)].filter(Boolean);
-    if (!uniq.length) return null;
+    console.log("notifyIntake: tokens=" + uniq.length + " tid=" + tid);
+    if (!uniq.length) { console.log("notifyIntake: 宛先トークンが0件(通知未許可/事務・管理者端末が未登録)"); return null; }
 
     const kindJa = { "車検": "車検", "点検": "定期点検", "修理": "一般修理", "事故": "板金" }[after.intakeKind] || after.intakeKind;
     const who = after.plate || after.name || after.type || "車両";
@@ -92,6 +93,8 @@ exports.notifyIntake = functions.firestore
       data: { title: "新しい入庫（" + kindJa + "）", body: who + " が入庫しました。入庫管理ボードをご確認ください。", link: "/", tag: "intake" },
       webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
     });
+    console.log("notifyIntake: success=" + res.successCount + " fail=" + res.failureCount +
+      (res.failureCount ? " errors=" + JSON.stringify(res.responses.filter((r) => !r.success).map((r) => r.error && r.error.code)) : ""));
 
     // 無効トークンを台帳から掃除
     const stale = [];
@@ -135,7 +138,8 @@ exports.notifyComment = functions.firestore
     // 投稿した“端末”だけ除外(同一アカウントの別端末や他の担当者には届く)。端末IDが無い旧データはuidで除外。
     const excluded = (e) => authorDev ? (!!e.dev && e.dev === authorDev) : (!!authorId && e.uid === authorId);
     const tokens = [...new Set(entries.filter((e) => !excluded(e)).map((e) => e.token))].filter(Boolean);
-    if (!tokens.length) return null;
+    console.log("notifyComment: entries=" + entries.length + " sendTo=" + tokens.length + " authorDev=" + authorDev + " tid=" + tid);
+    if (!tokens.length) { console.log("notifyComment: 宛先0件(投稿端末のみ登録/他端末が未登録)"); return null; }
 
     const who = after.plate || after.name || after.type || "車両";
     const nm = added.name ? (added.name + "さん") : "担当者";
@@ -146,6 +150,8 @@ exports.notifyComment = functions.firestore
       data: { title: "💬 " + who + " に新しいコメント", body: nm + "：" + text, link: "/", tag: "comment" },
       webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
     });
+    console.log("notifyComment: success=" + res.successCount + " fail=" + res.failureCount +
+      (res.failureCount ? " errors=" + JSON.stringify(res.responses.filter((r) => !r.success).map((r) => r.error && r.error.code)) : ""));
     const stale = [];
     res.responses.forEach((r, i) => {
       if (!r.success) {
