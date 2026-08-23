@@ -150,6 +150,7 @@
     const hist = histByStaff[curStaff] || [];
     if (!hist.length) {
       log.innerHTML = `<div class="empty">${avaHtml(s)}<div><b>${esc(s.name)}</b><br>指示を入力するか、上のボタンから始めてください。</div></div>`;
+      renderOutput();
       return;
     }
     log.innerHTML = hist.map((m, i) => {
@@ -159,7 +160,23 @@
     log.querySelectorAll(".copy").forEach((c) => c.onclick = () => copy(hist[+c.dataset.i].text));
     log.querySelectorAll(".sendmail").forEach((c) => c.onclick = () => sendMailFromChat(hist[+c.dataset.i].text));
     log.scrollTop = log.scrollHeight;
+    renderOutput();
   }
+  // 右側パネル: 最新のAI生成文を「読みやすい書面」として表示(コピー・メール送信つき)
+  let lastOutputText = "";
+  function renderOutput() {
+    const body = $("outputBody"); if (!body) return;
+    const hist = histByStaff[curStaff] || [];
+    let last = "";
+    for (let i = hist.length - 1; i >= 0; i--) { if (hist[i].role === "ai" && !/^⚠️/.test(hist[i].text)) { last = hist[i].text; break; } }
+    lastOutputText = last;
+    show("outActs", !!last);
+    if (!last) { body.innerHTML = '<div class="outEmpty">生成したメール・提案文がここに表示されます。<br>左で担当に指示を出すと、最新の文章をここで読みやすく確認・コピー・送信できます。</div>'; return; }
+    body.innerHTML = '<pre class="outDoc">' + esc(last) + '</pre>';
+    body.scrollTop = 0;
+  }
+  { const _c = $("outCopy"); if (_c) _c.onclick = () => copy(lastOutputText); }
+  { const _s = $("outSend"); if (_s) _s.onclick = () => sendMailFromChat(lastOutputText); }
 
   const ta = $("taskInput");
   ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; });

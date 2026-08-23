@@ -97,10 +97,24 @@
       <div class="staffbar" id="staffbar"></div>
       <div id="replyBanner" class="reply-banner hidden"></div>
       <div class="quick" id="quickActions"></div>
-      <div class="chat" id="chatLog"></div>
-      <div class="composer">
-        <textarea id="taskInput" rows="1" placeholder="担当への指示を入力（例：この会社への初回アプローチメールを書いて）"></textarea>
-        <button id="btnSend" class="btn btn-accent">送信</button>
+      <div class="teamGrid">
+        <div class="teamMain">
+          <div class="chat" id="chatLog"></div>
+          <div class="composer">
+            <textarea id="taskInput" rows="1" placeholder="担当への指示を入力（例：この会社への初回アプローチメールを書いて）"></textarea>
+            <button id="btnSend" class="btn btn-accent">送信</button>
+          </div>
+        </div>
+        <aside class="teamOut" id="outputPane">
+          <div class="outHead">
+            <b>生成結果</b>
+            <span class="outActs hidden" id="outActs">
+              <button class="btn btn-ghost btn-sm" id="outCopy">📋 コピー</button>
+              <button class="btn btn-accent btn-sm" id="outSend">✉ メール送信</button>
+            </span>
+          </div>
+          <div class="outBody" id="outputBody"><div class="outEmpty">生成したメール・提案文がここに表示されます。<br>左で担当に指示を出すと、最新の文章をここで読みやすく確認・コピー・送信できます。</div></div>
+        </aside>
       </div>
     </section>
 

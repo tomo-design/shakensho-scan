@@ -145,6 +145,21 @@ textarea{resize:none;line-height:1.6}
 .composer textarea{flex:1;max-height:150px;box-shadow:var(--shadow)}
 .composer .btn{padding:11px 20px}
 
+/* ===== 2カラム: 左=対話 / 右=生成結果の書面表示 ===== */
+.teamGrid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+@media(min-width:1000px){.teamGrid{grid-template-columns:minmax(0,1fr) minmax(380px,44%)}}
+.teamMain{display:flex;flex-direction:column;min-width:0}
+.teamOut{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;overflow:hidden;max-height:74vh;position:sticky;top:16px}
+.teamOut .outHead{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.teamOut .outActs{display:flex;gap:8px}
+.teamOut .outActs.hidden{display:none}
+.teamOut .outBody{padding:16px 18px;overflow-y:auto}
+.teamOut .outEmpty{color:var(--ink2);font-size:13px;line-height:1.8;text-align:center;padding:30px 8px}
+.teamOut .outDoc{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;
+  font-size:14px;line-height:1.85;color:var(--ink)}
+
 /* ================= 見込み客 ================= */
 .lead-toolbar{margin-bottom:12px}
 .leadlist{display:flex;flex-direction:column;gap:10px}
