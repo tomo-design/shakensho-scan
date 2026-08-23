@@ -825,7 +825,7 @@
       }
       // 前面にいる時に届いた通知も表示
       messaging.onMessage(p => {
-        const n = (p && p.notification) || {};
+        const n = (p && (p.data || p.notification)) || {};
         try { if (Notification.permission === "granted") new Notification(n.title || "メカノAI", { body: n.body || "", icon: "icons/icon-192.png" }); } catch (e) {}
       });
     } catch (e) { console.warn("プッシュ通知の登録に失敗", e); }

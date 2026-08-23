@@ -1,40 +1,40 @@
 /* FCM(プッシュ通知)のバックグラウンド受信用 Service Worker
-   ※アプリ本体の sw.js とは別物。閉じている時の通知表示を担当。
-   アプリ内ブラウザ等で FCM 非対応の環境でも、トップレベルで例外を投げて
-   「ServiceWorker script evaluation failed」にならないよう全体を try/catch で保護する。 */
-try {
-  importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
-  importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js");
+   ※アプリ本体の sw.js とは別物。アプリを完全に閉じている時の通知表示を担当。
+   Firebase SDK に依存せず、生の push イベントで通知を表示する(SDKの読込失敗や
+   onBackgroundMessage未登録で「閉じてると通知が来ない」問題を防ぐ)。
+   トークン取得はページ側の firebase.messaging().getToken(...) が担当し、
+   このSWは購読済みの push を受けて showNotification するだけ。 */
 
-  firebase.initializeApp({
-    apiKey: "AIzaSyAH5tBm9VDMYas1X0pNBBYHxKO3nfTrEYI",
-    authDomain: "mecanoai.firebaseapp.com",
-    projectId: "mecanoai",
-    storageBucket: "mecanoai.firebasestorage.app",
-    messagingSenderId: "126560659288",
-    appId: "1:126560659288:web:627b913aef320e7e76a72d"
-  });
-
-  const messaging = firebase.messaging();
-  messaging.onBackgroundMessage(payload => {
-    const n = payload.notification || {};
-    self.registration.showNotification(n.title || "メカノAI", {
-      body: n.body || "新しい通知があります。",
+self.addEventListener("push", e => {
+  let p = {};
+  try { p = e.data ? e.data.json() : {}; }
+  catch (_) { try { p = { data: { body: e.data && e.data.text() } }; } catch (__) { p = {}; } }
+  // FCMのpushペイロードは { data:{...} } または { notification:{...} } で届く。両対応。
+  const src = (p && (p.data || p.notification)) || {};
+  const title = src.title || "メカノAI";
+  const body = src.body || "新しい通知があります。";
+  const link = src.link || (p.fcmOptions && p.fcmOptions.link) || "./";
+  const tag = src.tag || "mechano";
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
       icon: "icons/icon-192.png",
       badge: "icons/icon-192.png",
-      tag: "mechano-join",
-    });
-  });
-} catch (e) {
-  // この環境では FCM を初期化できない(アプリ内ブラウザ等)。登録自体は成功させ、
-  // 通知タップ処理だけ有効にしておく。push の取得は呼び出し側で判定して案内する。
-}
+      tag,
+      renotify: true,          // 同tagでも新着として鳴らす
+      data: { link },
+    })
+  );
+});
 
-// 通知タップでアプリを前面に(FCM可否に関わらず登録)
+// 通知タップでアプリを前面に(既に開いていればそれをフォーカス、無ければ開く)
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const c of list) { if ("focus" in c) return c.focus(); }
-    if (clients.openWindow) return clients.openWindow("./");
-  }));
+  const link = (e.notification.data && e.notification.data.link) || "./";
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) { if ("focus" in c) return c.focus(); }
+      if (clients.openWindow) return clients.openWindow(link);
+    })
+  );
 });

@@ -3084,9 +3084,11 @@ function mergeComments(a, b) {
 /* コメント削除(打ち間違い等)。物理削除ではなく削除フラグ(del)で他端末の復活を防ぐ */
 function deleteComment(rid, target) {
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const me = myConfirmId();
   const arr = rawComments(t).map(c => Object.assign({}, c));
   const k = cmtKey(target);
   const hit = arr.find(c => cmtKey(c) === k); if (!hit) return;
+  if (hit.id !== me.id) return;   // 自分のコメントのみ削除可
   hit.del = true;
   t.comments = arr;
   const live = arr.filter(c => !c.del);
@@ -3138,15 +3140,17 @@ function openIntakeComments(rid) {
     listEl.innerHTML = cs.map((c, i) => {
       const mine = c.id === me.id;
       const col = colorForUser(c.id || "legacy");
+      // 削除できるのは自分が残したコメントのみ(他人のコメントは消せない)
+      const delBtn = mine ? '<button type="button" class="cmtDel" title="自分のコメントを削除" data-i="' + i + '">×</button>' : '';
       return '<div class="cmtItem' + (mine ? " mine" : "") + '" data-i="' + i + '">' +
         '<div class="cmtMeta"><span class="cmtDot" style="background:' + col + '"></span>' +
         '<span class="cmtNm">' + esc(c.name || "担当") + '</span>' +
-        '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span>' +
-        '<button type="button" class="cmtDel" title="このコメントを削除" data-i="' + i + '">×</button></div>' +
+        '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span>' + delBtn + '</div>' +
         '<div class="cmtText">' + esc(c.text).replace(/\n/g, "<br>") + '</div></div>';
     }).join("");
     listEl.querySelectorAll(".cmtDel").forEach(btn => btn.addEventListener("click", () => {
       const c = cs[Number(btn.dataset.i)]; if (!c) return;
+      if (c.id !== me.id) { uiAlert("他の担当者のコメントは削除できません。"); return; }
       if (!confirm("このコメントを削除しますか？")) return;
       deleteComment(rid, c);
     }));

@@ -31,11 +31,12 @@ exports.notifyJoin = functions.firestore
     const name = after.name || after.email || "新しい申請者";
     const res = await admin.messaging().sendEachForMulticast({
       tokens: uniq,
-      notification: {
+      data: {
         title: "メカノAI 参加申請",
         body: name + " さんが参加申請しました。アプリの会社管理から承認してください。",
+        link: "/",
       },
-      webpush: { fcmOptions: { link: "/" } },
+      webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
     });
 
     // 無効になったトークンを掃除(任意)
@@ -88,8 +89,8 @@ exports.notifyIntake = functions.firestore
     const who = after.plate || after.name || after.type || "車両";
     const res = await admin.messaging().sendEachForMulticast({
       tokens: uniq,
-      notification: { title: "新しい入庫（" + kindJa + "）", body: who + " が入庫しました。入庫管理ボードをご確認ください。" },
-      webpush: { fcmOptions: { link: "/" } },
+      data: { title: "新しい入庫（" + kindJa + "）", body: who + " が入庫しました。入庫管理ボードをご確認ください。", link: "/", tag: "intake" },
+      webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
     });
 
     // 無効トークンを台帳から掃除
@@ -142,8 +143,8 @@ exports.notifyComment = functions.firestore
     if (text.length > 60) text = text.slice(0, 60) + "…";
     const res = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
-      notification: { title: "💬 " + who + " に新しいコメント", body: nm + "：" + text },
-      webpush: { fcmOptions: { link: "/" } },
+      data: { title: "💬 " + who + " に新しいコメント", body: nm + "：" + text, link: "/", tag: "comment" },
+      webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
     });
     const stale = [];
     res.responses.forEach((r, i) => {
