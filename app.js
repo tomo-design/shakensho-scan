@@ -3084,9 +3084,14 @@ function fmtCommentTime(ts) {
   const hm = p(d.getHours()) + ":" + p(d.getMinutes());
   return (d.toDateString() === n.toDateString()) ? hm : ((d.getMonth() + 1) + "/" + d.getDate() + " " + hm);
 }
-/* コメントスレッドを開く(履歴＋追記) */
+/* この端末の識別子(同一アカウントでも端末ごとに区別。コメント通知で自分の投稿端末だけ除外するため) */
+function myDevId() {
+  try { let d = localStorage.getItem("ss_devId"); if (!d) { d = "d" + Math.random().toString(36).slice(2, 8); localStorage.setItem("ss_devId", d); } return d; } catch (e) { return ""; }
+}
+/* コメントスレッドを開く(履歴＋追記・リアルタイム更新) */
 function openIntakeComments(rid) {
-  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const getRec = () => getHistory().find(h => h.rid === rid);
+  let t = getRec(); if (!t) return;
   const me = myConfirmId();
   document.querySelectorAll(".cmtOv").forEach(x => x.remove());
   const ov = document.createElement("div"); ov.className = "cmtOv";
@@ -3105,6 +3110,7 @@ function openIntakeComments(rid) {
   document.body.appendChild(ov);
   const listEl = ov.querySelector("#cmtList");
   const draw = () => {
+    t = getRec() || t;   // 常に最新(他端末の投稿を反映)
     const cs = getComments(t).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
     if (!cs.length) { listEl.innerHTML = '<div class="cmtEmpty">まだコメントはありません。最初のコメントを追加できます。</div>'; return; }
     listEl.innerHTML = cs.map(c => {
@@ -3122,10 +3128,10 @@ function openIntakeComments(rid) {
   const input = ov.querySelector("#cmtInput");
   const send = () => {
     const v = input.value.trim(); if (!v) return;
-    // 既存(union用に現状を配列化。旧officeMemoはlegacyとして残す)
+    const hist = getHistory(); t = hist.find(h => h.rid === rid); if (!t) return;   // 最新を取得してから追記(他端末の投稿を失わない)
     let arr = Array.isArray(t.comments) ? t.comments.slice() : [];
     if (!Array.isArray(t.comments) && t.officeMemo) arr.push({ id: "legacy", name: "", text: t.officeMemo, at: t.updatedAt || Date.now() });
-    arr.push({ id: me.id, name: me.name, text: v, at: Date.now() });
+    arr.push({ id: me.id, name: me.name, text: v, at: Date.now(), dev: myDevId() });
     t.comments = arr;
     t.officeMemo = v;   // 一覧のプレビュー用に最新コメントを保持
     t.updatedAt = Date.now();
@@ -3138,8 +3144,11 @@ function openIntakeComments(rid) {
   };
   ov.querySelector("#cmtSend").addEventListener("click", send);
   input.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); } });
-  ov.querySelector("#cmtClose").addEventListener("click", () => ov.remove());
-  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  const close = () => { window.__cmtRefresh = null; ov.remove(); };
+  ov.querySelector("#cmtClose").addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  // クラウド購読(onSnapshot)で他端末の投稿が入ったら、開いているスレッドを自動更新
+  window.__cmtRefresh = () => { if (!document.body.contains(ov)) { window.__cmtRefresh = null; return; } draw(); };
   setTimeout(() => { try { input.focus(); } catch (e) {} }, 50);
 }
 /* 手動で入庫を追加(電話予約など未スキャンの車)。ナンバー＋区分だけ */
@@ -3467,6 +3476,7 @@ function histToResult(h) {
 function renderHistory() {
   try { renderIntakeBoard(); } catch (e) {}   // 入庫ボードも同期(クラウド反映時に最新化)
   try { renderHomeIntake(); } catch (e) {}   // ホームの入庫状況(管理者)も最新化
+  try { if (typeof window.__cmtRefresh === "function") window.__cmtRefresh(); } catch (e) {}   // 開いているコメントスレッドをリアルタイム更新
   const hist = dedupeHistoryStore();
   const box = $("histList"); box.innerHTML = "";
   if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }

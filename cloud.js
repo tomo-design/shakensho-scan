@@ -796,8 +796,9 @@
     try {
       if (!token || !profile || !profile.tenantId || pushExcluded()) return;
       const isAdmin = profile.role === "admin" || profile.role === "super";
+      let dev = null; try { dev = localStorage.getItem("ss_devId") || null; } catch (e) {}
       await db.collection("tenants").doc(profile.tenantId).collection("pushTokens").doc(token).set(
-        { office: officeNow(), admin: isAdmin, uid: (me && me.uid) || null, at: Date.now() }, { merge: true });
+        { office: officeNow(), admin: isAdmin, uid: (me && me.uid) || null, dev: dev, at: Date.now() }, { merge: true });
     } catch (e) {}
   }
   async function registerPush() {

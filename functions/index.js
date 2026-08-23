@@ -121,16 +121,18 @@ exports.notifyComment = functions.firestore
     if (aArr.length <= bArr.length) return null;   // 新しいコメントが増えた時だけ
     const added = aArr[aArr.length - 1] || {};     // 追加された最新コメント
     const authorId = added.id || "";
+    const authorDev = added.dev || "";
 
     const tid = context.params.tid;
     const db = admin.firestore();
     let entries = [];
     try {
       const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get();
-      pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) entries.push({ token: d.id, uid: v.uid || null }); });
+      pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) entries.push({ token: d.id, uid: v.uid || null, dev: v.dev || null }); });
     } catch (e) {}
-    // 投稿者本人の端末には送らない
-    const tokens = [...new Set(entries.filter((e) => !authorId || e.uid !== authorId).map((e) => e.token))].filter(Boolean);
+    // 投稿した“端末”だけ除外(同一アカウントの別端末や他の担当者には届く)。端末IDが無い旧データはuidで除外。
+    const excluded = (e) => authorDev ? (!!e.dev && e.dev === authorDev) : (!!authorId && e.uid === authorId);
+    const tokens = [...new Set(entries.filter((e) => !excluded(e)).map((e) => e.token))].filter(Boolean);
     if (!tokens.length) return null;
 
     const who = after.plate || after.name || after.type || "車両";
