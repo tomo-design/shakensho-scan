@@ -7013,6 +7013,8 @@ function startDemo() {
   // サンプル車両の諸元・故障を端末に記憶させ、AIを呼ばずにメンテ/診断へ表示
   try { setLearned(vehicleKey(DEMO_VEHICLE), { model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS, specDone: true }); } catch (e) {}
   try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
+  // ★URL(?demo=1)経由でもログインゲートを確実に解除(でないとゲートが前面に残り体験ガイドが操作できない)
+  try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
 }
 (function initDemo() {
   let on = false;
