@@ -635,7 +635,7 @@
   }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, deleted: false, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, comments: Array.isArray(r.comments) ? r.comments : null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, deleted: false, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
@@ -712,6 +712,8 @@
           if (!e.rid) e.rid = r.rid || d.id;   // 既存エントリにも不変IDを付与(以降の照合を安定化)
           // 整備カルテは追記のみ(削除しない)なので両端末の追加を失わないよう常にunion統合
           if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
+          // コメント履歴も追記のみ(削除しない)。両端末の投稿を失わないよう常にunion統合
+          if (typeof mergeComments === "function") e.comments = mergeComments(e.comments, r.comments);
           // ★確認レ点はunionしない: unionすると片方で外しても相手の古い打刻と合算され復活してしまう。
           //   レコードの更新時刻(updatedAt)で新しい方の状態を採用し、外した状態も確実に反映する。
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
@@ -721,6 +723,8 @@
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
             Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, firstReg: r.firstReg || e.firstReg, expiry: r.expiry || e.expiry, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, intakeKind: (r.intakeKind !== undefined ? r.intakeKind : e.intakeKind), intakeAt: (r.intakeAt !== undefined ? r.intakeAt : e.intakeAt), intakeOut: (r.intakeOut !== undefined ? r.intakeOut : e.intakeOut), feePaid: (r.feePaid !== undefined ? r.feePaid : e.feePaid), feeStatus: (r.feeStatus !== undefined ? r.feeStatus : e.feeStatus), officeMemo: (r.officeMemo !== undefined ? r.officeMemo : e.officeMemo), staff: (r.staff !== undefined ? r.staff : e.staff), confirms: (Array.isArray(r.confirms) ? r.confirms : (r.confirms === null ? [] : e.confirms)), at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
           }
+          // 一覧プレビュー(officeMemo)は統合済みコメントの最新に合わせる
+          if (Array.isArray(e.comments) && e.comments.length) e.officeMemo = e.comments[e.comments.length - 1].text;
         });
         if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));
@@ -800,6 +804,7 @@
     try {
       // 通知対象: 管理者(admin/super) または 事務(入庫管理)モードの端末。個人版は除外。
       if (pushExcluded()) return;
+      try { if (localStorage.getItem("ss_pushOn") === "0") return; } catch (e) {}   // ユーザーが明示的に無効化した端末は自動登録しない
       if (!(profile && (profile.role === "admin" || profile.role === "super" || officeNow()))) return;
       if (typeof firebase.messaging !== "function" || !("serviceWorker" in navigator)) return;
       if (!VAPID_KEY || VAPID_KEY.indexOf("PASTE_") === 0) return;   // 鍵未設定なら在アプリ通知のみで運用
@@ -814,6 +819,7 @@
         await db.collection("users").doc(me.uid).set(
           { fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
         await writeTenantPushToken(token);   // 店舗台帳にも登録(入庫通知の配信先)
+        try { localStorage.setItem("ss_pushToken", token); localStorage.setItem("ss_pushOn", "1"); } catch (e) {}
       }
       // 前面にいる時に届いた通知も表示
       messaging.onMessage(p => {
@@ -1035,11 +1041,40 @@
         if (!token) return { ok: false, msg: "通知トークンを取得できませんでした。もう一度お試しください。" };
         if (me) await db.collection("users").doc(me.uid).set({ fcmTokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge: true });
         await writeTenantPushToken(token);   // 店舗台帳にも登録(入庫・申請のプッシュ配信先)
+        try { localStorage.setItem("ss_pushToken", token); localStorage.setItem("ss_pushOn", "1"); } catch (e) {}
         return { ok: true, msg: "✓ 通知を有効にしました。" + (officeNow() ? "新しい入庫がこの端末に届きます。" : "参加申請・入庫などがこの端末に届きます。") };
       } catch (e) {
         const m = (e && e.message) || String(e);
         if (/evaluation failed|unsupported|not supported|AbortError/i.test(m)) return { ok: false, msg: "この環境では通知（プッシュ）が使えません。" + IAB };
         return { ok: false, msg: "通知の有効化に失敗しました（" + m + "）" };
+      }
+    },
+    /* この端末が通知ONかどうか(UIのボタン表示切替に使用)。
+       ブラウザの許可が下りていれば通知は届く状態なので、明示的に無効化(ss_pushOn=0)していない限りONとみなす。
+       →「更新」後の再読込でもボタンがOFFに戻って“許可がリセットされた”ように見える問題を防ぐ。 */
+    pushEnabled() {
+      try {
+        if (localStorage.getItem("ss_pushOn") === "0") return false;   // ユーザーが明示的に無効化
+        return ("Notification" in window) && Notification.permission === "granted";
+      } catch (e) { return false; }
+    },
+    /* この端末の通知を無効化。配信先トークンを削除して以後届かないようにする */
+    async disablePush() {
+      let token = null;
+      try { token = localStorage.getItem("ss_pushToken"); } catch (e) {}
+      try {
+        // 端末側のFCMトークンを無効化(再取得で別トークンになる)
+        try { if (typeof firebase.messaging === "function") { const t = token || await firebase.messaging().getToken({ vapidKey: VAPID_KEY }).catch(() => null); if (t) { token = t; await firebase.messaging().deleteToken().catch(() => {}); } } } catch (e) {}
+        if (token) {
+          // 配信元台帳から削除(店舗の入庫/申請プッシュ先)
+          try { if (profile && profile.tenantId) await db.collection("tenants").doc(profile.tenantId).collection("pushTokens").doc(token).delete(); } catch (e) {}
+          try { if (me) await db.collection("users").doc(me.uid).set({ fcmTokens: firebase.firestore.FieldValue.arrayRemove(token) }, { merge: true }); } catch (e) {}
+        }
+        try { localStorage.removeItem("ss_pushToken"); localStorage.setItem("ss_pushOn", "0"); } catch (e) {}
+        return { ok: true, msg: "通知を無効にしました。この端末には届かなくなります。（ブラウザ側の許可設定はそのままです）" };
+      } catch (e) {
+        try { localStorage.setItem("ss_pushOn", "0"); } catch (e2) {}
+        return { ok: true, msg: "通知を無効にしました。" };
       }
     },
   };
@@ -1050,10 +1085,17 @@
     if (!box.classList.contains("hidden")) { show("cloudManageBox", false); return; }
     show("cloudManageBox", true); renderManage("cloudManageBox");
   });
+  function syncEnablePushBtn() {
+    const b = $("btnEnablePush"); if (!b) return;
+    const on = window.Cloud && typeof window.Cloud.pushEnabled === "function" && window.Cloud.pushEnabled();
+    b.textContent = on ? "🔕 通知を無効にする" : "🔔 通知を有効にする";
+  }
+  syncEnablePushBtn();
   $("btnEnablePush") && $("btnEnablePush").addEventListener("click", async () => {
-    const b = $("btnEnablePush"); const old = b.textContent; b.disabled = true; b.textContent = "設定中…";
-    const r = await window.Cloud.enablePush();
-    b.disabled = false; b.textContent = old;
+    const b = $("btnEnablePush"); b.disabled = true; b.textContent = "設定中…";
+    const on = window.Cloud.pushEnabled();
+    const r = on ? await window.Cloud.disablePush() : await window.Cloud.enablePush();
+    b.disabled = false; syncEnablePushBtn();
     const el = $("cloudSyncMsg"); if (el) el.textContent = r.msg;
     try { alert(r.msg); } catch (e) {}
   });

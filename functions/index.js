@@ -108,6 +108,55 @@ exports.notifyIntake = functions.firestore
     return null;
   });
 
+/* 入庫ボードのコメントが追加されたら、店舗の事務/管理者端末に通知(投稿者本人の端末は除く)。
+   comments 配列が増えた時だけ送信。配信先は pushTokens の office/admin。 */
+exports.notifyComment = functions.firestore
+  .document("tenants/{tid}/records/{rid}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : null;
+    const before = change.before.exists ? change.before.data() : null;
+    if (!after || after.deleted === true) return null;
+    const aArr = Array.isArray(after.comments) ? after.comments : [];
+    const bArr = Array.isArray(before && before.comments) ? before.comments : [];
+    if (aArr.length <= bArr.length) return null;   // 新しいコメントが増えた時だけ
+    const added = aArr[aArr.length - 1] || {};     // 追加された最新コメント
+    const authorId = added.id || "";
+
+    const tid = context.params.tid;
+    const db = admin.firestore();
+    let entries = [];
+    try {
+      const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get();
+      pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) entries.push({ token: d.id, uid: v.uid || null }); });
+    } catch (e) {}
+    // 投稿者本人の端末には送らない
+    const tokens = [...new Set(entries.filter((e) => !authorId || e.uid !== authorId).map((e) => e.token))].filter(Boolean);
+    if (!tokens.length) return null;
+
+    const who = after.plate || after.name || after.type || "車両";
+    const nm = added.name ? (added.name + "さん") : "担当者";
+    let text = String(added.text || "").replace(/\s+/g, " ").trim();
+    if (text.length > 60) text = text.slice(0, 60) + "…";
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens: tokens,
+      notification: { title: "💬 " + who + " に新しいコメント", body: nm + "：" + text },
+      webpush: { fcmOptions: { link: "/" } },
+    });
+    const stale = [];
+    res.responses.forEach((r, i) => {
+      if (!r.success) {
+        const code = r.error && r.error.code;
+        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") stale.push(tokens[i]);
+      }
+    });
+    if (stale.length) {
+      const batch = db.batch();
+      stale.forEach((t) => batch.delete(db.collection("tenants").doc(tid).collection("pushTokens").doc(t)));
+      try { await batch.commit(); } catch (e) {}
+    }
+    return null;
+  });
+
 /* =========================================================================
    AIプロキシ + Stripe自動有効化 (プロキシ方式: 鍵はサーバー内のみ。契約中の店舗だけ利用可)
    設定: functions/.env に鍵を記入する(.env.example を参照。.envはgit管理しない)。

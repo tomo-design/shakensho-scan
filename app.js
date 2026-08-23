@@ -3061,15 +3061,86 @@ function editIntakeStaff(rid) {
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard();
 }
-/* 車両ごとのコメント編集 */
-function editIntakeMemo(rid) {
+/* 車両ごとのコメント履歴(複数人で追記・スレッド表示)。旧データ(単一officeMemo)も1件として表示 */
+function getComments(t) {
+  if (t && Array.isArray(t.comments)) return t.comments;
+  if (t && t.officeMemo) return [{ id: "legacy", name: "", text: t.officeMemo, at: t.updatedAt || Date.now() }];
+  return [];
+}
+/* コメントの複数端末統合(投稿を失わないようunion。id+時刻+本文で重複排除し時系列に並べる) */
+function mergeComments(a, b) {
+  const seen = {}; const out = [];
+  (a || []).concat(b || []).forEach(c => {
+    if (!c || !c.text) return;
+    const k = (c.id || "") + "|" + (c.at || "") + "|" + c.text;
+    if (seen[k]) return; seen[k] = 1; out.push(c);
+  });
+  out.sort((x, y) => (x.at || 0) - (y.at || 0));
+  return out;
+}
+function fmtCommentTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), n = new Date(), p = x => String(x).padStart(2, "0");
+  const hm = p(d.getHours()) + ":" + p(d.getMinutes());
+  return (d.toDateString() === n.toDateString()) ? hm : ((d.getMonth() + 1) + "/" + d.getDate() + " " + hm);
+}
+/* コメントスレッドを開く(履歴＋追記) */
+function openIntakeComments(rid) {
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
-  const v = prompt("この車両のコメント（費用の内訳・連絡事項など）", t.officeMemo || "");
-  if (v === null) return;
-  t.officeMemo = v.trim() || null; t.updatedAt = Date.now();
-  localStorage.setItem(LS.hist, JSON.stringify(hist));
-  if (window.Cloud) window.Cloud.pushRecord(t);
-  renderIntakeBoard();
+  const me = myConfirmId();
+  document.querySelectorAll(".cmtOv").forEach(x => x.remove());
+  const ov = document.createElement("div"); ov.className = "cmtOv";
+  const title = dispText(t.plate) || dispText(t.name) || "この車両";
+  ov.innerHTML =
+    '<div class="cmtBox">' +
+      '<div class="cmtHd"><b>💬 コメント</b><span class="cmtCar">' + esc(title) + '</span></div>' +
+      '<div class="cmtList" id="cmtList"></div>' +
+      '<div class="cmtInputRow">' +
+        '<textarea id="cmtInput" class="cmtInput" rows="2" placeholder="連絡事項・費用の内訳・申し送りなど…"></textarea>' +
+        '<button type="button" class="cmtSend" id="cmtSend">送信</button>' +
+      '</div>' +
+      '<div class="cmtHint">投稿すると他の担当者の端末に通知が届きます（Ctrl+Enterでも送信）。</div>' +
+      '<button type="button" class="cmtClose" id="cmtClose">閉じる</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const listEl = ov.querySelector("#cmtList");
+  const draw = () => {
+    const cs = getComments(t).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+    if (!cs.length) { listEl.innerHTML = '<div class="cmtEmpty">まだコメントはありません。最初のコメントを追加できます。</div>'; return; }
+    listEl.innerHTML = cs.map(c => {
+      const mine = c.id === me.id;
+      const col = colorForUser(c.id || "legacy");
+      return '<div class="cmtItem' + (mine ? " mine" : "") + '">' +
+        '<div class="cmtMeta"><span class="cmtDot" style="background:' + col + '"></span>' +
+        '<span class="cmtNm">' + esc(c.name || "担当") + '</span>' +
+        '<span class="cmtTime">' + esc(fmtCommentTime(c.at)) + '</span></div>' +
+        '<div class="cmtText">' + esc(c.text).replace(/\n/g, "<br>") + '</div></div>';
+    }).join("");
+    listEl.scrollTop = listEl.scrollHeight;
+  };
+  draw();
+  const input = ov.querySelector("#cmtInput");
+  const send = () => {
+    const v = input.value.trim(); if (!v) return;
+    // 既存(union用に現状を配列化。旧officeMemoはlegacyとして残す)
+    let arr = Array.isArray(t.comments) ? t.comments.slice() : [];
+    if (!Array.isArray(t.comments) && t.officeMemo) arr.push({ id: "legacy", name: "", text: t.officeMemo, at: t.updatedAt || Date.now() });
+    arr.push({ id: me.id, name: me.name, text: v, at: Date.now() });
+    t.comments = arr;
+    t.officeMemo = v;   // 一覧のプレビュー用に最新コメントを保持
+    t.updatedAt = Date.now();
+    localStorage.setItem(LS.hist, JSON.stringify(hist));
+    if (window.Cloud) {
+      if (typeof window.Cloud.updateRecordFields === "function") window.Cloud.updateRecordFields(t, { comments: t.comments, officeMemo: t.officeMemo });
+      else window.Cloud.pushRecord(t);
+    }
+    input.value = ""; draw(); renderIntakeBoard();
+  };
+  ov.querySelector("#cmtSend").addEventListener("click", send);
+  input.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); } });
+  ov.querySelector("#cmtClose").addEventListener("click", () => ov.remove());
+  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  setTimeout(() => { try { input.focus(); } catch (e) {} }, 50);
 }
 /* 手動で入庫を追加(電話予約など未スキャンの車)。ナンバー＋区分だけ */
 function addManualIntake() {
@@ -3177,10 +3248,14 @@ function renderIntakeBoard() {
       const meta = document.createElement("div"); meta.className = "ibMeta";
       const memo = document.createElement("button");
       const memoSel = (h.rid === _ibSelected);
-      memo.className = "ibMemo" + (h.officeMemo ? " hasMemo" : "") + (memoSel ? "" : " locked");
-      memo.textContent = h.officeMemo ? ("💬 " + h.officeMemo) : "💬 コメント";
-      // 未選択のカードはコメント不可(選択中のみ入力できる)
-      memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; editIntakeMemo(h.rid); });
+      const cs = getComments(h);
+      const last = cs.length ? cs[cs.length - 1] : null;
+      memo.className = "ibMemo" + (cs.length ? " hasMemo" : "") + (memoSel ? "" : " locked");
+      memo.innerHTML = last
+        ? '💬 <span class="ibMemoTx">' + esc(last.text) + '</span>' + (cs.length > 1 ? '<span class="ibMemoN">' + cs.length + '</span>' : '')
+        : '💬 コメント';
+      // 未選択のカードはコメント不可(選択中のみ開ける)
+      memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; openIntakeComments(h.rid); });
       meta.appendChild(memo);
       if (h.intakeKind === "車検") {
         const fee = document.createElement("button");
@@ -3252,12 +3327,22 @@ function applyOfficeMode() {
   });
   // 事務モード端末で通知(プッシュ)を許可 → 新規入庫がアプリ未起動でも届く
   const push = document.getElementById("obPush");
+  function syncPushBtn() {
+    if (!push) return;
+    const on = window.Cloud && typeof window.Cloud.pushEnabled === "function" && window.Cloud.pushEnabled();
+    push.textContent = on ? "🔕 通知を無効にする" : "🔔 通知を許可";
+    push.classList.toggle("on", !!on);
+  }
+  syncPushBtn();
   if (push) push.addEventListener("click", async () => {
     if (!(window.Cloud && typeof window.Cloud.enablePush === "function")) { uiAlert("通知はこの環境では使えません。"); return; }
-    const old = push.textContent; push.disabled = true; push.textContent = "設定中…";
-    try { const r = await window.Cloud.enablePush(); uiAlert(r.msg); if (r.ok) push.textContent = "🔔 通知ON"; else push.textContent = old; }
-    catch (e) { push.textContent = old; }
-    finally { push.disabled = false; }
+    const on = typeof window.Cloud.pushEnabled === "function" && window.Cloud.pushEnabled();
+    push.disabled = true; push.textContent = "設定中…";
+    try {
+      const r = on ? await window.Cloud.disablePush() : await window.Cloud.enablePush();
+      uiAlert(r.msg);
+    } catch (e) {}
+    finally { push.disabled = false; syncPushBtn(); }
   });
   const exit = document.getElementById("obExit");
   if (exit) exit.addEventListener("click", () => {
@@ -3276,7 +3361,8 @@ function renderHomeIntake() {
   const isDemoNow = (typeof isDemo === "function" && isDemo());
   // デモ版では実データの入庫状況を出さない。ログイン中の管理者のみ表示
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
-  const show = onHome && !officeMode() && !isDemoNow && loggedInMgr;
+  // 個人版には入庫状況(法人向け機能)は出さない
+  const show = onHome && !officeMode() && !isDemoNow && loggedInMgr && getAppMode() !== "personal";
   const list = show ? activeIntakes() : [];
   if (!list.length) { toggle("homeIntake", false); box.innerHTML = ""; return; }
   const cnt = $("hiCount"); if (cnt) cnt.textContent = "（" + list.length + "台）";
@@ -3396,8 +3482,8 @@ function renderHistory() {
       " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     slide.appendChild(main);
-    // 入庫区分(管理者のみ)はスライド内の右側に表示
-    if (isManager()) {
+    // 入庫区分は法人版の管理者のみ表示(個人版には出さない)
+    if (isManager() && getAppMode() !== "personal") {
       if (!h.rid) { h.rid = newRid(); localStorage.setItem(LS.hist, JSON.stringify(hist)); }   // 古い履歴にも不変IDを付与し永続化
       const active = h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut;
       const ik = document.createElement("button");
@@ -6508,12 +6594,14 @@ function addSwipeReveal(item, slide) {
       moved = true;
       try { slide.setPointerCapture(e.pointerId); } catch (_) {}  // 横スワイプ確定後のみ捕捉
     }
+    item.classList.add("revealing");   // スワイプ中だけ背後のボタン(赤)を見せる。静止時は隠して赤線の露出を防ぐ
     let tx = (open ? -W : 0) + dx; tx = Math.max(-W, Math.min(0, tx)); setTx(tx);
   };
   const end = e => {
     if (!drag) return; drag = false; slide.style.transition = "transform .18s";
-    if (!moved) { setTx(open ? -W : 0); return; }   // 縦スクロール等で横移動していない → 状態を維持
+    if (!moved) { setTx(open ? -W : 0); if (!open) item.classList.remove("revealing"); return; }
     const base = (open ? -W : 0) + (e.clientX - x0); open = base < -W / 2; setTx(open ? -W : 0);
+    if (!open) item.classList.remove("revealing");
   };
   slide.addEventListener("pointerdown", start);
   slide.addEventListener("pointermove", move);

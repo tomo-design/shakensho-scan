@@ -362,8 +362,9 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .histItem .hType{font-family:'Chakra Petch';font-weight:700;font-size:15px;letter-spacing:.05em}
 .histItem .hSub{font-size:11px;color:var(--dim);margin-top:2px;word-break:break-all}
 /* 左スワイプで出現する削除ボタン(行の右側に固定) */
-.histItem .hDel{position:absolute;top:0;right:0;height:100%;width:84px;z-index:0;
+.histItem .hDel{position:absolute;top:0;right:0;height:100%;width:84px;z-index:0;visibility:hidden;
   background:var(--alert,#DC2626);border:0;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+.histItem.revealing .hDel{visibility:visible}
 .histItem .hDel:active{filter:brightness(.92)}
 .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:13px;line-height:1.8}
 
@@ -1042,8 +1043,37 @@ body.pwLocked{ overflow:hidden }
 .ibMemo{flex:1;min-width:120px;text-align:left;background:var(--panel2);border:1px dashed var(--line);
   border-radius:8px;font-size:12px;color:var(--dim);padding:6px 10px;cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ibMemo.hasMemo{border-style:solid;color:var(--txt);background:var(--panel)}
+.ibMemo.hasMemo{border-style:solid;color:var(--txt);background:var(--panel);display:flex;align-items:center;gap:6px}
+.ibMemoTx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ibMemoN{flex:none;background:var(--accent,#2563EB);color:#fff;font-size:10px;font-weight:800;line-height:1;
+  border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}
 .ibEmpty{text-align:center;color:var(--dim);font-size:13px;line-height:1.7;padding:30px 10px}
+
+/* ===== コメントスレッド(複数人・履歴) ===== */
+.cmtOv{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.cmtBox{background:var(--panel,#fff);color:var(--txt,#1B2530);width:100%;max-width:460px;max-height:82vh;
+  border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden;padding:16px}
+.cmtHd{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.cmtHd b{font-size:16px}
+.cmtCar{font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmtList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:80px}
+.cmtEmpty{text-align:center;color:var(--dim);font-size:13px;padding:24px 8px}
+.cmtItem{background:var(--panel2,#F2F5F9);border-radius:12px;padding:8px 11px;max-width:88%;align-self:flex-start}
+.cmtItem.mine{align-self:flex-end;background:#e7f0ff}
+.cmtMeta{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.cmtDot{width:9px;height:9px;border-radius:50%;flex:none}
+.cmtNm{font-size:11.5px;font-weight:800;color:var(--txt)}
+.cmtTime{font-size:10.5px;color:var(--dim);margin-left:2px}
+.cmtText{font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.cmtInputRow{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.cmtInput{flex:1;resize:vertical;min-height:42px;max-height:120px;border:1px solid var(--line);border-radius:10px;
+  padding:8px 10px;font-size:14px;font-family:inherit;background:var(--panel2,#fff);color:var(--txt)}
+.cmtSend{flex:none;background:var(--accent,#2563EB);color:#fff;border:0;border-radius:10px;
+  padding:10px 16px;font-weight:800;font-size:14px;cursor:pointer}
+.cmtSend:disabled{opacity:.5}
+.cmtHint{font-size:11px;color:var(--dim);margin:8px 2px 0;line-height:1.5}
+.cmtClose{margin-top:10px;background:transparent;border:1px solid var(--line);border-radius:10px;
+  padding:9px;font-size:14px;color:var(--txt);cursor:pointer;width:100%}
 
 /* ===== 事務用: 入庫管理専用モード ===== */
 .offToggle{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--txt);cursor:pointer;margin-top:8px}
@@ -1182,7 +1212,8 @@ body.gated{overflow:hidden}
 .hiStaff.on{background:transparent;border-color:var(--line);color:var(--txt)}
 /* 横スワイプで出現する出庫ボタン(行の背後・右端) */
 /* 背面ラッパは透明(カードから赤がはみ出て“赤い線”に見えるのを防ぐ)。赤はボタン自体だけ。 */
-.hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none}
+.hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none;visibility:hidden}
+.hiRow.revealing .hiOutWrap{visibility:visible}
 .hiOut{background:#e9573f;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;pointer-events:auto}
 .hiOut:active{opacity:.85}
 
