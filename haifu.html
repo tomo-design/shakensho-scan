@@ -22,7 +22,7 @@
   .sheet+.sheet{margin-top:26px}
 
   /* ===== 1枚目 ===== */
-  .cover-band{background:linear-gradient(150deg,var(--navy),var(--navy2));color:#fff;margin:-16mm -15mm 10mm;padding:14mm 15mm 12mm;position:relative;overflow:hidden}
+  .cover-band{background:linear-gradient(150deg,#2f4d80,#3a5d94);color:#fff;margin:-16mm -15mm 10mm;padding:14mm 15mm 12mm;position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cover-band::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:rgba(255,177,0,.10)}
   .brand{display:flex;align-items:center;gap:12px;margin-bottom:16px}
   .brand img{width:48px;height:48px;border-radius:12px;object-fit:cover;display:block;box-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -167,9 +167,9 @@
     /* .pb を付けた見出しだけ改ページ(それ以外は連続で流し、手前ページの大きな空白を防ぐ) */
     h2.pb{break-before:page;margin-top:2mm}
     .pnum{display:none}
-    /* 実際の画面は3枚横並び。専用ページ化せず、他の内容と一緒に流れるサイズに抑える */
+    /* 実際の画面は3枚横並び。画像は切らず全体表示(自然サイズ=左右の見切れ防止) */
     .shots{grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4mm}
-    .shots img{height:150mm}
+    .shots img{height:auto;object-fit:contain}
     .shots figcaption{font-size:11px;margin-top:6px}
     @page{size:A4;margin:12mm}
   }
