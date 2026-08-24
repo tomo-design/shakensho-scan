@@ -42,9 +42,18 @@
     cs: ["導入直後によくある質問と回答を作って", "解約を防ぐフォロー手順を教えて", "使い方の説明文を書いて"],
     bell: ["整備工場の社長役で商談練習して", "断り文句を言ってみて。切り返す練習がしたい"],
   };
+  // 個人版(Pocket)を選んでいる時のクイック指示。B2C・ストア配信向け。
+  const POCKET_QUICK = {
+    bucho: ["個人整備士に刺さる訴求ポイントを3つ挙げて", "Pocketを広めるための今週の一手は？", "『月¥500は高い』への切り返しは？"],
+    writer: ["App Store/Google Play用のアプリ説明文を書いて", "個人整備士向けのX(旧Twitter)投稿を3案", "『7日間無料→月¥500』を伝える紹介文を書いて", "整備士に刺さる短いキャッチを5案"],
+    marke: ["個人整備士にPocketを届ける集客チャネルを提案して", "★5レビューを増やすお願い文を作って", "YouTube動画の概要欄テンプレを作って"],
+    cs: ["初回セットアップ(無料APIキー)の説明文を作って", "『AIが使えない』時の個人向けFAQ回答を作って", "解約を防ぐ使いこなしTipsをLINE/SNS用に"],
+    bell: ["Pocketを勧める練習相手になって（個人整備士役）", "『無料アプリで十分』への切り返しを練習したい"],
+  };
 
   let me = null;
   let curStaff = "bucho";
+  let curProduct = "works";   // works=法人(Works) / pocket=個人(Pocket)
   let curLeadId = "";
   let replyCtx = null;   // 問い合わせへの返信作成時の相手コンテキスト(見込み客未登録でも文脈に使う)
   let leads = [];
@@ -121,10 +130,24 @@
   function selectStaff(id) {
     curStaff = id;
     $("staffbar").querySelectorAll(".staffcard").forEach((b) => b.classList.toggle("on", b.dataset.staff === id));
-    $("quickActions").innerHTML = (QUICK[id] || []).map((q) => `<button class="chip">${esc(q)}</button>`).join("");
-    $("quickActions").querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
+    renderQuick();
     renderChat();
   }
+  function renderQuick() {
+    const src = curProduct === "pocket" ? POCKET_QUICK : QUICK;
+    $("quickActions").innerHTML = (src[curStaff] || []).map((q) => `<button class="chip">${esc(q)}</button>`).join("");
+    $("quickActions").querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
+  }
+  // 商材(Works/Pocket)切替。個人版では見込み客(会社)コンテキストは使わないので隠す。
+  const _ps = $("productSelect");
+  if (_ps) _ps.onchange = () => {
+    curProduct = _ps.value === "pocket" ? "pocket" : "works";
+    const pk = curProduct === "pocket";
+    if ($("leadSelect")) $("leadSelect").style.display = pk ? "none" : "";
+    if ($("leadLabel")) $("leadLabel").style.display = pk ? "none" : "";
+    renderQuick();
+    toast(pk ? "商材: Pocket（個人版）" : "商材: Works（法人版）");
+  };
   function copy(text) {
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("コピーしました")).catch(() => toast("コピーできませんでした"));
   }
@@ -198,9 +221,9 @@
     tip.innerHTML = `${avaHtml(s)}<div class="bubble">考え中…</div>`;
     log.appendChild(tip); log.scrollTop = log.scrollHeight;
     $("btnSend").disabled = true;
-    const lead = replyCtx || (curLeadId ? leads.find((l) => l.id === curLeadId) : null);
+    const lead = curProduct === "pocket" ? null : (replyCtx || (curLeadId ? leads.find((l) => l.id === curLeadId) : null));
     try {
-      const j = await api("generate", { role: curStaff, task, lead, history: hist.slice(0, -1) });
+      const j = await api("generate", { role: curStaff, task, lead, history: hist.slice(0, -1), product: curProduct });
       hist.push({ role: "ai", text: j.text || "(応答なし)" });
     } catch (e) {
       hist.push({ role: "ai", text: "⚠️ " + e.message });

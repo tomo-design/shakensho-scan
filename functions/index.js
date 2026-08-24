@@ -1818,6 +1818,26 @@ TEL：080-3692-0101　Mail：cablueie.123@gmail.com
 サービス詳細（LP）：https://mechanoai-cablueie.com/biz.html
 ――――――――――――`;
 
+// 個人版(MECHANO-AI Pocket)のプロダクト情報。営業コンソールで商材=Pocketを選ぶと使う。
+const POCKET_KB = `【製品】MECHANO-AI Pocket — 整備士“個人”向けのスマホアプリ（App Store / Google Play）。メカノAIの個人版。
+【提供元】Cablueie（読み: カブリエ）。
+【ターゲット】整備工場勤務の整備士個人、若手/見習い、副業・出張整備、趣味で整備する人など“ひとりで使う”人。会社契約ではなく個人が自分のスマホで使う。
+【できること】車検証スキャン→車両情報取得／メンテナンス諸元(締付トルク・オイル粘度/量・各種容量)を即表示／AI故障診断・修理サポート／整備カルテ(端末内に保存)／日本語・英語。
+【データ】記録は端末内のみに保存し外部に送らない。ログイン不要。プライバシーに安心。
+【AI(重要)】AIはユーザー自身のGoogle無料APIキーで動く（クレジットカード登録不要・通常利用なら無料枠に収まる）。設定タブの案内どおり取得して貼り付けるだけ。
+【料金】アプリのダウンロード無料。最初の7日間は全機能無料。8日目以降は月額¥500（アプリ内サブスク）。いつでも解約可。
+【入手】App Store / Google Play で「メカノAI」を検索。体験デモ(登録不要): https://mechanoai-cablueie.com/?demo=1 ／ よくある質問: https://mechanoai-cablueie.com/faq.html?v=personal
+【核メッセージ】「ベテランに聞けない・調べる時間がない」を解決する“ポケットの相棒”。ワンコイン(¥500/月)で全機能、まずは7日間無料。
+【法人版との違い】店舗内クラウド共有・入庫管理ボード・メンバー/端末管理・プラン課金は法人向け「MECHANO-AI Works」の機能。Pocketは個人1台・端末内で完結。`;
+
+// Pocket(個人向け)文面のルール。SIGNATURE(法人署名)やコールドメール法規則の代わりに使う。
+const POCKET_RULES = `【MECHANO-AI Pocket 用の書き方ルール】
+・読み手は“個人の整備士”。かしこまった法人営業メール調にせず、同じ現場目線の親しみやすい語り口にする（ただし誠実に）。
+・行動導線は「App Store / Google Play でダウンロード（『メカノAI』で検索）」＋「まず7日間は無料」。★法人向けの申込フォームや会社署名（担当:中江…）、店舗共有・入庫管理などの法人機能は個人向け文面に混ぜない。
+・料金は『ダウンロード無料 → 7日間無料 → 以降 月¥500』。AIは『自分の無料APIキーで動く（クレカ登録不要）』を分かりやすく一言添える。
+・依頼された媒体（アプリストア説明文／SNS投稿／動画概要／紹介チラシ／レビュー返信 等）に最適な長さ・体裁で書く。ハッシュタグや絵文字は頼まれた時だけ・使いすぎない。
+・誇張・虚偽は書かない。「AIの回答は参考値、最終確認は整備書で」という誠実な姿勢は保つ。`;
+
 // AI社員(疑似会社の各部門)。role → {name, sys}
 const SALES_STAFF = {
   bucho: {
@@ -1978,21 +1998,31 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   const latest = await latestModels(freeKeys[0]);
   const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
 
-  const lead = data.lead || null;
+  // 商材: works=法人(MECHANO-AI Works) / pocket=個人(MECHANO-AI Pocket)
+  const product = data.product === "pocket" ? "pocket" : "works";
+  const kb = product === "pocket" ? POCKET_KB : PRODUCT_KB;
+  // 個人版は法人の見込み客(会社)文脈を混ぜない
+  const lead = product === "pocket" ? null : (data.lead || null);
   const leadBlock = lead ? `\n【対象の見込み客】\n会社名:${lead.company || "-"} / 業種:${lead.kind || "-"} / 担当:${lead.contact || "-"} / 状況:${lead.status || "-"}\nメモ:${lead.note || "-"}\n` : "";
   const hist = Array.isArray(data.history) ? data.history.slice(-8) : [];
   const histBlock = hist.length ? "\n【これまでのやりとり】\n" + hist.map((h) => (h.role === "user" ? "指示" : staff.name) + ": " + String(h.text || "").slice(0, 1200)).join("\n") + "\n" : "";
+  // 法人=コールドメール規則＋会社署名 / 個人=Pocket用ルール(会社署名なし)
+  const guideBlock = product === "pocket" ? POCKET_RULES : (COLD_EMAIL_GUIDE + "\n\n" + SIGNATURE);
+  const sigRule = product === "pocket"
+    ? "行動導線ルール: 個人向けなので、会社署名や法人の申込フォームは付けない。案内は『App Store / Google Playで「メカノAI」を検索してダウンロード』『まず7日間無料・以降 月¥500』を用いる。"
+    : "署名ルール: メール・DM・手紙を作る時は、末尾に必ず上記SIGNATUREの実データ署名（メカノAI／Cablueie（カブリエ）／担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com／URL）をそのまま入れる。[会社名][担当者名][電話番号][メールアドレス] のようなプレースホルダは絶対に使わない。";
+  const angleRule = product === "pocket"
+    ? "訴求の主軸: 個人の整備士に向けて『ベテランに聞けない・調べる時間がない』を、スマホ1台の“調べる相棒”で解決。ワンコイン(¥500/月)・7日間無料・自分の無料APIキー(クレカ不要)で始められる、を中心に。誇張はしない。"
+    : "訴求の主軸: 特に別の指定がない限り、『整備士の人手不足の解消』と『若手を即戦力化できる（ベテランの調べ物を標準化し、経験の浅いスタッフでも諸元・トルクに即到達）』を中心メッセージに据え、冒頭でこの課題に触れてから解決策としてメカノAIを提示する。ただし誇張や虚偽は書かない。";
 
   const prompt = `${staff.sys}
 
-以下は取り扱う製品の正確な情報です。ここに書かれた事実のみを根拠に話し、値段や機能をでっち上げないこと。
-${PRODUCT_KB}
+以下は取り扱う製品の正確な情報です。ここに書かれた事実のみを根拠に話し、値段や機能をでっち上げないこと。今回の商材は「${product === "pocket" ? "MECHANO-AI Pocket（個人向けアプリ）" : "MECHANO-AI Works（法人向け）"}」です。
+${kb}
 
 ${NEWS_KB}
 
-${COLD_EMAIL_GUIDE}
-
-${SIGNATURE}
+${guideBlock}
 ${leadBlock}${histBlock}
 【あなたへの指示】
 ${String(data.task || "").slice(0, 4000)}
@@ -2005,8 +2035,8 @@ ${String(data.task || "").slice(0, 4000)}
 ・宣伝くさい誇張・断定を避け、控えめで誠実なトーン。売り込み一辺倒にしない。
 ・ビジネスメールとしての体裁と敬意は保ちつつ、堅すぎず、相手が読んで気持ちが動く温度感にする。
 ・AIである旨や「このメールは自動生成」等のメタ発言は絶対にしない。
-署名ルール: メール・DM・手紙を作る時は、末尾に必ず上記SIGNATUREの実データ署名（メカノAI／Cablueie（カブリエ）／担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com／URL）をそのまま入れる。[会社名][担当者名][電話番号][メールアドレス] のようなプレースホルダは絶対に使わない。
-訴求の主軸: 特に別の指定がない限り、『整備士の人手不足の解消』と『若手を即戦力化できる（ベテランの調べ物を標準化し、経験の浅いスタッフでも諸元・トルクに即到達）』を中心メッセージに据え、冒頭でこの課題に触れてから解決策としてメカノAIを提示する。ただし誇張や虚偽は書かない。`;
+${sigRule}
+${angleRule}`;
 
   const parts = [{ text: prompt }];
   // まず有料キー(あれば)→ ダメなら無料キーを順に試す
