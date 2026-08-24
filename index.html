@@ -177,7 +177,6 @@
 
     <div class="btnRow" id="vidActions" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" id="lnkFixRead" type="button">✎ 車両データを修正</button>
-      <button class="btn btn-amber btn-sm" id="btnVidRegister" type="button">💾 保存（DBに登録）</button>
       <button class="btn btn-cyan btn-sm hidden" id="btnVidIntake" type="button" style="margin-left:auto">🚦 区分選択</button>
     </div>
     <div id="vidSavedMsg" class="hint hidden" style="margin-top:6px"></div>
@@ -855,10 +854,7 @@
   <div class="ikCard">
     <div class="ikTitle">この車の入庫目的は？</div>
     <div id="ikVeh" class="ikVeh"></div>
-    <div id="ikStaffWrap" class="ikStaffWrap hidden">
-      <label class="ikStaffLbl" for="ikStaff">担当者</label>
-      <select id="ikStaff" class="ikStaff"></select>
-    </div>
+    <button type="button" id="ikStaffBtn" class="ikStaffBtn hidden">担当: <span id="ikStaffName">自分</span> <span class="ikStaffCaret">▾</span></button>
     <div class="ikBtns">
       <button type="button" class="ikBtn" data-kind="車検">車検</button>
       <button type="button" class="ikBtn" data-kind="点検">定期点検</button>

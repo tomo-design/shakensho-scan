@@ -20,12 +20,9 @@ exports.notifyJoin = functions.firestore
     if (!tid) return null;
 
     const db = admin.firestore();
-    // 参加申請の通知先: 運営管理者(super) ＋ その会社の代表管理者(admin)。
+    // 参加申請(既存会社へのメンバー加入)の通知先: その会社の代表管理者(admin)のみ。
+    // 新規会社の申請など運営向けの通知は別経路(運営メール/super)で扱う。
     const tokens = [];
-    try {
-      const supers = await db.collection("users").where("role", "==", "super").get();
-      supers.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
-    } catch (e) {}
     try {
       const admins = await db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get();
       admins.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));

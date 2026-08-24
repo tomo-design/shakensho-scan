@@ -1345,7 +1345,8 @@ function registerVehicleToDB(opt = {}) {
   }
   return true;
 }
-$("btnVidRegister").addEventListener("click", () => registerVehicleToDB());
+// 「保存（DBに登録）」ボタンは廃止(スキャン/表示時点で自動保存されるため)。旧ID参照は安全にガード。
+{ const _br = $("btnVidRegister"); if (_br) _br.addEventListener("click", () => registerVehicleToDB()); }
 
 /* 認識後の行き先選択(メンテ/診断/部品交換は独立ページ) */
 function goVehiclePage(name) {
@@ -3043,40 +3044,43 @@ function openIntakeModalFor(rid, label, mode) {
   $("ikVeh").textContent = label;
   const ttl = modal.querySelector(".ikTitle"); if (ttl) ttl.textContent = mode === "change" ? "入庫区分を変更しますか？" : "この車の入庫目的は？";
   modal.dataset.rid = rid; modal.dataset.mode = mode || "new";
-  populateIntakeStaff(rid);
+  setupIntakeStaff(rid);
   toggle("intakeModal", true);
 }
-/* 入庫モーダルの「担当者」候補を 自分＋店舗メンバー名簿＋なし で組み立てる。既定は既存の担当者、無ければ自分。
+/* 入庫モーダルの「担当者」: 枠付きセレクトではなくポップアップ式。
+   ボタンに現在の担当者を表示し、タップで名簿ポップアップ(openStaffPicker)を開く。
    担当者は既存の record.staff フィールドを使用(ホーム入庫状況・詳細・クラウド同期と共通)。 */
-function populateIntakeStaff(rid) {
-  const wrap = $("ikStaffWrap"), sel = $("ikStaff");
-  if (!wrap || !sel) return;
+function setupIntakeStaff(rid) {
+  const btn = $("ikStaffBtn"), modal = $("intakeModal");
+  if (!btn || !modal) return;
   const office = (typeof officeMode === "function" && officeMode()) || (typeof isManager === "function" && isManager());
   const business = (typeof getAppMode !== "function" || getAppMode() !== "personal");
-  if (!office || !business) { toggle("ikStaffWrap", false); return; }
+  if (!office || !business) { toggle("ikStaffBtn", false); modal.dataset.staff = ""; return; }
   const myName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
-  const members = (window.Cloud && window.Cloud.tenantMembers && window.Cloud.tenantMembers()) || [];
-  const roster = (typeof getStaffRoster === "function") ? getStaffRoster() : [];
   const rec = getHistory().find(h => h.rid === rid) || null;
-  const preset = rec && rec.staff ? String(rec.staff) : myName;   // 既存の担当者があればそれ、無ければ自分
-  // 候補: 自分 → 店舗メンバー(クラウド) → 名簿 → 既存担当(名簿外の自由入力) を重複なしで
-  const names = [];
-  const add = n => { n = String(n || "").trim(); if (n && names.indexOf(n) < 0) names.push(n); };
-  add(myName);
-  members.forEach(m => add(m.name));
-  roster.forEach(add);
-  if (preset) add(preset);
-  let opts = '';
-  names.forEach(n => { opts += '<option value="' + esc(n) + '"' + (n === preset ? ' selected' : '') + '>' + esc(n) + (n === myName ? '（自分）' : '') + '</option>'; });
-  opts += '<option value=""' + (preset ? '' : ' selected') + '>なし</option>';
-  sel.innerHTML = opts;
-  toggle("ikStaffWrap", true);
+  const preset = (rec && rec.staff) ? String(rec.staff) : myName;   // 既存の担当者があればそれ、無ければ自分
+  modal.dataset.staff = preset || "";
+  updateIntakeStaffLabel(preset, myName);
+  toggle("ikStaffBtn", true);
 }
+function updateIntakeStaffLabel(name, myName) {
+  const el = $("ikStaffName"); if (!el) return;
+  if (myName === undefined) myName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
+  el.textContent = name ? (name + (name === myName ? "（自分）" : "")) : "なし";
+}
+/* 担当者ボタン → 名簿ポップアップ。選んだら modal.dataset.staff とラベルを更新(この時点では保存しない)。 */
+$("ikStaffBtn") && $("ikStaffBtn").addEventListener("click", () => {
+  const modal = $("intakeModal"); if (!modal) return;
+  const cur = modal.dataset.staff || "";
+  if (typeof openStaffPicker === "function") {
+    openStaffPicker(cur, name => { modal.dataset.staff = name || ""; updateIntakeStaffLabel(name || ""); });
+  }
+});
 (function bindIntakeModal() {
   const modal = document.getElementById("intakeModal"); if (!modal) return;
   modal.querySelectorAll(".ikBtn").forEach(b => b.addEventListener("click", () => {
-    const sw = $("ikStaffWrap"), ss = $("ikStaff");
-    const staff = (sw && !sw.classList.contains("hidden") && ss) ? (ss.value || "") : undefined;   // 担当者欄が出ている時だけ反映
+    const sb = $("ikStaffBtn");
+    const staff = (sb && !sb.classList.contains("hidden")) ? (modal.dataset.staff || "") : undefined;   // 担当者ボタンが出ている時だけ反映
     const staffJa = staff ? ("／担当: " + staff) : "";
     if (modal.dataset.mode === "change") {
       setIntakeKindOnly(modal.dataset.rid, b.dataset.kind, staff);
