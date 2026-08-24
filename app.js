@@ -1907,6 +1907,7 @@ function showResult(d, opt = {}) {
   if (opt.fromScan && (d.type || d.vin)) { addHistory(d); setTimeout(() => openIntakePopup(d), 400); }
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
+  try { updateVidIntakeBtn(d); } catch (e) {}   // カードの「区分選択」ボタンの表示/ラベルを更新
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -3007,6 +3008,27 @@ function openIntakePopup(d) {
   if (cur && cur.intakeKind && !cur.intakeOut) return;   // 既に入庫中: 二重登録しない
   openIntakeModalFor(rid, [dispText(d.plate), dispText(d.name)].filter(Boolean).join(" ／ ") || dispText(d.type) || "この車両", "new");
 }
+/* 車両カード(VEHICLE IDENTIFICATION)の「区分選択」ボタン: 表示中の車両に入庫区分を設定/変更する。
+   検索で開いた車両(スキャン以外)でも、ここからボードに追加・区分変更できる。 */
+function updateVidIntakeBtn(d) {
+  const btn = $("btnVidIntake"); if (!btn) return;
+  const on = (typeof isManager === "function" && isManager()) && (typeof getAppMode !== "function" || getAppMode() !== "personal");
+  toggle("btnVidIntake", !!on);
+  if (!on) return;
+  const e = d ? findHistEntry(getHistory(), d) : null;
+  const active = e && e.intakeKind && INTAKE_KINDS[e.intakeKind] && !e.intakeOut;
+  btn.textContent = active ? ("🚦 区分：" + INTAKE_KINDS[e.intakeKind].label + " ▾") : "🚦 区分選択";
+}
+function openIntakeForCurrent() {
+  if (!current) return;
+  let e = findHistEntry(getHistory(), current);
+  if (!e) { addHistory(current); e = findHistEntry(getHistory(), current); }
+  if (!e || !e.rid) { uiAlert("車両を識別できないため区分を設定できません(車台番号や登録番号が必要です)。"); return; }
+  const already = e.intakeKind && INTAKE_KINDS[e.intakeKind] && !e.intakeOut;
+  const label = [dispText(current.plate), dispText(current.name)].filter(Boolean).join(" ／ ") || dispText(current.type) || "この車両";
+  openIntakeModalFor(e.rid, label, already ? "change" : "new");
+}
+$("btnVidIntake") && $("btnVidIntake").addEventListener("click", openIntakeForCurrent);
 /* 区分の変更(既に入庫中の車両)。ボードの区分タグから呼ぶ */
 function changeIntakeKind(rid) {
   const h = getHistory().find(x => x.rid === rid); if (!h) return;
@@ -3029,6 +3051,7 @@ function openIntakeModalFor(rid, label, mode) {
       setIntake(modal.dataset.rid, b.dataset.kind);
       showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
     }
+    try { if (typeof updateVidIntakeBtn === "function") updateVidIntakeBtn(current); } catch (e) {}   // カードのボタン表示を即更新
     toggle("intakeModal", false);
   }));
   const later = document.getElementById("ikLater");

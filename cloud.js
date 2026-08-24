@@ -622,7 +622,6 @@
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
     // 通知の有効化は管理者(admin/super)＋事務モード端末向け。参加申請・入庫などのプッシュを受け取る端末で押す
     show("btnEnablePush", profile && profile.active && (profile.role === "admin" || profile.role === "super" || officeNow()) && !pushExcluded());
-    show("btnPushDiag", profile && profile.active && (profile.role === "admin" || profile.role === "super" || officeNow()) && !pushExcluded());
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
   }
 
@@ -1101,41 +1100,6 @@
     b.disabled = false; syncEnablePushBtn();
     const el = $("cloudSyncMsg"); if (el) el.textContent = r.msg;
     try { alert(r.msg); } catch (e) {}
-  });
-  /* 通知の自己診断: FCMを通さず「その場でローカル通知」を出し、OSブロックか配信問題かを切り分ける */
-  $("btnPushDiag") && $("btnPushDiag").addEventListener("click", async () => {
-    const lines = [];
-    try {
-      lines.push("permission: " + (("Notification" in window) ? Notification.permission : "非対応"));
-      let supported = "?"; try { if (firebase.messaging && firebase.messaging.isSupported) supported = String(await firebase.messaging.isSupported()); } catch (e) { supported = "err"; }
-      lines.push("FCM対応: " + supported);
-      lines.push("standalone(ホーム画面): " + (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
-      let reg = null;
-      try {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        lines.push("SW登録数: " + regs.length);
-        regs.forEach((g) => { lines.push("  scope=" + g.scope + " active=" + (g.active ? "1" : "0")); });
-        reg = await navigator.serviceWorker.getRegistration("/firebase-cloud-messaging-push-scope") || regs.find((g) => /messaging|push/.test(g.scope)) || regs[0];
-      } catch (e) { lines.push("SW取得エラー: " + e); }
-      try {
-        const sub = reg && await reg.pushManager.getSubscription();
-        lines.push("push購読: " + (sub ? ("あり endpoint=" + (sub.endpoint || "").slice(0, 40) + "…") : "なし"));
-      } catch (e) { lines.push("購読取得エラー: " + e); }
-      try { const t = localStorage.getItem("ss_pushToken"); lines.push("保存token: " + (t ? (t.slice(0, 16) + "…") : "なし")); } catch (e) {}
-      // ★ローカル通知テスト(FCMを経由しない)。これが出ればOSブロックではない。
-      if (("Notification" in window) && Notification.permission === "granted" && reg) {
-        try {
-          await reg.showNotification("メカノAI ローカル診断 🔧", { body: "この通知が出れば端末の通知はOK。次はFCM配信の問題です。", icon: "/icons/icon-192.png", tag: "diag", renotify: true });
-          lines.push("→ ローカル通知を発火しました。数秒待って表示されるか確認してください。");
-        } catch (e) { lines.push("ローカル通知エラー: " + e); }
-      } else {
-        lines.push("→ ローカル通知は発火せず(許可なし/SWなし)。");
-      }
-    } catch (e) { lines.push("診断エラー: " + e); }
-    const msg = lines.join("\n");
-    const el = $("cloudSyncMsg"); if (el) el.textContent = msg;
-    try { alert(msg); } catch (e) {}
-    try { console.log("[PushDiag]\n" + msg); } catch (e) {}
   });
   // 運営管理者(自分)の情報を運営タブ上部に表示
   function renderOperatorInfo() {
