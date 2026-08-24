@@ -95,7 +95,10 @@ textarea{resize:none;line-height:1.6}
 .side-foot .btn-ghost:hover{background:rgba(255,255,255,.06)}
 
 /* ---- 作業エリア ---- */
-.work{padding:26px 30px;max-width:940px;width:100%}
+.work{padding:26px 34px;width:100%}
+/* 対話系(チーム)は横幅をフルに使う。読み物系の各タブは読みやすい幅に抑える */
+#tab-team{max-width:1600px}
+#tab-leads,#tab-camp,#tab-inbox,#tab-issue{max-width:1040px}
 .view{animation:fade .2s ease}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
