@@ -1212,8 +1212,9 @@ $("lnkShowOcr").addEventListener("click", () => {
   foldEntryAreas(); toggle("lastVehicle", false); toggle("manualArea", true); $("manualType").focus();
 }); }
 $("lnkShowPlate").addEventListener("click", () => {
-  if (!$("plateArea").classList.contains("hidden")) { toggle("plateArea", false); return; }   // 再タップで閉じる
+  if (!$("plateArea").classList.contains("hidden")) { toggle("plateArea", false); try { renderHomeIntake(); } catch (e) {} return; }   // 再タップで閉じる→入庫状況ボードを復帰
   foldEntryAreas(); toggle("lastVehicle", false); toggle("plateArea", true); renderPlateSearch();
+  try { renderHomeIntake(); } catch (e) {}   // 車両検索を開いたら入庫状況ボードを閉じる
 });
 
 /* ナンバー検索 (使用者名でも引ける・部分一致) */
@@ -1904,7 +1905,8 @@ function showResult(d, opt = {}) {
   // 先に履歴へ統合保存(=ridを確定)してから「前回車両」カードを書く。
   // これをしないと、車台番号・登録番号が無い型式のみの車両で、カードのrid/使用者名/原動機型式が
   // 古いまま残り、再読み込み後に手動修正が元に戻る(rid未確定→findHistEntry不一致→古いカードに戻る)。
-  if (opt.fromScan && (d.type || d.vin)) { addHistory(d); setTimeout(() => openIntakePopup(d), 400); }
+  // 解析(OCR/AI補完)と並行して、スキャン認識後すぐに区分・担当者ポップを出す(待たせない)。
+  if (opt.fromScan && (d.type || d.vin)) { addHistory(d); setTimeout(() => openIntakePopup(d), 120); }
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
   try { updateVidIntakeBtn(d); } catch (e) {}   // カードの「区分選択」ボタンの表示/ラベルを更新
@@ -2963,23 +2965,25 @@ function activeIntakes() {
     .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)
     .sort((a, b) => (b.intakeAt || 0) - (a.intakeAt || 0));
 }
-/* 履歴レコードに入庫区分を設定(=ボードへ) */
-function setIntake(rid, kind) {
+/* 履歴レコードに入庫区分を設定(=ボードへ)。staff=担当者名(任意) */
+function setIntake(rid, kind, staff) {
   if (!INTAKE_KINDS[kind]) return;
   const hist = getHistory();
   const t = hist.find(h => h.rid === rid) || (current && findHistEntry(hist, current));
   if (!t) return;
   t.intakeKind = kind; t.intakeAt = Date.now(); t.intakeOut = null; t.updatedAt = Date.now();
+  if (staff !== undefined) t.staff = staff || null;
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
   if (_intakeSeen) _intakeSeen.add(rid);   // 自端末の登録は自分に通知しない
   renderIntakeBoard(); renderHistory();
 }
-/* 入庫区分だけ変更(入庫日時はそのまま) */
-function setIntakeKindOnly(rid, kind) {
+/* 入庫区分だけ変更(入庫日時はそのまま)。staff=担当者名(任意) */
+function setIntakeKindOnly(rid, kind, staff) {
   if (!INTAKE_KINDS[kind]) return;
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
   t.intakeKind = kind; if (t.intakeOut) { t.intakeOut = null; if (!t.intakeAt) t.intakeAt = Date.now(); }
+  if (staff !== undefined) t.staff = staff || null;
   t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
@@ -3039,17 +3043,47 @@ function openIntakeModalFor(rid, label, mode) {
   $("ikVeh").textContent = label;
   const ttl = modal.querySelector(".ikTitle"); if (ttl) ttl.textContent = mode === "change" ? "入庫区分を変更しますか？" : "この車の入庫目的は？";
   modal.dataset.rid = rid; modal.dataset.mode = mode || "new";
+  populateIntakeStaff(rid);
   toggle("intakeModal", true);
+}
+/* 入庫モーダルの「担当者」候補を 自分＋店舗メンバー名簿＋なし で組み立てる。既定は既存の担当者、無ければ自分。
+   担当者は既存の record.staff フィールドを使用(ホーム入庫状況・詳細・クラウド同期と共通)。 */
+function populateIntakeStaff(rid) {
+  const wrap = $("ikStaffWrap"), sel = $("ikStaff");
+  if (!wrap || !sel) return;
+  const office = (typeof officeMode === "function" && officeMode()) || (typeof isManager === "function" && isManager());
+  const business = (typeof getAppMode !== "function" || getAppMode() !== "personal");
+  if (!office || !business) { toggle("ikStaffWrap", false); return; }
+  const myName = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
+  const members = (window.Cloud && window.Cloud.tenantMembers && window.Cloud.tenantMembers()) || [];
+  const roster = (typeof getStaffRoster === "function") ? getStaffRoster() : [];
+  const rec = getHistory().find(h => h.rid === rid) || null;
+  const preset = rec && rec.staff ? String(rec.staff) : myName;   // 既存の担当者があればそれ、無ければ自分
+  // 候補: 自分 → 店舗メンバー(クラウド) → 名簿 → 既存担当(名簿外の自由入力) を重複なしで
+  const names = [];
+  const add = n => { n = String(n || "").trim(); if (n && names.indexOf(n) < 0) names.push(n); };
+  add(myName);
+  members.forEach(m => add(m.name));
+  roster.forEach(add);
+  if (preset) add(preset);
+  let opts = '';
+  names.forEach(n => { opts += '<option value="' + esc(n) + '"' + (n === preset ? ' selected' : '') + '>' + esc(n) + (n === myName ? '（自分）' : '') + '</option>'; });
+  opts += '<option value=""' + (preset ? '' : ' selected') + '>なし</option>';
+  sel.innerHTML = opts;
+  toggle("ikStaffWrap", true);
 }
 (function bindIntakeModal() {
   const modal = document.getElementById("intakeModal"); if (!modal) return;
   modal.querySelectorAll(".ikBtn").forEach(b => b.addEventListener("click", () => {
+    const sw = $("ikStaffWrap"), ss = $("ikStaff");
+    const staff = (sw && !sw.classList.contains("hidden") && ss) ? (ss.value || "") : undefined;   // 担当者欄が出ている時だけ反映
+    const staffJa = staff ? ("／担当: " + staff) : "";
     if (modal.dataset.mode === "change") {
-      setIntakeKindOnly(modal.dataset.rid, b.dataset.kind);
-      showToast("入庫区分を変更しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
+      setIntakeKindOnly(modal.dataset.rid, b.dataset.kind, staff);
+      showToast("入庫区分を変更しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + staffJa + "）");
     } else {
-      setIntake(modal.dataset.rid, b.dataset.kind);
-      showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + "）");
+      setIntake(modal.dataset.rid, b.dataset.kind, staff);
+      showToast("入庫ボードに追加しました（" + (INTAKE_KINDS[b.dataset.kind] || {}).label + staffJa + "）");
     }
     try { if (typeof updateVidIntakeBtn === "function") updateVidIntakeBtn(current); } catch (e) {}   // カードのボタン表示を即更新
     toggle("intakeModal", false);
@@ -3293,7 +3327,7 @@ function renderIntakeBoard() {
     const card = document.createElement("div"); card.className = "ibCard " + info.cls;
     card.dataset.rid = h.rid;
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
-    const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean).join(" ・ ");
+    const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : "", h.staff ? ("担当: " + dispText(h.staff)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
     const info2 = document.createElement("div"); info2.className = "ibMain";
     info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
@@ -3452,8 +3486,10 @@ function renderHomeIntake() {
   const isDemoNow = (typeof isDemo === "function" && isDemo());
   // デモ版では実データの入庫状況を出さない。ログイン中の管理者のみ表示
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
+  // 車両検索を開いている間は入庫状況ボードを閉じる(重なり防止・検索に集中)
+  const searchOpen = $("plateArea") && !$("plateArea").classList.contains("hidden");
   // 個人版には入庫状況(法人向け機能)は出さない
-  const show = onHome && !officeMode() && !isDemoNow && loggedInMgr && getAppMode() !== "personal";
+  const show = onHome && !searchOpen && !officeMode() && !isDemoNow && loggedInMgr && getAppMode() !== "personal";
   const list = show ? activeIntakes() : [];
   if (!list.length) { toggle("homeIntake", false); box.innerHTML = ""; return; }
   const cnt = $("hiCount"); if (cnt) cnt.textContent = "（" + list.length + "台）";

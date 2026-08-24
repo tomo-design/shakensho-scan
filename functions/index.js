@@ -20,11 +20,16 @@ exports.notifyJoin = functions.firestore
     if (!tid) return null;
 
     const db = admin.firestore();
-    // 参加申請の通知は「運営管理者(super)」のみに送る。
-    const supers = await db.collection("users").where("role", "==", "super").get();
-
+    // 参加申請の通知先: 運営管理者(super) ＋ その会社の代表管理者(admin)。
     const tokens = [];
-    supers.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
+    try {
+      const supers = await db.collection("users").where("role", "==", "super").get();
+      supers.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
+    } catch (e) {}
+    try {
+      const admins = await db.collection("users").where("tenantId", "==", tid).where("role", "==", "admin").get();
+      admins.forEach((d) => (d.data().fcmTokens || []).forEach((t) => tokens.push(t)));
+    } catch (e) {}
     const uniq = [...new Set(tokens)].filter(Boolean);
     if (!uniq.length) return null;
 
