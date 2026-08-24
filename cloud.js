@@ -622,6 +622,7 @@
     show("btnCloudManage", profile && profile.active && profile.role === "admin");
     // 通知の有効化は管理者(admin/super)＋事務モード端末向け。参加申請・入庫などのプッシュを受け取る端末で押す
     show("btnEnablePush", profile && profile.active && (profile.role === "admin" || profile.role === "super" || officeNow()) && !pushExcluded());
+    show("btnPushDiag", profile && profile.active && (profile.role === "admin" || profile.role === "super" || officeNow()) && !pushExcluded());
     $("cloudManageBox").innerHTML = ""; show("cloudManageBox", false);
   }
 
@@ -1111,8 +1112,8 @@
       "<span class='opNm'>" + who + "</span>" +
       "<div class='opMail'>" + esc(me.email) + "</div>" +
       "<div class='modeSwitch' id='appModeSw'>" +
-        "<button data-mode='corp' class='" + (mode === "corp" ? "on" : "") + "'>法人モード</button>" +
-        "<button data-mode='personal' class='" + (mode === "personal" ? "on" : "") + "'>個人モード</button>" +
+        "<button data-mode='corp' class='" + (mode === "corp" ? "on" : "") + "'>Works</button>" +
+        "<button data-mode='personal' class='" + (mode === "personal" ? "on" : "") + "'>Pocket</button>" +
       "</div>" +
       "</div>";
     const sw = $("appModeSw");

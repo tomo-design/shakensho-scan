@@ -1780,7 +1780,7 @@ const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・ト�
 【お申し込み専用フォーム】1分で申し込める短いフォーム → https://mechanoai-cablueie.com/apply.html 。★メールで「申し込む・話を進めたい」相手にはLPではなくこのフォームへ誘導する（本文で説明済みなので、行動導線はフォームに集約）。?plan=turbo 等でプラン事前選択も可。
 【法人向けLP】機能・料金・導入の流れ・FAQをまとめたページ → https://mechanoai-cablueie.com/biz.html （じっくり検討したい人向けの詳細ページ。まだ迷っている相手のみ案内）。
 【サービス紹介資料】そのまま送れる資料ページ（印刷・PDF化も可）→ https://mechanoai-cablueie.com/shiryou.html 。★「資料請求」への返信では、この資料リンクを必ず案内する（相手はここで機能・料金・会社概要をまとめて確認できる）。
-【個人版】App Store/Google Playで提供予定。基本無料。
+【MECHANO-AI Pocket（個人向け）】App Store/Google Playで提供予定。基本無料。※法人向けは「MECHANO-AI Works」。
 【育てるコンセプト（重要な価値・差別化）】メカノAIのAI回答（諸元・トルク値など）は"参考値"。もし違っていても、その場で正しい値に訂正して保存でき、次回からは自社の正しい値が上書き表示される。作業中にカルテを更新すれば、その値が自動で反映・保存され二度手間がない。つまり使うほど"自社仕様の正しい知識"が蓄積し、メカ君が"もう一人の従業員"のように育つ。直した知識は社内で共有され、若手や外国人スタッフも同じ正解に到達できる。営業では『人手不足の解消・若手/外国人の育成』に加えて、この"メカ君も一緒に育つ／使うほど自社だけの資産になる"を前向きな価値として伝える。同時に「AIは参考値、最終確認は整備書で」という誠実な姿勢も必ず併記する。
 【多言語対応】画面は日本語・英語に対応。外国人スタッフや技能実習生でも使え、人手不足の現場で戦力化しやすい（人手不足の訴求と直結する強み）。
 【安心材料】特定商取引法に基づく表記・プライバシーポリシーを公開済み。訪問営業や電話勧誘はしない方針（問い合わせは相手が選んだ手段のみ）。
@@ -2143,8 +2143,9 @@ exports.testPush = functions.region(REGION).https.onRequest(async (req, res) => 
   catch (e) { return res.status(404).json({ error: "no auth user for " + email }); }
   let tokens = [];
   let tid = null;
-  try { const d = await db.collection("users").doc(uid).get(); if (d.exists) { (d.data().fcmTokens || []).forEach((t) => t && tokens.push(t)); tid = d.data().tenantId || null; } } catch (e) {}
-  if (tid) { try { const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get(); pt.forEach((x) => tokens.push(x.id)); } catch (e) {} }
+  const meta = {};   // token -> {src, dev, at, office, admin}
+  try { const d = await db.collection("users").doc(uid).get(); if (d.exists) { (d.data().fcmTokens || []).forEach((t) => { if (t) { tokens.push(t); meta[t] = meta[t] || { src: "user" }; } }); tid = d.data().tenantId || null; } } catch (e) {}
+  if (tid) { try { const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get(); pt.forEach((x) => { tokens.push(x.id); const dd = x.data() || {}; meta[x.id] = Object.assign({ src: "tenant" }, { dev: dd.dev || null, office: !!dd.office, admin: !!dd.admin, at: dd.at || null }, meta[x.id] && meta[x.id].src === "user" ? { src: "user+tenant" } : {}); }); } catch (e) {} }
   tokens = [...new Set(tokens.filter(Boolean))];
   if (!tokens.length) return res.json({ ok: false, reason: "この端末/ユーザーの通知トークンが未登録です（通知が有効化されていない）", email: email, tid: tid, tokens: 0 });
   const r = await admin.messaging().sendEachForMulticast({
@@ -2153,5 +2154,29 @@ exports.testPush = functions.region(REGION).https.onRequest(async (req, res) => 
     webpush: { fcmOptions: { link: "/" }, headers: { Urgency: "high" } },
     android: { priority: "high" },
   });
-  return res.json({ ok: true, email: email, tid: tid, tokens: tokens.length, success: r.successCount, failure: r.failureCount, errors: r.responses.map((x, i) => (x.error ? { i: i, code: x.error.code } : null)).filter(Boolean) });
+  const detail = tokens.map((t, i) => {
+    const m = meta[t] || {};
+    return {
+      tok: t.slice(0, 12) + "…",
+      src: m.src || "?",
+      dev: m.dev || null,
+      office: m.office || false,
+      admin: m.admin || false,
+      at: m.at ? new Date(m.at).toISOString() : null,
+      ok: !r.responses[i].error,
+      err: r.responses[i].error ? r.responses[i].error.code : null,
+    };
+  });
+  // 期限切れ(not-registered)トークンを台帳から自動削除して掃除
+  let pruned = 0;
+  if (tid) {
+    for (let i = 0; i < tokens.length; i++) {
+      const e = r.responses[i].error;
+      if (e && (e.code === "messaging/registration-token-not-registered" || e.code === "messaging/invalid-registration-token")) {
+        try { await db.collection("tenants").doc(tid).collection("pushTokens").doc(tokens[i]).delete(); pruned++; } catch (x) {}
+        try { await db.collection("users").doc(uid).set({ fcmTokens: admin.firestore.FieldValue.arrayRemove(tokens[i]) }, { merge: true }); } catch (x) {}
+      }
+    }
+  }
+  return res.json({ ok: true, email: email, tid: tid, tokens: tokens.length, success: r.successCount, failure: r.failureCount, pruned: pruned, detail: detail });
 });
