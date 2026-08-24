@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>メカノAI 個人版 ご案内資料（配布用）</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--ink:#1B2530;--ink2:#5E6B7C;--line:#D5DDE8;--soft:#F2F5F9;--navy:#0f2a5a;--navy2:#173b73;--blue:#2563EB;--gold:#ffb100;--green:#15803D}
+  *{box-sizing:border-box}
+  body{margin:0;background:#e6eaf1;color:var(--ink);font-family:'Noto Sans JP',-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",sans-serif;line-height:1.7;-webkit-text-size-adjust:100%;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:40px}
+
+  /* 印刷ツールバー(印刷時は非表示) */
+  .bar{position:sticky;top:0;z-index:10;width:100%;background:var(--green);color:#fff;display:flex;justify-content:center;padding:10px 16px}
+  .bar-in{width:100%;max-width:820px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .bar .t{font-weight:700;font-size:14px}
+  .bar .t small{display:block;font-weight:400;font-size:11px;color:#cdeed7}
+  .bar button{background:var(--gold);color:#0f3c22;border:0;border-radius:9px;padding:9px 18px;font-weight:800;font-size:14px;cursor:pointer;white-space:nowrap}
+
+  /* A4シート */
+  .sheet{background:#fff;width:210mm;min-height:297mm;margin:22px 0 0;padding:16mm 15mm;box-shadow:0 10px 34px rgba(15,42,90,.16);position:relative}
+  .sheet+.sheet{margin-top:26px}
+
+  /* ===== 1枚目 ===== */
+  .cover-band{background:linear-gradient(150deg,#1f6b46,#2f8a5c);color:#fff;margin:-16mm -15mm 10mm;padding:14mm 15mm 12mm;position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cover-band::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:rgba(255,177,0,.10)}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .brand img{width:48px;height:48px;border-radius:12px;object-fit:cover;display:block;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .brand span{font-weight:800;letter-spacing:.12em;font-size:18px}
+  .brand small{display:block;font-size:10px;letter-spacing:.24em;color:#cdead8;margin-top:2px}
+  .pbadge{display:inline-block;margin-left:6px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.5);color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;padding:3px 11px;border-radius:999px;vertical-align:middle}
+  .eyebrow{color:var(--gold);font-weight:700;font-size:13px;letter-spacing:.12em;position:relative;z-index:1}
+  .cover-band h1{font-size:31px;margin:8px 0 12px;line-height:1.4;position:relative;z-index:1}
+  .cover-band h1 .u{background:linear-gradient(transparent 66%,rgba(255,177,0,.45) 66%)}
+  .cover-band .sub{color:#e0f1e8;font-size:14.5px;max-width:600px;margin:0;position:relative;z-index:1}
+  .cover-band .tag{display:inline-block;margin-top:16px;background:rgba(255,177,0,.16);border:1px solid rgba(255,177,0,.45);color:var(--gold);font-weight:800;font-size:13.5px;padding:7px 16px;border-radius:999px;position:relative;z-index:1}
+
+  .kv{display:grid;grid-template-columns:1fr 1fr 1fr;margin:3mm 0 6mm;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+  .kv .k{display:flex;align-items:center;gap:13px;padding:16px 18px;border-left:1px solid var(--line)}
+  .kv .k:first-child{border-left:0}
+  .kv .k .ic{flex:none;width:42px;height:42px;border-radius:12px;background:linear-gradient(150deg,#e5f5ec,#d7efe0);display:flex;align-items:center;justify-content:center;font-size:21px}
+  .kv .k .tx{min-width:0}
+  .kv .k .n{font-size:24px;font-weight:900;color:var(--green);line-height:1.05;letter-spacing:-.01em}
+  .kv .k .n small{font-size:12px;font-weight:800;color:#0f3c22;margin-left:1px}
+  .kv .k .l{font-size:11.5px;color:var(--ink2);margin-top:3px;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}
+
+  h2{font-size:19px;border-left:5px solid var(--green);padding-left:12px;margin:9mm 0 5mm}
+  h2:first-of-type{margin-top:2mm}
+  h2 .en{font-size:11px;color:var(--ink2);font-weight:600;letter-spacing:.08em;margin-left:8px}
+  .lead{font-size:14.5px;color:var(--ink2);margin:0 0 4mm}
+
+  .pain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .pain .p{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fff;position:relative}
+  .pain .p .voice{font-size:12.5px;color:#9aa4b2;font-style:italic;margin:0 0 8px;padding-left:16px;position:relative}
+  .pain .p .voice::before{content:"“";position:absolute;left:0;top:-4px;font-size:22px;color:var(--line);font-style:normal}
+  .pain .p h3{margin:0 0 6px;font-size:14.5px;color:var(--green)}
+  .pain .p p{margin:0;font-size:12.5px;color:var(--ink2)}
+  .pain .p .arrow{display:block;font-size:11px;font-weight:800;color:#c78f00;margin:8px 0 2px}
+
+  ul.feat{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:11px 22px}
+  ul.feat li{position:relative;padding-left:24px;font-size:13.5px}
+  ul.feat li::before{content:"";position:absolute;left:0;top:7px;width:13px;height:7px;border-left:2.4px solid var(--green);border-bottom:2.4px solid var(--green);transform:rotate(-45deg)}
+  ul.feat li b{display:block;font-size:14.5px;color:var(--green)}
+  ul.feat li span{color:var(--ink2)}
+
+  /* 育つコンセプト */
+  .grow{margin-top:2mm}
+  .grow p.g-lead{margin:0 0 12px;color:var(--ink2);font-size:13px}
+  .grow p.g-lead b{color:var(--green)}
+  .grow .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .grow .g3 .c{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px;border-top:3px solid var(--green)}
+  .grow .g3 .c .num{color:var(--green);font-weight:900;font-size:12.5px;letter-spacing:.08em}
+  .grow .g3 .c b{display:block;font-size:13.5px;margin:4px 0 5px;color:var(--navy)}
+  .grow .g3 .c span{font-size:12px;color:var(--ink2)}
+  .grow .g-note{margin:11px 0 0;font-size:11px;color:#9aa4b2}
+  .grow-wrap{display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:center;margin-top:2mm}
+  .grow-wrap .g3{display:flex;flex-direction:column;gap:12px}
+  .grow-shot{margin:0;justify-self:center;width:100%;max-width:230px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 8px 22px -12px rgba(15,42,90,.3)}
+  .grow-shot img{width:100%;height:auto;display:block;border-bottom:1px solid var(--line)}
+  .grow-shot figcaption{padding:9px 12px;font-size:11px;color:var(--ink2);line-height:1.55}
+
+  /* 画面 */
+  .shots{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:2mm}
+  .shots figure{margin:0}
+  .shots img{width:100%;height:360px;object-fit:cover;object-position:top;display:block;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+  .shots figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px;text-align:center}
+  .shots figcaption b{color:var(--ink);display:block}
+
+  /* 料金 */
+  .price-personal{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:stretch;margin-top:2mm}
+  .plan{border:2px solid var(--green);border-radius:16px;padding:20px 22px;background:linear-gradient(180deg,#f3fbf6,#fff)}
+  .plan .pl-name{font-size:13px;font-weight:800;color:var(--green);letter-spacing:.06em}
+  .plan .pl-price{font-size:38px;font-weight:900;color:var(--navy);line-height:1.1;margin:4px 0 2px}
+  .plan .pl-price small{font-size:15px;font-weight:800;color:var(--ink2);margin-left:2px}
+  .plan .pl-sub{font-size:12.5px;color:var(--ink2)}
+  .plan ul{list-style:none;padding:0;margin:12px 0 0}
+  .plan ul li{position:relative;padding-left:22px;font-size:12.5px;margin:7px 0;color:var(--ink)}
+  .plan ul li::before{content:"";position:absolute;left:0;top:5px;width:11px;height:6px;border-left:2.2px solid var(--green);border-bottom:2.2px solid var(--green);transform:rotate(-45deg)}
+  .byok{border:1px solid var(--line);border-radius:16px;padding:18px 20px;background:#fff;font-size:12.5px;color:var(--ink2)}
+  .byok .bh{font-size:14px;font-weight:800;color:var(--navy);margin-bottom:8px}
+  .byok b{color:var(--green)}
+  .trial{margin-top:14px;background:#FFF7E6;border:1px solid var(--gold);border-radius:12px;padding:13px 18px;font-size:13.5px}
+  .trial b{color:#b07d00}
+
+  ol.flow{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  ol.flow li{counter-increment:s;border:1px solid var(--line);border-radius:12px;padding:16px 14px;position:relative;font-size:12.5px;color:var(--ink2)}
+  ol.flow li::before{content:counter(s);display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--green);color:#fff;font-weight:900;font-size:15px;margin-bottom:8px}
+  ol.flow li b{display:block;font-size:14px;color:var(--navy);margin-bottom:4px}
+
+  /* デモCTA + 会社情報 */
+  .cta-row{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:2mm;align-items:stretch}
+  .demo{background:var(--soft);border:2px dashed var(--green);border-radius:14px;padding:18px 20px;display:flex;gap:16px;align-items:center}
+  .demo .qr{width:110px;height:110px;flex:none;background:#fff;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px;color:#9aa4b2;line-height:1.4;padding:11px}
+  .demo .qr svg{width:100%;height:100%}
+  .demo .d-copy .dh{font-weight:900;color:var(--green);font-size:15px}
+  .demo .d-copy p{margin:4px 0 8px;font-size:12.5px;color:var(--ink2)}
+  .demo .d-copy .url{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;color:var(--green)}
+  .demo .d-copy .note{display:block;margin-top:6px;font-size:11px;color:#9aa4b2}
+
+  .company{border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:12.5px}
+  .company .r{display:grid;grid-template-columns:74px 1fr;border-top:1px solid var(--line)}
+  .company .r:first-child{border-top:0}
+  .company .r .dt{background:var(--soft);font-weight:700;padding:5px 10px}
+  .company .r .dd{padding:5px 10px}
+  .company .r .dd b{color:var(--green)}
+
+  .corp-note{margin-top:6mm;border:1px dashed var(--blue);border-radius:12px;padding:13px 16px;background:#f5f9ff;font-size:12.5px;color:var(--ink2)}
+  .corp-note b{color:var(--blue)}
+
+  .foot{text-align:center;color:var(--ink2);font-size:11px;margin-top:8mm;padding-top:10px;border-top:1px solid var(--line)}
+  .pnum{position:absolute;right:15mm;bottom:8mm;font-size:11px;color:#aab3c1}
+
+  @media(max-width:840px){
+    .sheet{width:100%;min-height:auto;padding:22px 18px}
+    .cover-band{margin:-22px -18px 18px;padding:24px 18px}
+    .kv,.pain,.grow .g3,.shots,ol.flow,.price-personal,.cta-row{grid-template-columns:1fr}
+    .kv .k{border-left:0;border-top:1px solid var(--line)}
+    .kv .k:first-child{border-top:0}
+    .cover-band h1{font-size:23px}
+    .company .r{grid-template-columns:74px 1fr}
+    .grow-wrap{grid-template-columns:1fr}
+  }
+  @media print{
+    body{background:#fff;padding:0}
+    .bar{display:none}
+    .sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;break-before:auto}
+    .sheet+.sheet{margin-top:0;break-before:auto}
+    .cover-band{margin:0 0 7mm}
+    h2,.pain .p,ul.feat li,.grow .c,.grow-shot,ol.flow li,.shots figure,.price-personal,.cta-row,.demo,.company,.corp-note{break-inside:avoid}
+    h2{break-after:avoid;margin:6mm 0 3.5mm}
+    h2:first-of-type{margin-top:2mm}
+    h2.pb{break-before:page;margin-top:2mm}
+    .pnum{display:none}
+    .shots{grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4mm}
+    .shots img{height:auto;object-fit:contain}
+    @page{size:A4;margin:12mm}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <span class="t">メカノAI 個人版 ご案内資料（配布用）<small>「印刷 / PDFで保存」→ A4・カラーがおすすめ</small></span>
+    <button onclick="window.print()">🖶 印刷 / PDFで保存</button>
+  </div>
+</div>
+
+<!-- ================= 1枚目 ================= -->
+<section class="sheet">
+  <div class="cover-band">
+    <div class="brand"><img src="img/logo-mark.png" alt="メカノAI"><span>メカノAI<small>MECHANO-AI</small></span><span class="pbadge">個人版</span></div>
+    <div class="eyebrow">整備士の“調べる・診る・残す”をスマホ1台で</div>
+    <h1>整備士ひとりに、<br>AIの<span class="u">「調べる相棒」</span>を。</h1>
+    <p class="sub">車検証をスキャンするだけで、締付トルク・オイル・各種容量などのメンテナンス諸元を即表示。故障診断も、整備カルテも、<b style="color:#fff">あなたのスマホ1台で</b>完結します。</p>
+    <span class="tag">🎁 まず7日間は無料。月額 ¥500（ワンコイン）で使い放題。</span>
+  </div>
+
+  <div class="kv">
+    <div class="k"><div class="ic">📱</div><div class="tx"><div class="n">1<small>台で完結</small></div><div class="l">スキャン・諸元・診断・カルテ</div></div></div>
+    <div class="k"><div class="ic">🪙</div><div class="tx"><div class="n">¥500<small>／月</small></div><div class="l">ワンコインで全機能つかい放題</div></div></div>
+    <div class="k"><div class="ic">🎁</div><div class="tx"><div class="n">7<small>日間無料</small></div><div class="l">試してから続けるか決められる</div></div></div>
+  </div>
+
+  <h2>こんな“ひとり整備”の困りごとに<span class="en">Pain Points</span></h2>
+  <div class="pain">
+    <div class="p">
+      <p class="voice">この車種の締付トルク、いちいち調べるのが面倒…</p>
+      <h3>諸元を探す手間</h3>
+      <p>車検証を読むだけで、トルク・オイル・容量をその場で表示。</p>
+      <span class="arrow">→ 資料をめくる時間をゼロに</span>
+    </div>
+    <div class="p">
+      <p class="voice">この症状、原因なんだっけ。聞ける先輩もいない…</p>
+      <h3>ひとりで抱える故障診断</h3>
+      <p>DTC・症状を入れると、AIが原因候補を可能性順に提案。</p>
+      <span class="arrow">→ 相談相手がポケットに1人</span>
+    </div>
+    <div class="p">
+      <p class="voice">作業メモが紙でバラバラ。あとで探せない…</p>
+      <h3>記録がまとまらない</h3>
+      <p>作業内容・写真・使った値を整備カルテに記録。</p>
+      <span class="arrow">→ 端末内にすっきり保存</span>
+    </div>
+  </div>
+
+  <h2>メカノAI 個人版でできること<span class="en">Features</span></h2>
+  <ul class="feat">
+    <li><b>車検証スキャン</b><span>QR・カメラで車両情報を即取得。入力の手間を削減。</span></li>
+    <li><b>メンテナンス諸元</b><span>締付トルク・オイル粘度/量・各種容量をAIが即表示。</span></li>
+    <li><b>AI故障診断・修理サポート</b><span>DTC・症状・写真から原因候補と対処を提案。追加質問で深掘りも。</span></li>
+    <li><b>整備カルテ</b><span>作業記録・写真をこの端末に保存。過去の作業をすぐ振り返り。</span></li>
+    <li><b>日本語・英語対応</b><span>画面もAIの回答も2言語。学びながら使える。</span></li>
+    <li><b>端末内保存でプライバシー安心</b><span>記録は端末の中だけ。外部サーバーには送信しません。</span></li>
+  </ul>
+
+  <span class="pnum">1 / 2</span>
+</section>
+
+<!-- ================= 2枚目 ================= -->
+<section class="sheet">
+  <h2 class="pb">使うほど、あなた仕様に“育つ”<span class="en">Grows With You</span></h2>
+  <div class="grow">
+    <p class="g-lead">AIの数値は<b>参考値</b>。違えばその場で直して保存するほど、<b>あなただけの正しい値</b>が端末に貯まっていきます。</p>
+    <div class="grow-wrap">
+      <figure class="grow-shot"><img src="img/screen-grow.png" alt="AIの参考値を訂正して保存する画面"><figcaption>AIの参考値はその場で訂正→保存。「✓訂正保存済み」として、次回から自分の値を表示。</figcaption></figure>
+      <div class="g3">
+        <div class="c"><div class="num">01</div><b>「訂正して保存」で上書き</b><span>違う値はその場で直して保存。次回からは自分の正しい値を表示。</span></div>
+        <div class="c"><div class="num">02</div><b>カルテ更新で自動蓄積</b><span>作業で使った値は記録の更新でそのまま貯まる。二度手間なし。</span></div>
+        <div class="c"><div class="num">03</div><b>使うほど速くなる</b><span>よく触る車種ほど、調べ物のスピードが上がっていく。</span></div>
+      </div>
+    </div>
+    <p class="g-note">※ AIの回答は参考情報です。作業前には必ず整備書等で最終確認をお願いします。</p>
+  </div>
+
+  <h2>実際の画面<span class="en">Screens</span></h2>
+  <div class="shots">
+    <figure><img src="img/screen-spec.png" alt="メンテナンス諸元"><figcaption><b>メンテナンス諸元</b>オイル・トルク等を即表示</figcaption></figure>
+    <figure><img src="img/screen-diag.png" alt="AI故障診断"><figcaption><b>AI故障診断</b>原因候補を可能性順に</figcaption></figure>
+    <figure><img src="img/screen-karte.png" alt="整備カルテ"><figcaption><b>整備カルテ</b>記録を端末に一元管理</figcaption></figure>
+  </div>
+
+  <h2>料金はシンプル<span class="en">Pricing</span></h2>
+  <div class="price-personal">
+    <div class="plan">
+      <div class="pl-name">個人版（1台）</div>
+      <div class="pl-price">¥500<small>／月（税込）</small></div>
+      <div class="pl-sub">最初の7日間は無料。8日目から課金開始。</div>
+      <ul>
+        <li>スキャン・諸元・AI診断・カルテの全機能</li>
+        <li>日本語／英語対応</li>
+        <li>いつでも解約OK（アプリストアから）</li>
+      </ul>
+    </div>
+    <div class="byok">
+      <div class="bh">AI利用料について</div>
+      AIは<b>ご自身のGoogle無料APIキー</b>で動きます（<b>クレジットカード登録は不要</b>）。設定タブの案内どおりに取得して貼り付けるだけ。<br><br>
+      通常のご利用範囲なら<b>無料枠内で収まる</b>ため、実質かかるのはアプリ月額 ¥500 だけです。
+    </div>
+  </div>
+  <div class="trial">🎁 <b>まず7日間は無料でお試し。</b>期間中に全機能を試して、続けるかどうかを決められます。解約はアプリストアからいつでも可能です。</div>
+
+  <h2>はじめ方は3ステップ<span class="en">How to start</span></h2>
+  <ol class="flow">
+    <li><b>アプリを入手</b>お使いのアプリストアで「メカノAI」を検索してインストール。</li>
+    <li><b>無料APIキーを貼り付け</b>設定タブの案内から、Googleの無料APIキーを取得して貼り付け（クレカ不要）。</li>
+    <li><b>7日間無料で試す</b>車検証をスキャンして諸元・診断・カルテを体験。気に入ったら月額¥500で継続。</li>
+  </ol>
+
+  <h2>まずは“さわって”ください<span class="en">Try the demo</span></h2>
+  <div class="cta-row">
+    <div class="demo">
+      <div class="qr"><svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><path d="M0 0h7v1h-7zM8 0h1v1h-1zM10 0h2v1h-2zM15 0h1v1h-1zM22 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM10 1h4v1h-4zM16 1h1v1h-1zM19 1h2v1h-2zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM11 2h2v1h-2zM14 2h1v1h-1zM17 2h2v1h-2zM20 2h1v1h-1zM22 2h1v1h-1zM24 2h3v1h-3zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM8 3h2v1h-2zM11 3h1v1h-1zM13 3h1v1h-1zM16 3h1v1h-1zM18 3h2v1h-2zM22 3h1v1h-1zM24 3h3v1h-3zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM8 4h1v1h-1zM10 4h4v1h-4zM15 4h2v1h-2zM18 4h1v1h-1zM22 4h1v1h-1zM24 4h3v1h-3zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM10 5h2v1h-2zM13 5h2v1h-2zM16 5h1v1h-1zM19 5h2v1h-2zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h7v1h-7zM8 7h1v1h-1zM11 7h2v1h-2zM14 7h2v1h-2zM17 7h3v1h-3zM0 8h1v1h-1zM4 8h1v1h-1zM6 8h4v1h-4zM12 8h4v1h-4zM17 8h1v1h-1zM19 8h7v1h-7zM28 8h1v1h-1zM0 9h2v1h-2zM3 9h1v1h-1zM5 9h1v1h-1zM7 9h1v1h-1zM9 9h1v1h-1zM11 9h1v1h-1zM14 9h5v1h-5zM22 9h7v1h-7zM0 10h2v1h-2zM4 10h1v1h-1zM6 10h1v1h-1zM8 10h1v1h-1zM12 10h4v1h-4zM17 10h1v1h-1zM20 10h4v1h-4zM28 10h1v1h-1zM2 11h1v1h-1zM7 11h1v1h-1zM13 11h1v1h-1zM15 11h1v1h-1zM17 11h2v1h-2zM22 11h4v1h-4zM27 11h2v1h-2zM0 12h1v1h-1zM3 12h2v1h-2zM6 12h2v1h-2zM9 12h1v1h-1zM11 12h3v1h-3zM17 12h1v1h-1zM19 12h3v1h-3zM27 12h1v1h-1zM4 13h1v1h-1zM11 13h1v1h-1zM13 13h4v1h-4zM18 13h1v1h-1zM22 13h7v1h-7zM1 14h4v1h-4zM6 14h2v1h-2zM9 14h3v1h-3zM15 14h4v1h-4zM20 14h1v1h-1zM24 14h3v1h-3zM28 14h1v1h-1zM0 15h2v1h-2zM4 15h1v1h-1zM8 15h1v1h-1zM14 15h2v1h-2zM17 15h3v1h-3zM21 15h1v1h-1zM23 15h1v1h-1zM27 15h2v1h-2zM3 16h1v1h-1zM5 16h2v1h-2zM9 16h6v1h-6zM17 16h5v1h-5zM27 16h1v1h-1zM0 17h2v1h-2zM4 17h1v1h-1zM7 17h3v1h-3zM11 17h1v1h-1zM15 17h4v1h-4zM22 17h4v1h-4zM27 17h2v1h-2zM3 18h1v1h-1zM6 18h1v1h-1zM8 18h2v1h-2zM13 18h3v1h-3zM18 18h1v1h-1zM20 18h1v1h-1zM26 18h1v1h-1zM28 18h1v1h-1zM5 19h1v1h-1zM8 19h1v1h-1zM12 19h2v1h-2zM17 19h1v1h-1zM20 19h1v1h-1zM27 19h2v1h-2zM0 20h2v1h-2zM3 20h7v1h-7zM13 20h1v1h-1zM15 20h3v1h-3zM20 20h6v1h-6zM28 20h1v1h-1zM8 21h1v1h-1zM10 21h1v1h-1zM13 21h3v1h-3zM18 21h3v1h-3zM24 21h1v1h-1zM28 21h1v1h-1zM0 22h7v1h-7zM8 22h1v1h-1zM15 22h1v1h-1zM19 22h2v1h-2zM22 22h1v1h-1zM24 22h3v1h-3zM28 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM9 23h4v1h-4zM14 23h1v1h-1zM17 23h2v1h-2zM20 23h1v1h-1zM24 23h1v1h-1zM27 23h1v1h-1zM0 24h1v1h-1zM2 24h3v1h-3zM6 24h1v1h-1zM8 24h1v1h-1zM10 24h1v1h-1zM13 24h3v1h-3zM17 24h1v1h-1zM19 24h7v1h-7zM27 24h1v1h-1zM0 25h1v1h-1zM2 25h3v1h-3zM6 25h1v1h-1zM9 25h2v1h-2zM13 25h1v1h-1zM15 25h1v1h-1zM17 25h2v1h-2zM20 25h2v1h-2zM28 25h1v1h-1zM0 26h1v1h-1zM2 26h3v1h-3zM6 26h1v1h-1zM9 26h1v1h-1zM13 26h3v1h-3zM18 26h1v1h-1zM20 26h2v1h-2zM25 26h4v1h-4zM0 27h1v1h-1zM6 27h1v1h-1zM9 27h1v1h-1zM11 27h1v1h-1zM14 27h2v1h-2zM17 27h2v1h-2zM20 27h3v1h-3zM25 27h1v1h-1zM27 27h2v1h-2zM0 28h7v1h-7zM8 28h1v1h-1zM12 28h1v1h-1zM15 28h1v1h-1zM17 28h1v1h-1zM20 28h2v1h-2zM23 28h1v1h-1zM25 28h1v1h-1zM27 28h1v1h-1z" fill="#15803D"/></svg></div>
+      <div class="d-copy">
+        <div class="dh">ログイン不要の体験デモ</div>
+        <p>登録なしで、その場でメカ君の回答を体験できます。スマホのカメラでQRを読み取ってください。</p>
+        <span class="url">mechanoai-cablueie.com/?demo=1</span>
+        <span class="note">アプリは各ストアで「メカノAI」で検索</span>
+      </div>
+    </div>
+    <div class="company">
+      <div class="r"><div class="dt">提供者</div><div class="dd"><b>Cablueie（カブリエ）</b></div></div>
+      <div class="r"><div class="dt">担当</div><div class="dd">中江</div></div>
+      <div class="r"><div class="dt">所在地</div><div class="dd">〒894-0062 鹿児島県奄美市名瀬有屋町36-2</div></div>
+      <div class="r"><div class="dt">電話</div><div class="dd">080-3692-0101</div></div>
+      <div class="r"><div class="dt">メール</div><div class="dd">cablueie.123@gmail.com</div></div>
+      <div class="r"><div class="dt">よくある質問</div><div class="dd">mechanoai-cablueie.com/faq.html?v=personal</div></div>
+    </div>
+  </div>
+
+  <div class="corp-note">🏢 <b>店舗でお使いなら「法人版」もあります。</b>店舗内クラウド共有・入庫管理ボード・メンバー/端末管理など、チーム運用向けの機能つき（AI利用はキー不要・プラン込み）。詳しくは mechanoai-cablueie.com/biz.html</div>
+
+  <div class="foot">メカノAI（MECHANO-AI）／ 提供: Cablueie（カブリエ）　※本資料の内容は予告なく変更する場合があります。AIの回答は参考情報です。</div>
+  <span class="pnum">2 / 2</span>
+</section>
+
+</body>
+</html>

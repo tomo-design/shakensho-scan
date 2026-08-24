@@ -2127,3 +2127,31 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     return res.status(500).json({ error: "送信に失敗しました。時間をおいて再度お試しください。" });
   }
 });
+
+/* 一時: テストプッシュ送信(診断用)。?key=TEST_PUSH_KEY&email=対象 で、そのユーザーのfcmTokens+店舗pushTokensへ送る。
+   トークン0なら「未登録」を返す(通知が有効化されていない証拠)。確認後は削除してよい。 */
+exports.testPush = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const key = String(req.query.key || "");
+  if (!process.env.TEST_PUSH_KEY || key !== process.env.TEST_PUSH_KEY) return res.status(403).json({ error: "forbidden" });
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "email required" });
+  const db = admin.firestore();
+  let uid = null;
+  try { const u = await admin.auth().getUserByEmail(email); uid = u.uid; }
+  catch (e) { return res.status(404).json({ error: "no auth user for " + email }); }
+  let tokens = [];
+  let tid = null;
+  try { const d = await db.collection("users").doc(uid).get(); if (d.exists) { (d.data().fcmTokens || []).forEach((t) => t && tokens.push(t)); tid = d.data().tenantId || null; } } catch (e) {}
+  if (tid) { try { const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get(); pt.forEach((x) => tokens.push(x.id)); } catch (e) {} }
+  tokens = [...new Set(tokens.filter(Boolean))];
+  if (!tokens.length) return res.json({ ok: false, reason: "この端末/ユーザーの通知トークンが未登録です（通知が有効化されていない）", email: email, tid: tid, tokens: 0 });
+  const r = await admin.messaging().sendEachForMulticast({
+    tokens: tokens,
+    notification: { title: "メカノAI テスト通知 🔔", body: "届いていれば通知はOKです（テスト送信）" },
+    webpush: { fcmOptions: { link: "/" }, headers: { Urgency: "high" } },
+    android: { priority: "high" },
+  });
+  return res.json({ ok: true, email: email, tid: tid, tokens: tokens.length, success: r.successCount, failure: r.failureCount, errors: r.responses.map((x, i) => (x.error ? { i: i, code: x.error.code } : null)).filter(Boolean) });
+});
