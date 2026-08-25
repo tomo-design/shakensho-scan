@@ -2215,7 +2215,7 @@ function saveKarteEntry(entry) {
   t.karte = list; t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(h2));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
-  try { reconcileFluidsFromKarte(entry); } catch (e) {}   // 油脂類の実績量で諸元を自動更新
+  if (!entry.auto) { try { reconcileFluidsFromKarte(entry); } catch (e) {} }   // 油脂類の実績量で諸元を自動更新(AI自動記録は対象外)
 }
 /* カルテ編集・削除の権限: 未ログイン(個人利用)=可 / 管理者=常に可 /
    従業員=「担当者」に指定された本人のみ。担当を別メンバーへ変えると編集権限もその人へ移る。 */
@@ -5213,7 +5213,33 @@ function saveDiagRecord(input, aiText, mode) {
     mode: mode || getAiMode(), guides: {} };
   const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
   currentDiagRec = rec; renderDiagHistList();
+  autoKarteRecord("diag", input, aiText);   // 整備カルテにも自動記録(再起動しても残り、社内共有される)
   return rec;
+}
+/* 診断・修理の結果を整備カルテに自動記録する(=永続保存＋クラウド同期で社内共有)。
+   ・車両が特定できている時のみ / デモでは保存しない / 空結果は保存しない。 */
+function autoKarteRecord(kind, input, noteText) {
+  try {
+    if (typeof isDemo === "function" && isDemo()) return;
+    if (!current || !vehicleKey(current)) return;
+    const note = String(noteText == null ? "" : noteText).trim();
+    if (!note) return;
+    const d = new Date();
+    const ymd = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    const label = kind === "repair" ? "AI点検・修理手引書" : "AI故障診断";
+    const entry = {
+      id: "k" + Date.now() + Math.floor(Math.random() * 1000),
+      date: ymd, odo: null,
+      work: "🔧 " + label + (input ? "：" + String(input).replace(/\s+/g, " ").trim().slice(0, 60) : ""),
+      parts: "", cost: null,
+      staff: (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "",
+      note: note.slice(0, 4000),
+      at: new Date().toISOString(),
+      auto: true, autoKind: kind,
+    };
+    saveKarteEntry(entry);
+    try { if ($("karteList")) renderKarte(); } catch (e) {}
+  } catch (e) {}
 }
 function saveDiagRecordObj(rec) {
   if (!rec) return;
@@ -5308,6 +5334,7 @@ function saveRepairRecord(q, obj) {
     ts: Date.now(), kind: "repair", veh: curVehLabel(), input: String(q || ""), repairObj: obj };
   const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
   renderRepairHistList();
+  try { autoKarteRecord("repair", q, (obj && obj.answer) ? obj.answer : repairShareText(rec)); } catch (e) {}   // カルテへ自動記録
   return rec;
 }
 /* 保存済み診断結果を「1つのブロック」で再表示(見解＋保存済み手引書を復元) */
