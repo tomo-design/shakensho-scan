@@ -12,6 +12,9 @@
 }
 html{scroll-behavior:smooth}
 body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.7;-webkit-text-size-adjust:100%}
+/* 日本語の“語中改行”防止: 句を単位で折り返す(.nb=句ごとに改行) / .nw=絶対に折り返さない */
+.nb{display:inline-block}
+.nw{white-space:nowrap}
 .wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px}
 .wrap.narrow{max-width:720px}
 a{color:inherit}
