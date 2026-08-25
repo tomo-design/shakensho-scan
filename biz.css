@@ -272,6 +272,7 @@ details p{color:var(--ink2);font-size:14.5px;margin:0 0 16px}
 /* スマホ幅ではヒーロー見出しを2行に収める(改行が3行に崩れるのを防ぐ) */
 @media(max-width:520px){
   .hero h1{font-size:26px;text-wrap:balance}
+  .hero-art{display:none}   /* スマホでは疑似車検証(タブレット風モック)は非表示にしてスッキリ */
 }
 @media(max-width:380px){
   .hero h1{font-size:23px}
