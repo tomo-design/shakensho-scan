@@ -5213,8 +5213,38 @@ function saveDiagRecord(input, aiText, mode) {
     mode: mode || getAiMode(), guides: {} };
   const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
   currentDiagRec = rec; renderDiagHistList();
-  autoKarteRecord("diag", input, aiText);   // 整備カルテにも自動記録(再起動しても残り、社内共有される)
+  autoKarteRecord("diag", input, summarizeDiagText(aiText));   // カルテには「要約」だけ記録(全文は診断履歴/共有で確認)
   return rec;
+}
+/* 診断結果を短い要約に(カルテのメモ用)。原因候補(番号付き)の上位3件を「考えられる原因: …」にまとめる。 */
+function summarizeDiagText(t) {
+  const clean = String(t == null ? "" : t).replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
+  const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const causes = [];
+  for (const line of lines) {
+    const n = line.match(/^(\d+)[.)、]\s*(.+)$/);
+    if (n) {
+      let c = n[2].replace(/^(原因候補|原因)\s*[:：]?\s*/, "");
+      c = c.split(/[。：:（(]/)[0].trim();
+      if (c) causes.push(c);
+      if (causes.length >= 3) break;
+    }
+  }
+  if (causes.length) return "考えられる原因: " + causes.join("、");
+  const first = lines.filter(l => !/^[■【]/.test(l)).join(" ").replace(/\s+/g, " ").trim();
+  return first.slice(0, 120);
+}
+/* 修理(点検手引書)結果を短い要約に(カルテのメモ用)。位置・所要時間・手順数などを1行に。 */
+function summarizeRepairText(obj, q) {
+  obj = obj || {};
+  const parts = [];
+  if (obj.location) parts.push("位置: " + String(obj.location).replace(/\s+/g, " ").trim().slice(0, 40));
+  if (obj.time) parts.push("所要: " + String(obj.time).replace(/\s+/g, " ").trim().slice(0, 30));
+  const steps = Array.isArray(obj.order) ? obj.order.length : (Array.isArray(obj.steps) ? obj.steps.length : 0);
+  if (steps) parts.push("手順 " + steps + " ステップ");
+  if (parts.length) return parts.join(" / ");
+  const a = String(obj.answer == null ? "" : obj.answer).replace(/\*\*(.+?)\*\*/g, "$1").replace(/\s+/g, " ").trim();
+  return a.slice(0, 120);
 }
 /* 診断・修理の結果を整備カルテに自動記録する(=永続保存＋クラウド同期で社内共有)。
    ・車両が特定できている時のみ / デモでは保存しない / 空結果は保存しない。 */
@@ -5334,7 +5364,7 @@ function saveRepairRecord(q, obj) {
     ts: Date.now(), kind: "repair", veh: curVehLabel(), input: String(q || ""), repairObj: obj };
   const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
   renderRepairHistList();
-  try { autoKarteRecord("repair", q, (obj && obj.answer) ? obj.answer : repairShareText(rec)); } catch (e) {}   // カルテへ自動記録
+  try { autoKarteRecord("repair", q, summarizeRepairText(obj, q)); } catch (e) {}   // カルテへ自動記録(要約のみ)
   return rec;
 }
 /* 保存済み診断結果を「1つのブロック」で再表示(見解＋保存済み手引書を復元) */
