@@ -194,6 +194,8 @@ const cfg = () => ({
       turbo: { month: process.env.STRIPE_PRICE_TURBO_MONTH, year: process.env.STRIPE_PRICE_TURBO_YEAR },
       twinturbo: { month: process.env.STRIPE_PRICE_TWIN_MONTH, year: process.env.STRIPE_PRICE_TWIN_YEAR },
     },
+    // 個人版(Pocket)の price ID。月額¥500 / 年額¥5,500。
+    pocket: { month: process.env.STRIPE_PRICE_POCKET_MONTH, year: process.env.STRIPE_PRICE_POCKET_YEAR },
   },
   app: { url: process.env.APP_URL },
   // 営業ファネルのメール送信(SendGrid)。key=APIキー / from=認証済み送信元 / notify=運営通知先
@@ -1422,6 +1424,43 @@ exports.cancelPlan = functions.region(REGION).https.onRequest(async (req, res) =
     return res.json({ ok: true, until: until });
   } catch (e) {
     return res.status(500).json({ error: "解約に失敗: " + (e.message || e) });
+  }
+});
+
+/* 個人版(Pocket)のWeb決済: ホスト型Checkoutで月額¥500 / 年額¥5,500のサブスクを開始。
+   ログイン不要でも申込可(メールはStripe画面で入力)。ログイン済みなら uid を紐付ける。
+   body: { plan: "month"|"year", uid?, email? } → { url } を返しクライアントがリダイレクト。 */
+exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  try {
+    const data = req.body || {};
+    const interval = (data.plan === "year") ? "year" : "month";
+    const priceId = (cfg().stripe.pocket || {})[interval];
+    if (!priceId) return res.status(500).json({ error: "Pocketの価格(Price)が未設定です。" });
+    const stripe = require("stripe")(cfg().stripe.secret);
+    // ログイン済みなら uid を取得(任意)。未ログインでも申込可。
+    let uid = null; try { uid = await uidFromReq(req); } catch (e) {}
+    if (!uid && data.uid) uid = String(data.uid);
+    const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      subscription_data: {
+        trial_period_days: 7,                       // 7日間無料トライアル
+        metadata: { product: "pocket", plan: interval, uid: uid || "" },
+      },
+      client_reference_id: uid || undefined,
+      customer_email: data.email || undefined,
+      allow_promotion_codes: true,
+      success_url: appUrl + "?pocket=success",
+      cancel_url: appUrl + "?pocket=cancel",
+      metadata: { product: "pocket", plan: interval, uid: uid || "" },
+    });
+    return res.json({ url: session.url });
+  } catch (e) {
+    console.error("createPocketCheckout失敗", e);
+    return res.status(500).json({ error: "決済ページの作成に失敗しました: " + (e.message || e) });
   }
 });
 
