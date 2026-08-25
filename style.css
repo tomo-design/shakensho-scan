@@ -102,7 +102,7 @@ header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Ch
 .editionBadge{font:600 10px/1 -apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;letter-spacing:.08em;padding:2px 6px;border-radius:5px;white-space:nowrap;display:inline-block;box-sizing:border-box;color:var(--dim);background:transparent;border:1px solid var(--line)}
 .editionBadge:empty{display:none}
 .editionBadge.ed-works{color:#5b83d6;background:rgba(37,99,235,.07);border-color:rgba(37,99,235,.22)}
-.editionBadge.ed-pocket{color:#b3892f;background:rgba(255,177,0,.09);border-color:rgba(255,177,0,.28)}
+.editionBadge.ed-pocket{color:#0F9D6B;background:rgba(15,157,107,.10);border-color:rgba(15,157,107,.30)}
 
 /* bottom nav */
 nav#tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:560px;margin:0 auto;
@@ -1211,7 +1211,9 @@ body.gated{overflow:hidden}
 .agEd{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
 .agEd.ed-works{background:#2563EB;color:#fff}
 .agEd.ed-pocket{background:#0F9D6B;color:#fff}
-.agPocketPrimary{background:#0F9D6B;border-color:#0F9D6B}
+/* Pocketの主ボタン=ログイン。薄い青の塗り(青文字)。詳細度を上げて.agBtnに勝たせる。 */
+.agBtn.agPocketLoginBtn{background:#E4EDFF;color:#1D4ED8;border-color:#C6D8FA;font-weight:800}
+.agBtn.agPocketLoginBtn:active{filter:brightness(.97)}
 .agFoot{display:flex;gap:10px;margin-top:14px}
 .agFoot .agBtn{margin-top:0}
 @media (max-width:1024px){
