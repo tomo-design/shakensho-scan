@@ -7090,6 +7090,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => toSettings("login"));
   const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("choice"));
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
+  // 個人版(Pocket) — Web申込/ログイン。※課金(Stripe)フローは別途接続予定(暫定はお申し込み/ログイン)。
+  const ps = document.getElementById("agPocketStart");
+  if (ps) ps.addEventListener("click", () => {
+    // TODO: Stripe(Pocket ¥500/月・7日無料)の決済リンク/Checkoutへ差し替える。暫定はお申し込みへ。
+    try { location.href = "biz.html#contact"; } catch (e) {}
+  });
+  const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => toSettings("login"));
 })();
 /* デモ用のAI固定回答。プロンプト内容から諸元/修理/会話を判定して返す(ネットワーク未使用) */
 function demoAnswer(prompt) {

@@ -825,14 +825,29 @@
 
 <!-- ログインゲート: 法人利用は未ログインだと使えない(誰でも使える状態にしない)。デモのみ開放 -->
 <div id="authGate" class="authGate hidden">
-  <div class="agCard">
+  <div class="agShell">
     <div class="agLogo"><img src="img/logo-mark.png" alt="メカノAI"><div><b>メカノAI</b><small>車両整備サポート</small></div></div>
-    <p class="agLead">ご利用にはログインが必要です。<br>社内で共有された車両データ・整備記録・入庫管理をご利用いただけます。</p>
-    <button type="button" class="agBtn agPrimary" id="agLogin">ログイン</button>
-    <button type="button" class="agBtn" id="agNew">会社を新規登録 / メンバーとして参加</button>
-    <div class="agDiv"><span>または</span></div>
-    <button type="button" class="agBtn agGhost" id="agDemo">🎬 ログインせずにデモを試す</button>
-    <a href="biz.html#contact" class="agBtn agGhost" id="agContact" style="text-align:center;text-decoration:none">✉ お問い合わせ・お申し込み</a>
+    <p class="agLead">ご利用にはログインが必要です。用途に合わせてお選びください。</p>
+    <div class="agPanels">
+      <!-- 法人・チーム版(Works) -->
+      <div class="agPanel agPanel-works">
+        <div class="agPanelHead"><span class="agEd ed-works">Works</span>会社・チームで使う</div>
+        <p class="agPanelLead">社内で車両データ・整備記録・入庫管理を共有。</p>
+        <button type="button" class="agBtn agPrimary" id="agLogin">ログイン</button>
+        <button type="button" class="agBtn" id="agNew">会社を新規登録 / メンバーとして参加</button>
+      </div>
+      <!-- 個人版(Pocket) -->
+      <div class="agPanel agPanel-pocket">
+        <div class="agPanelHead"><span class="agEd ed-pocket">Pocket</span>個人で使う</div>
+        <p class="agPanelLead">1人で使える個人版。<b>7日間無料</b> → 月額¥500。</p>
+        <button type="button" class="agBtn agPrimary agPocketPrimary" id="agPocketStart">7日間無料ではじめる</button>
+        <button type="button" class="agBtn" id="agPocketLogin">ログイン</button>
+      </div>
+    </div>
+    <div class="agFoot">
+      <button type="button" class="agBtn agGhost" id="agDemo">🎬 ログインせずにデモを試す</button>
+      <a href="biz.html#contact" class="agBtn agGhost" id="agContact" style="text-align:center;text-decoration:none">✉ お問い合わせ・お申し込み</a>
+    </div>
   </div>
 </div>
 
