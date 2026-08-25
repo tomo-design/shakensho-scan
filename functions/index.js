@@ -1074,6 +1074,7 @@ async function issueContractAccount(db, info) {
     "▼アプリを開く\n" + corpUrl + "\n" +
     "　スマホで下のQRコードを読み取っても開けます（社内メンバーへの参加案内にもお使いいただけます）:\n" + qrUrl + "\n\n" +
     "▼はじめ方\n① 設定 → クラウド同期 でログイン → 車検証をスキャンして開始。\n② 従業員の方は同じ画面の『会社に参加』から、上記の店舗コードで参加申請 →（代表管理者の）あなたが承認すると追加されます。\n\n" +
+    "▼詳しい使い方・導入ガイド\n" + appUrl + "manual.html\n（初期設定から日々の使い方まで、画像つきで詳しく説明しています）\n\n" +
     MAIL_SIGN;
   return { loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl, qrUrl, subject, body };
 }
@@ -2104,9 +2105,10 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
       const msgLine = message ? "【ご記入内容】\n" + message + "\n\n" : "";
       const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
 
-      if (intent === "contract" && cfg().stripe.secret) {
-        // 契約希望 → テナント＋7日トライアル＋Authユーザー＋初期パスワードを自動発行し、
+      if (intent === "contract") {
+        // 契約希望(=申込) → テナント＋7日トライアル＋Authユーザー＋初期パスワードを自動発行し、
         // ログインID・初期パスワード・アプリQR入りの案内メールを自動返送(運営の手作業ゼロ)。
+        // ※Stripe未設定でも provisionContract がトライアルで代替するため、必ずアカウントを発行する。
         try {
           const acc = await issueContractAccount(db, { company, name, email, plan });
           provisioned = true;
@@ -2114,6 +2116,7 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
           sendMail(email, acc.subject, acc.body, replyAddr()).catch(() => {});
         } catch (e) {
           console.error("契約自動発行エラー", e);
+          // 既存アカウント等で発行できなかった場合は、下のフォールバック(受付メール)に回る。
         }
       }
 

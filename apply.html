@@ -112,6 +112,7 @@
     if (data.contactpref) extra.push("連絡方法:" + data.contactpref);
     var payload = {
       company: data.company, name: data.name, email: data.email, phone: data.phone, kind: data.kind, plan: data.plan,
+      intent: "contract",   // 申込専用フォーム=契約希望 → アカウント(ログインID・初期パスワード)を自動発行して返信
       message: (extra.length ? "【" + extra.join(" / ") + "】\n" : "") + (data.message || ""), hp: data.hp
     };
     btn.disabled = true; btn.textContent = "送信中…";
