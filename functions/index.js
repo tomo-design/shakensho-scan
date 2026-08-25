@@ -220,6 +220,8 @@ async function sendMail(to, subject, text, replyTo) {
       content: [{ type: "text/plain", value: text }],
     };
     if (replyTo) body.reply_to = { email: replyTo };
+    // クリック/開封トラッキングを無効化 → リンクが長い追跡URLに書き換えられず、本来の短いURLのまま届く。
+    body.tracking_settings = { click_tracking: { enable: false, enable_text: false }, open_tracking: { enable: false } };
     const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: { "Authorization": "Bearer " + sg.key, "Content-Type": "application/json" },
@@ -2095,6 +2097,7 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
 
     // ② 自動返信。申込の種類で分岐。契約希望かつメール有→専用リンクを自動発行(完全自動)。
     let provisioned = false;
+    let replySubjectSent = "", replyBodySent = "";   // 顧客へ送った自動返信(運営への控えに同梱する)
     if (email) {
       const head = name + " 様" + (company ? "（" + company + "）" : "") + "\n\n";
       const planLine = plan ? "【ご関心のプラン】" + plan + "\n" : "";
@@ -2107,6 +2110,7 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
         try {
           const acc = await issueContractAccount(db, { company, name, email, plan });
           provisioned = true;
+          replySubjectSent = acc.subject; replyBodySent = acc.body;
           sendMail(email, acc.subject, acc.body, replyAddr()).catch(() => {});
         } catch (e) {
           console.error("契約自動発行エラー", e);
@@ -2127,10 +2131,35 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
           "※ご契約から7日間は無料でお試しいただけます（実データのまま全機能・初回請求は8日目から）。\n\n" +
           "※本メールは送信専用の自動返信ではありません。ご返信いただければ担当（またはAIアシスタント）がご対応します。\n\n" +
           MAIL_SIGN;
+        replySubjectSent = subject; replyBodySent = ack;
         sendMail(email, subject, ack, replyAddr()).catch(() => {});
       }
     }
     if (provisioned) { try { await inqRef.set({ status: "自動発行済み" }, { merge: true }); } catch (e) {} }
+
+    // 運営へ「問い合わせ内容＋顧客へ送った自動返信」を1通にまとめて送る(通知と同時)。運営のみが受信。
+    try {
+      const opTo = cfg().sendgrid.notify;
+      if (opTo) {
+        const opSubject = "【問い合わせ" + (intent === "contract" ? "・契約希望" : "") + "】" + (company || "（会社名なし）") + " / " + (name || "");
+        const opBody =
+          "法人LPの問い合わせフォームから新規の問い合わせが届きました。\n\n" +
+          "■ 種別: " + (intent === "contract" ? "契約手続きの希望" : "資料・デモ希望") + (provisioned ? "（アカウントを自動発行済み）" : "") + "\n" +
+          "■ 会社名: " + (company || "（なし）") + "\n" +
+          "■ お名前: " + (name || "（なし）") + "\n" +
+          "■ メール: " + (email || "（なし）") + "\n" +
+          "■ 電話: " + (phone || "（なし）") + "\n" +
+          "■ 業種: " + (kind || "（なし）") + "\n" +
+          "■ 関心プラン: " + (plan || "（なし）") + "\n" +
+          "■ ご記入内容:\n" + (message || "（なし）") + "\n\n" +
+          "――――― 顧客へ送信した自動返信 ―――――\n" +
+          (replyBodySent
+            ? ("件名: " + replySubjectSent + "\n\n" + replyBodySent)
+            : "（自動返信は送信していません：メール未入力、または送信対象外）") + "\n\n" +
+          "――――――――――――\n※このメールは運営通知用の控えです（お客様には届きません）。対応は営業コンソール(sales.html)から行えます。";
+        await sendMail(opTo, opSubject, opBody, replyAddr());
+      }
+    } catch (e) { console.error("運営への控えメール失敗", e); }
 
     // 運営(super)にプッシュ通知
     try {
