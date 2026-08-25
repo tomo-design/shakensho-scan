@@ -175,6 +175,13 @@ function applyAppMode() {
   if (personal) { const f = $("secAiKeyFold"); if (f) f.open = true; }
   // よくある質問(FAQ)を版に合わせて表示(法人=corp/個人=personal)
   const faq = $("faqLink"); if (faq) faq.href = "faq.html?v=" + (personal ? "personal" : "corp");
+  // ヘッダーのエディション表記(個人版=Pocket / 法人版=Works)
+  const eb = $("editionBadge");
+  if (eb) {
+    eb.textContent = personal ? "Pocket" : "Works";
+    eb.classList.toggle("ed-pocket", personal);
+    eb.classList.toggle("ed-works", !personal);
+  }
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
