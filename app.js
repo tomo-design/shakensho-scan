@@ -2897,6 +2897,8 @@ function addHistory(d) {
     hist.unshift(target);
   }
   if (d && !d.rid) d.rid = target.rid;   // current等にも不変IDを伝播(以降の訂正で同じレコードを更新)
+  // 店舗ログイン中なら店舗ID(_tid)を刻む → 入庫ボードは自店舗のものだけ表示される(他店舗との混在防止)
+  { const t = curTid(); if (t) target._tid = t; }
   localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 200)));
   renderHistory();
   if (window.Cloud) window.Cloud.pushRecord(target);   // 社内共有へ
@@ -2960,10 +2962,22 @@ function toggleConfirm(rid) {
 /* 入庫ボードの区分フィルター(この端末で記憶)。"" =すべて / 区分キー */
 function getIntakeFilter() { try { return localStorage.getItem("ss_intakeFilter") || ""; } catch (e) { return ""; } }
 function setIntakeFilter(k) { try { if (k) localStorage.setItem("ss_intakeFilter", k); else localStorage.removeItem("ss_intakeFilter"); } catch (e) {} renderIntakeBoard(); }
-/* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す */
+/* 現在ログイン中の店舗(テナント)ID。未ログイン/取得不可なら空文字。 */
+function curTid() { return (window.Cloud && typeof window.Cloud.tenantId === "function") ? window.Cloud.tenantId() : ""; }
+/* このレコードを今のログイン状態で表示してよいか(店舗をまたいだ入庫ボードの混在を防ぐ)。
+   ・未ログイン(個人利用): 店舗タグ(_tid)の無いローカルのみ表示
+   ・運営(super): 全店舗を表示(仕様)
+   ・店舗ログイン中: 自店舗(_tid一致)のみ表示 */
+function recordInScope(h) {
+  const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
+  if (!loggedIn) return !h._tid;
+  if (window.Cloud && typeof window.Cloud.isSuper === "function" && window.Cloud.isSuper()) return true;
+  return !!h._tid && h._tid === curTid();
+}
+/* 現在入庫中(出庫していない)の履歴レコードを新しい順で返す。ログイン中の店舗のものだけに限定。 */
 function activeIntakes() {
   return getHistory()
-    .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)
+    .filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut && recordInScope(h))
     .sort((a, b) => (b.intakeAt || 0) - (a.intakeAt || 0));
 }
 /* 履歴レコードに入庫区分を設定(=ボードへ)。staff=担当者名(任意) */

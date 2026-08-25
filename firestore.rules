@@ -16,10 +16,11 @@ service cloud.firestore {
                     || (meActive() && resource.data.tenantId == myTenant()));
       // オーナー本人は自分のドキュメントを自由に作成/更新可(super昇格のため)
       allow write: if request.auth.uid == uid && isOwner();
-      // 一般の自己登録: active=false かつ role は admin/staff のみ
+      // 一般の自己登録は「メンバー(staff)として既存店舗へ参加」のみ許可(active=false)。
+      // 代表管理者(admin)アカウントは運営(営業)がサーバー(Admin SDK)で発行する。クライアントからのadmin自己作成は不可。
       allow create: if request.auth.uid == uid
                     && request.resource.data.active == false
-                    && request.resource.data.role in ['admin','staff'];
+                    && request.resource.data.role == 'staff';
       // 本人は 最終ログイン時刻 / プッシュトークン / 登録端末 のみ更新可(役割・所属などは変更不可)
       // 端末数は deviceLimit(既定2)まで。deviceLimit 自体は本人には変更させない(=有料枠の付与は下の admin/super のみ)。
       allow update: if request.auth.uid == uid
@@ -41,7 +42,8 @@ service cloud.firestore {
 
     match /tenants/{tid} {
       allow read: if signedIn();
-      allow create: if signedIn() && (request.resource.data.active == false || isOwner());
+      // 店舗(事業所)の作成は運営(super)のみ。契約発行はサーバー(Admin SDK)が実行するため一般ユーザーの自由作成は不可。
+      allow create: if isSuper();
       allow delete: if isSuper();
       // 更新は運営(super)のみ。有料/無料の切り替え(aiPaidFallback)も運営だけが変更可。
       allow update: if isSuper();

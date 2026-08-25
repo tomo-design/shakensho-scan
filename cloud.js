@@ -440,6 +440,12 @@
   window.addEventListener("online", autoResync);
 
   async function signup(isNewCompany) {
+    // 会社(事業所)の新規登録は自由登録を廃止。契約後に運営(営業)が発行したアカウントでのみ利用可能。
+    // 身に覚えのない事業所が「承認待ち」に並ぶのを防ぐため、クライアントからの新規会社作成はここで停止する。
+    if (isNewCompany) {
+      $("cloudAuthStat").innerHTML = "会社（事業所）の新規登録は、ご契約後に運営が発行するアカウントでのみ行えます。<br>まずは<b>お問い合わせ</b>からご連絡ください。契約後にお送りする<b>ログインID・初期パスワード</b>で「ログイン」してご利用いただけます。";
+      return;
+    }
     const name = $("cloudName").value.trim();
     const email = $("cloudEmail").value.trim(), pw = $("cloudPw").value;
     let tid = ($("cloudTenant").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""));
@@ -564,6 +570,9 @@
     try { if (inLogged) localStorage.setItem("ss_hadSession", "1"); } catch (e) {}
     if (typeof window.updateAuthGate === "function") window.updateAuthGate();   // 認証状態が確定したのでログインゲートを再評価
     if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
+    // ログイン/ログアウト/店舗切替で入庫ボードを再描画 → 自店舗以外のレコードを画面から即座に外す
+    try { if (typeof renderIntakeBoard === "function") renderIntakeBoard(); } catch (e) {}
+    try { if (typeof renderHomeIntake === "function") renderHomeIntake(); } catch (e) {}
     show("cloudLoggedOut", !inLogged);
     show("cloudLoggedIn", inLogged);
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
@@ -711,6 +720,7 @@
           }
           if (!e) { e = { id: Date.now() + Math.random(), rid: r.rid || d.id }; hist.unshift(e); }
           if (!e.rid) e.rid = r.rid || d.id;   // 既存エントリにも不変IDを付与(以降の照合を安定化)
+          e._tid = tid;   // どの店舗のレコードか刻む(入庫ボードを自店舗のみに絞るため)
           // 整備カルテは追記のみ(削除しない)なので両端末の追加を失わないよう常にunion統合
           if (typeof mergeKarte === "function") e.karte = mergeKarte(e.karte, r.karte);
           // コメント履歴も追記のみ(削除しない)。両端末の投稿を失わないよう常にunion統合
@@ -876,6 +886,8 @@
     myName() { return (profile && profile.name) || (me && me.email) || ""; },
     myUid() { return (me && me.uid) || ""; },
     myRole() { return (profile && profile.role) || ""; },
+    tenantId() { return (profile && profile.tenantId) || ""; },
+    isSuper() { return !!(profile && profile.role === "super"); },
     isLoggedIn() { return !!me; },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
