@@ -3518,8 +3518,10 @@ function renderHomeIntake() {
     // 行 = 表示部(横スワイプで動く .hiSlide) + 背後の出庫ボタン(.hiOutWrap)
     const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const slide = document.createElement("div"); slide.className = "hiSlide";
-    const main = document.createElement("div"); main.className = "hiMain hiNoTap";
+    const main = document.createElement("div"); main.className = "hiMain";
     main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
+    // 車両をタップ → コメント(申し送り)スレッドを開く。スワイプ直後のクリックはaddSwipeRevealが抑制する。
+    main.addEventListener("click", () => { try { openIntakeComments(h.rid); } catch (e) {} });
     // 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ→担当者を設定
     const staff = document.createElement("button");
     staff.className = "hiStaff" + (h.staff ? " on" : "");
