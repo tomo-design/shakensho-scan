@@ -1482,8 +1482,10 @@
   try {
     const hdr = document.querySelector("header"); let taps = 0, tm = null;
     if (hdr) hdr.addEventListener("click", () => {
-      // ストア(個人版)アプリでは管理者(運営)ログインへの5回タップ導線を無効化
-      if (document.body.classList.contains("storeApp")) { taps = 0; return; }
+      // 個人版(Pocket=ストア版/Web版とも)では管理者(運営)ログインへの5回タップ導線を無効化
+      const isPersonal = document.body.classList.contains("storeApp") ||
+        (typeof window.getAppMode === "function" && window.getAppMode() === "personal");
+      if (isPersonal) { taps = 0; return; }
       taps++; clearTimeout(tm); tm = setTimeout(() => taps = 0, 1500);
       if (taps >= 5) {
         taps = 0;
