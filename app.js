@@ -6625,6 +6625,10 @@ function switchView(name) {
   // 表示に切り替わった時、内容のある自動拡大欄の高さを再計算(タブ移動で縮むのを防ぐ)
   if (typeof autoGrowAll === "function") requestAnimationFrame(autoGrowAll);
   window.scrollTo(0, 0);
+  // 設定画面(ログインフォーム)から離れたら一時退避を解除し、未ログインならログインゲートを再表示
+  // (未認証のまま「戻る」でメイン画面へ入れてしまう不具合の対策)
+  if (name !== "settings") { window._gateBypass = false; }
+  try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
 }
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => {
@@ -7124,6 +7128,9 @@ const DEMO_REPAIR = {
 function isDemo() { try { return sessionStorage.getItem("ss_demo") === "1"; } catch (e) { return false; } }
 /* ログインゲート: 法人モードで未ログイン&非デモなら全画面のログイン案内を出す(誰でも使える状態にしない) */
 let _authResolved = false;
+window._gateBypass = window._gateBypass || false;   // ログインフォーム操作中だけゲートを一時退避(設定画面に居る間のみ)
+// 一度でもゲートが必要になったら、ログイン/デモを完了するまで必須にする(モード切替や「戻る」で回避させない)
+function needAuthSticky() { try { return sessionStorage.getItem("ss_needAuth") === "1"; } catch (e) { return false; } }
 function refreshAuthGate() {
   const gate = $("authGate"); if (!gate) return;
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
@@ -7131,7 +7138,14 @@ function refreshAuthGate() {
   // 一度ログインした端末は再ログインを求めない(更新・再読込で認証復元が遅れてもゲートを出さない)
   let hadSession = false; try { hadSession = localStorage.getItem("ss_hadSession") === "1"; } catch (e) {}
   // 認証状態が未解決の初回はゲートを出さない(ログイン済みユーザーへのちらつき防止)
-  const block = _authResolved && !personal && !isDemo() && !loggedIn && !hadSession;
+  // 未ログインなら法人・個人どちらのモードでもゲートを出す(未認証のままメイン画面へ入れない)。
+  let gated = _authResolved && !isDemo() && !loggedIn && !hadSession;
+  // 一度ゲートが立ったら、ログイン/デモ完了まで必須を維持(モードを個人へ切替えても解除しない)
+  if (gated) { try { sessionStorage.setItem("ss_needAuth", "1"); } catch (e) {} }
+  else if (loggedIn || isDemo()) { try { sessionStorage.removeItem("ss_needAuth"); } catch (e) {} }
+  if (!gated && needAuthSticky() && !loggedIn && !isDemo() && !hadSession) gated = _authResolved;
+  // 設定画面でログインフォームを操作している間だけ、ゲートを一時的に隠す
+  const block = gated && !(window._gateBypass && curView === "settings");
   gate.classList.toggle("hidden", !block);
   document.body.classList.toggle("gated", block);
 }
@@ -7139,9 +7153,9 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
 (function bindAuthGate() {
   const g = document.getElementById("authGate"); if (!g) return;
   const toSettings = (mode) => {
+    window._gateBypass = true;   // ログインフォーム操作のため一時退避
     try { switchView("settings"); } catch (e) {}
-    // 一旦ゲートを隠してログインフォームを操作できるように
-    g.classList.add("hidden"); document.body.classList.remove("gated");
+    refreshAuthGate();    // bypass中かつ設定画面なのでゲートは隠れる
     setTimeout(() => {
       if (mode === "login") {
         const b = document.getElementById("btnModeLogin"); if (b) b.click();
@@ -7153,13 +7167,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
       const el = document.getElementById("secCloudSync"); if (el) el.scrollIntoView({ behavior: "smooth" });
     }, 60);
   };
-  const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => toSettings("login"));
-  const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("choice"));
+  // Works=法人モード / Pocket=個人モードに切替えてからログイン(発行IDのエディションと一致させる)
+  const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("login"); });
+  const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("choice"); });
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
-  // 個人版(Pocket) — Web申込(Stripe Checkout)。月額¥500 / 年額¥5,500・7日間無料。
   const ps = document.getElementById("agPocketStart");
   if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
-  const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => toSettings("login"));
+  const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => { try { setAppMode("personal"); } catch (e) {} toSettings("login"); });
   // スマホ・タブレット: Works/Pocket 横スワイプの現在位置をドットに反映 / ドットタップで移動
   const panels = document.querySelector("#authGate .agPanels");
   const dots = document.getElementById("agDots");
