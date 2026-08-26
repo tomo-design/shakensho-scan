@@ -7369,8 +7369,8 @@ function startDemo() {
   try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
   // ★URL(?demo=1)経由でもログインゲートを確実に解除(でないとゲートが前面に残り体験ガイドが操作できない)
   try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
-  // ★デモUIが整ってから体験ガイドを確実に開始(QR/URL流入でもガイドが走るように)
-  try { setTimeout(function () { if (window.mechaStartTour) window.mechaStartTour(false); }, 900); } catch (e) {}
+  // ★デモUIが整ってから体験ガイドを確実に開始。デモを開いたら毎回自動で走らせる(force=true)。
+  try { setTimeout(function () { if (window.mechaStartTour) window.mechaStartTour(true); }, 900); } catch (e) {}
 }
 (function initDemo() {
   let on = false;
