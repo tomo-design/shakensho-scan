@@ -1058,10 +1058,11 @@ async function issueContractAccount(db, info) {
   }
   const u = await admin.auth().createUser({ email, password: pw, displayName: name || company });
   uid = u.uid;
-  let loginId = pr.loginId;
+  const edition = info.edition === "personal" ? "personal" : "works";
+  // Pocket(個人版)はログインID＝申込メールアドレス。法人はテナント発行のログインID。
+  let loginId = edition === "personal" ? email : pr.loginId;
   const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
   if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
-  const edition = info.edition === "personal" ? "personal" : "works";
   await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, edition: edition, createdAt: Date.now() }, { merge: true });
   try { await db.collection("onboardTokens").doc(pr.token).set({ used: true }, { merge: true }); } catch (e) {}
   const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
@@ -2170,33 +2171,35 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
       const msgLine = message ? "【ご記入内容】\n" + message + "\n\n" : "";
       const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
 
-      if (intent === "contract") {
-        // 契約希望(=申込) → テナント＋7日トライアル＋Authユーザー＋初期パスワードを自動発行し、
-        // ログインID・初期パスワード・アプリQR入りの案内メールを自動返送(運営の手作業ゼロ)。
+      if (intent === "contract" || isPocket) {
+        // 契約希望(法人)/個人版(Pocket)申込 → テナント＋7日トライアル＋Authユーザー＋初期パスワードを
+        // 自動発行し、ログインID・初期パスワード入りの案内メールを自動返送(運営の手作業ゼロ)。
+        // PocketはログインID＝申込メールアドレス／edition=personal(Works不可)で発行する。
         // ※Stripe未設定でも provisionContract がトライアルで代替するため、必ずアカウントを発行する。
         try {
-          const acc = await issueContractAccount(db, { company, name, email, plan });
+          const acc = await issueContractAccount(db, {
+            company, name, email, plan,
+            edition: isPocket ? "personal" : "works",
+          });
           provisioned = true;
           replySubjectSent = acc.subject; replyBodySent = acc.body;
           sendMail(email, acc.subject, acc.body, replyAddr()).catch(() => {});
         } catch (e) {
-          console.error("契約自動発行エラー", e);
+          console.error((isPocket ? "Pocket" : "契約") + "自動発行エラー", e);
           // 既存アカウント等で発行できなかった場合は、下のフォールバック(受付メール)に回る。
         }
       }
 
       if (!provisioned && isPocket) {
-        // 個人版(Pocket)申込 → 受付のみ自動返信。ID/パスは営業チームが手動発行(Pocket専用)。
+        // 個人版(Pocket)で自動発行できなかった場合(既に登録済みメール等) → 受付のみ自動返信。
         const subject = "【メカノAI Pocket】お申し込みありがとうございます（自動返信）";
         const ack =
           "この度はメカノAI Pocket（個人版）へお申し込みいただきありがとうございます。\n\n" +
-          "以下のメールアドレスで受け付けました。\n" +
-          "　" + email + "\n\n" +
-          "追って営業チームより、Pocket専用のログインID・初期パスワードをお送りします。\n" +
-          "届きましたら、アプリの「Pocket ＞ ログイン」からご利用ください。\n\n" +
+          "ご入力のメールアドレス（" + email + "）は、既にアカウントが登録されています。\n" +
+          "お手数ですが、アプリの「Pocket ＞ ログイン」から既存のID・パスワードでログインしてください。\n\n" +
+          "パスワードをお忘れの場合は、本メールにご返信いただければ担当が再設定のご案内をいたします。\n\n" +
           "※このIDは個人版(Pocket)専用です。法人版(Works)ではご利用いただけません。\n" +
           "※7日間は無料でお試しいただけます（以降は月額¥500）。\n\n" +
-          "※本メールにご返信いただければ担当がご対応します。\n\n" +
           MAIL_SIGN;
         replySubjectSent = subject; replyBodySent = ack;
         sendMail(email, subject, ack, replyAddr()).catch(() => {});
@@ -2224,10 +2227,12 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     try {
       const opTo = cfg().sendgrid.notify;
       if (opTo) {
-        const kindLabel = intent === "pocket" ? "個人版(Pocket)申込・要ID発行" : (intent === "contract" ? "契約手続きの希望" : "資料・デモ希望");
-        const opSubject = (isPocket ? "【Pocket申込・要ID発行】" : ("【問い合わせ" + (intent === "contract" ? "・契約希望" : "") + "】")) + (company || "（会社名なし）") + " / " + (name || "");
+        const kindLabel = intent === "pocket" ? "個人版(Pocket)申込" : (intent === "contract" ? "契約手続きの希望" : "資料・デモ希望");
+        const opSubject = (isPocket ? ("【Pocket申込" + (provisioned ? "・自動発行済み" : "・要対応") + "】") : ("【問い合わせ" + (intent === "contract" ? "・契約希望" : "") + "】")) + (company || "（会社名なし）") + " / " + (name || "");
         const opBody =
-          (isPocket ? "アプリのログイン画面(Pocket)から個人版の利用申込が届きました。営業コンソールからPocket専用ID/パスを発行してください。\n\n"
+          (isPocket ? ("アプリのログイン画面(Pocket)から個人版の利用申込が届きました。" +
+                       (provisioned ? "Pocket専用アカウント(ID＝申込メール／edition=personal)を自動発行し、認証情報を申込者へ送信済みです。\n\n"
+                                    : "既存メール等で自動発行できませんでした。営業コンソールからご対応ください。\n\n"))
                     : "法人LPの問い合わせフォームから新規の問い合わせが届きました。\n\n") +
           "■ 種別: " + kindLabel + (provisioned ? "（アカウントを自動発行済み）" : "") + "\n" +
           "■ 会社名: " + (company || "（なし）") + "\n" +
@@ -2258,7 +2263,7 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
           notification: {
             title: intent === "pocket" ? "メカノAI 【Pocket】個人版申込" : (intent === "contract" ? "メカノAI 【契約】法人申込" : "メカノAI 法人問い合わせ"),
             body: intent === "pocket"
-              ? (email + " から個人版(Pocket)の申込。Pocket専用ID/パスの発行が必要です。")
+              ? (email + " から個人版(Pocket)の申込。" + (provisioned ? "専用アカウントを自動発行しました。" : "既存メール等で自動発行できず要対応。"))
               : (company + " / " + name + " さんから" +
                 (intent === "contract"
                   ? (provisioned ? "契約申込→専用リンクを自動発行しました。" : "契約手続きの希望が届きました（要対応）。")

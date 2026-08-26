@@ -7236,8 +7236,8 @@ function openPocketApply() {
         ov.querySelector(".ikCard").innerHTML =
           '<div class="ikTitle">お申し込みを受け付けました</div>' +
           '<div class="ikVeh" style="text-align:left;line-height:1.8">' +
-            '<b>' + email.replace(/</g, "&lt;") + '</b> 宛に、営業チームより<b>Pocket専用のID・パスワード</b>をお送りします。<br>' +
-            '<span style="font-size:12px;color:var(--dim)">届いたID/パスで「Pocket ＞ ログイン」からご利用ください。数分〜営業時間内にお届けします。</span>' +
+            '<b>' + email.replace(/</g, "&lt;") + '</b> 宛に、<b>Pocket専用のID・初期パスワード</b>を自動でお送りしました。<br>' +
+            '<span style="font-size:12px;color:var(--dim)">ログインIDは今のメールアドレスです。メールに記載の初期パスワードで「Pocket ＞ ログイン」からご利用ください（数分で届かない場合は迷惑メールもご確認ください）。</span>' +
           '</div>' +
           '<button type="button" class="agBtn agPocketLoginBtn" id="pocketApplyDone" style="margin:0">閉じる</button>';
         const done = document.getElementById("pocketApplyDone"); if (done) done.addEventListener("click", close);
