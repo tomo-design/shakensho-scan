@@ -186,11 +186,15 @@ function applyAppMode() {
 }
 /* Web版Pocket(個人モード・ストア版でない)でログイン中のときだけ、設定タブ最下部にログアウトを出す。 */
 function updatePocketAccountBox() {
-  const row = $("pocketLogoutRow"); if (!row) return;
+  const row = $("pocketLogoutRow");
+  const pwRow = $("pocketPwRow");
+  if (!row && !pwRow) return;
   const personal = getAppMode() === "personal";
   const isStore = document.body.classList.contains("storeApp");
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
-  row.classList.toggle("hidden", !(personal && !isStore && loggedIn));
+  const show = personal && !isStore && loggedIn;
+  if (row) row.classList.toggle("hidden", !show);
+  if (pwRow) pwRow.classList.toggle("hidden", !show);
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
@@ -7189,6 +7193,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
     const b = document.getElementById("btnCloudLogout");
     if (b) { try { b.click(); } catch (e) {} }
     try { updatePocketAccountBox(); } catch (e) {}
+  });
+  // Web版Pocketのパスワード変更(既存の同期セクションのボタンを再利用)
+  const ppw = document.getElementById("btnPocketChangePw");
+  if (ppw) ppw.addEventListener("click", () => {
+    const b = document.getElementById("btnCloudChangePw");
+    if (b) { try { b.click(); } catch (e) {} }
+    else alert("ログインしてからお試しください。");
   });
   const ps = document.getElementById("agPocketStart");
   if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
