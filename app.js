@@ -7214,14 +7214,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const panels = document.querySelector("#authGate .agPanels");
   const dots = document.getElementById("agDots");
   if (panels && dots) {
-    const dotEls = Array.prototype.slice.call(dots.querySelectorAll(".agDot"));
+    const swEls = Array.prototype.slice.call(dots.querySelectorAll(".agSw"));
     const sync = () => {
       const idx = panels.clientWidth ? Math.round(panels.scrollLeft / panels.clientWidth) : 0;
-      dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
-      const hint = document.getElementById("agSwipeHint"); if (hint) hint.style.opacity = idx === 0 ? ".85" : "0";
+      swEls.forEach((d, i) => d.classList.toggle("agSwOn", i === idx));
     };
     panels.addEventListener("scroll", () => { window.requestAnimationFrame(sync); }, { passive: true });
-    dotEls.forEach(d => d.addEventListener("click", () => {
+    swEls.forEach(d => d.addEventListener("click", () => {
       const i = +d.getAttribute("data-idx") || 0;
       panels.scrollTo({ left: i * panels.clientWidth, behavior: "smooth" });
     }));
@@ -7286,7 +7285,7 @@ function openPocketApply() {
     '<div class="ikCard" style="max-width:360px">' +
       '<div class="ikTitle">Pocket（個人版）を始める</div>' +
       '<div class="ikVeh" style="text-align:left;line-height:1.7">' +
-        'メールアドレスをご登録ください。営業チームより<b>Pocket専用のID・パスワード</b>を発行しお送りします。<br>' +
+        'メールアドレスをご登録ください。<b>Pocket専用のID・初期パスワード</b>を自動で発行し、すぐにメールでお送りします。<br>' +
         '<span style="font-size:12px;color:var(--dim)">7日間無料 → 月額¥500。このIDは個人版(Pocket)専用で、法人版(Works)ではご利用いただけません。</span>' +
       '</div>' +
       '<input type="email" id="pocketApplyEmail" inputmode="email" autocomplete="email" placeholder="you@example.com" ' +
@@ -7306,7 +7305,7 @@ function openPocketApply() {
   send.addEventListener("click", async () => {
     const email = (input.value || "").trim();
     if (!/^\S+@\S+\.\S+$/.test(email)) { msg.textContent = "メールアドレスの形式をご確認ください。"; return; }
-    msg.style.color = "var(--dim)"; msg.textContent = "送信中…";
+    msg.textContent = "";
     send.disabled = true; const t0 = send.textContent; send.textContent = "送信中…";
     try {
       const r = await fetch("https://asia-northeast1-mecanoai.cloudfunctions.net/bizInquiry", {

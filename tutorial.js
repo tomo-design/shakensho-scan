@@ -9,7 +9,9 @@
     try { return new URLSearchParams(location.search).get("demo") === "1" || sessionStorage.getItem("ss_demo") === "1"; }
     catch (e) { return false; }
   }
-  if (!isDemo()) return;
+  // ※以前はここで「デモでなければ即return」していたが、それだと window.mechaStartTour が定義されず、
+  //   ログインゲートの「デモを試す」から入った時にガイドが起動しなかった。
+  //   関数群は常に定義し、"自動開始"だけを末尾でデモ時のみ行う。
 
   var $ = function (s) { return document.querySelector(s); };
   function visible(sel) {
@@ -188,6 +190,7 @@
     if (ov) return;
     if (!force) { try { if (sessionStorage.getItem("ss_tourDone") === "1") return; } catch (e) {} }
     try { sessionStorage.setItem("ss_tourDone", "1"); } catch (e) {}
+    try { ensureReplay(); } catch (e) {}   // 「❓体験ガイド」再生ボタンを常に用意
     start();
   };
 
@@ -213,6 +216,10 @@
   window.addEventListener("resize", reposition);
   window.addEventListener("scroll", function () { if (ov) requestAnimationFrame(reposition); }, true);
 
-  if (document.readyState === "complete") waitAndStart();
-  else window.addEventListener("load", waitAndStart);
+  // 自動開始はデモ時のみ(?demo=1 / ss_demo)。ゲートの「デモを試す」経由は app.js の startDemo が
+  // mechaStartTour(true) を呼ぶので、ここで未定義にならないよう関数は常に公開しておく。
+  if (isDemo()) {
+    if (document.readyState === "complete") waitAndStart();
+    else window.addEventListener("load", waitAndStart);
+  }
 })();
