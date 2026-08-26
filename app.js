@@ -182,6 +182,20 @@ function applyAppMode() {
     eb.classList.toggle("ed-pocket", personal);
     eb.classList.toggle("ed-works", !personal);
   }
+  updatePocketAccountBox();
+}
+/* Web版Pocket(個人モード・ストア版でない)でログイン中のときだけ、設定にアカウント/ログアウト欄を出す。 */
+function updatePocketAccountBox() {
+  const box = $("pocketAccountBox"); if (!box) return;
+  const personal = getAppMode() === "personal";
+  const isStore = document.body.classList.contains("storeApp");
+  const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
+  const show = personal && !isStore && loggedIn;
+  box.classList.toggle("hidden", !show);
+  if (show) {
+    const em = $("pocketAcctEmail");
+    if (em) em.textContent = (window.Cloud.myName && window.Cloud.myName()) || "—";
+  }
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
@@ -7148,6 +7162,7 @@ function refreshAuthGate() {
   const block = gated && !(window._gateBypass && curView === "settings");
   gate.classList.toggle("hidden", !block);
   document.body.classList.toggle("gated", block);
+  try { updatePocketAccountBox(); } catch (e) {}
 }
 window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); };
 (function bindAuthGate() {
@@ -7171,6 +7186,15 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("login"); });
   const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("choice"); });
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
+  // Web版Pocketのログアウト(設定のアカウント欄)
+  const plo = document.getElementById("btnPocketLogout");
+  if (plo) plo.addEventListener("click", () => {
+    if (!confirm("ログアウトしますか？")) return;
+    // 既存の同期セクションのログアウト処理(hadSession削除＋signOut)を再利用(個人モードで非表示でもclickは有効)
+    const b = document.getElementById("btnCloudLogout");
+    if (b) { try { b.click(); } catch (e) {} }
+    try { updatePocketAccountBox(); } catch (e) {}
+  });
   const ps = document.getElementById("agPocketStart");
   if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
   const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => {
