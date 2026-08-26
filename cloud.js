@@ -908,6 +908,22 @@
     tenantId() { return (profile && profile.tenantId) || ""; },
     isSuper() { return !!(profile && profile.role === "super"); },
     isLoggedIn() { return !!me; },
+    // メール(またはログインID)＋パスワードでログイン。Web版Pocketのログインモーダル等から使用。
+    async login(emailOrId, pw) {
+      await persistReady;
+      let email = String(emailOrId || "").trim();
+      if (!email || !pw) throw new Error("メール(またはログインID)とパスワードを入力してください。");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        const r = await fetch("https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/loginIdLookup", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loginId: email }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.email) throw new Error("そのログインID／メールは見つかりません。");
+        email = j.email;
+      }
+      await auth.signInWithEmailAndPassword(email, pw);
+      return true;
+    },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
     // AIプロキシが使えるか(契約中の店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。

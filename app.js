@@ -7173,7 +7173,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
   const ps = document.getElementById("agPocketStart");
   if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
-  const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => { try { setAppMode("personal"); } catch (e) {} toSettings("login"); });
+  const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => {
+    try { setAppMode("personal"); } catch (e) {}
+    // Web版Pocketは専用ログインモーダルを表示(個人モードでは設定内の同期フォームが隠れているため)。
+    // Playストア(storeApp)版は従来動作のまま(このモーダルは出さない)。
+    if (document.body.classList.contains("storeApp")) { toSettings("login"); return; }
+    try { openPocketLogin(); } catch (e) { toSettings("login"); }
+  });
   // スマホ・タブレット: Works/Pocket 横スワイプの現在位置をドットに反映 / ドットタップで移動
   const panels = document.querySelector("#authGate .agPanels");
   const dots = document.getElementById("agDots");
@@ -7191,7 +7197,55 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
     }));
   }
 })();
-/* 個人版(Pocket)の申込: メールアドレスを受け取り、営業チームがPocket専用ID/パスを発行する。
+/* Web版Pocketのログイン: メール(またはID)＋パスワードのモーダルで直接ログイン。
+   ・個人モードでは設定内の同期フォームが隠れているため、専用モーダルで受け付ける。
+   ・Playストア(storeApp)版では呼ばない(従来動作のまま)。 */
+function openPocketLogin() {
+  let ov = document.getElementById("pocketLoginOv");
+  if (ov) ov.remove();
+  ov = document.createElement("div"); ov.id = "pocketLoginOv"; ov.className = "ikModal";
+  ov.style.zIndex = "700";   // ログインゲート(z-index:600)より前面に
+  ov.innerHTML =
+    '<div class="ikCard" style="max-width:360px">' +
+      '<div class="ikTitle">Pocket（個人版）にログイン</div>' +
+      '<div class="ikVeh" style="text-align:left;line-height:1.6;margin-bottom:6px">発行されたID（メールアドレス）とパスワードを入力してください。</div>' +
+      '<input type="email" id="pocketLoginEmail" inputmode="email" autocomplete="username" placeholder="ログインID（メールアドレス）" ' +
+        'style="width:100%;box-sizing:border-box;margin:4px 0;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
+      '<input type="password" id="pocketLoginPw" autocomplete="current-password" placeholder="パスワード" ' +
+        'style="width:100%;box-sizing:border-box;margin:4px 0 2px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
+      '<div id="pocketLoginMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
+      '<button type="button" class="agBtn agPocketLoginBtn" id="pocketLoginSend" style="margin:0">ログイン</button>' +
+      '<button type="button" class="ikLater" id="pocketLoginCancel">やめる</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const cancel = document.getElementById("pocketLoginCancel"); if (cancel) cancel.addEventListener("click", close);
+  const emailEl = document.getElementById("pocketLoginEmail");
+  const pwEl = document.getElementById("pocketLoginPw");
+  const msg = document.getElementById("pocketLoginMsg");
+  const send = document.getElementById("pocketLoginSend");
+  if (emailEl) emailEl.focus();
+  const doLogin = async () => {
+    const email = (emailEl.value || "").trim(); const pw = pwEl.value || "";
+    if (!email || !pw) { msg.style.color = "#c0392b"; msg.textContent = "IDとパスワードを入力してください。"; return; }
+    msg.style.color = "var(--dim)"; msg.textContent = "ログイン中…";
+    send.disabled = true; const t0 = send.textContent; send.textContent = "ログイン中…";
+    try {
+      await window.Cloud.login(email, pw);
+      close();   // 認証確定後はonAuthStateChangeがゲートを閉じてメイン画面へ
+    } catch (e) {
+      msg.style.color = "#c0392b";
+      const m = (e && e.message) || String(e);
+      msg.textContent = /password|user-not-found|invalid|credential|見つかりません/i.test(m)
+        ? "IDまたはパスワードが正しくありません。" : ("ログインに失敗しました: " + m);
+      send.disabled = false; send.textContent = t0;
+    }
+  };
+  send.addEventListener("click", doLogin);
+  pwEl.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+}
+/* 個人版(Pocket)の申込: メールアドレスを受け取り、その場でPocket専用ID/パスを自動発行する。
    ・発行されるアカウントはPocket専用(Worksでは使用不可)。7日間無料 → 月額¥500。 */
 function openPocketApply() {
   let ov = document.getElementById("pocketApplyOv");
