@@ -184,18 +184,13 @@ function applyAppMode() {
   }
   updatePocketAccountBox();
 }
-/* Web版Pocket(個人モード・ストア版でない)でログイン中のときだけ、設定にアカウント/ログアウト欄を出す。 */
+/* Web版Pocket(個人モード・ストア版でない)でログイン中のときだけ、設定タブ最下部にログアウトを出す。 */
 function updatePocketAccountBox() {
-  const box = $("pocketAccountBox"); if (!box) return;
+  const row = $("pocketLogoutRow"); if (!row) return;
   const personal = getAppMode() === "personal";
   const isStore = document.body.classList.contains("storeApp");
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
-  const show = personal && !isStore && loggedIn;
-  box.classList.toggle("hidden", !show);
-  if (show) {
-    const em = $("pocketAcctEmail");
-    if (em) em.textContent = (window.Cloud.myName && window.Cloud.myName()) || "—";
-  }
+  row.classList.toggle("hidden", !(personal && !isStore && loggedIn));
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };

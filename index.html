@@ -538,14 +538,6 @@
       <button class="btn btn-cyan btn-sm" id="btnJumpVision">📷 OCR用キー設定<span class="jarr"> ↓</span></button>
     </div>
   </div>
-  <!-- Web版Pocket専用: ログイン中のアカウント表示とログアウト(個人モードでは同期セクションが隠れるため) -->
-  <section id="pocketAccountBox" class="keyBanner hidden" style="margin-top:14px">
-    <div class="keyBannerTtl">👤 アカウント</div>
-    <div class="keyBannerBody">ログイン中：<b id="pocketAcctEmail">—</b></div>
-    <div class="keyBannerBtns">
-      <button class="btn btn-ghost btn-sm" id="btnPocketLogout">↩ ログアウト</button>
-    </div>
-  </section>
   <section id="secCloudSync" style="margin-top:14px">
     <details class="foldSec" open>
     <summary class="foldSecSum">クラウド同期</summary>
@@ -775,6 +767,8 @@
 
   <p class="note" id="verNote">バージョン情報を取得中…</p>
   <div style="text-align:center;margin:4px 0 12px"><button type="button" class="btn btn-ghost btn-sm" id="btnAppUpdate" style="flex:0 0 auto;display:inline-block;min-height:40px">🔄 アプリを最新に更新</button></div>
+  <!-- Web版Pocket専用: 設定タブ最下部のログアウト(個人モードでは同期セクションが隠れるため) -->
+  <div id="pocketLogoutRow" class="hidden" style="text-align:center;margin:8px 0 16px"><button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button></div>
 </div>
 
 <!-- ============ VIEW: ADMIN (運営・隠しタブ・superのみ) ============ -->
