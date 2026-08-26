@@ -1214,12 +1214,24 @@ body.gated{overflow:hidden}
 /* Pocketの主ボタン=ログイン。薄い青の塗り(青文字)。詳細度を上げて.agBtnに勝たせる。 */
 .agBtn.agPocketLoginBtn{background:#E4EDFF;color:#1D4ED8;border-color:#C6D8FA;font-weight:800}
 .agBtn.agPocketLoginBtn:active{filter:brightness(.97)}
+/* Worksの主ボタン=ログイン。青ベタをやめてPocketと同じ薄い青の塗りに揃える。 */
+.agBtn.agWorksLoginBtn{background:#E4EDFF;color:#1D4ED8;border-color:#C6D8FA;font-weight:800}
+.agBtn.agWorksLoginBtn:active{filter:brightness(.97)}
+/* 「会社を新規登録 / 参加」は必ず1行に収める(はみ出す端末では自動で少し縮小) */
+.agBtn.agNewBtn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:360px){ .agBtn.agNewBtn{font-size:13px;letter-spacing:-.02em} }
 .agFoot{display:flex;gap:10px;margin-top:14px}
 .agFoot .agBtn{margin-top:0}
+/* タブレット・スマホ: Works / Pocket を1枚ずつ横スワイプで切り替え(1画面に収める) */
+.agDots{display:none}
 @media (max-width:1024px){
   .agShell{max-width:420px;padding:16px 15px}
-  .agPanels{flex-direction:column;gap:9px}
-  .agPanel{padding:12px 13px}
+  /* 横スクロール＋スナップのカルーセル。スクロールバーは隠す。 */
+  .agPanels{display:flex;flex-direction:row;gap:0;margin-top:4px;
+    overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none}
+  .agPanels::-webkit-scrollbar{display:none}
+  .agPanel{flex:0 0 100%;width:100%;scroll-snap-align:center;padding:14px 14px}
   .agLogo{margin-bottom:6px}
   .agLogo img{width:44px;height:44px}
   .agLogo b{font-size:18px}
@@ -1227,7 +1239,13 @@ body.gated{overflow:hidden}
   .agPanelLead{margin-bottom:8px}
   .agBtn{padding:10px;margin-top:7px;font-size:14px}
   .agFoot{flex-direction:column;gap:7px;margin-top:9px}
+  /* 切替が分かるさりげないドット。現在位置を示す。 */
+  .agDots{display:flex;justify-content:center;align-items:center;gap:7px;margin:10px 0 2px}
+  .agDot{width:6px;height:6px;border-radius:50%;background:var(--line);transition:all .2s;padding:0;border:0;cursor:pointer}
+  .agDot.on{background:var(--dim);width:16px;border-radius:3px}
+  .agSwipeHint{display:block;text-align:center;font-size:11px;color:var(--dim);margin-top:6px;opacity:.85}
 }
+.agSwipeHint{display:none}
 .agLogo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px}
 .agLogo img{width:52px;height:52px;border-radius:13px;object-fit:cover}
 .agLogo b{display:block;font-size:20px;color:var(--txt);line-height:1.1;text-align:left}
@@ -1240,6 +1258,7 @@ body.gated{overflow:hidden}
 .agBtn:active{filter:brightness(.95)}
 .agDiv{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px;margin:14px 2px 4px}
 .agDiv::before,.agDiv::after{content:"";flex:1;height:1px;background:var(--line)}
+.kVal.kValPre{line-height:1.65}
 
 /* ホームの入庫状況(管理者のみ・コンパクト) */
 .homeIntake{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}

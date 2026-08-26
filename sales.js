@@ -566,10 +566,11 @@
     const name = $("isName").value.trim();
     const email = $("isEmail").value.trim();
     const plan = $("isPlan").value;
+    const edition = ($("isEdition") && $("isEdition").value === "personal") ? "personal" : "works";
     if (!company || !email) { $("isStat").textContent = "会社名とメールアドレスは必須です。"; return; }
     $("btnIssue").disabled = true; $("isStat").textContent = "発行中…";
     try {
-      const r = await api("issueAccount", { company, name, email, plan });
+      const r = await api("issueAccount", { company, name, email, plan, edition });
       issuedMail = r.body || "";
       $("isCreds").innerHTML =
         '<div class="isRow"><span>ログインID</span><b>' + esc(r.loginId) + '</b></div>' +
@@ -590,11 +591,12 @@
     (window.copyText ? window.copyText(issuedMail) : navigator.clipboard.writeText(issuedMail)).then(() => toast("メール本文をコピーしました")).catch(() => toast("コピーできませんでした"));
   if ($("btnIssueSend")) $("btnIssueSend").onclick = async () => {
     const company = $("isCompany").value.trim(), name = $("isName").value.trim(), email = $("isEmail").value.trim(), plan = $("isPlan").value;
+    const edition = ($("isEdition") && $("isEdition").value === "personal") ? "personal" : "works";
     if (!email) return;
     if (!confirm(email + " 宛に案内メールを送信します。よろしいですか？\n（※パスワードが変わるため、既に発行済みの場合は新しいパスワードで上書きされます）")) return;
     $("btnIssueSend").disabled = true; $("isSendStat").textContent = "送信中…";
     try {
-      const r = await api("issueAccount", { company, name, email, plan, send: true });
+      const r = await api("issueAccount", { company, name, email, plan, send: true, edition });
       issuedMail = r.body || issuedMail;
       $("isMail").value = r.body || $("isMail").value;
       $("isCreds").querySelector(".isPw") && ($("isCreds").querySelector(".isPw").textContent = r.password);

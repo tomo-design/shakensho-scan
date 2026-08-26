@@ -833,8 +833,8 @@
       <div class="agPanel agPanel-works">
         <div class="agPanelHead"><span class="agEd ed-works">Works</span>会社・チームで使う</div>
         <p class="agPanelLead">社内で車両データ・整備記録・入庫管理を共有。</p>
-        <button type="button" class="agBtn agPrimary" id="agLogin">ログイン</button>
-        <button type="button" class="agBtn" id="agNew">会社を新規登録 / メンバーとして参加</button>
+        <button type="button" class="agBtn agWorksLoginBtn" id="agLogin">ログイン</button>
+        <button type="button" class="agBtn agNewBtn" id="agNew">会社を新規登録 / 参加</button>
       </div>
       <!-- 個人版(Pocket) -->
       <div class="agPanel agPanel-pocket">
@@ -844,6 +844,12 @@
         <button type="button" class="agBtn" id="agPocketStart">7日間無料ではじめる</button>
       </div>
     </div>
+    <!-- スマホ・タブレット時のみ表示: 横スワイプの現在位置ドット＆ヒント -->
+    <div class="agDots" id="agDots" aria-hidden="true">
+      <button type="button" class="agDot on" data-idx="0" aria-label="Works"></button>
+      <button type="button" class="agDot" data-idx="1" aria-label="Pocket"></button>
+    </div>
+    <div class="agSwipeHint" id="agSwipeHint">← スワイプで Works / Pocket を切替 →</div>
     <div class="agFoot">
       <button type="button" class="agBtn agGhost" id="agDemo">🎬 ログインせずにデモを試す</button>
       <a href="biz.html#contact" class="agBtn agGhost" id="agContact" style="text-align:center;text-decoration:none">✉ お問い合わせ・お申し込み</a>

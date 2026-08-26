@@ -1018,9 +1018,11 @@ async function provisionContract(db, info) {
   } catch (e) { console.error("provision Stripe失敗", e); }
   if (!trialEnd) trialEnd = Date.now() + 7 * 86400000;
   const loginId = await genLoginId(db, info.company);
+  const edition = info.edition === "personal" ? "personal" : "works";
   await db.collection("tenants").doc(tid).set({
     name: info.company, aiPlan: planCode, plan: "trial", aiPaidFallback: (planCode !== "na"),
     paidUntil: trialEnd, stripeCustomerId: stripeCustomerId, seats: 1,
+    edition: edition,   // personal=Pocket専用 / works=法人。ログイン時にアプリ版と突き合わせて相互ログインを防ぐ。
     provisioned: true, provisionedAt: Date.now(), contactEmail: info.email,
   }, { merge: true });
   const token = crypto.randomBytes(24).toString("hex");
@@ -1059,12 +1061,28 @@ async function issueContractAccount(db, info) {
   let loginId = pr.loginId;
   const dup = await db.collection("users").where("loginId", "==", loginId).limit(1).get();
   if (!dup.empty && dup.docs[0].id !== uid) loginId = loginId + "-" + Math.random().toString(36).slice(2, 5);
-  await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, createdAt: Date.now() }, { merge: true });
+  const edition = info.edition === "personal" ? "personal" : "works";
+  await db.collection("users").doc(uid).set({ name: name || company, email, tenantId: pr.tid, role: "admin", active: true, rejected: false, loginId, deviceLimit: 2, edition: edition, createdAt: Date.now() }, { merge: true });
   try { await db.collection("onboardTokens").doc(pr.token).set({ used: true }, { merge: true }); } catch (e) {}
   const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
   const corpUrl = appUrl + "?corp=1";
   const qrUrl = "https://quickchart.io/qr?size=300&margin=1&text=" + encodeURIComponent(corpUrl);
   const storeCode = pr.tid;   // 店舗コード(従業員の参加用) = テナントID
+  // 個人版(Pocket)は専用の案内メール(店舗コード・従業員参加の説明なし)。IDはPocket専用。
+  if (edition === "personal") {
+    const subjectP = "【メカノAI Pocket】ログイン情報のご案内";
+    const bodyP = (name ? name + " 様" : "お客様") + "\n\n" +
+      "この度はメカノAI Pocket（個人版）にお申し込みいただき、誠にありがとうございます。\n" +
+      "下記の情報で、すぐにご利用いただけます。\n\n" +
+      "▼ログインID\n" + loginId + "\n（メールアドレス " + email + " でもログインできます）\n\n" +
+      "▼初期パスワード\n" + pw + "\n（安全のため、初回ログイン後に『設定 → クラウド同期 → 🔑パスワード変更』で任意のパスワードへ変更してください）\n\n" +
+      "▼ご利用方法\n" + appUrl + "\n　アプリを開き「Pocket ＞ ログイン」から上記ID・パスワードでログインしてください。\n\n" +
+      "▼ご料金\n7日間は無料でお試しいただけます（以降は月額¥500）。\n\n" +
+      "※このID・パスワードは個人版(Pocket)専用です。法人版(Works)ではご利用いただけません。\n\n" +
+      "▼詳しい使い方\n" + appUrl + "manual.html\n\n" +
+      MAIL_SIGN;
+    return { loginId, email, password: pw, planLabel, tid: pr.tid, corpUrl: appUrl, qrUrl, subject: subjectP, body: bodyP };
+  }
   const subject = "【メカノAI】お申し込みありがとうございます（ログイン情報のご案内）";
   const body = (name ? name + " 様" : company + " 御中") + "\n\n" +
     "この度はメカノAI（" + planLabel + "プラン）にお申し込みいただき、誠にありがとうございます。\n" +
@@ -2012,9 +2030,10 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     const name = String(data.name || "").trim();
     const email = String(data.email || "").trim().toLowerCase();
     const plan = String(data.plan || "ターボ");
+    const edition = data.edition === "personal" ? "personal" : "works";
     if (!company || !email) return res.status(400).json({ error: "会社名とメールアドレスは必須です。" });
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
-    const acc = await issueContractAccount(db, { company, name, email, plan });
+    const acc = await issueContractAccount(db, { company, name, email, plan, edition });
     let sent = false;
     if (data.send === true) { try { await sendMail(acc.email, acc.subject, acc.body, replyAddr()); sent = true; } catch (e) {} }
     return res.json({ ok: true, loginId: acc.loginId, email: acc.email, password: acc.password, planLabel: acc.planLabel, tid: acc.tid, corpUrl: acc.corpUrl, qrUrl: acc.qrUrl, subject: acc.subject, body: acc.body, sent: sent });
@@ -2114,9 +2133,16 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
   const company = clean(d.company, 200), name = clean(d.name, 120);
   const email = clean(d.email, 200), phone = clean(d.phone, 60);
   const kind = clean(d.kind, 60), plan = clean(d.plan, 40), message = clean(d.message, 4000);
-  // 申込の種類: contract=契約手続きを進めたい / doc=資料・デモ希望(既定)
-  const intent = clean(d.intent, 20) === "contract" ? "contract" : "doc";
-  if (!company || !name) return res.status(400).json({ error: "会社名とお名前は必須です。" });
+  // 申込の種類: pocket=個人版Pocket申込 / contract=契約手続きを進めたい / doc=資料・デモ希望(既定)
+  const rawIntent = clean(d.intent, 20);
+  const isPocket = (kind === "pocket" || rawIntent === "pocket");
+  const intent = isPocket ? "pocket" : (rawIntent === "contract" ? "contract" : "doc");
+  // Pocket(個人版)はメールのみ必須。法人問い合わせは会社名・お名前が必須。
+  if (isPocket) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
+  } else {
+    if (!company || !name) return res.status(400).json({ error: "会社名とお名前は必須です。" });
+  }
   if (!email && !phone) return res.status(400).json({ error: "メールまたは電話のいずれかは必須です。" });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "メールアドレスの形式が正しくありません。" });
 
@@ -2159,7 +2185,22 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
         }
       }
 
-      if (!provisioned) {
+      if (!provisioned && isPocket) {
+        // 個人版(Pocket)申込 → 受付のみ自動返信。ID/パスは営業チームが手動発行(Pocket専用)。
+        const subject = "【メカノAI Pocket】お申し込みありがとうございます（自動返信）";
+        const ack =
+          "この度はメカノAI Pocket（個人版）へお申し込みいただきありがとうございます。\n\n" +
+          "以下のメールアドレスで受け付けました。\n" +
+          "　" + email + "\n\n" +
+          "追って営業チームより、Pocket専用のログインID・初期パスワードをお送りします。\n" +
+          "届きましたら、アプリの「Pocket ＞ ログイン」からご利用ください。\n\n" +
+          "※このIDは個人版(Pocket)専用です。法人版(Works)ではご利用いただけません。\n" +
+          "※7日間は無料でお試しいただけます（以降は月額¥500）。\n\n" +
+          "※本メールにご返信いただければ担当がご対応します。\n\n" +
+          MAIL_SIGN;
+        replySubjectSent = subject; replyBodySent = ack;
+        sendMail(email, subject, ack, replyAddr()).catch(() => {});
+      } else if (!provisioned) {
         // 資料・デモ希望、または契約自動発行できなかった場合のフォールバック
         const subject = "【メカノAI】お問い合わせありがとうございます（自動返信）";
         const ack = head +
@@ -2183,10 +2224,12 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     try {
       const opTo = cfg().sendgrid.notify;
       if (opTo) {
-        const opSubject = "【問い合わせ" + (intent === "contract" ? "・契約希望" : "") + "】" + (company || "（会社名なし）") + " / " + (name || "");
+        const kindLabel = intent === "pocket" ? "個人版(Pocket)申込・要ID発行" : (intent === "contract" ? "契約手続きの希望" : "資料・デモ希望");
+        const opSubject = (isPocket ? "【Pocket申込・要ID発行】" : ("【問い合わせ" + (intent === "contract" ? "・契約希望" : "") + "】")) + (company || "（会社名なし）") + " / " + (name || "");
         const opBody =
-          "法人LPの問い合わせフォームから新規の問い合わせが届きました。\n\n" +
-          "■ 種別: " + (intent === "contract" ? "契約手続きの希望" : "資料・デモ希望") + (provisioned ? "（アカウントを自動発行済み）" : "") + "\n" +
+          (isPocket ? "アプリのログイン画面(Pocket)から個人版の利用申込が届きました。営業コンソールからPocket専用ID/パスを発行してください。\n\n"
+                    : "法人LPの問い合わせフォームから新規の問い合わせが届きました。\n\n") +
+          "■ 種別: " + kindLabel + (provisioned ? "（アカウントを自動発行済み）" : "") + "\n" +
           "■ 会社名: " + (company || "（なし）") + "\n" +
           "■ お名前: " + (name || "（なし）") + "\n" +
           "■ メール: " + (email || "（なし）") + "\n" +
@@ -2213,11 +2256,13 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
         await admin.messaging().sendEachForMulticast({
           tokens: uniqTokens,
           notification: {
-            title: intent === "contract" ? "メカノAI 【契約】法人申込" : "メカノAI 法人問い合わせ",
-            body: company + " / " + name + " さんから" +
-              (intent === "contract"
-                ? (provisioned ? "契約申込→専用リンクを自動発行しました。" : "契約手続きの希望が届きました（要対応）。")
-                : "資料請求・デモ申込が届きました。") + (plan ? " プラン:" + plan : ""),
+            title: intent === "pocket" ? "メカノAI 【Pocket】個人版申込" : (intent === "contract" ? "メカノAI 【契約】法人申込" : "メカノAI 法人問い合わせ"),
+            body: intent === "pocket"
+              ? (email + " から個人版(Pocket)の申込。Pocket専用ID/パスの発行が必要です。")
+              : (company + " / " + name + " さんから" +
+                (intent === "contract"
+                  ? (provisioned ? "契約申込→専用リンクを自動発行しました。" : "契約手続きの希望が届きました（要対応）。")
+                  : "資料請求・デモ申込が届きました。") + (plan ? " プラン:" + plan : "")),
           },
           webpush: { fcmOptions: { link: "/sales.html" } },
         });

@@ -2281,9 +2281,15 @@ function renderKarte() {
       return '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">部品</span><span class="kQtyLbl">数量</span></div>' +
         '<ul class="kItems kPartRows">' + rows.map(r => '<li><span class="kPn">' + fmtName(r.n) + '</span><span class="kQty">' + esc(r.q) + '</span></li>').join("") + '</ul></div>';
     };
+    // AI自動記録のメモは「・箇条書き」にせず、改行をそのまま活かして表示(見出し＋①②…の素の行)
+    const noteBlock = (label, val) => {
+      if (!val) return "";
+      const html = esc(keepUnit(han(String(val)))).replace(/\n/g, "<br>");
+      return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal kValPre">' + html + '</div></div>';
+    };
     body.innerHTML = block("作業", k.work) + partsBlock(k.parts) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
-      block("メモ", k.note);
+      (k.auto ? noteBlock("メモ", k.note) : block("メモ", k.note));
     card.append(head, body); box.appendChild(card);
   });
 }
@@ -5230,7 +5236,10 @@ function summarizeDiagText(t) {
       if (causes.length >= 3) break;
     }
   }
-  if (causes.length) return "考えられる原因: " + causes.join("、");
+  if (causes.length) {
+    const circ = ["①", "②", "③", "④", "⑤"];
+    return "考えられる原因\n" + causes.map((c, i) => (circ[i] || (i + 1) + ".") + " " + c).join("\n");
+  }
   const first = lines.filter(l => !/^[■【]/.test(l)).join(" ").replace(/\s+/g, " ").trim();
   return first.slice(0, 120);
 }
@@ -5241,8 +5250,8 @@ function summarizeRepairText(obj, q) {
   if (obj.location) parts.push("位置: " + String(obj.location).replace(/\s+/g, " ").trim().slice(0, 40));
   if (obj.time) parts.push("所要: " + String(obj.time).replace(/\s+/g, " ").trim().slice(0, 30));
   const steps = Array.isArray(obj.order) ? obj.order.length : (Array.isArray(obj.steps) ? obj.steps.length : 0);
-  if (steps) parts.push("手順 " + steps + " ステップ");
-  if (parts.length) return parts.join(" / ");
+  if (steps) parts.push("手順: " + steps + " ステップ");
+  if (parts.length) return parts.join("\n");
   const a = String(obj.answer == null ? "" : obj.answer).replace(/\*\*(.+?)\*\*/g, "$1").replace(/\s+/g, " ").trim();
   return a.slice(0, 120);
 }
@@ -7147,14 +7156,85 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => toSettings("login"));
   const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => toSettings("choice"));
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
-  // 個人版(Pocket) — Web申込/ログイン。※課金(Stripe)フローは別途接続予定(暫定はお申し込み/ログイン)。
+  // 個人版(Pocket) — Web申込(Stripe Checkout)。月額¥500 / 年額¥5,500・7日間無料。
   const ps = document.getElementById("agPocketStart");
-  if (ps) ps.addEventListener("click", () => {
-    // TODO: Stripe(Pocket ¥500/月・7日無料)の決済リンク/Checkoutへ差し替える。暫定はお申し込みへ。
-    try { location.href = "biz.html#contact"; } catch (e) {}
-  });
+  if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
   const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => toSettings("login"));
+  // スマホ・タブレット: Works/Pocket 横スワイプの現在位置をドットに反映 / ドットタップで移動
+  const panels = document.querySelector("#authGate .agPanels");
+  const dots = document.getElementById("agDots");
+  if (panels && dots) {
+    const dotEls = Array.prototype.slice.call(dots.querySelectorAll(".agDot"));
+    const sync = () => {
+      const idx = panels.clientWidth ? Math.round(panels.scrollLeft / panels.clientWidth) : 0;
+      dotEls.forEach((d, i) => d.classList.toggle("on", i === idx));
+      const hint = document.getElementById("agSwipeHint"); if (hint) hint.style.opacity = idx === 0 ? ".85" : "0";
+    };
+    panels.addEventListener("scroll", () => { window.requestAnimationFrame(sync); }, { passive: true });
+    dotEls.forEach(d => d.addEventListener("click", () => {
+      const i = +d.getAttribute("data-idx") || 0;
+      panels.scrollTo({ left: i * panels.clientWidth, behavior: "smooth" });
+    }));
+  }
 })();
+/* 個人版(Pocket)の申込: メールアドレスを受け取り、営業チームがPocket専用ID/パスを発行する。
+   ・発行されるアカウントはPocket専用(Worksでは使用不可)。7日間無料 → 月額¥500。 */
+function openPocketApply() {
+  let ov = document.getElementById("pocketApplyOv");
+  if (ov) ov.remove();
+  ov = document.createElement("div"); ov.id = "pocketApplyOv"; ov.className = "ikModal";
+  ov.innerHTML =
+    '<div class="ikCard" style="max-width:360px">' +
+      '<div class="ikTitle">Pocket（個人版）を始める</div>' +
+      '<div class="ikVeh" style="text-align:left;line-height:1.7">' +
+        'メールアドレスをご登録ください。営業チームより<b>Pocket専用のID・パスワード</b>を発行しお送りします。<br>' +
+        '<span style="font-size:12px;color:var(--dim)">7日間無料 → 月額¥500。このIDは個人版(Pocket)専用で、法人版(Works)ではご利用いただけません。</span>' +
+      '</div>' +
+      '<input type="email" id="pocketApplyEmail" inputmode="email" autocomplete="email" placeholder="you@example.com" ' +
+        'style="width:100%;box-sizing:border-box;margin:4px 0 2px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
+      '<div id="pocketApplyMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
+      '<button type="button" class="agBtn agPocketLoginBtn" id="pocketApplySend" style="margin:0">この内容で申し込む</button>' +
+      '<button type="button" class="ikLater" id="pocketApplyCancel">やめる</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const cancel = document.getElementById("pocketApplyCancel"); if (cancel) cancel.addEventListener("click", close);
+  const input = document.getElementById("pocketApplyEmail");
+  const msg = document.getElementById("pocketApplyMsg");
+  const send = document.getElementById("pocketApplySend");
+  if (input) input.focus();
+  send.addEventListener("click", async () => {
+    const email = (input.value || "").trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { msg.textContent = "メールアドレスの形式をご確認ください。"; return; }
+    msg.style.color = "var(--dim)"; msg.textContent = "送信中…";
+    send.disabled = true; const t0 = send.textContent; send.textContent = "送信中…";
+    try {
+      const r = await fetch("https://asia-northeast1-mecanoai.cloudfunctions.net/bizInquiry", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "pocket", intent: "pocket", email: email,
+          company: "個人（Pocket）", name: "", plan: "Pocket 個人版",
+          message: "Pocket（個人版）の利用申込。Pocket専用ID/パスの発行を希望。" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d && d.ok !== false) {
+        ov.querySelector(".ikCard").innerHTML =
+          '<div class="ikTitle">お申し込みを受け付けました</div>' +
+          '<div class="ikVeh" style="text-align:left;line-height:1.8">' +
+            '<b>' + email.replace(/</g, "&lt;") + '</b> 宛に、営業チームより<b>Pocket専用のID・パスワード</b>をお送りします。<br>' +
+            '<span style="font-size:12px;color:var(--dim)">届いたID/パスで「Pocket ＞ ログイン」からご利用ください。数分〜営業時間内にお届けします。</span>' +
+          '</div>' +
+          '<button type="button" class="agBtn agPocketLoginBtn" id="pocketApplyDone" style="margin:0">閉じる</button>';
+        const done = document.getElementById("pocketApplyDone"); if (done) done.addEventListener("click", close);
+        return;
+      }
+      msg.style.color = "#c0392b"; msg.textContent = (d && d.error) || "送信に失敗しました。時間をおいて再度お試しください。";
+    } catch (e) {
+      msg.style.color = "#c0392b"; msg.textContent = "通信に失敗しました: " + (e.message || e);
+    }
+    send.disabled = false; send.textContent = t0;
+  });
+}
 /* デモ用のAI固定回答。プロンプト内容から諸元/修理/会話を判定して返す(ネットワーク未使用) */
 function demoAnswer(prompt) {
   const p = String(prompt || "");

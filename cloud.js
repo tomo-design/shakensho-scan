@@ -525,6 +525,25 @@
         profile = doc.data();
       }
     } catch (e) { profile = null; }
+    // ★エディション分離★ Pocket専用IDはWorksで、Works用IDはPocketで使わせない(運営/オーナーは除外)。
+    try {
+      const appMode = (window.getAppMode && window.getAppMode()) || "corp";
+      const isOwnerAcct = user.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
+      const superRole = profile && profile.role === "super";
+      if (profile && !isOwnerAcct && !superRole) {
+        const acctEdition = profile.edition === "personal" ? "personal" : "works";
+        const wantPersonal = appMode === "personal";
+        if (wantPersonal !== (acctEdition === "personal")) {
+          const msg = acctEdition === "personal"
+            ? "このID・パスワードは個人版(Pocket)専用です。法人版(Works)ではログインできません。Pocket版アプリからログインしてください。"
+            : "このID・パスワードは法人版(Works)専用です。個人版(Pocket)ではログインできません。";
+          try { await auth.signOut(); } catch (e) {}
+          me = null; profile = null; renderAuthUI();
+          try { alert(msg); } catch (e) {}
+          return;
+        }
+      }
+    } catch (e) {}
     // 店舗の契約状態を読み込む
     deviceBlocked = false; planBlocked = false; tenantDoc = null;
     if (profile && profile.tenantId) {
