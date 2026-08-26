@@ -7183,6 +7183,7 @@ function openPocketApply() {
   let ov = document.getElementById("pocketApplyOv");
   if (ov) ov.remove();
   ov = document.createElement("div"); ov.id = "pocketApplyOv"; ov.className = "ikModal";
+  ov.style.zIndex = "700";   // ログインゲート(z-index:600)より前面に出す(背面に隠れて入力欄が見えない不具合の対策)
   ov.innerHTML =
     '<div class="ikCard" style="max-width:360px">' +
       '<div class="ikTitle">Pocket（個人版）を始める</div>' +
