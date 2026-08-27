@@ -204,27 +204,37 @@ function updatePocketTrialBanner() {
   const personal = getAppMode() === "personal";
   const isStore = document.body.classList.contains("storeApp");
   const loggedIn = !!(window.Cloud && window.Cloud.isLoggedIn && window.Cloud.isLoggedIn());
-  if (!(personal && !isStore && loggedIn)) return;
+  const trialRow = document.getElementById("pocketTrialRow");
+  if (!(personal && !isStore && loggedIn)) { if (trialRow) trialRow.classList.add("hidden"); return; }
   let info = null; try { info = window.Cloud.trialInfo && window.Cloud.trialInfo(); } catch (e) {}
-  if (!info || !info.paidUntil) return;
+  if (!info || !info.paidUntil) { if (trialRow) trialRow.classList.add("hidden"); return; }
   const daysLeft = Math.ceil((info.paidUntil - Date.now()) / 86400000);
-  // 契約中(active)は何も出さない。トライアル中は残日数バナー、期限切れは登録ペイウォール。
-  if (info.plan === "active" && daysLeft > 0) return;
+  // 契約中(active)は何も出さない。トライアル中は残日数、期限切れは登録ペイウォール。
+  if (info.plan === "active" && daysLeft > 0) { if (trialRow) trialRow.classList.add("hidden"); return; }
   if (daysLeft <= 0) {
-    // 無料期間終了 → 登録導線(ペイウォール)を表示
+    if (trialRow) trialRow.classList.add("hidden");
     if (!_pocketPaywallShown) { _pocketPaywallShown = true; try { openPocketPaywall(true); } catch (e) {} }
     return;
   }
-  if (info.plan !== "trial") return;
+  if (info.plan !== "trial") { if (trialRow) trialRow.classList.add("hidden"); return; }
+  // ① 設定タブ最下部の常設ボタン(常に最新の残日数に更新)
+  if (trialRow) {
+    trialRow.classList.remove("hidden");
+    const btn = document.getElementById("pocketTrialBtn");
+    if (btn) { btn.innerHTML = "🎁 無料お試し 残り" + daysLeft + "日<br>（タップで登録）"; btn.onclick = () => { try { openPocketPaywall(false); } catch (e) {} }; }
+  }
+  // ② 起動時のフローティングバナーは1回だけ。5秒表示 → フェードアウト → 削除(以後は設定タブに残る)。
   if (_pocketTrialShown || document.getElementById("pwBanner")) return;
   _pocketTrialShown = true;
   const b = document.createElement("div");
   b.id = "pwBanner";
   b.style.pointerEvents = "auto"; b.style.cursor = "pointer";
-  b.textContent = "🎁 無料お試し 残り" + daysLeft + "日（タップで登録）";
+  b.style.textAlign = "center"; b.style.lineHeight = "1.35"; b.style.transition = "opacity .6s";
+  b.innerHTML = "🎁 無料お試し 残り" + daysLeft + "日<br><span style=\"font-size:11px\">（タップで登録）</span>";
   b.title = "タップで月額プランに登録";
   b.addEventListener("click", () => { try { openPocketPaywall(false); } catch (e) {} });
   document.body.appendChild(b);
+  setTimeout(() => { if (!b.parentNode) return; b.style.opacity = "0"; setTimeout(() => { if (b.parentNode) b.remove(); }, 650); }, 5000);
 }
 /* Web版Pocketの課金導線: 月額¥500 / 年額¥5,500 を選んで Stripe Checkout へ。
    ・blocking=true(無料期間終了)のときは閉じにくい案内文にする。 */
@@ -238,7 +248,7 @@ function openPocketPaywall(blocking) {
       '<div class="ikVeh" style="text-align:left;line-height:1.7">' + (blocking ? "これからも全機能を使うには、月額プランのご登録が必要です。" : "今すぐ登録できます。<b>初回のご請求は無料期間が終わってから</b>なので、残りの無料期間はそのまま使えます。") + '<br><span style="font-size:12px;color:var(--dim)">お支払いはStripeの安全な決済ページで行います。いつでも解約できます。</span></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">' +
         '<button type="button" class="agBtn agPocketLoginBtn" data-plan="month" style="margin:0">月額 ¥500 <span style="font-weight:600;font-size:12px">／月</span></button>' +
-        '<button type="button" class="agBtn" data-plan="year" style="margin:0">年額 ¥5,500 <span style="font-weight:600;font-size:12px;color:var(--dim)">／年（月あたり¥458）</span></button>' +
+        '<button type="button" class="agBtn" data-plan="year" style="margin:0">年額 ¥5,000 <span style="font-weight:600;font-size:12px;color:var(--dim)">／年（月あたり¥417）</span></button>' +
       '</div>' +
       '<div id="pocketPayMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:6px 0 0;text-align:left"></div>' +
       '<button type="button" class="ikLater" id="pocketPayCancel">' + (blocking ? "あとで" : "とじる") + '</button>' +

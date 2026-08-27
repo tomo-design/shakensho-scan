@@ -1472,12 +1472,11 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
       try { const u = (await admin.firestore().collection("users").doc(uid).get()).data() || {}; tid = u.tenantId || ""; userEmail = u.email || ""; } catch (e) {}
       if (tid) { try { const t = (await admin.firestore().collection("tenants").doc(tid).get()).data() || {}; paidUntil = Number(t.paidUntil) || 0; } catch (e) {} }
     }
-    // 「登録は今・課金は無料期間の満了日から」。残りの無料期間の終了日(paidUntil)を Stripe の trial_end に設定。
-    //  ・満了日が未来(+1時間以上)なら trial_end を指定(その日まで無料→満了日に初回請求)。
-    //  ・すでに満了/未ログインなら通常どおり即時課金開始。
-    const nowSec = Math.floor(Date.now() / 1000);
-    const trialEndSec = paidUntil ? Math.floor(paidUntil / 1000) : 0;
-    const useTrialEnd = trialEndSec > nowSec + 3600;
+    // 「登録は今・課金は無料期間の満了日から」。残りの無料日数ぶんだけ Stripe のトライアルにする。
+    //  ・アプリの残日数表示(ceil)と一致させるため trial_period_days = ceil(残りms/日) を使用。
+    //  ・満了/未ログインなら即時課金開始(トライアルなし)。
+    const remainingDays = paidUntil ? Math.ceil((paidUntil - Date.now()) / 86400000) : 0;
+    const trialDays = Math.max(0, Math.min(7, remainingDays));
     const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
     const subMeta = { product: "pocket", plan: interval, uid: uid || "", tenantId: tid || "" };
     const session = await stripe.checkout.sessions.create({
@@ -1485,7 +1484,7 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: Object.assign(
         { metadata: subMeta },
-        useTrialEnd ? { trial_end: trialEndSec } : {}
+        trialDays > 0 ? { trial_period_days: trialDays } : {}
       ),
       client_reference_id: tid || uid || undefined,
       customer_email: data.email || userEmail || undefined,
