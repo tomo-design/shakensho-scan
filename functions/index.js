@@ -1461,20 +1461,28 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
     // ログイン済みなら uid を取得(任意)。未ログインでも申込可。
     let uid = null; try { uid = await uidFromReq(req); } catch (e) {}
     if (!uid && data.uid) uid = String(data.uid);
+    // ログイン中のPocketユーザーのテナントID・メールを取得(webhookでの紐付け＆重複トライアル防止に使用)。
+    let tid = "", userEmail = "";
+    if (uid) {
+      try { const u = (await admin.firestore().collection("users").doc(uid).get()).data() || {}; tid = u.tenantId || ""; userEmail = u.email || ""; } catch (e) {}
+    }
+    // アプリ内で既に7日トライアル済みのユーザーが「登録」する場合は trial:0 を渡し、二重トライアルを防ぐ。
+    const trialDays = (String(data.trial) === "0") ? 0 : 7;
     const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+    const subMeta = { product: "pocket", plan: interval, uid: uid || "", tenantId: tid || "" };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: {
-        trial_period_days: 7,                       // 7日間無料トライアル
-        metadata: { product: "pocket", plan: interval, uid: uid || "" },
-      },
-      client_reference_id: uid || undefined,
-      customer_email: data.email || undefined,
+      subscription_data: Object.assign(
+        { metadata: subMeta },
+        trialDays > 0 ? { trial_period_days: trialDays } : {}
+      ),
+      client_reference_id: tid || uid || undefined,
+      customer_email: data.email || userEmail || undefined,
       allow_promotion_codes: true,
       success_url: appUrl + "?pocket=success",
       cancel_url: appUrl + "?pocket=cancel",
-      metadata: { product: "pocket", plan: interval, uid: uid || "" },
+      metadata: subMeta,
     });
     return res.json({ url: session.url });
   } catch (e) {

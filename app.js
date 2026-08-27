@@ -199,25 +199,73 @@ function updatePocketAccountBox() {
 }
 /* Web版Pocket(個人モード・ストア版でない)でトライアル中なら、無料お試しの残日数を表示する。
    ・ストア版はpaywall.jsが担当。ここはWeb版Pocketのみ(テナントのpaidUntilから算出)。 */
-let _pocketTrialShown = false;
+let _pocketTrialShown = false, _pocketPaywallShown = false;
 function updatePocketTrialBanner() {
   const personal = getAppMode() === "personal";
   const isStore = document.body.classList.contains("storeApp");
   const loggedIn = !!(window.Cloud && window.Cloud.isLoggedIn && window.Cloud.isLoggedIn());
   if (!(personal && !isStore && loggedIn)) return;
-  if (_pocketTrialShown || document.getElementById("pwBanner")) return;
   let info = null; try { info = window.Cloud.trialInfo && window.Cloud.trialInfo(); } catch (e) {}
-  if (!info || info.plan !== "trial" || !info.paidUntil) return;
-  const daysLeft = Math.max(0, Math.ceil((info.paidUntil - Date.now()) / 86400000));
-  if (daysLeft <= 0) return;
+  if (!info || !info.paidUntil) return;
+  const daysLeft = Math.ceil((info.paidUntil - Date.now()) / 86400000);
+  // 契約中(active)は何も出さない。トライアル中は残日数バナー、期限切れは登録ペイウォール。
+  if (info.plan === "active" && daysLeft > 0) return;
+  if (daysLeft <= 0) {
+    // 無料期間終了 → 登録導線(ペイウォール)を表示
+    if (!_pocketPaywallShown) { _pocketPaywallShown = true; try { openPocketPaywall(true); } catch (e) {} }
+    return;
+  }
+  if (info.plan !== "trial") return;
+  if (_pocketTrialShown || document.getElementById("pwBanner")) return;
   _pocketTrialShown = true;
   const b = document.createElement("div");
   b.id = "pwBanner";
   b.style.pointerEvents = "auto"; b.style.cursor = "pointer";
-  b.textContent = "🎁 無料お試し 残り" + daysLeft + "日（月額¥500）";
-  b.title = "タップで閉じる";
-  b.addEventListener("click", () => b.remove());
+  b.textContent = "🎁 無料お試し 残り" + daysLeft + "日（タップで登録）";
+  b.title = "タップで月額プランに登録";
+  b.addEventListener("click", () => { try { openPocketPaywall(false); } catch (e) {} });
   document.body.appendChild(b);
+}
+/* Web版Pocketの課金導線: 月額¥500 / 年額¥5,500 を選んで Stripe Checkout へ。
+   ・blocking=true(無料期間終了)のときは閉じにくい案内文にする。 */
+function openPocketPaywall(blocking) {
+  let ov = document.getElementById("pocketPayOv");
+  if (ov) ov.remove();
+  ov = document.createElement("div"); ov.id = "pocketPayOv"; ov.className = "ikModal"; ov.style.zIndex = "700";
+  ov.innerHTML =
+    '<div class="ikCard" style="max-width:340px">' +
+      '<div class="ikTitle">' + (blocking ? "無料期間が終了しました" : "Pocket 月額プランに登録") + '</div>' +
+      '<div class="ikVeh" style="text-align:left;line-height:1.7">これからも全機能を使うには、月額プランのご登録が必要です。<br><span style="font-size:12px;color:var(--dim)">お支払いはStripeの安全な決済ページで行います。いつでも解約できます。</span></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">' +
+        '<button type="button" class="agBtn agPocketLoginBtn" data-plan="month" style="margin:0">月額 ¥500 <span style="font-weight:600;font-size:12px">／月</span></button>' +
+        '<button type="button" class="agBtn" data-plan="year" style="margin:0">年額 ¥5,500 <span style="font-weight:600;font-size:12px;color:var(--dim)">／年（月あたり¥458）</span></button>' +
+      '</div>' +
+      '<div id="pocketPayMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:6px 0 0;text-align:left"></div>' +
+      '<button type="button" class="ikLater" id="pocketPayCancel">' + (blocking ? "あとで" : "とじる") + '</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const cancel = document.getElementById("pocketPayCancel"); if (cancel) cancel.addEventListener("click", close);
+  const msg = document.getElementById("pocketPayMsg");
+  ov.querySelectorAll("[data-plan]").forEach(b => b.addEventListener("click", async () => {
+    const plan = b.getAttribute("data-plan");
+    b.disabled = true; const t0 = b.textContent; b.textContent = "決済ページを準備中…";
+    msg.textContent = "";
+    let uid = null; try { uid = (window.Cloud && window.Cloud.myUid && window.Cloud.myUid()) || null; } catch (e) {}
+    try {
+      const r = await fetch("https://asia-northeast1-mecanoai.cloudfunctions.net/createPocketCheckout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: plan, uid: uid, trial: 0 }),   // アプリ内で7日試用済み → 二重トライアルなし
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.url) { location.href = d.url; return; }
+      msg.textContent = (d && d.error) || "決済ページを開けませんでした。時間をおいて再度お試しください。";
+    } catch (e) {
+      msg.textContent = "通信に失敗しました: " + (e.message || e);
+    }
+    b.disabled = false; b.textContent = t0;
+  }));
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
@@ -7414,4 +7462,18 @@ function startDemo() {
   const go = () => setTimeout(startDemo, 350);
   if (document.readyState === "complete") go();
   else window.addEventListener("load", go);
+})();
+/* Pocket決済(Stripe Checkout)からの戻り。?pocket=success で登録完了メッセージ、cancel で軽い案内。 */
+(function initPocketReturn() {
+  let p = ""; try { p = new URLSearchParams(location.search).get("pocket") || ""; } catch (e) { return; }
+  if (!p) return;
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  setTimeout(() => {
+    if (p === "success") {
+      alert("✓ ご登録ありがとうございます。月額プランが有効になりました。反映まで数十秒かかる場合があります。");
+      try { const b = document.getElementById("pwBanner"); if (b) b.remove(); const ov = document.getElementById("pocketPayOv"); if (ov) ov.remove(); } catch (e) {}
+    } else if (p === "cancel") {
+      alert("登録はキャンセルされました。いつでも設定タブや残日数バナーから登録できます。");
+    }
+  }, 600);
 })();
