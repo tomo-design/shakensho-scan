@@ -555,8 +555,9 @@ async function latestModels(key) {
       for (const n of names) { const m = n.match(re); if (m) { const v = parseFloat(m[1]); if (v > bestV) { bestV = v; best = n; } } }
       return best;
     };
-    // 例: gemini-3.6-flash を選ぶ。lite/image/tts/preview等は除外。pro は preview も対象(3系proはpreviewのみ)。
-    const flash = pickHighest(/^gemini-(\d+(?:\.\d+)?)-flash$/);
+    // 例: gemini-3.6-flash を選ぶ。lite/image/tts等は除外。flash/pro とも preview も対象
+    // (3系flashは現状 gemini-3-flash-preview のみ提供。previewを除外すると旧2.5系(404)を掴むため許可する)。
+    const flash = pickHighest(/^gemini-(\d+(?:\.\d+)?)-flash(?:-preview)?$/);
     const pro = pickHighest(/^gemini-(\d+(?:\.\d+)?)-pro(?:-preview)?$/);
     if (flash || pro) _modelCache = { at: now, flash: flash, pro: pro };
   } catch (e) {}
@@ -615,15 +616,15 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
-    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);   // 2.0はthinking非対応の最終受け皿
+    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"])
+    : uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 実働の速いFlashを優先。2.5系(404)/過負荷503は後段に回す
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
   const tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
-  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);   // 無料キーはFlashのみ(Proは無料枠429)
+  const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)。実working&高速なモデルを優先
 
   // 検索(裏取り)を実際に使えるか: 検索対応プラン && 今月上限内 && 席内。不可なら検索なしに落として必ず回答を返す。
   let effSearch = false;
@@ -688,14 +689,14 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
-    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
+    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"])
+    : uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   const tb = clampThinking(data.thinkingBudget);
   const paidCapable = pc.plan !== "na" && !!paidKey;
-  const freeModels = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
+  const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
   let effSearch = false;
   if (data.search && paidCapable && pc.searchCap !== 0) {
     const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;
@@ -1635,7 +1636,7 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.log("drip: Geminiキー未設定"); return null; }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
+    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
     // 対象候補(見込み・メール有)を古い順に多めに取得(スキップ分の余裕を持たせる)
     const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 4).get();
     let sent = 0;
@@ -1733,7 +1734,7 @@ exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, me
     const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
     if (!freeKeys.length) { console.error("inbound: Geminiキー未設定"); return res.status(200).send("ok"); }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
+    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
     const staff = SALES_STAFF.cs;
 
     // ★パスワード再設定の依頼を検知したら、実際の再設定リンクを発行して返信本文へ差し込む
@@ -1861,7 +1862,7 @@ const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・ト�
 【申込→アカウント自動発行(重要・最新仕様)】申込フォーム(apply.html)や問い合わせで「契約手続きを進めたい(contract)」を送ると、テナント＋7日間トライアル＋ログインID・初期パスワードがその場で自動発行され、申込者へ自動返信メール(ログインID・初期パスワード・店舗コード・アプリQR・導入ガイド入り)が即時届く。運営の手作業はゼロ。※安全のため、既に登録済みのメールアドレスは自動発行せず既存ログインを保護する（その場合は受付のみ返信）。営業では「お申し込み後すぐにIDとパスワードが自動で届き、その日から使えます」と案内してよい。
 【法人向けLP】機能・料金・導入の流れ・FAQをまとめたページ → https://mechanoai-cablueie.com/biz.html （じっくり検討したい人向けの詳細ページ。まだ迷っている相手のみ案内）。
 【サービス紹介資料】そのまま送れる資料ページ（印刷・PDF化も可）→ https://mechanoai-cablueie.com/shiryou.html 。★「資料請求」への返信では、この資料リンクを必ず案内する（相手はここで機能・料金・会社概要をまとめて確認できる）。
-【MECHANO-AI Pocket（個人向け）】提供中。基本無料・7日間無料→月¥500。App Store/Google Play(ストア版)に加え、Web版(ブラウザ)はログイン画面の「Pocket ＞ 7日間無料ではじめる」でメール入力→Pocket専用ID・初期パスワードを自動発行・自動返信。※法人向けは「MECHANO-AI Works」。
+【MECHANO-AI Pocket（個人向け）】提供中。基本無料・7日間無料→月¥500。Web版(ブラウザ)で提供中。ログイン画面の「Pocket ＞ 7日間無料ではじめる」でメール入力→Pocket専用ID・初期パスワードを自動発行・自動返信。スマホのブラウザからそのまま使え、ホーム画面に追加すればアプリのように起動できる。※App Store/Google Playのストア版は現在準備中のため、案内には出さない。※法人向けは「MECHANO-AI Works」。
 【育てるコンセプト（重要な価値・差別化）】メカノAIのAI回答（諸元・トルク値など）は"参考値"。もし違っていても、その場で正しい値に訂正して保存でき、次回からは自社の正しい値が上書き表示される。作業中にカルテを更新すれば、その値が自動で反映・保存され二度手間がない。つまり使うほど"自社仕様の正しい知識"が蓄積し、メカ君が"もう一人の従業員"のように育つ。直した知識は社内で共有され、若手や外国人スタッフも同じ正解に到達できる。営業では『人手不足の解消・若手/外国人の育成』に加えて、この"メカ君も一緒に育つ／使うほど自社だけの資産になる"を前向きな価値として伝える。同時に「AIは参考値、最終確認は整備書で」という誠実な姿勢も必ず併記する。
 【多言語対応】画面は日本語・英語に対応。外国人スタッフや技能実習生でも使え、人手不足の現場で戦力化しやすい（人手不足の訴求と直結する強み）。
 【安心材料】特定商取引法に基づく表記・プライバシーポリシーを公開済み。訪問営業や電話勧誘はしない方針（問い合わせは相手が選んだ手段のみ）。
@@ -1900,14 +1901,14 @@ TEL：080-3692-0101　Mail：cablueie.123@gmail.com
 ――――――――――――`;
 
 // 個人版(MECHANO-AI Pocket)のプロダクト情報。営業コンソールで商材=Pocketを選ぶと使う。
-const POCKET_KB = `【製品】MECHANO-AI Pocket — 整備士“個人”向けのスマホアプリ（App Store / Google Play）。メカノAIの個人版。
+const POCKET_KB = `【製品】MECHANO-AI Pocket — 整備士“個人”向けのアプリ（Web版・スマホ対応。ブラウザで使え、ホーム画面に追加すればアプリのように起動）。メカノAIの個人版。★App Store/Google Playのストア版は現在準備中で未提供のため、営業文では「ストアで検索/ダウンロード」とは書かない。
 【提供元】Cablueie（読み: カブリエ）。
 【ターゲット】整備工場勤務の整備士個人、若手/見習い、副業・出張整備、趣味で整備する人など“ひとりで使う”人。会社契約ではなく個人が自分のスマホで使う。
 【できること】車検証スキャン→車両情報取得／メンテナンス諸元(締付トルク・オイル粘度/量・各種容量)を即表示／AI故障診断・修理サポート／整備カルテ(端末内に保存)／日本語・英語。
 【データ】記録は端末内のみに保存し外部に送らない。プライバシーに安心。
 【AI(重要)】AIはユーザー自身のGoogle無料APIキーで動く（クレジットカード登録不要・通常利用なら無料枠に収まる）。設定タブの案内どおり取得して貼り付けるだけ。
 【料金】ダウンロード無料。最初の7日間は全機能無料。8日目以降は月額¥500。いつでも解約可。
-【入手・申込(最新仕様)】(1)ストア版: App Store / Google Play で「メカノAI」を検索してインストール。(2)Web版(ブラウザ): https://mechanoai-cablueie.com/ を開き、ログイン画面の「Pocket ＞ 7日間無料ではじめる」でメールアドレスを入力すると、その場でPocket専用のログインID(=入力したメール)と初期パスワードが自動発行され、自動返信メールで即座に届く。届いたID/パスで「Pocket ＞ ログイン」からログイン。パスワードは設定タブの「🔑パスワードを変更」で変更可。
+【入手・申込(最新仕様)】Web版(ブラウザ)で提供中: https://mechanoai-cablueie.com/ を開き、ログイン画面の「Pocket ＞ 7日間無料ではじめる」でメールアドレスを入力すると、その場でPocket専用のログインID(=入力したメール)と初期パスワードが自動発行され、自動返信メールで即座に届く。届いたID/パスで「Pocket ＞ ログイン」からログイン。スマホでは同じ画面をブラウザで開き、ホーム画面に追加すればアプリのように起動できる。パスワードは設定タブの「🔑パスワードを変更」で変更可。※App Store/Google Playのストア版は現在準備中で未提供。
 【ID/パス自動発行・自動返信(重要)】Web版の申込は運営の手作業ゼロで即時発行・即時メール返信。※発行されるIDは個人版(Pocket)専用で、法人版(Works)ではログインできない。既に登録済みのメールは保護のため自動発行せず、既存ID/パスでのログイン案内を返す。
 【体験デモ】登録不要: https://mechanoai-cablueie.com/?demo=1 ／ よくある質問: https://mechanoai-cablueie.com/faq.html?v=personal
 【核メッセージ】「ベテランに聞けない・調べる時間がない」を解決する“ポケットの相棒”。ワンコイン(¥500/月)で全機能、まずは7日間無料。
@@ -1916,7 +1917,7 @@ const POCKET_KB = `【製品】MECHANO-AI Pocket — 整備士“個人”向け
 // Pocket(個人向け)文面のルール。SIGNATURE(法人署名)やコールドメール法規則の代わりに使う。
 const POCKET_RULES = `【MECHANO-AI Pocket 用の書き方ルール】
 ・読み手は“個人の整備士”。かしこまった法人営業メール調にせず、同じ現場目線の親しみやすい語り口にする（ただし誠実に）。
-・行動導線は「App Store / Google Play でダウンロード（『メカノAI』で検索）」＋「まず7日間は無料」。Web版で今すぐ始めたい人には「ログイン画面のPocket＞7日間無料ではじめる でメール入力→ID・パスが自動で届く」も案内可。★法人向けの申込フォームや会社署名（担当:中江…）、店舗共有・入庫管理などの法人機能は個人向け文面に混ぜない。
+・行動導線は「ログイン画面のPocket＞7日間無料ではじめる でメール入力→ID・パスが自動で届く」＋「まず7日間は無料」。スマホはブラウザで開いてホーム画面に追加すればアプリのように使える、と一言添えてよい。★App Store/Google Playのストア版は現在準備中で未提供のため「ストアでダウンロード／検索」とは書かない。★法人向けの申込フォームや会社署名（担当:中江…）、店舗共有・入庫管理などの法人機能は個人向け文面に混ぜない。
 ・料金は『ダウンロード無料 → 7日間無料 → 以降 月¥500』。AIは『自分の無料APIキーで動く（クレカ登録不要）』を分かりやすく一言添える。
 ・依頼された媒体（アプリストア説明文／SNS投稿／動画概要／紹介チラシ／レビュー返信 等）に最適な長さ・体裁で書く。ハッシュタグや絵文字は頼まれた時だけ・使いすぎない。
 ・誇張・虚偽は書かない。「AIの回答は参考値、最終確認は整備書で」という誠実な姿勢は保つ。`;
@@ -2080,7 +2081,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
   if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const latest = await latestModels(freeKeys[0]);
-  const models = uniq([latest.flash, "gemini-flash-latest", "gemini-2.5-flash"]);
+  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
 
   // 商材: works=法人(MECHANO-AI Works) / pocket=個人(MECHANO-AI Pocket)
   const product = data.product === "pocket" ? "pocket" : "works";
@@ -2093,7 +2094,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   // 法人=コールドメール規則＋会社署名 / 個人=Pocket用ルール(会社署名なし)
   const guideBlock = product === "pocket" ? POCKET_RULES : (COLD_EMAIL_GUIDE + "\n\n" + SIGNATURE);
   const sigRule = product === "pocket"
-    ? "行動導線ルール: 個人向けなので、会社署名や法人の申込フォームは付けない。案内は『App Store / Google Playで「メカノAI」を検索してダウンロード』『まず7日間無料・以降 月¥500』を用いる。"
+    ? "行動導線ルール: 個人向けなので、会社署名や法人の申込フォームは付けない。案内は『https://mechanoai-cablueie.com/ を開き、ログイン画面の Pocket＞7日間無料ではじめる でメール入力→ID・パスが自動で届く』『まず7日間無料・以降 月¥500』を用いる。スマホはブラウザで開いてホーム画面に追加すればアプリのように使える、と添えてよい。★App Store/Google Playのストア版は現在準備中で未提供のため『ストアで検索/ダウンロード』とは絶対に書かない。"
     : "署名ルール: メール・DM・手紙を作る時は、末尾に必ず上記SIGNATUREの実データ署名（メカノAI／Cablueie（カブリエ）／担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com／URL）をそのまま入れる。[会社名][担当者名][電話番号][メールアドレス] のようなプレースホルダは絶対に使わない。";
   const angleRule = product === "pocket"
     ? "訴求の主軸: 個人の整備士に向けて『ベテランに聞けない・調べる時間がない』を、スマホ1台の“調べる相棒”で解決。ワンコイン(¥500/月)・7日間無料・自分の無料APIキー(クレカ不要)で始められる、を中心に。誇張はしない。"
