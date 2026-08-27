@@ -570,12 +570,24 @@
         <div class="hint" style="margin-top:8px;color:var(--dim)">ログインでお困りの場合は、会社の代表管理者または運営（<a href="mailto:ai@reply.mechanoai-cablueie.com" style="color:var(--cyan)">お問い合わせ</a>）へご連絡ください。</div>
         <div id="cloudAuthStat" class="hint" style="margin-top:8px"></div>
         <details style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
+          <summary style="font-weight:700;cursor:pointer">📋 会社を新規登録する手順（代表管理者の方へ）</summary>
+          <div class="hint" style="margin-top:8px;line-height:1.9">
+            会社（事業所）の新規登録は、<b>ご契約後に運営が発行する管理者アカウント</b>で行います。<br>
+            ①「<a href="biz.html#contact" style="color:var(--cyan)">お問い合わせ・お申し込み</a>」から申し込む<br>
+            ② 運営が<b>事業所ID・管理者のログインID・初期パスワード</b>を発行し、メールでお送りします<br>
+            ③ 届いたID・パスワードで、上の「<b>ログイン</b>」からログイン<br>
+            ④ 初回ログイン後、「🔑 パスワード変更」で任意のパスワードに変更<br>
+            ⑤ スタッフには<b>事業所ID</b>を伝え、下の「メンバー参加」で申請してもらい、あなたが承認<br>
+            <span style="color:var(--dim)">※「管理者として会社を新規登録」ボタンは、契約時に発行されたアカウント以外では登録できません（不正登録防止）。</span>
+          </div>
+        </details>
+        <details style="margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
           <summary style="font-weight:700;cursor:pointer">📋 メンバーの登録手順（はじめての方へ）</summary>
           <div class="hint" style="margin-top:8px;line-height:1.9">
-            ①「<b>既存の会社に参加</b>」を押す<br>
+            ①「<b>メンバーとして会社に参加</b>」を押す<br>
             ② <b>自分のメール</b>と<b>パスワード（6文字以上）</b>を入力<br>
-            ③ <b>事業所ID</b>に会社から伝えられたID（例: <b>sakuragarage</b>）を入力 →「実行」<br>
-            ④「承認待ち」と出る → <b>会社の管理者が承認</b>するまで待つ<br>
+            ③ <b>事業所ID</b>に会社（代表管理者）から伝えられたIDを入力 →「実行」<br>
+            ④「承認待ち」と出る → <b>会社の代表管理者が承認</b>するまで待つ<br>
             ⑤ 承認されると自動でログイン状態になり、社内の車両データ・車種DBが同期されます<br>
             <span style="color:var(--dim)">※ 2回目以降は「ログイン」だけでOK。パスワードは各自で保管してください。</span>
           </div>
@@ -765,13 +777,13 @@
     </details>
   </section>
 
-  <!-- Web版Pocket専用: パスワード変更(メカ君サポートの下・個人モードでは同期セクションが隠れるため) -->
-  <div id="pocketPwRow" class="hidden" style="text-align:center;margin:10px 0 4px"><button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:0 0 auto;display:inline-block;min-height:40px">🔑 パスワードを変更</button></div>
-
   <p class="note" id="verNote">バージョン情報を取得中…</p>
   <div style="text-align:center;margin:4px 0 12px"><button type="button" class="btn btn-ghost btn-sm" id="btnAppUpdate" style="flex:0 0 auto;display:inline-block;min-height:40px">🔄 アプリを最新に更新</button></div>
-  <!-- Web版Pocket専用: 設定タブ最下部のログアウト(個人モードでは同期セクションが隠れるため) -->
-  <div id="pocketLogoutRow" class="hidden" style="text-align:center;margin:8px 0 16px"><button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button></div>
+  <!-- Web版Pocket専用: 設定タブ最下部にパスワード変更とログアウトを横並びで(個人モードでは同期セクションが隠れるため) -->
+  <div id="pocketLogoutRow" class="hidden btnRow" style="justify-content:center;gap:10px;margin:8px 0 16px">
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:0 0 auto;display:inline-block;min-height:40px">🔑 パスワードを変更</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button>
+  </div>
 </div>
 
 <!-- ============ VIEW: ADMIN (運営・隠しタブ・superのみ) ============ -->

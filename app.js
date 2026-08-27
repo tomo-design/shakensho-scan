@@ -7045,13 +7045,26 @@ const SUPPORT_KB = [
   if (!msgs || !inp || !send) return;
   const history = [];   // {role:"user"|"bot", text}
   let busy = false;
+  // Botの返答に含まれる簡易マークダウン(**太字**・箇条書き)を、見やすいHTMLに整形する。
+  //  ・「**」がそのまま表示される問題の対策。AI出力なので必ずHTMLエスケープしてから装飾。
+  function escHtml(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function formatBotHtml(text) {
+    return String(text == null ? "" : text).split(/\n/).map(ln => {
+      let t = ln.replace(/^\s*(?:[\*\-•]|\d+[.)])\s+/, "・");   // 行頭の箇条書き/番号記号 → ・
+      t = escHtml(t);
+      t = t.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/__(.+?)__/g, "<b>$1</b>");   // **太字** / __太字__
+      t = t.replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, "$1$2");   // 残った単独 * を除去(斜体記法は非対応)
+      return t;
+    }).join("<br>");
+  }
+  function setBot(el, text) { el.innerHTML = formatBotHtml(text); }
   function append(role, text) {
     const row = document.createElement("div");
     row.className = "scRow " + (role === "user" ? "scRowUser" : "scRowBot");
     if (role !== "user") { const av = document.createElement("div"); av.className = "scAv"; av.innerHTML = '<img src="img/mecha.png" alt="メカ君">'; row.appendChild(av); }
     const el = document.createElement("div");
     el.className = "scMsg " + (role === "user" ? "scUser" : "scBot");
-    el.textContent = text;
+    if (role === "user") el.textContent = text; else el.innerHTML = formatBotHtml(text);
     row.appendChild(el);
     msgs.appendChild(row); msgs.scrollTop = msgs.scrollHeight;
     return el;
@@ -7074,7 +7087,7 @@ const SUPPORT_KB = [
       const prompt = SUPPORT_KB + "\n\n【これまでの会話】\n" + convo + "\n\n【ユーザーの質問】\n" + q + "\n\n【回答】";
       const r = await geminiAsk(prompt, { mode: "flash", noCache: true, maxTokens: 1024 });
       const ans = (r && r.text) ? r.text.trim() : "うまく答えられませんでした。cablueie.123@gmail.com へお問い合わせください。";
-      bot.textContent = ans; history.push({ role: "bot", text: ans });
+      setBot(bot, ans); history.push({ role: "bot", text: ans });
     } catch (e) {
       bot.textContent = "エラーが発生しました（" + (e.message || e) + "）。cablueie.123@gmail.com へお問い合わせください。";
     } finally { busy = false; send.disabled = false; msgs.scrollTop = msgs.scrollHeight; }
