@@ -163,11 +163,21 @@ textarea{resize:none;line-height:1.6}
 .teamOut .outHead b::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .teamOut .outActs{display:flex;gap:8px}
 .teamOut .outActs.hidden{display:none}
-.teamOut .outBody{padding:20px 22px;overflow-y:auto;flex:1}
-.teamOut .outEmpty{color:var(--ink2);font-size:13px;line-height:1.8;text-align:center;padding:40px 8px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%}
-.teamOut .outDoc{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;
-  font-size:14.5px;line-height:1.9;color:var(--ink);max-width:70ch}
+.teamOut .outBody{padding:0;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0}
+.teamOut .outEmpty{flex:1;color:var(--ink2);font-size:13px;line-height:1.9;text-align:center;padding:40px 22px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.teamOut .outEmpty b{color:var(--ink)}
+/* ===== メール作成デスク(編集して送信) ===== */
+.outDesk{display:flex;flex-direction:column;flex:1;min-height:0;padding:14px 16px;gap:11px}
+.outDesk.hidden{display:none}
+.deskRow{display:flex;flex-direction:column;gap:5px}
+.deskRow label{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.03em}
+.deskRow input{padding:9px 11px;font-size:13.5px}
+.deskBodyRow{flex:1;min-height:0}
+.deskBodyRow textarea{flex:1;height:100%;width:100%;resize:none;font-size:14px;line-height:1.85;padding:13px 15px}
+.deskFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.deskFoot .muted{font-size:11.5px;line-height:1.4}
+.deskFoot .btn{flex-shrink:0;padding:11px 20px}
 /* チャット側も画面高さに追従させ、下端の入力欄を固定的に */
 @media(min-width:1000px){
   .teamMain .chat{max-height:none;flex:1}

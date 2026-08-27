@@ -110,13 +110,24 @@
         </div>
         <aside class="teamOut" id="outputPane">
           <div class="outHead">
-            <b>生成結果</b>
+            <b>メール作成デスク</b>
             <span class="outActs hidden" id="outActs">
-              <button class="btn btn-ghost btn-sm" id="outCopy">📋 コピー</button>
-              <button class="btn btn-accent btn-sm" id="outSend">✉ メール送信</button>
+              <button class="btn btn-ghost btn-sm" id="outRevert" title="ひとつ前のAI生成に戻す">↩ 前の版</button>
+              <button class="btn btn-ghost btn-sm" id="outCopy">📋 全文コピー</button>
             </span>
           </div>
-          <div class="outBody" id="outputBody"><div class="outEmpty">生成したメール・提案文がここに表示されます。<br>左で担当に指示を出すと、最新の文章をここで読みやすく確認・コピー・送信できます。</div></div>
+          <div class="outBody" id="outputBody">
+            <div class="outEmpty" id="outEmpty">生成したメール・提案文がここに表示されます。<br>左で担当に指示を出すと、ここで<b>宛先・件名・本文を仕上げてそのまま送信</b>できます。</div>
+            <div class="outDesk hidden" id="outDesk">
+              <div class="deskRow"><label>宛先</label><input id="outTo" type="email" placeholder="send@example.com" autocomplete="off"></div>
+              <div class="deskRow"><label>件名</label><input id="outSubject" type="text" placeholder="件名"></div>
+              <div class="deskRow deskBodyRow"><label>本文（そのまま編集できます）</label><textarea id="outBodyText" spellcheck="false"></textarea></div>
+              <div class="deskFoot">
+                <span class="muted" id="outHint">署名・差出人は送信時に自動付与されます。</span>
+                <button class="btn btn-accent" id="outSend">✉ この内容で送信</button>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </section>

@@ -185,21 +185,69 @@
     log.scrollTop = log.scrollHeight;
     renderOutput();
   }
-  // 右側パネル: 最新のAI生成文を「読みやすい書面」として表示(コピー・メール送信つき)
-  let lastOutputText = "";
-  function renderOutput() {
-    const body = $("outputBody"); if (!body) return;
-    const hist = histByStaff[curStaff] || [];
-    let last = "";
-    for (let i = hist.length - 1; i >= 0; i--) { if (hist[i].role === "ai" && !/^⚠️/.test(hist[i].text)) { last = hist[i].text; break; } }
-    lastOutputText = last;
-    show("outActs", !!last);
-    if (!last) { body.innerHTML = '<div class="outEmpty">生成したメール・提案文がここに表示されます。<br>左で担当に指示を出すと、最新の文章をここで読みやすく確認・コピー・送信できます。</div>'; return; }
-    body.innerHTML = '<pre class="outDoc">' + esc(last) + '</pre>';
-    body.scrollTop = 0;
+  // ===== 右側「メール作成デスク」: 最新のAI生成文を宛先/件名/本文に流し込み、編集して送信 =====
+  let deskSource = null;   // 現在デスクに読み込んでいるAI原文(再描画時の二重反映防止)
+  let deskAiTexts = [];    // 現スタッフのAI生成文一覧(「前の版」用)
+
+  function currentTargetEmail() {
+    if (curProduct === "pocket") return "";
+    const lead = replyCtx || (curLeadId ? leads.find((l) => l.id === curLeadId) : null);
+    return (lead && lead.email) || "";
   }
-  { const _c = $("outCopy"); if (_c) _c.onclick = () => copy(lastOutputText); }
-  { const _s = $("outSend"); if (_s) _s.onclick = () => sendMailFromChat(lastOutputText); }
+  // AI原文をデスクの各欄へ。forceTo=true なら宛先も上書き、falseなら空のときだけ補完(手入力を保持)
+  function loadDesk(text, forceTo) {
+    deskSource = text;
+    if ($("outSubject")) $("outSubject").value = extractSubject(text) || "";
+    if ($("outBodyText")) $("outBodyText").value = bodyWithoutSubject(text);
+    if ($("outTo")) {
+      const em = currentTargetEmail();
+      if (forceTo) $("outTo").value = em;
+      else if (!$("outTo").value.trim() && em) $("outTo").value = em;
+    }
+  }
+  function renderOutput() {
+    if (!$("outDesk")) return;
+    const hist = histByStaff[curStaff] || [];
+    deskAiTexts = hist.filter((m) => m.role === "ai" && !/^⚠️/.test(m.text)).map((m) => m.text);
+    const last = deskAiTexts.length ? deskAiTexts[deskAiTexts.length - 1] : "";
+    show("outActs", !!last);
+    show("outDesk", !!last);
+    show("outEmpty", !last);
+    show("outRevert", deskAiTexts.length > 1);
+    if (!last) { deskSource = null; return; }
+    if (last !== deskSource) loadDesk(last, false);   // 新しい生成のときだけ流し込む(編集中の内容を消さない)
+  }
+  { const _c = $("outCopy"); if (_c) _c.onclick = () => {
+      const subj = ($("outSubject").value || "").trim();
+      const body = $("outBodyText").value || "";
+      copy((subj ? "件名：" + subj + "\n\n" : "") + body);
+    };
+  }
+  { const _r = $("outRevert"); if (_r) _r.onclick = () => {
+      if (deskAiTexts.length < 2) return;
+      let idx = deskAiTexts.lastIndexOf(deskSource);
+      if (idx < 0) idx = deskAiTexts.length - 1;
+      if (idx <= 0) { toast("これ以上前の版はありません"); return; }
+      loadDesk(deskAiTexts[idx - 1], false);
+      toast("前の版に戻しました");
+    };
+  }
+  { const _s = $("outSend"); if (_s) _s.onclick = async () => {
+      const to = ($("outTo").value || "").trim();
+      const subject = ($("outSubject").value || "").trim();
+      const body = ($("outBodyText").value || "").trim();
+      if (!to) { toast("宛先を入力してください"); $("outTo").focus(); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast("宛先のメール形式が正しくありません"); $("outTo").focus(); return; }
+      if (!subject) { toast("件名を入力してください"); $("outSubject").focus(); return; }
+      if (!body) { toast("本文がありません"); return; }
+      if (!confirm(to + " 宛に送信します。よろしいですか？\n件名: " + subject + "\n（署名・差出人は自動付与されます）")) return;
+      const lead = curProduct === "pocket" ? null : (curLeadId ? leads.find((l) => l.id === curLeadId) : null);
+      _s.disabled = true;
+      try { await api("sendMail", { to, subject, body, leadId: (lead && lead.id) || "" }); toast("✓ 送信しました"); }
+      catch (e) { toast("送信失敗"); alert("送信に失敗しました: " + (e.message || e)); }
+      finally { _s.disabled = false; }
+    };
+  }
 
   const ta = $("taskInput");
   ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; });
