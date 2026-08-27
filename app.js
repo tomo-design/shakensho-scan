@@ -195,6 +195,29 @@ function updatePocketAccountBox() {
   const show = personal && !isStore && loggedIn;
   if (row) row.classList.toggle("hidden", !show);
   if (pwRow) pwRow.classList.toggle("hidden", !show);
+  updatePocketTrialBanner();
+}
+/* Web版Pocket(個人モード・ストア版でない)でトライアル中なら、無料お試しの残日数を表示する。
+   ・ストア版はpaywall.jsが担当。ここはWeb版Pocketのみ(テナントのpaidUntilから算出)。 */
+let _pocketTrialShown = false;
+function updatePocketTrialBanner() {
+  const personal = getAppMode() === "personal";
+  const isStore = document.body.classList.contains("storeApp");
+  const loggedIn = !!(window.Cloud && window.Cloud.isLoggedIn && window.Cloud.isLoggedIn());
+  if (!(personal && !isStore && loggedIn)) return;
+  if (_pocketTrialShown || document.getElementById("pwBanner")) return;
+  let info = null; try { info = window.Cloud.trialInfo && window.Cloud.trialInfo(); } catch (e) {}
+  if (!info || info.plan !== "trial" || !info.paidUntil) return;
+  const daysLeft = Math.max(0, Math.ceil((info.paidUntil - Date.now()) / 86400000));
+  if (daysLeft <= 0) return;
+  _pocketTrialShown = true;
+  const b = document.createElement("div");
+  b.id = "pwBanner";
+  b.style.pointerEvents = "auto"; b.style.cursor = "pointer";
+  b.textContent = "🎁 無料お試し 残り" + daysLeft + "日（月額¥500）";
+  b.title = "タップで閉じる";
+  b.addEventListener("click", () => b.remove());
+  document.body.appendChild(b);
 }
 function setAppMode(m) { localStorage.setItem("ss_appmode", m === "personal" ? "personal" : "corp"); applyAppMode(); }
 const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };

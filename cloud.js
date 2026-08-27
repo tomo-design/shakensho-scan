@@ -908,6 +908,11 @@
     tenantId() { return (profile && profile.tenantId) || ""; },
     isSuper() { return !!(profile && profile.role === "super"); },
     isLoggedIn() { return !!me; },
+    // 契約状態(プラン・期限)。Web版Pocketの無料お試し残日数表示などに使用。
+    trialInfo() {
+      if (!tenantDoc) return null;
+      return { plan: tenantDoc.plan || "", paidUntil: Number(tenantDoc.paidUntil) || 0 };
+    },
     // メール(またはログインID)＋パスワードでログイン。Web版Pocketのログインモーダル等から使用。
     async login(emailOrId, pw) {
       await persistReady;
