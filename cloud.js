@@ -931,8 +931,13 @@
     },
     // 管理者権限(未ログインの個人利用は自分が管理者扱い / ログイン中は admin・super のみ)
     isManager() { return !me || (profile && (profile.role === "admin" || profile.role === "super")); },
-    // AIプロキシが使えるか(契約中の店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
-    aiReady() { return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now())); },
+    // AIプロキシが使えるか(契約中の法人店舗)。真ならメカ君/OCRはサーバー経由=自分の鍵不要。
+    //  ★個人版(Pocket=edition:personal)はサーバーAIを使わず「自分のGoogle APIキー」で動く設計。
+    //    契約テナントでもPocketはサーバーAI対象外にして、運営のGemini枠を消費させない。
+    aiReady() {
+      if (tenantDoc && tenantDoc.edition === "personal") return false;
+      return !!(this.active && tenantDoc && (tenantDoc.plan === "active" || tenantDoc.plan === "trial") && (!tenantDoc.paidUntil || Number(tenantDoc.paidUntil) >= Date.now()));
+    },
     // この店舗が検索裏取りを使えるプランか(ターボ/ツインターボ)。真なら診断・修理で検索ONを送る。
     //  ※実際に検索できるか(月上限・席数)はサーバーが最終判定し、超過時は自動で検索なしに落とす。
     aiPaidOn() { const c = tierCode(); return c === "turbo" || c === "twinturbo"; },
