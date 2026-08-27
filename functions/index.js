@@ -996,26 +996,31 @@ async function provisionContract(db, info) {
   const planCode = planCodeFromLabel(info.plan);
   const tid = await genTenantId(db, info.company);
   let stripeCustomerId = null, trialEnd = null;
-  try {
-    const stripe = require("stripe")(cfg().stripe.secret);
-    const c = await stripe.customers.create({ email: info.email, metadata: { tenantId: tid, company: info.company } });
-    stripeCustomerId = c.id;
-    const P = cfg().stripe.prices[planCode] || {};
-    const priceId = P.month || cfg().stripe.price_month;
-    if (priceId) {
-      const sub = await stripe.subscriptions.create({
-        customer: c.id, items: [{ price: priceId }], trial_period_days: 7,
-        collection_method: "send_invoice", days_until_due: 14,
-        metadata: { tenantId: tid, aiPlan: planCode },
-        payment_settings: {
-          payment_method_types: ["card", "konbini", "customer_balance"],
-          save_default_payment_method: "on_subscription",
-          payment_method_options: { customer_balance: { bank_transfer: { type: "jp_bank_transfer" }, funding_type: "bank_transfer" } },
-        },
-      });
-      trialEnd = sub.trial_end ? sub.trial_end * 1000 : null;
-    }
-  } catch (e) { console.error("provision Stripe失敗", e); }
+  // 個人版(Pocket)はStripeの請求書サブスクを作らない(＝勝手に請求されない)。
+  //  7日間はFirestoreのトライアルのみ。8日目以降の課金はアプリ内 createPocketCheckout(Stripe Checkout)で行う。
+  const isPersonal = info.edition === "personal";
+  if (!isPersonal) {
+    try {
+      const stripe = require("stripe")(cfg().stripe.secret);
+      const c = await stripe.customers.create({ email: info.email, metadata: { tenantId: tid, company: info.company } });
+      stripeCustomerId = c.id;
+      const P = cfg().stripe.prices[planCode] || {};
+      const priceId = P.month || cfg().stripe.price_month;
+      if (priceId) {
+        const sub = await stripe.subscriptions.create({
+          customer: c.id, items: [{ price: priceId }], trial_period_days: 7,
+          collection_method: "send_invoice", days_until_due: 14,
+          metadata: { tenantId: tid, aiPlan: planCode },
+          payment_settings: {
+            payment_method_types: ["card", "konbini", "customer_balance"],
+            save_default_payment_method: "on_subscription",
+            payment_method_options: { customer_balance: { bank_transfer: { type: "jp_bank_transfer" }, funding_type: "bank_transfer" } },
+          },
+        });
+        trialEnd = sub.trial_end ? sub.trial_end * 1000 : null;
+      }
+    } catch (e) { console.error("provision Stripe失敗", e); }
+  }
   if (!trialEnd) trialEnd = Date.now() + 7 * 86400000;
   const loginId = await genLoginId(db, info.company);
   const edition = info.edition === "personal" ? "personal" : "works";
