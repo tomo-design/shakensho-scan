@@ -1466,13 +1466,18 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
     // ログイン済みなら uid を取得(任意)。未ログインでも申込可。
     let uid = null; try { uid = await uidFromReq(req); } catch (e) {}
     if (!uid && data.uid) uid = String(data.uid);
-    // ログイン中のPocketユーザーのテナントID・メールを取得(webhookでの紐付け＆重複トライアル防止に使用)。
-    let tid = "", userEmail = "";
+    // ログイン中のPocketユーザーのテナントID・メール・無料期間の終了日を取得。
+    let tid = "", userEmail = "", paidUntil = 0;
     if (uid) {
       try { const u = (await admin.firestore().collection("users").doc(uid).get()).data() || {}; tid = u.tenantId || ""; userEmail = u.email || ""; } catch (e) {}
+      if (tid) { try { const t = (await admin.firestore().collection("tenants").doc(tid).get()).data() || {}; paidUntil = Number(t.paidUntil) || 0; } catch (e) {} }
     }
-    // アプリ内で既に7日トライアル済みのユーザーが「登録」する場合は trial:0 を渡し、二重トライアルを防ぐ。
-    const trialDays = (String(data.trial) === "0") ? 0 : 7;
+    // 「登録は今・課金は無料期間の満了日から」。残りの無料期間の終了日(paidUntil)を Stripe の trial_end に設定。
+    //  ・満了日が未来(+1時間以上)なら trial_end を指定(その日まで無料→満了日に初回請求)。
+    //  ・すでに満了/未ログインなら通常どおり即時課金開始。
+    const nowSec = Math.floor(Date.now() / 1000);
+    const trialEndSec = paidUntil ? Math.floor(paidUntil / 1000) : 0;
+    const useTrialEnd = trialEndSec > nowSec + 3600;
     const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
     const subMeta = { product: "pocket", plan: interval, uid: uid || "", tenantId: tid || "" };
     const session = await stripe.checkout.sessions.create({
@@ -1480,7 +1485,7 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: Object.assign(
         { metadata: subMeta },
-        trialDays > 0 ? { trial_period_days: trialDays } : {}
+        useTrialEnd ? { trial_end: trialEndSec } : {}
       ),
       client_reference_id: tid || uid || undefined,
       customer_email: data.email || userEmail || undefined,

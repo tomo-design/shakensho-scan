@@ -235,7 +235,7 @@ function openPocketPaywall(blocking) {
   ov.innerHTML =
     '<div class="ikCard" style="max-width:340px">' +
       '<div class="ikTitle">' + (blocking ? "無料期間が終了しました" : "Pocket 月額プランに登録") + '</div>' +
-      '<div class="ikVeh" style="text-align:left;line-height:1.7">これからも全機能を使うには、月額プランのご登録が必要です。<br><span style="font-size:12px;color:var(--dim)">お支払いはStripeの安全な決済ページで行います。いつでも解約できます。</span></div>' +
+      '<div class="ikVeh" style="text-align:left;line-height:1.7">' + (blocking ? "これからも全機能を使うには、月額プランのご登録が必要です。" : "今すぐ登録できます。<b>初回のご請求は無料期間が終わってから</b>なので、残りの無料期間はそのまま使えます。") + '<br><span style="font-size:12px;color:var(--dim)">お支払いはStripeの安全な決済ページで行います。いつでも解約できます。</span></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">' +
         '<button type="button" class="agBtn agPocketLoginBtn" data-plan="month" style="margin:0">月額 ¥500 <span style="font-weight:600;font-size:12px">／月</span></button>' +
         '<button type="button" class="agBtn" data-plan="year" style="margin:0">年額 ¥5,500 <span style="font-weight:600;font-size:12px;color:var(--dim)">／年（月あたり¥458）</span></button>' +
