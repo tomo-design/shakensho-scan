@@ -95,15 +95,14 @@ textarea{resize:none;line-height:1.6}
 .side-foot .btn-ghost:hover{background:rgba(255,255,255,.06)}
 
 /* ---- 作業エリア ---- */
-.work{padding:26px 34px;width:100%}
-/* 対話系(チーム)は横幅をフルに使う。読み物系の各タブは読みやすい幅に抑える */
-#tab-team{max-width:1600px}
-#tab-leads,#tab-camp,#tab-inbox,#tab-issue{max-width:1040px}
-.view{animation:fade .2s ease}
+/* 全画面対応: 中央寄せの幅制限は撤廃し、常に画面幅いっぱいを使う。
+   超ワイドディスプレイでも間延びしないよう、上限だけ広め(2200px)に取り中央寄せ。 */
+.work{padding:22px clamp(18px,2.4vw,44px);width:100%;max-width:2200px;margin:0 auto}
+.view{animation:fade .18s ease}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
-.vhead h1{font-size:21px;font-weight:800;letter-spacing:.01em;margin:0}
-.vsub{color:var(--ink2);font-size:13px;margin:5px 0 0;max-width:560px}
+.vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+.vhead h1{font-size:22px;font-weight:800;letter-spacing:.01em;margin:0}
+.vsub{color:var(--ink2);font-size:13px;margin:5px 0 0;max-width:640px}
 
 /* ---- 対象セレクタ(ヘッダ内) ---- */
 .lead-context{display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -148,25 +147,45 @@ textarea{resize:none;line-height:1.6}
 .composer textarea{flex:1;max-height:150px;box-shadow:var(--shadow)}
 .composer .btn{padding:11px 20px}
 
-/* ===== 2カラム: 左=対話 / 右=生成結果の書面表示 ===== */
-.teamGrid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
-@media(min-width:1000px){.teamGrid{grid-template-columns:minmax(0,1fr) minmax(380px,44%)}}
+/* ===== 2カラム: 左=対話 / 右=生成結果の書面表示 =====
+   全画面対応: 画面が広いほど右の生成結果ペインをしっかり見せ、
+   高さもビューポート基準にして「1画面で完結」させる。 */
+.teamGrid{display:grid;grid-template-columns:1fr;gap:18px;align-items:stretch}
+@media(min-width:1000px){.teamGrid{grid-template-columns:minmax(0,1fr) minmax(420px,42%)}}
+@media(min-width:1600px){.teamGrid{grid-template-columns:minmax(0,1fr) minmax(520px,760px)}}
 .teamMain{display:flex;flex-direction:column;min-width:0}
 .teamOut{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
-  display:flex;flex-direction:column;overflow:hidden;max-height:74vh;position:sticky;top:16px}
+  display:flex;flex-direction:column;overflow:hidden;position:sticky;top:12px;
+  height:calc(100dvh - 210px);min-height:340px}
 .teamOut .outHead{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+  padding:13px 18px;border-bottom:1px solid var(--line);font-size:14px;background:var(--card)}
+.teamOut .outHead b{display:flex;align-items:center;gap:7px}
+.teamOut .outHead b::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .teamOut .outActs{display:flex;gap:8px}
 .teamOut .outActs.hidden{display:none}
-.teamOut .outBody{padding:16px 18px;overflow-y:auto}
-.teamOut .outEmpty{color:var(--ink2);font-size:13px;line-height:1.8;text-align:center;padding:30px 8px}
+.teamOut .outBody{padding:20px 22px;overflow-y:auto;flex:1}
+.teamOut .outEmpty{color:var(--ink2);font-size:13px;line-height:1.8;text-align:center;padding:40px 8px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%}
 .teamOut .outDoc{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;
-  font-size:14px;line-height:1.85;color:var(--ink)}
+  font-size:14.5px;line-height:1.9;color:var(--ink);max-width:70ch}
+/* チャット側も画面高さに追従させ、下端の入力欄を固定的に */
+@media(min-width:1000px){
+  .teamMain .chat{max-height:none;flex:1}
+  .teamMain{height:calc(100dvh - 210px)}
+}
 
 /* ================= 見込み客 ================= */
-.lead-toolbar{margin-bottom:12px}
-.leadlist{display:flex;flex-direction:column;gap:10px}
-.leadcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+/* 全幅対応: ツールバーに検索・件数を横並び。一覧はカードをタイル状に敷き詰めて密度UP */
+.lead-toolbar{margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lead-search{position:relative;flex:1;min-width:220px;max-width:420px}
+.lead-search input{padding-left:34px}
+.lead-search::before{content:"🔍";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.5;pointer-events:none}
+.lead-filters{display:flex;gap:8px;flex-wrap:wrap}
+.lead-filters select{width:auto;min-width:120px;padding:8px 10px;font-size:13px}
+.lead-toolbar .muted{margin-left:auto;white-space:nowrap}
+.leadlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}
+.leadcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;transition:.14s}
+.leadcard:hover{border-color:#d3d7dd;box-shadow:0 2px 4px rgba(20,24,31,.06),0 12px 28px -14px rgba(20,24,31,.18)}
 .leadcard .co{font-weight:700;font-size:15px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .leadcard .meta{font-size:12.5px;color:var(--ink2);margin-top:4px}
 .leadcard .note{font-size:13px;color:#3a414c;margin-top:7px;white-space:pre-wrap;word-break:break-word;padding-left:11px;border-left:2px solid var(--line)}
@@ -177,15 +196,15 @@ textarea{resize:none;line-height:1.6}
 .st-商談中{background:#e4edfb;color:#2b5aa8}
 .st-契約{background:#e0f3e7;color:#1a7a42}
 .st-見送り{background:#fbe6e6;color:#a53838}
-.empty-block{text-align:center;color:var(--ink2);font-size:13.5px;padding:48px 20px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius)}
+.empty-block{grid-column:1/-1;text-align:center;color:var(--ink2);font-size:13.5px;padding:48px 20px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius)}
 
 /* ================= 一括作成 ================= */
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .panel-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
 .progress{height:7px;background:#eef0f3;border-radius:999px;margin-top:14px;overflow:hidden}
 #cpBar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-d));transition:width .25s}
-.campresults{display:flex;flex-direction:column;gap:12px}
+.campresults{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;align-items:start}
 .crcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;animation:fade .2s ease}
 .crhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
 .crco{font-weight:700}

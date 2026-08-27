@@ -255,11 +255,28 @@
       leads.map((l) => `<option value="${l.id}">${esc(l.company)}（${esc(l.status)}）</option>`).join("");
     sel.value = curLeadId;
   }
+  function visibleLeads() {
+    const q = (($("leadSearch") && $("leadSearch").value) || "").trim().toLowerCase();
+    const fk = ($("leadFilterKind") && $("leadFilterKind").value) || "";
+    const fs = ($("leadFilterStatus") && $("leadFilterStatus").value) || "";
+    return leads.filter((l) => {
+      if (fk && l.kind !== fk) return false;
+      if (fs && l.status !== fs) return false;
+      if (q) {
+        const hay = [l.company, l.contact, l.note, l.email, l.phone, l.kind].join(" ").toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+  }
   function renderLeads() {
-    $("leadCount").textContent = leads.length ? leads.length + " 社" : "";
     const box = $("leadList");
+    const list = visibleLeads();
+    const filtered = list.length !== leads.length;
+    $("leadCount").textContent = leads.length ? (filtered ? list.length + " / " + leads.length + " 社" : leads.length + " 社") : "";
     if (!leads.length) { box.innerHTML = '<div class="empty-block">まだ見込み客がありません。<br>右上の「＋ 追加」から登録してください。</div>'; return; }
-    box.innerHTML = leads.map((l) => `
+    if (!list.length) { box.innerHTML = '<div class="empty-block">条件に一致する見込み客がありません。<br>検索・絞り込みを変更してください。</div>'; return; }
+    box.innerHTML = list.map((l) => `
       <div class="leadcard">
         <div class="l">
           <div class="co">${esc(l.company)} <span class="pill st-${esc(l.status)}">${esc(l.status)}</span></div>
@@ -301,11 +318,26 @@
     const d = new Date(ms);
     return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() + " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
   }
+  function visibleInquiries() {
+    const q = (($("inboxSearch") && $("inboxSearch").value) || "").trim().toLowerCase();
+    const fs = ($("inboxFilterStatus") && $("inboxFilterStatus").value) || "";
+    return inquiries.filter((x) => {
+      if (fs && (x.status || "新規") !== fs) return false;
+      if (q) {
+        const hay = [x.company, x.name, x.message, x.email, x.phone, x.kind, x.plan].join(" ").toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+  }
   function renderInbox() {
-    $("inboxCount").textContent = inquiries.length ? inquiries.length + " 件" : "";
     const box = $("inboxList");
+    const list = visibleInquiries();
+    const filtered = list.length !== inquiries.length;
+    $("inboxCount").textContent = inquiries.length ? (filtered ? list.length + " / " + inquiries.length + " 件" : inquiries.length + " 件") : "";
     if (!inquiries.length) { box.innerHTML = '<div class="empty-block">まだ問い合わせはありません。<br>法人LP（biz.html）のフォームから届くとここに表示されます。</div>'; return; }
-    box.innerHTML = inquiries.map((q) => `
+    if (!list.length) { box.innerHTML = '<div class="empty-block">条件に一致する問い合わせがありません。<br>検索・絞り込みを変更してください。</div>'; return; }
+    box.innerHTML = list.map((q) => `
       <div class="leadcard">
         <div class="l">
           <div class="co">${esc(q.company)} <span class="pill st-${q.status === "新規" ? "アプローチ中" : "見込み"}">${esc(q.status || "新規")}</span></div>
@@ -338,6 +370,9 @@
     });
   }
   const _rb = $("btnReloadInbox"); if (_rb) _rb.onclick = () => loadInbox();
+  ["inboxSearch", "inboxFilterStatus"].forEach((id) => {
+    const e = $(id); if (e) e.addEventListener("input", renderInbox);
+  });
 
   // パスワード再設定リンクを発行し、それを本文に埋め込んだ返信文をAI(CS)に作らせる
   const _rl = $("btnResetLink");
@@ -392,6 +427,9 @@
     show("lmDelete", !!id);
     show("leadModal", true);
   }
+  ["leadSearch", "leadFilterKind", "leadFilterStatus"].forEach((id) => {
+    const e = $(id); if (e) e.addEventListener("input", renderLeads);
+  });
   $("btnNewLead").onclick = () => openLead("");
   $("lmCancel").onclick = () => show("leadModal", false);
   $("lmSave").onclick = async () => {

@@ -133,7 +133,17 @@
           <button id="btnReloadInbox" class="btn btn-ghost btn-sm">再読み込み</button>
         </div>
       </header>
-      <div class="lead-toolbar"><span id="inboxCount" class="muted"></span></div>
+      <div class="lead-toolbar">
+        <span class="lead-search"><input id="inboxSearch" type="search" placeholder="会社名・担当・本文で検索…"></span>
+        <div class="lead-filters">
+          <select id="inboxFilterStatus">
+            <option value="">状況：すべて</option>
+            <option value="新規">新規</option>
+            <option value="対応済み">対応済み</option>
+          </select>
+        </div>
+        <span id="inboxCount" class="muted"></span>
+      </div>
       <div id="inboxList" class="leadlist"></div>
     </section>
 
@@ -146,7 +156,28 @@
         </div>
         <button id="btnNewLead" class="btn btn-dark">＋ 追加</button>
       </header>
-      <div class="lead-toolbar"><span id="leadCount" class="muted"></span></div>
+      <div class="lead-toolbar">
+        <span class="lead-search"><input id="leadSearch" type="search" placeholder="会社名・担当・メモで検索…"></span>
+        <div class="lead-filters">
+          <select id="leadFilterKind">
+            <option value="">業種：すべて</option>
+            <option value="整備工場">整備工場</option>
+            <option value="運送会社">運送会社</option>
+            <option value="ディーラー">ディーラー</option>
+            <option value="板金/塗装">板金/塗装</option>
+            <option value="その他">その他</option>
+          </select>
+          <select id="leadFilterStatus">
+            <option value="">状況：すべて</option>
+            <option value="見込み">見込み</option>
+            <option value="アプローチ中">アプローチ中</option>
+            <option value="商談中">商談中</option>
+            <option value="契約">契約</option>
+            <option value="見送り">見送り</option>
+          </select>
+        </div>
+        <span id="leadCount" class="muted"></span>
+      </div>
       <div id="leadList" class="leadlist"></div>
     </section>
 
