@@ -1223,8 +1223,9 @@
       if (profile.role === "super") {
         const ts = await db.collection("tenants").get();
         const tlist = ts.docs.map(d => ({ id: d.id, t: d.data() }));
-        // 会社ごとにカード化(会社→所属メンバー)
-        tlist.forEach(({ id, t }) => {
+        const isPersonalT = tt => (tt && tt.edition === "personal");
+        // 会社(Works)ごとにカード化(会社→所属メンバー)。個人(Pocket)は下で1ブロックに集約する。
+        tlist.filter(x => !isPersonalT(x.t)).forEach(({ id, t }) => {
           const sid = id.replace(/[^a-zA-Z0-9_-]/g, ""); statTids.push(id);
           const cnt = (byTenant[id] || []).length;
           html += "<div class='mTenant'><div class='mTenantHead' data-toggle>" +
@@ -1241,6 +1242,17 @@
             membersHtml(byTenant[id], t) + "</div></div>";
           delete byTenant[id];
         });
+        // 個人利用者(Pocket)は1ブロックに集約して、個々の利用者を並べる。
+        const personalList = tlist.filter(x => isPersonalT(x.t));
+        if (personalList.length) {
+          let prows = "", pcount = 0;
+          personalList.forEach(({ id, t }) => {
+            (byTenant[id] || []).forEach(m => { prows += userRow(m.id, m.u, t); pcount++; });
+            delete byTenant[id];
+          });
+          html += "<div class='mTenant'><div class='mTenantHead' data-toggle><span class='mChevron'>▸</span><span class='mName'>🧍 個人利用者（Pocket）</span><span class='mCount'>👥 " + pcount + "</span></div>" +
+            "<div class='mBody hidden'>" + (prows || "<div class='mStat'>個人利用者なし</div>") + "</div></div>";
+        }
         // どの会社にも紐づかないユーザー
         Object.keys(byTenant).forEach(t => {
           const cnt = (byTenant[t] || []).length;
@@ -1272,7 +1284,9 @@
     return list.map(x => userRow(x.id, x.u, t)).join("");
   }
   function userRow(id, u, t) {
-    const roleJa = ({ super: "運営管理者", admin: "代表管理者", staff: "メンバー" }[u.role] || u.role);
+    // 個人版(Pocket)は「代表管理者」ではなく「個人利用者」と表示する(1人テナントのオーナーだが実体は個人客)。
+    const isPersonalU = (t && t.edition === "personal") || u.edition === "personal";
+    const roleJa = isPersonalU ? "個人利用者" : ({ super: "運営管理者", admin: "代表管理者", staff: "メンバー" }[u.role] || u.role);
     // 運営管理者(super)は店舗の管理対象ではない。操作ボタン無しで「在籍」だけ表示(誤って無効化されない)
     if (u.role === "super") {
       const infoS = "<div class='mInfo'><div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span><span class='mRole adm'>運営管理者</span></div>" +
