@@ -3534,7 +3534,81 @@ function renderIntakeBoard() {
     box.appendChild(card);
   });
   renderIntakeDetail(list);
+  try { renderIntakeCalendar(); } catch (e) {}
   toggle("intakeBoard", true);
+}
+/* ===== 月間カレンダー: その月の入庫(intakeAt)・出庫(intakeOut)を日別に集計して表示 ===== */
+let _icMonth = null;   // 表示中の月(その月1日のDate)
+function icMonthRef() {
+  if (!_icMonth) { const n = new Date(); _icMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+  return _icMonth;
+}
+/* ログイン中の店舗の、入庫区分が付いた全レコード(出庫済み含む)。カレンダー集計用。 */
+function intakeAllInScope() {
+  return getHistory().filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && recordInScope(h));
+}
+function renderIntakeCalendar() {
+  const grid = $("icGrid"); if (!grid) return;
+  const ref = icMonthRef();
+  const y = ref.getFullYear(), m = ref.getMonth();
+  const tEl = $("icTitle"); if (tEl) tEl.textContent = y + "年 " + (m + 1) + "月";
+  const monthStart = new Date(y, m, 1).getTime();
+  const monthEnd = new Date(y, m + 1, 1).getTime();
+  const inByDay = {}, outByDay = {};
+  const put = (map, ts, h) => { if (ts >= monthStart && ts < monthEnd) { const k = new Date(ts).getDate(); (map[k] = map[k] || []).push(h); } };
+  intakeAllInScope().forEach(h => { if (h.intakeAt) put(inByDay, h.intakeAt, h); if (h.intakeOut) put(outByDay, h.intakeOut, h); });
+  let inTot = 0, outTot = 0;
+  Object.keys(inByDay).forEach(k => inTot += inByDay[k].length);
+  Object.keys(outByDay).forEach(k => outTot += outByDay[k].length);
+  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>';
+  const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const now = new Date(); const thisMonth = now.getFullYear() === y && now.getMonth() === m; const todayD = now.getDate();
+  let html = '<div class="icDowRow">' + ["日", "月", "火", "水", "木", "金", "土"]
+    .map((w, i) => '<div class="icDowC' + (i === 0 ? ' icSun' : i === 6 ? ' icSat' : '') + '">' + w + '</div>').join('') + '</div><div class="icCells">';
+  for (let i = 0; i < firstDow; i++) html += '<div class="icCell icEmpty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ins = inByDay[d] || [], outs = outByDay[d] || [];
+    const has = ins.length || outs.length;
+    const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
+                   (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '');
+    html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
+      '<div class="icNum">' + d + '</div>' +
+      '<div class="icBadges">' + badges + '</div>' +
+      (has ? '<div class="icDotsRow">' + dots(ins.concat(outs)) + '</div>' : '') + '</div>';
+  }
+  html += '</div>';
+  grid.innerHTML = html;
+  const lg = $("icLegend");
+  if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫日 ／ ▲＝出庫日</span>';
+  const prev = $("icPrev"), next = $("icNext"), tod = $("icToday");
+  if (prev) prev.onclick = () => { _icMonth = new Date(y, m - 1, 1); renderIntakeCalendar(); };
+  if (next) next.onclick = () => { _icMonth = new Date(y, m + 1, 1); renderIntakeCalendar(); };
+  if (tod) tod.onclick = () => { const n = new Date(); _icMonth = new Date(n.getFullYear(), n.getMonth(), 1); renderIntakeCalendar(); };
+  grid.querySelectorAll('.icCell[data-day]').forEach(c => c.addEventListener('click', () => {
+    const d = parseInt(c.dataset.day, 10);
+    openIntakeDayDetail(y, m, d, inByDay[d] || [], outByDay[d] || []);
+  }));
+}
+/* カレンダーの日をタップ → その日の入庫・出庫の明細を表示 */
+function openIntakeDayDetail(y, m, d, ins, outs) {
+  if (!ins.length && !outs.length) return;
+  const row = h => {
+    const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
+    const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
+    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTag ' + info.cls + '">' + esc(info.label) + '</span><span class="icDetTitle">' + esc(title) + '</span></div>';
+  };
+  const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760";
+  ov.innerHTML = '<div class="ikCard" style="max-width:380px;text-align:left">' +
+    '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" +
+    '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
+    '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
+    '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
 function renderIntakeDetail(list) {
