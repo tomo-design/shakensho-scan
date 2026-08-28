@@ -551,7 +551,7 @@
       // 店舗情報(プラン/有料ONフラグ等)をリアルタイム購読 → 運営がトグルを変えたら端末に即反映(古い状態で検索を送るのを防ぐ)
       if (unsubTenant) { unsubTenant(); unsubTenant = null; }
       try {
-        unsubTenant = db.collection("tenants").doc(profile.tenantId).onSnapshot(s => { tenantDoc = s.data() || tenantDoc; });
+        unsubTenant = db.collection("tenants").doc(profile.tenantId).onSnapshot(s => { tenantDoc = s.data() || tenantDoc; try { window.refreshPocketUI && window.refreshPocketUI(); } catch (e) {} });
       } catch (e) {}
       // 管理者/運営は、Stripe契約から自動でプランを同期(webフック取りこぼし救済・🔄手動不要)。
       if ((profile.role === "admin" || profile.role === "super") && tenantDoc && tenantDoc.stripeCustomerId) {
@@ -559,6 +559,7 @@
       }
     }
     renderAuthUI();
+    try { window.refreshPocketUI && window.refreshPocketUI(); } catch (e) {}   // 契約情報読込後にPocketの無料残日数バナーを再描画
     if (profile && profile.active && profile.tenantId) {
       // 店舗が未払い/停止なら社内共有を止める(個人利用=ローカルは継続)
       if (!planActive()) { planBlocked = true; renderAuthUI(); renderDevices(); return; }

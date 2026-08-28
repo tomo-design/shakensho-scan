@@ -197,6 +197,9 @@ function updatePocketAccountBox() {
   if (pwRow) pwRow.classList.toggle("hidden", !show);
   updatePocketTrialBanner();
 }
+// テナント(契約情報)がログイン後に非同期で読み込まれた/変化した時、cloud.jsから呼んで
+// Pocketの無料お試し残日数バナーを再描画させる(読込前に1回走って消えるのを防ぐ)。
+window.refreshPocketUI = function () { try { updatePocketAccountBox(); } catch (e) {} };
 /* Web版Pocket(個人モード・ストア版でない)でトライアル中なら、無料お試しの残日数を表示する。
    ・ストア版はpaywall.jsが担当。ここはWeb版Pocketのみ(テナントのpaidUntilから算出)。 */
 let _pocketTrialShown = false, _pocketPaywallShown = false;
