@@ -1910,7 +1910,7 @@ const POCKET_KB = `【製品】MECHANO-AI Pocket — 整備士“個人”向け
 【料金】ダウンロード無料。最初の7日間は全機能無料。8日目以降は月額¥500。いつでも解約可。
 【入手・申込(最新仕様)】Web版(ブラウザ)で提供中: https://mechanoai-cablueie.com/ を開き、ログイン画面の「Pocket ＞ 7日間無料ではじめる」でメールアドレスを入力すると、その場でPocket専用のログインID(=入力したメール)と初期パスワードが自動発行され、自動返信メールで即座に届く。届いたID/パスで「Pocket ＞ ログイン」からログイン。スマホでは同じ画面をブラウザで開き、ホーム画面に追加すればアプリのように起動できる。パスワードは設定タブの「🔑パスワードを変更」で変更可。※App Store/Google Playのストア版は現在準備中で未提供。
 【ID/パス自動発行・自動返信(重要)】Web版の申込は運営の手作業ゼロで即時発行・即時メール返信。※発行されるIDは個人版(Pocket)専用で、法人版(Works)ではログインできない。既に登録済みのメールは保護のため自動発行せず、既存ID/パスでのログイン案内を返す。
-【体験デモ】登録不要: https://mechanoai-cablueie.com/?demo=1 ／ よくある質問: https://mechanoai-cablueie.com/faq.html?v=personal
+【体験デモ】登録不要: https://mechanoai-cablueie.com/?demo=1 ／ よくある質問: https://mechanoai-cablueie.com/faq.html?v=personal ／ ご案内資料(サービス詳細・料金・始め方): https://mechanoai-cablueie.com/haifu-personal.html 。★『サービス詳細・資料はこちら』の類はこのPocketご案内資料を使う。法人LP(biz.html)は個人向けでは使わない。
 【核メッセージ】「ベテランに聞けない・調べる時間がない」を解決する“ポケットの相棒”。ワンコイン(¥500/月)で全機能、まずは7日間無料。
 【法人版との違い】店舗内クラウド共有・入庫管理ボード・メンバー/端末管理・プラン課金は法人向け「MECHANO-AI Works」の機能。Pocketは個人1台・端末内で完結。`;
 
@@ -2099,10 +2099,15 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   const angleRule = product === "pocket"
     ? "訴求の主軸: 個人の整備士に向けて『ベテランに聞けない・調べる時間がない』を、スマホ1台の“調べる相棒”で解決。ワンコイン(¥500/月)・7日間無料・自分の無料APIキー(クレカ不要)で始められる、を中心に。誇張はしない。"
     : "訴求の主軸: 特に別の指定がない限り、『整備士の人手不足の解消』と『若手を即戦力化できる（ベテランの調べ物を標準化し、経験の浅いスタッフでも諸元・トルクに即到達）』を中心メッセージに据え、冒頭でこの課題に触れてから解決策としてメカノAIを提示する。ただし誇張や虚偽は書かない。";
+  // ★製品(Works/Pocket)の機能・概念を絶対に混同させないための最重要ガード。混在はトラブルの元。
+  const mixRule = product === "pocket"
+    ? "★製品混同の絶対禁止(最重要): 今回はPocket(個人向け)。Pocketは『整備士ひとりが自分のスマホ1台・端末内で完結して使う』アプリ。したがって『社内共有／チーム共有／店舗共有／複数人・複数端末での共有』『入庫管理ボード』『メンバー管理・端末管理』『会社契約・代表管理者』『プラン(NA/ターボ/ツインターボ)』などは一切ない —— これらは全て法人版Works専用の機能。これらの語・概念を文章に絶対に入れない。データは端末内のみで、『社内で共有される』とは決して書かない。『使うほど育つ／自分仕様の資産になる』を書く場合も『自分専用の相棒として育ち、自分の記録が蓄積する』に限定し、共有・チーム・社内には触れない。宛先は『あなた(個人の整備士)』であり、会社宛・店舗宛の口調にしない。★リンク・導線も個人向けのみ: 法人向けの 法人LP(biz.html)・法人申込フォーム(apply.html)・法人サービス紹介資料(shiryou.html)・会社署名(担当:中江…) は絶対に載せない。『サービス詳細・資料はこちら』のようにアプリ紹介の資料URLを載せる場合は、必ず Pocketのご案内資料 https://mechanoai-cablueie.com/haifu-personal.html を使う(Worksのbiz.htmlは絶対に使わない)。案内してよいURLは次の4つのみ: ①Pocketのはじめ方=mechanoai-cablueie.com のログイン画面『Pocket＞7日間無料ではじめる』 ②体験デモ=mechanoai-cablueie.com/?demo=1 ③Pocketご案内資料=mechanoai-cablueie.com/haifu-personal.html ④Pocketのよくある質問=mechanoai-cablueie.com/faq.html?v=personal。"
+    : "★製品混同の絶対禁止(最重要): 今回はWorks(法人向け)。個人版Pocket特有の文脈(『個人1台・端末内のみで完結』『会社で共有しない』等)と混同しない。Worksは店舗・チームで車両データ/整備記録/入庫管理を共有できるのが価値。";
 
   const prompt = `${staff.sys}
 
 以下は取り扱う製品の正確な情報です。ここに書かれた事実のみを根拠に話し、値段や機能をでっち上げないこと。今回の商材は「${product === "pocket" ? "MECHANO-AI Pocket（個人向けアプリ）" : "MECHANO-AI Works（法人向け）"}」です。
+${mixRule}
 ${kb}
 
 ${NEWS_KB}
@@ -2121,7 +2126,8 @@ ${String(data.task || "").slice(0, 4000)}
 ・ビジネスメールとしての体裁と敬意は保ちつつ、堅すぎず、相手が読んで気持ちが動く温度感にする。
 ・AIである旨や「このメールは自動生成」等のメタ発言は絶対にしない。
 ${sigRule}
-${angleRule}`;
+${angleRule}
+${mixRule}`;
 
   const parts = [{ text: prompt }];
   // まず有料キー(あれば)→ ダメなら無料キーを順に試す
