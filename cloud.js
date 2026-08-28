@@ -1087,6 +1087,33 @@
       db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r))
         .set({ deleted: true, vin: r.vin || null, rid: r.rid || null, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     },
+    // データ管理の「全消去」用: クラウド側の記録も消す(これをしないと再ログイン時の同期で復活する)。
+    async clearCloudHistory() {   // 車両レコード(records)を全件“墓標”削除(deleted:true)。古い端末の再アップでも蘇らない。
+      if (!this.active) return;
+      try {
+        const col = db.collection("tenants").doc(profile.tenantId).collection("records");
+        const snap = await col.get();
+        let batch = db.batch(), n = 0;
+        for (const d of snap.docs) {
+          batch.set(d.ref, { deleted: true, updatedAt: Date.now() }, { merge: true });
+          if (++n >= 400) { await batch.commit(); batch = db.batch(); n = 0; }
+        }
+        if (n) await batch.commit();
+      } catch (e) {}
+    },
+    async clearCloudVehicles() {   // カスタム車種DB(vehicles)をクラウドから全件削除。
+      if (!this.active) return;
+      try {
+        const col = db.collection("tenants").doc(profile.tenantId).collection("vehicles");
+        const snap = await col.get();
+        let batch = db.batch(), n = 0;
+        for (const d of snap.docs) {
+          batch.delete(d.ref);
+          if (++n >= 400) { await batch.commit(); batch = db.batch(); n = 0; }
+        }
+        if (n) await batch.commit();
+      } catch (e) {}
+    },
     signOut() { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} try { auth.signOut(); } catch (e) {} },
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {

@@ -3958,13 +3958,20 @@ $("dbImportIn").addEventListener("change", async e => {
 /* =========================================================
    設定
    ========================================================= */
-$("btnClearHist").addEventListener("click", () => {
+$("btnClearHist").addEventListener("click", async () => {
   if (!isManager()) { uiAlert("この操作は管理者のみ行えます。"); return; }
-  if (confirm("スキャン履歴をすべて削除しますか？")) { localStorage.removeItem(LS.hist); renderHistory(); }
+  const cloudOn = !!(window.Cloud && window.Cloud.active);
+  if (!confirm("スキャン履歴をすべて削除しますか？" + (cloudOn ? "\n（クラウド・他の端末からも削除されます）" : ""))) return;
+  localStorage.removeItem(LS.hist); renderHistory();
+  // クラウドにも同期されている場合は、クラウド側も消す(これをしないと再ログイン時に復活する)。
+  if (cloudOn) { try { await window.Cloud.clearCloudHistory(); } catch (e) {} }
 });
-$("btnClearCustom").addEventListener("click", () => {
+$("btnClearCustom").addEventListener("click", async () => {
   if (!isManager()) { uiAlert("この操作は管理者のみ行えます。"); return; }
-  if (confirm("カスタム車種DBをすべて削除しますか？（内蔵DBは残ります）")) { CUSTOM_DB = []; saveCustomDB(); renderDBList(); }
+  const cloudOn = !!(window.Cloud && window.Cloud.active);
+  if (!confirm("カスタム車種DBをすべて削除しますか？（内蔵DBは残ります）" + (cloudOn ? "\n（クラウド・他の端末からも削除されます）" : ""))) return;
+  CUSTOM_DB = []; saveCustomDB(); renderDBList();
+  if (cloudOn) { try { await window.Cloud.clearCloudVehicles(); } catch (e) {} }
 });
 /* DB内蔵データの全消去: 内蔵・カスタム・学習(諸元/定番故障)をすべて削除(履歴は残す) */
 $("btnClearDb").addEventListener("click", () => {
