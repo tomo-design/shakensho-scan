@@ -1029,6 +1029,8 @@ async function provisionContract(db, info) {
     name: info.company, aiPlan: planCode, plan: "trial", aiPaidFallback: (planCode !== "na"),
     paidUntil: trialEnd, stripeCustomerId: stripeCustomerId, seats: 1,
     edition: edition,   // personal=Pocket専用 / works=法人。ログイン時にアプリ版と突き合わせて相互ログインを防ぐ。
+    // Pocket(個人版)は自動発行なので運営承認は不要 → 発行時点で有効化する(運営コンソールで「承認待ち」と誤表示されるのを防ぐ)。
+    active: isPersonal ? true : false,
     provisioned: true, provisionedAt: Date.now(), contactEmail: info.email,
   }, { merge: true });
   const token = crypto.randomBytes(24).toString("hex");
