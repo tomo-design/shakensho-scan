@@ -43,7 +43,11 @@
     <nav class="nav">
       <button class="tab active" data-tab="team">
         <svg viewBox="0 0 24 24" class="ic"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span>AI営業チーム</span>
+        <span>AI営業チーム<small class="tab-sub">Works・法人</small></span>
+      </button>
+      <button class="tab tab-pocket" data-tab="pocket">
+        <svg viewBox="0 0 24 24" class="ic"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        <span>Pocket文面<small class="tab-sub">個人向け</small></span>
       </button>
       <button class="tab" data-tab="inbox">
         <svg viewBox="0 0 24 24" class="ic"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>
@@ -87,15 +91,10 @@
     <section id="tab-team" class="view">
       <header class="vhead">
         <div>
-          <h1>AI営業チーム</h1>
-          <p class="vsub">部門の担当に相談。提案文・戦略・切り返しをその場で作成します。</p>
+          <h1 id="teamTitle">AI営業チーム <span class="prodBadge works" id="teamModeBadge">Works・法人</span></h1>
+          <p class="vsub" id="teamSub">部門の担当に相談。提案文・戦略・切り返しをその場で作成します。</p>
         </div>
-        <div class="lead-context">
-          <span class="lc-label">商材</span>
-          <div class="prodToggle" id="prodToggle" role="tablist" aria-label="商材切替">
-            <button type="button" class="pt-btn on" data-product="works" role="tab"><b>Works</b><small>法人</small></button>
-            <button type="button" class="pt-btn" data-product="pocket" role="tab"><b>Pocket</b><small>個人</small></button>
-          </div>
+        <div class="lead-context" id="leadContext">
           <span class="lc-label" id="leadLabel">対象</span>
           <select id="leadSelect"><option value="">指定なし</option></select>
         </div>

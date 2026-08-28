@@ -57,7 +57,8 @@
   let curLeadId = "";
   let replyCtx = null;   // 問い合わせへの返信作成時の相手コンテキスト(見込み客未登録でも文脈に使う)
   let leads = [];
-  const histByStaff = {}; // {staffId: [{role,text}]}
+  const histByStaff = {}; // {"product:staffId": [{role,text}]} 商材ごとに履歴を分離(Works/Pocketの文脈が混ざらない)
+  const histKey = () => curProduct + ":" + curStaff;
 
   // ---------- 認証 ----------
   async function api(action, payload) {
@@ -98,6 +99,7 @@
     show("loginPane", false); show("appPane", true); show("btnLogout", true);
     buildStaffbar();
     selectStaff("bucho");
+    setProduct("works");   // 既定はWorks(AI営業チームタブ)。Pocket文面タブでpocketに切替
     loadLeads();
     loadInbox(true);   // 未対応バッジを表示するため裏で読み込む
   });
@@ -108,11 +110,13 @@
       document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
       t.classList.add("active");
       const tab = t.dataset.tab;
-      show("tab-team", tab === "team");
+      const teamView = (tab === "team" || tab === "pocket");   // Pocket文面タブもチーム画面を共用(商材だけ切替)
+      show("tab-team", teamView);
       show("tab-leads", tab === "leads");
       show("tab-camp", tab === "camp");
       show("tab-inbox", tab === "inbox");
       show("tab-issue", tab === "issue");
+      if (teamView) setProduct(tab === "pocket" ? "pocket" : "works");
       if (tab === "camp") { updateCampCount(); loadDripConfig(); }
       if (tab === "inbox") loadInbox();
     };
@@ -138,31 +142,30 @@
     $("quickActions").innerHTML = (src[curStaff] || []).map((q) => `<button class="chip">${esc(q)}</button>`).join("");
     $("quickActions").querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
   }
-  // 商材(Works/Pocket)切替。個人版では見込み客(会社)コンテキストは使わないので隠す。
-  // ★どちらの商材で作っているかを常に明確にする(Works/Pocketの混同=トラブルの元)。
-  function applyProductUI(opt) {
+  // 商材は「タブ」で確定する(AI営業チーム=Works / Pocket文面タブ=Pocket)。
+  // タブ＝商材なので切替忘れによるWorks/Pocketの混同が起きない。UIも商材に合わせて切り替える。
+  function setProduct(p) {
+    curProduct = p === "pocket" ? "pocket" : "works";
     const pk = curProduct === "pocket";
-    document.querySelectorAll("#prodToggle .pt-btn").forEach((b) => b.classList.toggle("on", b.dataset.product === curProduct));
-    if ($("leadSelect")) $("leadSelect").style.display = pk ? "none" : "";
-    if ($("leadLabel")) $("leadLabel").style.display = pk ? "none" : "";
     if (document.body) document.body.classList.toggle("mode-pocket", pk);
+    // ヘッダのタイトル・説明・バッジ
+    if ($("teamTitle")) $("teamTitle").firstChild.nodeValue = pk ? "AI営業チーム（Pocket） " : "AI営業チーム ";
+    const tmb = $("teamModeBadge");
+    if (tmb) { tmb.textContent = pk ? "Pocket・個人" : "Works・法人"; tmb.classList.toggle("pocket", pk); tmb.classList.toggle("works", !pk); }
+    if ($("teamSub")) $("teamSub").textContent = pk
+      ? "個人整備士向けのPocket用文面（ストア説明文・SNS・紹介文など）を作成します。会社・見込み客の文脈は使いません。"
+      : "部門の担当に相談。提案文・戦略・切り返しをその場で作成します。";
+    // 見込み客(会社)コンテキストはWorksのみ
+    if ($("leadContext")) $("leadContext").style.display = pk ? "none" : "";
+    // 生成結果デスクの商材バッジ
     const badge = $("outProdBadge");
     if (badge) { badge.textContent = pk ? "Pocket" : "Works"; badge.classList.toggle("pocket", pk); badge.classList.toggle("works", !pk); }
     if ($("taskInput")) $("taskInput").placeholder = pk
       ? "個人整備士向けの指示を入力（例：Pocketをすすめる紹介文を書いて）"
       : "担当への指示を入力（例：この会社への初回アプローチメールを書いて）";
     renderQuick();
-    if (!(opt && opt.silent)) toast(pk ? "商材を Pocket（個人版）に切替" : "商材を Works（法人版）に切替");
-  }
-  function setProduct(p) {
-    const next = p === "pocket" ? "pocket" : "works";
-    if (next === curProduct) return;
-    curProduct = next;
-    applyProductUI();
     renderChat();
   }
-  document.querySelectorAll("#prodToggle .pt-btn").forEach((b) => b.onclick = () => setProduct(b.dataset.product));
-  applyProductUI({ silent: true });
   function copy(text) {
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("コピーしました")).catch(() => toast("コピーできませんでした"));
   }
@@ -185,7 +188,7 @@
   function renderChat() {
     const log = $("chatLog");
     const s = staffOf(curStaff);
-    const hist = histByStaff[curStaff] || [];
+    const hist = histByStaff[histKey()] || [];
     if (!hist.length) {
       log.innerHTML = `<div class="empty">${avaHtml(s)}<div><b>${esc(s.name)}</b><br>指示を入力するか、上のボタンから始めてください。</div></div>`;
       renderOutput();
@@ -222,7 +225,7 @@
   }
   function renderOutput() {
     if (!$("outDesk")) return;
-    const hist = histByStaff[curStaff] || [];
+    const hist = histByStaff[histKey()] || [];
     deskAiTexts = hist.filter((m) => m.role === "ai" && !/^⚠️/.test(m.text)).map((m) => m.text);
     const last = deskAiTexts.length ? deskAiTexts[deskAiTexts.length - 1] : "";
     show("outActs", !!last);
@@ -272,7 +275,8 @@
   async function sendTask() {
     const task = ta.value.trim();
     if (!task) return;
-    const hist = histByStaff[curStaff] || (histByStaff[curStaff] = []);
+    const k = histKey();
+    const hist = histByStaff[k] || (histByStaff[k] = []);
     hist.push({ role: "user", text: task });
     ta.value = ""; ta.style.height = "auto";
     renderChat();
