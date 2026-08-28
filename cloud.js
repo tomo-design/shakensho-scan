@@ -544,6 +544,14 @@
         }
       }
     } catch (e) {}
+    // 端末上でアカウントが切り替わったら、前アカウントのローカルデータをクリアする。
+    // これをしないと、下の startSync→uploadLocal で前アカウントの履歴・車種DBが
+    // 新アカウントのクラウドへアップロードされて混入する(アカウント作り直しでも履歴が残る原因)。
+    try {
+      const lastUid = localStorage.getItem("ss_lastUid") || "";
+      if (lastUid && lastUid !== user.uid) { if (window.clearLocalUserData) window.clearLocalUserData(); }
+      localStorage.setItem("ss_lastUid", user.uid);
+    } catch (e) {}
     // 店舗の契約状態を読み込む
     deviceBlocked = false; planBlocked = false; tenantDoc = null;
     if (profile && profile.tenantId) {

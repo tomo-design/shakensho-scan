@@ -355,6 +355,20 @@ function loadCustomDB() {
   catch (e) { CUSTOM_DB = []; }
 }
 function saveCustomDB() { localStorage.setItem(LS.custom, JSON.stringify(CUSTOM_DB)); }
+// 端末上でアカウントが切り替わった時(cloud.jsから呼ぶ)に、前アカウントのローカルデータを消す。
+// これをしないと、ログイン時のuploadLocalで前アカウントの履歴・車種DBが新アカウントのクラウドに混入する。
+window.clearLocalUserData = function () {
+  try {
+    localStorage.removeItem(LS.hist);            // スキャン履歴・整備カルテ
+    localStorage.removeItem(LS.custom);          // カスタム車種DB
+    localStorage.removeItem("ss_learnedspecs");  // AIが学習した諸元
+    localStorage.removeItem("ss_katacache");     // 型式キャッシュ
+    localStorage.removeItem("ss_intakeFilter");  // 入庫フィルタ
+    CUSTOM_DB = [];                              // メモリ上の車種DBも空に(uploadLocalが参照するため必須)
+  } catch (e) {}
+  try { renderHistory(); } catch (e) {}
+  try { renderDBList(); } catch (e) {}
+};
 
 async function loadBuiltinDB() {
   if (localStorage.getItem("ss_dbcleared") === "1") { BUILTIN_DB = []; return; }
