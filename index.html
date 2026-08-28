@@ -116,15 +116,17 @@
 
   <!-- 入庫ボード: 現在庫の車両を区分色で一覧(ホームのみ) -->
   <section id="intakeBoard" class="intakeBoard hidden">
-    <div class="ibHead"><h2>入庫中の車両 <span id="ibCount" class="ibCount"></span></h2><button type="button" id="ibUpdate" class="ibUpdate" title="アプリを最新に更新"><img src="img/更新のアイコン.png" alt="更新"></button></div>
-    <!-- 月間カレンダー: その月の入庫(▼)・出庫(▲)を一目で -->
-    <details id="intakeCalWrap" class="intakeCalWrap">
-      <summary class="icSummary">📅 月間カレンダー（入出庫）</summary>
-      <div class="icTools"><button type="button" id="icPrev" class="icNav">‹</button><span id="icTitle" class="icTitle"></span><button type="button" id="icNext" class="icNav">›</button><button type="button" id="icToday" class="icTodayBtn">今月</button></div>
-      <div id="icTotals" class="icTotals"></div>
-      <div id="icGrid" class="icGrid"></div>
-      <div id="icLegend" class="icLegend"></div>
-    </details>
+    <div class="ibHead"><h2>入庫中の車両 <span id="ibCount" class="ibCount"></span></h2><button type="button" id="icOpen" class="ibCalBtn" title="月間カレンダー（入出庫）">📅</button><button type="button" id="ibUpdate" class="ibUpdate" title="アプリを最新に更新"><img src="img/更新のアイコン.png" alt="更新"></button></div>
+    <!-- 月間カレンダー(ポップアップ): その月の入庫(▼)・出庫(▲)を一目で -->
+    <div id="intakeCalModal" class="ikModal hidden">
+      <div class="ikCard icModalCard">
+        <div class="icModalHd"><span class="icModalTitle">📅 月間カレンダー（入出庫）</span><button type="button" id="icClose" class="icClose" aria-label="閉じる">✕</button></div>
+        <div class="icTools"><button type="button" id="icPrev" class="icNav">‹</button><span id="icTitle" class="icTitle"></span><button type="button" id="icNext" class="icNav">›</button><button type="button" id="icToday" class="icTodayBtn">今月</button></div>
+        <div id="icTotals" class="icTotals"></div>
+        <div id="icGrid" class="icGrid"></div>
+        <div id="icLegend" class="icLegend"></div>
+      </div>
+    </div>
     <div id="ibFilter" class="ibFilter"></div>
     <div class="ibSubHead"><span id="ibSummary" class="ibSummary"></span><span class="ibHint">右上の丸をタップで確認レ点</span></div>
     <div id="ibList" class="ibList"></div>

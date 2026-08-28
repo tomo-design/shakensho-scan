@@ -3534,8 +3534,21 @@ function renderIntakeBoard() {
     box.appendChild(card);
   });
   renderIntakeDetail(list);
-  try { renderIntakeCalendar(); } catch (e) {}
+  try { bindIntakeCal(); } catch (e) {}
   toggle("intakeBoard", true);
+}
+/* カレンダーのポップアップ開閉を1回だけバインド */
+let _icBound = false;
+function bindIntakeCal() {
+  if (_icBound) return;
+  const modal = $("intakeCalModal"), open = $("icOpen"), close = $("icClose");
+  if (!modal || !open) return;
+  _icBound = true;
+  const show = () => { try { renderIntakeCalendar(); } catch (e) {} toggle("intakeCalModal", true); };
+  const hide = () => toggle("intakeCalModal", false);
+  open.addEventListener("click", show);
+  if (close) close.addEventListener("click", hide);
+  modal.addEventListener("click", e => { if (e.target === modal) hide(); });
 }
 /* ===== 月間カレンダー: その月の入庫(intakeAt)・出庫(intakeOut)を日別に集計して表示 ===== */
 let _icMonth = null;   // 表示中の月(その月1日のDate)

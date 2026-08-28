@@ -1049,6 +1049,14 @@ body.pwLocked{ overflow:hidden }
 .icDetTag.ikShaken{background:#2563EB}.icDetTag.ikTenken{background:#16A34A}.icDetTag.ikRepair{background:#EA8C00}.icDetTag.ikJiko{background:#DC2626}
 .icDetTitle{font-size:13px;color:var(--txt,#1B2530)}
 .icDetNone{font-size:12px;color:var(--dim,#9aa4b2);padding:3px 0}
+/* ヘッダーのカレンダーアイコンボタン */
+.ibCalBtn{flex:none;width:34px;height:34px;padding:0;border:1px solid var(--line,#D5DDE8);background:var(--panel,#fff);border-radius:9px;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ibCalBtn:active{background:var(--panel2,#EAF0F7)}
+/* カレンダーのポップアップ枠(ikModalを流用しつつ幅広・スクロール可) */
+.icModalCard{max-width:460px;max-height:88vh;overflow:auto;padding:14px 14px 12px}
+.icModalHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.icModalTitle{font-size:15px;font-weight:700;color:var(--txt,#1B2530)}
+.icClose{border:0;background:transparent;color:var(--dim,#5E6B7C);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer}
 
 /* ===== 入庫区分ポップアップ ===== */
 .ikModal{position:fixed;inset:0;z-index:400;background:rgba(20,28,38,.5);
