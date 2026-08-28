@@ -139,15 +139,30 @@
     $("quickActions").querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("taskInput").value = b.textContent; sendTask(); });
   }
   // 商材(Works/Pocket)切替。個人版では見込み客(会社)コンテキストは使わないので隠す。
-  const _ps = $("productSelect");
-  if (_ps) _ps.onchange = () => {
-    curProduct = _ps.value === "pocket" ? "pocket" : "works";
+  // ★どちらの商材で作っているかを常に明確にする(Works/Pocketの混同=トラブルの元)。
+  function applyProductUI(opt) {
     const pk = curProduct === "pocket";
+    document.querySelectorAll("#prodToggle .pt-btn").forEach((b) => b.classList.toggle("on", b.dataset.product === curProduct));
     if ($("leadSelect")) $("leadSelect").style.display = pk ? "none" : "";
     if ($("leadLabel")) $("leadLabel").style.display = pk ? "none" : "";
+    if (document.body) document.body.classList.toggle("mode-pocket", pk);
+    const badge = $("outProdBadge");
+    if (badge) { badge.textContent = pk ? "Pocket" : "Works"; badge.classList.toggle("pocket", pk); badge.classList.toggle("works", !pk); }
+    if ($("taskInput")) $("taskInput").placeholder = pk
+      ? "個人整備士向けの指示を入力（例：Pocketをすすめる紹介文を書いて）"
+      : "担当への指示を入力（例：この会社への初回アプローチメールを書いて）";
     renderQuick();
-    toast(pk ? "商材: Pocket（個人版）" : "商材: Works（法人版）");
-  };
+    if (!(opt && opt.silent)) toast(pk ? "商材を Pocket（個人版）に切替" : "商材を Works（法人版）に切替");
+  }
+  function setProduct(p) {
+    const next = p === "pocket" ? "pocket" : "works";
+    if (next === curProduct) return;
+    curProduct = next;
+    applyProductUI();
+    renderChat();
+  }
+  document.querySelectorAll("#prodToggle .pt-btn").forEach((b) => b.onclick = () => setProduct(b.dataset.product));
+  applyProductUI({ silent: true });
   function copy(text) {
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("コピーしました")).catch(() => toast("コピーできませんでした"));
   }

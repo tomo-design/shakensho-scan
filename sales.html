@@ -92,7 +92,10 @@
         </div>
         <div class="lead-context">
           <span class="lc-label">商材</span>
-          <select id="productSelect"><option value="works">Works（法人）</option><option value="pocket">Pocket（個人）</option></select>
+          <div class="prodToggle" id="prodToggle" role="tablist" aria-label="商材切替">
+            <button type="button" class="pt-btn on" data-product="works" role="tab"><b>Works</b><small>法人</small></button>
+            <button type="button" class="pt-btn" data-product="pocket" role="tab"><b>Pocket</b><small>個人</small></button>
+          </div>
           <span class="lc-label" id="leadLabel">対象</span>
           <select id="leadSelect"><option value="">指定なし</option></select>
         </div>
@@ -110,7 +113,7 @@
         </div>
         <aside class="teamOut" id="outputPane">
           <div class="outHead">
-            <b>メール作成デスク</b>
+            <b>メール作成デスク <span class="prodBadge works" id="outProdBadge">Works</span></b>
             <span class="outActs hidden" id="outActs">
               <button class="btn btn-ghost btn-sm" id="outRevert" title="ひとつ前のAI生成に戻す">↩ 前の版</button>
               <button class="btn btn-ghost btn-sm" id="outCopy">📋 全文コピー</button>

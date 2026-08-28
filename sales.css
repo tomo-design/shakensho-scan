@@ -105,9 +105,25 @@ textarea{resize:none;line-height:1.6}
 .vsub{color:var(--ink2);font-size:13px;margin:5px 0 0;max-width:640px}
 
 /* ---- 対象セレクタ(ヘッダ内) ---- */
-.lead-context{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lead-context{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
 .lc-label{font-size:12px;font-weight:600;color:var(--ink2)}
 .lead-context select{width:auto;min-width:150px;padding:8px 10px;font-size:13px}
+
+/* ---- 商材トグル(Works/Pocket) — 現在どちらで作っているかを明確に ---- */
+.prodToggle{display:inline-flex;background:#eceef2;border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.prodToggle .pt-btn{display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.15;
+  background:transparent;border:0;border-radius:8px;padding:5px 15px;cursor:pointer;color:var(--ink2);font-family:inherit;transition:.14s}
+.prodToggle .pt-btn b{font-size:13px;font-weight:800;letter-spacing:.02em}
+.prodToggle .pt-btn small{font-size:9.5px;font-weight:600;opacity:.8}
+.prodToggle .pt-btn:hover{color:var(--ink)}
+.prodToggle .pt-btn[data-product="works"].on{background:var(--dark);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.prodToggle .pt-btn[data-product="pocket"].on{background:var(--green);color:#fff;box-shadow:0 1px 3px rgba(31,157,85,.35)}
+/* 出力ヘッダの商材バッジ */
+.prodBadge{display:inline-block;vertical-align:middle;margin-left:7px;font-size:11px;font-weight:800;letter-spacing:.03em;padding:2px 9px;border-radius:999px}
+.prodBadge.works{background:#e7e9ef;color:#3a4150}
+.prodBadge.pocket{background:#e0f3e7;color:#1a7a42}
+/* Pocketモード時は生成結果ヘッダのアクセントドットも緑に(視覚的に混同防止) */
+body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 
 /* ================= AI営業チーム ================= */
 .staffbar{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;-webkit-overflow-scrolling:touch}
@@ -264,6 +280,8 @@ textarea{resize:none;line-height:1.6}
   .crtext{background:#12151b}
   .empty-block{background:#171b22}
   .st-見込み{background:#2b303a;color:#c2c8d2}
+  .prodToggle{background:#12151b}
+  .prodBadge.works{background:#2b303a;color:#c2c8d2}
 }
 
 /* 契約発行 */
