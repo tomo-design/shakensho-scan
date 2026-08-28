@@ -3040,8 +3040,8 @@ function saveUserName(name) {
 /* ===== 入庫ボード: スキャンした車両を区分色で現在庫一覧 ===== */
 const INTAKE_KINDS = {
   "車検": { label: "車検", cls: "ikShaken" },
-  "点検": { label: "定期点検", cls: "ikTenken" },
-  "修理": { label: "一般修理", cls: "ikRepair" },
+  "点検": { label: "点検", cls: "ikTenken" },
+  "修理": { label: "修理", cls: "ikRepair" },
   "事故": { label: "板金", cls: "ikJiko" },
 };
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
