@@ -3116,6 +3116,7 @@ function setIntake(rid, kind, staff) {
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
   markIntakeSeen(rid);
+  try { consumePlansForVehicle(t); } catch (e) {}   // 予定日到来済みの合致予定を自動消化
   renderIntakeBoard(); renderHistory();
 }
 /* 入庫区分だけ変更(入庫日時はそのまま)。staff=担当者名(任意) */
@@ -3732,6 +3733,24 @@ function removePlan(id) {
   const arr = allPlansRaw(); const i = arr.findIndex(x => x.id === id);
   if (i >= 0) { arr[i].deleted = true; arr[i].updatedAt = Date.now(); savePlansRaw(arr); }
   try { if (window.Cloud && window.Cloud.deletePlan) window.Cloud.deletePlan(id); } catch (e) {}
+}
+/* 実際に入庫した車両に合致する「予定日到来済み(今日以前)」の予定を自動で消す(=予定消化)。同期あり。 */
+function consumePlansForVehicle(t) {
+  if (!t) return;
+  const norm = s => String(s == null ? "" : s).replace(/\s+/g, "").toLowerCase();
+  const plate = norm(t.plate), name = norm(t.name), type = norm(t.type);
+  const vAll = plate + name + type;
+  const todayTs = new Date().setHours(0, 0, 0, 0);
+  let changed = false;
+  getPlans().forEach(p => {
+    const planTs = new Date(p.y, p.m, p.d).setHours(0, 0, 0, 0);
+    if (planTs > todayTs) return;   // まだ先の予定(予定日が未到来)は消さない
+    const title = norm(p.title); if (!title) return;
+    const match = (plate && title.includes(plate)) || (name && name.length >= 2 && title.includes(name)) ||
+      (vAll && (vAll.includes(title) || title.includes(vAll)));
+    if (match) { removePlan(p.id); changed = true; }
+  });
+  if (changed) { try { renderIntakeCalendar(); } catch (e) {} }
 }
 function renderIntakeCalendar() {
   const grid = $("icGrid"); if (!grid) return;
