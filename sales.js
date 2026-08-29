@@ -686,13 +686,18 @@
   let campStop = false, campResults = [];
   $("btnStopCamp").onclick = () => { campStop = true; toast("中止しました"); };
 
-  $("btnRunCamp").onclick = async () => {
+  const _setCampBusy = (busy) => {
+    if ($("btnRunCamp")) $("btnRunCamp").disabled = busy;
+    if ($("btnRunSend")) $("btnRunSend").disabled = busy;
+  };
+  // 対象の見込み客ぶんの文面を順に生成。完了後 true(生成あり&中止なし)を返す。
+  async function runGeneration() {
     const targets = filteredLeads();
-    if (!targets.length) { toast("対象の見込み客がいません"); return; }
+    if (!targets.length) { toast("対象の見込み客がいません"); return false; }
     const channel = $("cpChannel").value, angle = $("cpAngle").value;
     const chTxt = CHANNEL_TXT[channel], anTxt = ANGLE_TXT[angle];
     campStop = false; campResults = [];
-    show("btnStopCamp", true); show("btnCsv", false); $("btnRunCamp").disabled = true;
+    show("btnStopCamp", true); show("btnCsv", false); show("btnBulkSend", false); _setCampBusy(true);
     show("cpProgress", true); $("cpBar").style.width = "0%";
     $("campResults").innerHTML = "";
 
@@ -712,12 +717,14 @@
       appendCampCard(l.company, l.kind || "", text, err);
       $("cpBar").style.width = Math.round(((i + 1) / targets.length) * 100) + "%";
     }
-    $("btnRunCamp").disabled = false;
+    _setCampBusy(false);
     show("btnStopCamp", false);
     show("btnCsv", campResults.length > 0);
     show("btnBulkSend", campResults.length > 0);
     toast(campStop ? "中止しました" : "生成が完了しました（" + campResults.length + "件）");
-  };
+    return !campStop && campResults.length > 0;
+  }
+  $("btnRunCamp").onclick = runGeneration;
 
   // 生成した文面を、対象の見込み客へメールで一括送信
   function extractSubject(text) {
@@ -730,15 +737,15 @@
     if (/^\s*(?:件名|タイトル|subject)\s*[:：]/i.test(lines[0] || "")) return lines.slice(1).join("\n").replace(/^\n+/, "");
     return text;
   }
-  const _bs = $("btnBulkSend");
-  if (_bs) _bs.onclick = async () => {
+  // 生成済みの文面を、メール登録済みの対象へ一括送信(送信前に1回だけ確認)
+  async function sendCampaign(opt) {
     const sendable = campResults.filter((r) => !r.err && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email));
     const noMail = campResults.filter((r) => !r.err && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)).length;
     if (!sendable.length) { toast("送信できる宛先（メール登録済み）がありません"); return; }
-    let msg = sendable.length + " 件へメールを送信します。よろしいですか？";
-    if (noMail) msg += "\n（メール未登録の " + noMail + " 件は送信されません）";
+    let msg = (opt && opt.prefix ? opt.prefix : "") + sendable.length + " 件へメールを送信します。よろしいですか？";
+    if (noMail) msg += "\n（メール未登録の " + noMail + " 件は送信されません。フォーム/電話でご連絡ください）";
     if (!confirm(msg)) return;
-    _bs.disabled = true; $("btnRunCamp").disabled = true; show("btnCsv", false);
+    _setCampBusy(true); show("btnCsv", false); if ($("btnBulkSend")) $("btnBulkSend").disabled = true;
     show("cpSendBar", true); $("cpSendBarInner").style.width = "0%";
     let ok = 0, ng = 0;
     for (let i = 0; i < sendable.length; i++) {
@@ -753,9 +760,16 @@
       $("cpSendBarInner").style.width = Math.round(((i + 1) / sendable.length) * 100) + "%";
     }
     $("cpSendStat").textContent = "完了：送信 " + ok + " 件" + (ng ? " / 失敗 " + ng + " 件" : "") + (noMail ? " / 未送信(メール未登録) " + noMail + " 件" : "");
-    _bs.disabled = false; $("btnRunCamp").disabled = false; show("btnCsv", true);
+    _setCampBusy(false); if ($("btnBulkSend")) $("btnBulkSend").disabled = false; show("btnCsv", true);
     toast("一括送信が完了しました（成功 " + ok + " 件）");
-  };
+  }
+  { const _bs = $("btnBulkSend"); if (_bs) _bs.onclick = () => sendCampaign(); }
+  // ★作成→即送信を1クリックで(生成完了後、送信前に確認を1回)
+  { const _rsend = $("btnRunSend"); if (_rsend) _rsend.onclick = async () => {
+      const okGen = await runGeneration();
+      if (okGen && !campStop) await sendCampaign({ prefix: "作成が完了しました。続けて " });
+    };
+  }
 
   function appendCampCard(company, kind, text, err) {
     const div = document.createElement("div");
