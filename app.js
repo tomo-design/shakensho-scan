@@ -3544,6 +3544,21 @@ function renderIntakeBoard() {
   try { bindBoardDrag(); } catch (e) {}
   toggle("intakeBoard", true);
 }
+/* フローティングカードの配置(位置・大きさ)を保存/復元(PC。次回同じ配置で開く) */
+function saveFloatPos(key, el) {
+  try { const r = el.getBoundingClientRect(); localStorage.setItem(key, JSON.stringify({ l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })); } catch (e) {}
+}
+function restoreFloatPos(key, el) {
+  try {
+    const s = JSON.parse(localStorage.getItem(key) || "null"); if (!s) return false;
+    // 画面外に保存されていた場合に備えて可視範囲へ丸める
+    const l = Math.min(Math.max(s.l, -el.offsetWidth + 160), window.innerWidth - 160);
+    const t = Math.min(Math.max(s.t, 0), window.innerHeight - 60);
+    el.style.position = "fixed"; el.style.left = l + "px"; el.style.top = t + "px";
+    if (s.w) el.style.width = s.w + "px"; if (s.h) el.style.height = s.h + "px";
+    el.style.margin = "0"; el.dataset.placed = "1"; return true;
+  } catch (e) { return false; }
+}
 /* 任意のカードを指定ハンドルでドラッグ移動可能にする(PC限定) */
 function makeDraggable(card, handle) {
   if (!card || !handle) return;
@@ -3568,7 +3583,7 @@ function makeDraggable(card, handle) {
   handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
 }
 /* フローティングカードに四隅リサイズハンドルを付与(PC)。左上・右上・左下・右下すべてで大小変更可。 */
-function makeResizable(el, minW, minH) {
+function makeResizable(el, minW, minH, saveKey) {
   if (!el || el._rzDone) return;
   el._rzDone = true;
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
@@ -3592,7 +3607,7 @@ function makeResizable(el, minW, minH) {
       w = Math.min(w, window.innerWidth - 10); h = Math.min(h, window.innerHeight - 10);
       el.style.width = w + "px"; el.style.height = h + "px"; el.style.left = l + "px"; el.style.top = t + "px";
     });
-    const end = () => { drag = false; };
+    const end = () => { if (drag && saveKey) saveFloatPos(saveKey, el); drag = false; };
     hnd.addEventListener("pointerup", end); hnd.addEventListener("pointercancel", end);
   });
 }
@@ -3603,8 +3618,9 @@ function bindBoardDrag() {
   const board = $("intakeBoard"); const hd = board && board.querySelector(".ibHead");
   if (!board || !hd) return;
   _ibDragBound = true;
-  try { makeResizable(board, 520, 360); } catch (e) {}
+  try { makeResizable(board, 520, 360, "ss_boardPos"); } catch (e) {}
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
+  if (isDesk()) { try { restoreFloatPos("ss_boardPos", board); } catch (e) {} }   // 前回の配置を復元
   let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
   hd.addEventListener("pointerdown", e => {
     if (!isDesk() || !officeMode() || e.target.closest("button")) return;   // ボタン(更新/カレンダー)はドラッグしない
@@ -3621,7 +3637,7 @@ function bindBoardDrag() {
     ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
     board.style.left = nx + "px"; board.style.top = ny + "px";
   });
-  const end = () => { drag = false; };
+  const end = () => { if (drag) { try { saveFloatPos("ss_boardPos", board); } catch (e) {} } drag = false; };
   hd.addEventListener("pointerup", end);
   hd.addEventListener("pointercancel", end);
 }
@@ -3633,15 +3649,17 @@ function bindIntakeCal() {
   if (!modal || !open) return;
   _icBound = true;
   const card = modal.querySelector(".icModalCard");
-  try { makeResizable(card, 360, 320); } catch (e) {}
+  try { makeResizable(card, 360, 320, "ss_calPos"); } catch (e) {}
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
   const show = () => {
     try { renderIntakeCalendar(); } catch (e) {}
     toggle("intakeCalModal", true);
-    // PC: フローティングカードとして初回は右寄せに配置(以降はドラッグ位置を保持)
+    // PC: 前回の配置を復元。無ければ初回は右寄せに配置。
     if (card && isDesk() && !card.dataset.placed) {
-      card.style.left = Math.max(20, window.innerWidth - 640) + "px";
-      card.style.top = "84px"; card.style.margin = "0"; card.dataset.placed = "1";
+      if (!restoreFloatPos("ss_calPos", card)) {
+        card.style.left = Math.max(20, window.innerWidth - 640) + "px";
+        card.style.top = "84px"; card.style.margin = "0"; card.dataset.placed = "1";
+      }
     }
   };
   const hide = () => toggle("intakeCalModal", false);
@@ -3670,7 +3688,7 @@ function bindIntakeCal() {
       ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
       card.style.left = nx + "px"; card.style.top = ny + "px";
     });
-    const endDrag = () => { dragging = false; modal.classList.remove("dragging"); };
+    const endDrag = () => { if (dragging) { try { saveFloatPos("ss_calPos", card); } catch (e) {} } dragging = false; modal.classList.remove("dragging"); };
     hd.addEventListener("pointerup", endDrag);
     hd.addEventListener("pointercancel", endDrag);
   }

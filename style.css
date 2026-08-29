@@ -1429,7 +1429,11 @@ body.gated{overflow:hidden}
 .ibFchip.on.ikJiko{background:#DC2626}
 @media(min-width:900px){
   body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1}
-  body.officeMode #intakeBoard .ibSubHead{grid-column:1}   /* レ点案内は左カラム(一覧側)の上に置く */
+  /* レ点案内は全幅の独立行に。これで詳細(右)が案内と同じ行に入り込んで一覧(左)を押し下げる空間を防ぐ。 */
+  body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1}
+  /* 一覧と詳細を同じ行の先頭に揃える(上に空間を作らない) */
+  body.officeMode #intakeBoard #ibList{grid-row:auto}
+  body.officeMode #intakeBoard .ibDetail{align-self:start}
 }
 
 /* 詳細: 担当者ボタン＋右上スロット */
