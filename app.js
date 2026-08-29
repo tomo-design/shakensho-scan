@@ -3758,7 +3758,8 @@ function renderIntakeCalendar() {
     .map((w, i) => '<div class="icDowC' + (i === 0 ? ' icSun' : i === 6 ? ' icSat' : '') + '">' + w + '</div>').join('') + '</div><div class="icCells">';
   for (let i = 0; i < firstDow; i++) html += '<div class="icCell icEmpty"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
-    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = planByDay[d] || [];
+    const dayIsPast = new Date(y, m, d).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0);
+    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []);
     const has = ins.length || outs.length || plans.length;
     const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
                    (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '') +
@@ -3798,11 +3799,15 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
       (p.note ? ' <span class="icDetNote">' + esc(p.note) + '</span>' : '') + '</span>' +
       '<button type="button" class="icPlanDel" data-id="' + esc(p.id) + '" title="削除">✕</button></div>';
   };
+  // 過去の日付には入庫予定を出さない(今日以降のみ追加・表示)
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+  const isPast = new Date(y, m, d).getTime() < todayMid.getTime();
   const build = () => {
     const plans = plansForDay(y, m, d);
+    const planSec = isPast ? '' :
+      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + plans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (plans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
     return '<div class="ikCard" style="max-width:380px;text-align:left">' +
-      '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" +
-      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + plans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (plans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>' +
+      '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" + planSec +
       '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
