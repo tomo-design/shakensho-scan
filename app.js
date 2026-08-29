@@ -3544,13 +3544,43 @@ function renderIntakeBoard() {
   try { bindBoardDrag(); } catch (e) {}
   toggle("intakeBoard", true);
 }
-/* 入庫ボード(事務モード・PC)をヘッダーでドラッグ移動できるようにする(リサイズはCSSのresizeで対応) */
+/* フローティングカードに四隅リサイズハンドルを付与(PC)。左上・右上・左下・右下すべてで大小変更可。 */
+function makeResizable(el, minW, minH) {
+  if (!el || el._rzDone) return;
+  el._rzDone = true;
+  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
+  [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1]].forEach(([name, rx, ry]) => {
+    const hnd = document.createElement("div"); hnd.className = "rzH rz-" + name; el.appendChild(hnd);
+    let sx = 0, sy = 0, sw = 0, sh = 0, sl = 0, st = 0, drag = false;
+    hnd.addEventListener("pointerdown", e => {
+      if (!isDesk()) return;
+      e.stopPropagation(); e.preventDefault();
+      const r = el.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY; sw = r.width; sh = r.height; sl = r.left; st = r.top; drag = true;
+      el.style.left = sl + "px"; el.style.top = st + "px"; el.style.margin = "0";
+      try { hnd.setPointerCapture(e.pointerId); } catch (er) {}
+    });
+    hnd.addEventListener("pointermove", e => {
+      if (!drag) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      let w, h, l = sl, t = st;
+      if (rx === 1) w = Math.max(minW, sw + dx); else { w = Math.max(minW, sw - dx); l = sl + (sw - w); }
+      if (ry === 1) h = Math.max(minH, sh + dy); else { h = Math.max(minH, sh - dy); t = st + (sh - h); }
+      w = Math.min(w, window.innerWidth - 10); h = Math.min(h, window.innerHeight - 10);
+      el.style.width = w + "px"; el.style.height = h + "px"; el.style.left = l + "px"; el.style.top = t + "px";
+    });
+    const end = () => { drag = false; };
+    hnd.addEventListener("pointerup", end); hnd.addEventListener("pointercancel", end);
+  });
+}
+/* 入庫ボード(事務モード・PC)をヘッダーでドラッグ移動できるようにする(リサイズは四隅ハンドルで対応) */
 let _ibDragBound = false;
 function bindBoardDrag() {
   if (_ibDragBound) return;
   const board = $("intakeBoard"); const hd = board && board.querySelector(".ibHead");
   if (!board || !hd) return;
   _ibDragBound = true;
+  try { makeResizable(board, 520, 360); } catch (e) {}
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
   let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
   hd.addEventListener("pointerdown", e => {
@@ -3580,6 +3610,7 @@ function bindIntakeCal() {
   if (!modal || !open) return;
   _icBound = true;
   const card = modal.querySelector(".icModalCard");
+  try { makeResizable(card, 360, 320); } catch (e) {}
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
   const show = () => {
     try { renderIntakeCalendar(); } catch (e) {}

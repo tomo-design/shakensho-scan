@@ -1060,9 +1060,11 @@ body.pwLocked{ overflow:hidden }
 /* PC: カレンダーを独立したフローティングカードにして、ドラッグ移動・背後操作を可能に */
 @media (min-width:1024px){
   #intakeCalModal.ikModal{background:transparent;pointer-events:none;padding:0}
-  #intakeCalModal .icModalCard{pointer-events:auto;position:fixed;width:600px;height:auto;
-    min-width:360px;min-height:320px;max-width:96vw;max-height:92vh;resize:both;overflow:auto;
+  #intakeCalModal .icModalCard{pointer-events:auto;position:fixed;width:600px;height:78vh;
+    min-width:360px;min-height:320px;max-width:96vw;max-height:92vh;overflow:hidden;
+    display:flex;flex-direction:column;
     box-shadow:0 18px 60px rgba(0,0,0,.30);border:1px solid var(--line,#D5DDE8)}
+  #intakeCalModal .icModalBody{flex:1;min-height:0;overflow:auto}
   #intakeCalModal .icModalHd{cursor:move;user-select:none;touch-action:none;margin:-2px -4px 8px;padding:4px 4px 8px;border-bottom:1px solid var(--line,#EEF2F8)}
   #intakeCalModal .icModalTitle{font-size:16px}
   #intakeCalModal .icModalTitle::before{content:"⣿ ";color:var(--dim,#9aa4b2);font-size:13px;letter-spacing:-1px}
@@ -1446,12 +1448,22 @@ body.gated{overflow:hidden}
     position:fixed;top:96px;left:24px;
     width:min(70vw,1000px);height:78vh;
     min-width:520px;min-height:360px;max-width:96vw;max-height:90vh;
-    resize:both;overflow:auto;z-index:60;
+    overflow:hidden;z-index:60;
     background:var(--panel,#fff);border:1px solid var(--line,#D5DDE8);border-radius:16px;
     padding:12px 16px;box-shadow:0 18px 60px rgba(0,0,0,.18)}
   body.officeMode #intakeBoard .ibHead{cursor:move;user-select:none;touch-action:none}
   body.officeMode #intakeBoard .ibHead button{cursor:pointer}
   body.officeMode #intakeBoard .ibHead h2::before{content:"\2837 ";color:var(--dim,#9aa4b2);font-size:12px;letter-spacing:-1px}
-  body.officeMode #intakeBoard #ibList{max-height:none}
-  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;max-height:none}
+  body.officeMode #intakeBoard #ibList{max-height:calc(90vh - 150px);overflow-y:auto}
+  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;max-height:calc(90vh - 150px);overflow-y:auto}
+}
+/* 四隅リサイズハンドル(PCのフローティングカード用) */
+.rzH{display:none}
+@media(min-width:1024px){
+  #intakeCalModal .icModalCard .rzH,
+  body.officeMode #intakeBoard .rzH{display:block;position:absolute;width:20px;height:20px;z-index:9}
+  .rzH.rz-nw{top:-4px;left:-4px;cursor:nwse-resize}
+  .rzH.rz-ne{top:-4px;right:-4px;cursor:nesw-resize}
+  .rzH.rz-sw{bottom:-4px;left:-4px;cursor:nesw-resize}
+  .rzH.rz-se{bottom:-4px;right:-4px;cursor:nwse-resize}
 }
