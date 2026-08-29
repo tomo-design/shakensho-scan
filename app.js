@@ -3610,7 +3610,7 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const row = h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
-    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTag ' + info.cls + '">' + esc(info.label) + '</span><span class="icDetTitle">' + esc(title) + '</span></div>';
+    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(title) + '</span></div>';
   };
   const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760";
   ov.innerHTML = '<div class="ikCard" style="max-width:380px;text-align:left">' +
