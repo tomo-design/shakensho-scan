@@ -3568,7 +3568,9 @@ function bringToFront(el) { if (!el) return; _floatZ += 1; el.style.zIndex = _fl
 function enableRaise(card, topEl) {
   if (!card || card._raiseOn) return; card._raiseOn = true;
   const t = topEl || card;
-  card.addEventListener("pointerdown", () => bringToFront(t));
+  // 最前面化はPCのフローティング表示のみ。スマホは通常のモーダル重なり(固定z-index)のままにする
+  // (スマホで有効にすると、日付タップ時にカレンダー自身が前面化して明細カードが後ろに隠れる不具合になる)。
+  card.addEventListener("pointerdown", () => { if (window.matchMedia("(min-width:1024px)").matches) bringToFront(t); });
 }
 /* 任意のカードを指定ハンドルでドラッグ移動可能にする(PC限定) */
 function makeDraggable(card, handle) {
