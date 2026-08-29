@@ -2137,8 +2137,14 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     const kind = String(data.kind || "整備工場").trim().slice(0, 40);
     const count = Math.min(Math.max(parseInt(data.count, 10) || 10, 1), 20);
     if (!area) return res.status(400).json({ error: "地域(都道府県・市区町村など)を入力してください。" });
+    const rnorm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
+    const exclude = Array.isArray(data.exclude) ? data.exclude.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 250) : [];
+    const exSet = new Set(exclude.map(rnorm));
+    const excludeBlock = exclude.length
+      ? `\n【既に取得済み(重複禁止・必ず除外)】次の事業者は既にリスト済みです。これらは絶対に結果に含めず、これら以外の"別の"事業者を新たに探してください:\n${exclude.slice(0, 150).join(" / ")}\n`
+      : "";
     const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。
-
+${excludeBlock}
 【最重要ルール(厳守・違反禁止)】
 ・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
 ・メールアドレスと電話番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
@@ -2170,7 +2176,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
       formUrl: isUrl(x.formUrl) ? String(x.formUrl).slice(0, 400) : "",
       source: isUrl(x.source) ? String(x.source).slice(0, 400) : "",
       note: String(x.note || "").slice(0, 500),
-    })).filter((x) => x.company && x.source).slice(0, count);   // 店名と出典URLが必須(無いものは捨てる=捏造防止)
+    })).filter((x) => x.company && x.source && !exSet.has(rnorm(x.company))).slice(0, count);   // 店名と出典URL必須(捏造防止)＋既出は除外
     return res.json({ candidates: candidates, found: candidates.length });
   }
 

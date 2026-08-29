@@ -223,7 +223,17 @@
         </div>
         <div class="panel-actions">
           <button id="btnResearch" class="btn btn-accent">🔍 候補を検索</button>
+          <label class="rsFilterWrap">絞り込み
+            <select id="rsFilter">
+              <option value="all">すべて</option>
+              <option value="email">メールありのみ</option>
+              <option value="form">問い合わせフォームありのみ</option>
+              <option value="reach">メール or フォームあり</option>
+            </select>
+          </label>
           <button id="btnRsAddAll" class="btn btn-dark btn-sm hidden">表示中をすべて見込み客に追加</button>
+          <span class="spacer" style="flex:1"></span>
+          <button id="btnRsReset" class="btn btn-ghost btn-sm" title="「取得済み(重複除外)」の記録を消して最初から集め直す">収集履歴をリセット</button>
           <span id="rsStat" class="muted"></span>
         </div>
         <p class="vsub" style="margin:10px 0 0;font-size:12px">※ 公開情報の収集です。得られた連絡先が最新・正確とは限りません。コールドメールは特定電子メール法に基づき、配信停止の一文と署名を付けて送信されます（フォームのみの先はフォームからご連絡ください）。</p>

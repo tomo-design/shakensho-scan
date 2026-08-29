@@ -519,14 +519,41 @@
   };
 
   // ---------- 店舗リサーチ(公開情報から営業先候補を収集) ----------
-  let rsCandidates = [];
+  let rsCandidates = [];   // 直近の検索で返ってきた"新規"候補(既出を除外済み)
   const _rsUrl = (u, label) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(label)}</a>` : "";
+  // 取得済み(重複除外)の記憶。ブラウザに保存し、再検索で同じ店を出さない。 {key: 店名}
+  const RS_SEEN_KEY = "ss_rsSeen";
+  const rsNorm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
+  function rsLoadSeen() { try { return JSON.parse(localStorage.getItem(RS_SEEN_KEY) || "{}") || {}; } catch (e) { return {}; } }
+  let rsSeen = rsLoadSeen();
+  function rsSaveSeen() { try { localStorage.setItem(RS_SEEN_KEY, JSON.stringify(rsSeen)); } catch (e) {} }
+  const rsSeenKey = (c) => rsNorm(c.company) + "|" + rsNorm(c.area);
+  // 除外に送る名前: これまでの収集済み + 既存の見込み客(重複登録も防ぐ)
+  function rsExcludeNames() {
+    const names = Object.values(rsSeen);
+    const leadNames = (leads || []).map((l) => l.company).filter(Boolean);
+    return Array.from(new Set(names.concat(leadNames))).slice(0, 250);
+  }
+  // 絞り込み(メールあり/フォームあり)を適用した表示対象
+  function rsVisible() {
+    const f = ($("rsFilter") && $("rsFilter").value) || "all";
+    return rsCandidates.filter((c) => {
+      if (f === "email") return !!c.email;
+      if (f === "form") return !!c.formUrl;
+      if (f === "reach") return !!(c.email || c.formUrl);
+      return true;
+    });
+  }
   function renderResearch() {
     const box = $("rsResults");
-    show("btnRsAddAll", rsCandidates.length > 0);
+    const list = rsVisible();
+    show("btnRsAddAll", list.length > 0);
     if (!rsCandidates.length) { box.innerHTML = ""; return; }
-    box.innerHTML = rsCandidates.map((c, i) => `
-      <div class="leadcard rscard" data-i="${i}">
+    if (!list.length) { box.innerHTML = '<div class="empty-block">この絞り込み条件に合う候補がありません。<br>絞り込みを「すべて」に戻すか、再検索してください。</div>'; return; }
+    box.innerHTML = list.map((c) => {
+      const i = rsCandidates.indexOf(c);
+      return `
+      <div class="leadcard rscard">
         <div class="l">
           <div class="co">${esc(c.company)} <span class="pill st-見込み">${esc(c.kind || "")}</span></div>
           <div class="meta">${esc(c.area || "")}</div>
@@ -537,7 +564,8 @@
         <div class="acts">
           <button class="btn btn-dark btn-sm" data-rsadd="${i}">見込み客に追加</button>
         </div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     box.querySelectorAll("[data-rsadd]").forEach((b) => b.onclick = () => addCandidate(+b.dataset.rsadd, b));
   }
   function candidateToLead(c) {
@@ -563,23 +591,41 @@
     _rsBtn.disabled = true; $("rsStat").textContent = "検索中…（30秒ほどかかることがあります）";
     $("rsResults").innerHTML = ""; rsCandidates = []; show("btnRsAddAll", false);
     try {
-      const j = await api("research", { area, kind, count });
-      rsCandidates = j.candidates || [];
-      $("rsStat").textContent = rsCandidates.length
-        ? rsCandidates.length + " 件の候補が見つかりました（メール非公開の先も含みます）"
-        : "公開情報から確度の高い候補が見つかりませんでした。地域や業種を変えてお試しください。";
+      const j = await api("research", { area, kind, count, exclude: rsExcludeNames() });
+      // 念のためクライアント側でも既出・既存見込み客を除外(サーバ除外と二重の安全網)
+      const fresh = (j.candidates || []).filter((c) => {
+        if (rsSeen[rsSeenKey(c)]) return false;
+        if ((leads || []).some((l) => rsNorm(l.company) === rsNorm(c.company))) return false;
+        return true;
+      });
+      // 返ってきた新規候補は「取得済み」として記憶(次回以降は出さない)
+      fresh.forEach((c) => { rsSeen[rsSeenKey(c)] = c.company; });
+      rsSaveSeen();
+      rsCandidates = fresh;
+      $("rsStat").textContent = fresh.length
+        ? fresh.length + " 件の新しい候補（既出は自動除外）"
+        : "新しい候補が見つかりませんでした。地域・業種を変えるか、「収集履歴をリセット」で集め直せます。";
       renderResearch();
     } catch (e) { $("rsStat").textContent = "⚠ " + (e.message || e); }
     finally { _rsBtn.disabled = false; }
   };
   $("rsArea") && $("rsArea").addEventListener("keydown", (e) => { if (e.key === "Enter") _rsBtn.click(); });
+  { const _f = $("rsFilter"); if (_f) _f.onchange = renderResearch; }
+  { const _rr = $("btnRsReset"); if (_rr) _rr.onclick = () => {
+      if (!confirm("「取得済み(重複除外)」の記録を消します。次の検索から、以前に出た店舗も再び候補に含まれます。よろしいですか？")) return;
+      rsSeen = {}; rsSaveSeen();
+      $("rsStat").textContent = "収集履歴をリセットしました";
+      toast("収集履歴をリセットしました");
+    };
+  }
   const _rsAll = $("btnRsAddAll");
   if (_rsAll) _rsAll.onclick = async () => {
-    if (!rsCandidates.length) return;
-    if (!confirm(rsCandidates.length + " 件をすべて見込み客に追加します。よろしいですか？")) return;
+    const list = rsVisible();
+    if (!list.length) return;
+    if (!confirm(list.length + " 件（表示中）をすべて見込み客に追加します。よろしいですか？")) return;
     _rsAll.disabled = true; let ok = 0;
-    for (let i = 0; i < rsCandidates.length; i++) {
-      try { await api("saveLead", { lead: candidateToLead(rsCandidates[i]) }); ok++; $("rsStat").textContent = "追加中… " + ok + "/" + rsCandidates.length; } catch (e) {}
+    for (let i = 0; i < list.length; i++) {
+      try { await api("saveLead", { lead: candidateToLead(list[i]) }); ok++; $("rsStat").textContent = "追加中… " + ok + "/" + list.length; } catch (e) {}
     }
     $("rsStat").textContent = "✓ " + ok + " 件を見込み客に追加しました";
     _rsAll.disabled = false;
