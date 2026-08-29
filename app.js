@@ -3114,7 +3114,7 @@ function setIntake(rid, kind, staff) {
   if (staff !== undefined) t.staff = staff || null;
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
-  if (_intakeSeen) _intakeSeen.add(rid);   // 自端末の登録は自分に通知しない
+  markIntakeSeen(rid);
   renderIntakeBoard(); renderHistory();
 }
 /* 入庫区分だけ変更(入庫日時はそのまま)。staff=担当者名(任意) */
@@ -3126,7 +3126,7 @@ function setIntakeKindOnly(rid, kind, staff) {
   t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
-  if (_intakeSeen) _intakeSeen.add(rid);
+  markIntakeSeen(rid);
   renderHistory();   // 履歴のチップ表示も更新(内部でボードも再描画)
 }
 /* 出庫(ボードから外す。履歴・カルテは残る) */
@@ -3235,13 +3235,19 @@ $("ikStaffBtn") && $("ikStaffBtn").addEventListener("click", () => {
   modal.addEventListener("click", e => { if (e.target === modal) toggle("intakeModal", false); });
 })();
 /* ボード描画: ホームで現在庫を区分色カードで表示 */
-let _intakeSeen = null;   // 既知の入庫rid集合(新規入庫の通知判定用)
+const _intakePageLoadAt = Date.now();   // このページ読み込み時刻(起動直後グレース判定用)
 let _ibSelected = null;   // PC2ペインで右側に表示中の車両rid
+/* 通知済みの入庫ridを永続保存(再読み込み後も一度通知したものは二度通知しない) */
+function loadIntakeSeen() { try { return new Set(JSON.parse(localStorage.getItem("ss_intakeSeen") || "[]")); } catch (e) { return new Set(); } }
+function saveIntakeSeen(set) { try { localStorage.setItem("ss_intakeSeen", JSON.stringify([...set].slice(-500))); } catch (e) {} }
+function markIntakeSeen(rid) { if (!rid) return; const s = loadIntakeSeen(); s.add(rid); saveIntakeSeen(s); }   // 自端末の登録等は既知として記録(自己通知を防ぐ)
 function notifyNewIntakes(list) {
-  const ids = list.map(h => h.rid).filter(Boolean);
-  if (_intakeSeen === null) { _intakeSeen = new Set(ids); return; }   // 初回は通知せず記録のみ
-  const fresh = list.filter(h => h.rid && !_intakeSeen.has(h.rid));
-  _intakeSeen = new Set(ids);
+  const seen = loadIntakeSeen();
+  const fresh = list.filter(h => h.rid && !seen.has(h.rid));   // 未通知のものだけ
+  fresh.forEach(h => seen.add(h.rid));
+  saveIntakeSeen(seen);   // 今ボードにある車両は「既知」として必ず記録(通知の有無に関わらず)
+  // 起動直後(8秒)はログイン→クラウド同期の遅延で既存車両が"新規"扱いになるため、通知せず記録だけ。
+  if ((Date.now() - _intakePageLoadAt) < 8000) return;
   if (!officeMode()) return;   // 通知は事務用モードの端末のみ(通常ログインには出さない)
   if (!fresh.length) return;
   const h = fresh[0];
@@ -3422,7 +3428,7 @@ function addManualIntake() {
   const hist = getHistory(); hist.unshift(t);
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
-  if (_intakeSeen) _intakeSeen.add(rid);
+  markIntakeSeen(rid);
   renderIntakeBoard(); renderHistory();
   showToast("入庫を追加しました（" + INTAKE_KINDS[kind].label + "）");
 }
