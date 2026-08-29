@@ -1429,9 +1429,10 @@ body.gated{overflow:hidden}
 .ibFchip.on.ikJiko{background:#DC2626}
 @media(min-width:900px){
   body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1}
-  /* レ点案内は全幅の独立行に。これで詳細(右)が案内と同じ行に入り込んで一覧(左)を押し下げる空間を防ぐ。
-     ただし文言は右端まで飛ばさず、左の一覧側(丸がある側)の上に来るよう左寄せにする。 */
-  body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1;justify-content:flex-start;gap:12px}
+  /* レ点案内は全幅の独立行に(詳細が同じ行に入り込んで一覧を押し下げるのを防ぐ)。
+     文言は「左の一覧列の右端(=丸がある側の上)」に来るよう、右列幅ぶんの余白を右に確保して右寄せ。
+     左列1.05fr/右列.95fr/gap18px → 右padding ≒ 右列幅(47.5%)+gap半分。 */
+  body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1;justify-content:flex-end;padding-right:calc(47.5% + 9px)}
   /* 一覧と詳細を同じ行の先頭に揃える(上に空間を作らない) */
   body.officeMode #intakeBoard #ibList{grid-row:auto}
   body.officeMode #intakeBoard .ibDetail{align-self:start}
