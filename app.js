@@ -3550,11 +3550,47 @@ function bindIntakeCal() {
   const modal = $("intakeCalModal"), open = $("icOpen"), close = $("icClose");
   if (!modal || !open) return;
   _icBound = true;
-  const show = () => { try { renderIntakeCalendar(); } catch (e) {} toggle("intakeCalModal", true); };
+  const card = modal.querySelector(".icModalCard");
+  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
+  const show = () => {
+    try { renderIntakeCalendar(); } catch (e) {}
+    toggle("intakeCalModal", true);
+    // PC: フローティングカードとして初回は右寄せに配置(以降はドラッグ位置を保持)
+    if (card && isDesk() && !card.dataset.placed) {
+      card.style.left = Math.max(20, window.innerWidth - 640) + "px";
+      card.style.top = "84px"; card.style.margin = "0"; card.dataset.placed = "1";
+    }
+  };
   const hide = () => toggle("intakeCalModal", false);
   open.addEventListener("click", show);
   if (close) close.addEventListener("click", hide);
-  modal.addEventListener("click", e => { if (e.target === modal) hide(); });
+  // PC限定: 背景クリックでは閉じない(独立ウィンドウとして扱う)。モバイルは従来どおり背景タップで閉じる。
+  modal.addEventListener("click", e => { if (e.target === modal && !isDesk()) hide(); });
+  // ヘッダーを掴んでドラッグ移動(PC)。
+  const hd = modal.querySelector(".icModalHd");
+  if (hd && card) {
+    let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+    hd.addEventListener("pointerdown", e => {
+      if (!isDesk() || e.target.closest(".icClose")) return;
+      dragging = true;
+      const r = card.getBoundingClientRect();
+      ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
+      card.style.left = ox + "px"; card.style.top = oy + "px"; card.style.margin = "0"; card.dataset.placed = "1";
+      modal.classList.add("dragging");
+      try { hd.setPointerCapture(e.pointerId); } catch (er) {}
+    });
+    hd.addEventListener("pointermove", e => {
+      if (!dragging) return;
+      let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
+      // 画面外に出過ぎないよう軽く制限(ヘッダーが常に掴める範囲に)
+      nx = Math.min(Math.max(nx, -card.offsetWidth + 120), window.innerWidth - 120);
+      ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
+      card.style.left = nx + "px"; card.style.top = ny + "px";
+    });
+    const endDrag = () => { dragging = false; modal.classList.remove("dragging"); };
+    hd.addEventListener("pointerup", endDrag);
+    hd.addEventListener("pointercancel", endDrag);
+  }
 }
 /* ===== 月間カレンダー: その月の入庫(intakeAt)・出庫(intakeOut)を日別に集計して表示 ===== */
 let _icMonth = null;   // 表示中の月(その月1日のDate)

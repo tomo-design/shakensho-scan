@@ -1057,6 +1057,18 @@ body.pwLocked{ overflow:hidden }
 .icModalHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .icModalTitle{font-size:15px;font-weight:700;color:var(--txt,#1B2530)}
 .icClose{border:0;background:transparent;color:var(--dim,#5E6B7C);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer}
+/* PC: カレンダーを独立したフローティングカードにして、ドラッグ移動・背後操作を可能に */
+@media (min-width:1024px){
+  #intakeCalModal.ikModal{background:transparent;pointer-events:none;padding:0}
+  #intakeCalModal .icModalCard{pointer-events:auto;position:fixed;width:600px;max-width:600px;max-height:86vh;
+    box-shadow:0 18px 60px rgba(0,0,0,.30);border:1px solid var(--line,#D5DDE8)}
+  #intakeCalModal .icModalHd{cursor:move;user-select:none;touch-action:none;margin:-2px -4px 8px;padding:4px 4px 8px;border-bottom:1px solid var(--line,#EEF2F8)}
+  #intakeCalModal .icModalTitle{font-size:16px}
+  #intakeCalModal .icModalTitle::before{content:"⣿ ";color:var(--dim,#9aa4b2);font-size:13px;letter-spacing:-1px}
+  #intakeCalModal .icCell{min-height:78px}
+  #intakeCalModal .icNum{font-size:13px}
+  #intakeCalModal.dragging .icModalCard{box-shadow:0 24px 70px rgba(0,0,0,.4)}
+}
 
 /* ===== 入庫区分ポップアップ ===== */
 .ikModal{position:fixed;inset:0;z-index:400;background:rgba(20,28,38,.5);
