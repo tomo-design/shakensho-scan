@@ -946,9 +946,9 @@ exports.createCheckout = functions.region(REGION).https.onRequest(async (req, re
     const tRef = db.collection("tenants").doc(tid);
     const tData = (await tRef.get()).data() || {};
     let customerId = tData.stripeCustomerId;
-    if (customerId) { try { await stripe.customers.update(customerId, { email: email }); } catch (e) { customerId = null; } }
+    if (customerId) { try { await stripe.customers.update(customerId, { email: email, preferred_locales: ["ja"] }); } catch (e) { customerId = null; } }
     if (!customerId) {
-      const c = await stripe.customers.create({ email: email, metadata: { tenantId: tid } });
+      const c = await stripe.customers.create({ email: email, preferred_locales: ["ja"], metadata: { tenantId: tid } });
       customerId = c.id;
       await tRef.set({ stripeCustomerId: customerId }, { merge: true });
     }
@@ -1048,7 +1048,7 @@ async function provisionContract(db, info) {
   if (!isPersonal) {
     try {
       const stripe = require("stripe")(cfg().stripe.secret);
-      const c = await stripe.customers.create({ email: info.email, metadata: { tenantId: tid, company: info.company } });
+      const c = await stripe.customers.create({ email: info.email, preferred_locales: ["ja"], metadata: { tenantId: tid, company: info.company } });
       stripeCustomerId = c.id;
       const P = cfg().stripe.prices[planCode] || {};
       const priceId = P.month || cfg().stripe.price_month;
@@ -1529,6 +1529,7 @@ exports.createPocketCheckout = functions.region(REGION).https.onRequest(async (r
     const subMeta = { product: "pocket", plan: interval, uid: uid || "", tenantId: tid || "" };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      locale: "ja",
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: Object.assign(
         { metadata: subMeta },
@@ -2153,13 +2154,13 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
 ${excludeBlock}
 【最重要ルール(厳守・違反禁止)】
 ・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
-・メールアドレスと電話番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
+・メールアドレス・電話番号・FAX番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
 ・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
 ・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる(メール非公開の先はフォーム営業に使うため)。
 ・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
 
 【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
-[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
+[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
     const rparts = [{ text: rprompt }];
     let rout = { failed: true };
     if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
@@ -2178,6 +2179,7 @@ ${excludeBlock}
       area: String(x.area || "").slice(0, 200),
       kind: String(x.kind || kind).slice(0, 60),
       phone: String(x.phone || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
+      fax: String(x.fax || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(x.email || "").trim()) ? String(x.email).trim().slice(0, 200) : "",
       formUrl: isUrl(x.formUrl) ? String(x.formUrl).slice(0, 400) : "",
       source: isUrl(x.source) ? String(x.source).slice(0, 400) : "",

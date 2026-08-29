@@ -545,7 +545,8 @@
     return rsCandidates.filter((c) => {
       if (f === "email") return !!c.email;
       if (f === "form") return !!c.formUrl;
-      if (f === "reach") return !!(c.email || c.formUrl);
+      if (f === "fax") return !!c.fax;
+      if (f === "reach") return !!(c.email || c.formUrl || c.fax);
       return true;
     });
   }
@@ -562,7 +563,7 @@
         <div class="l">
           <div class="co">${esc(c.company)} <span class="pill st-見込み">${esc(c.kind || "")}</span></div>
           <div class="meta">${esc(c.area || "")}</div>
-          <div class="meta">${c.phone ? "☎ " + esc(c.phone) : '<span class="rsNo">☎ 電話 非公開</span>'}　${c.email ? "✉ " + esc(c.email) : '<span class="rsNo">✉ メール 非公開</span>'}</div>
+          <div class="meta">${c.phone ? "☎ " + esc(c.phone) : '<span class="rsNo">☎ 電話 非公開</span>'}　${c.fax ? "📠 " + esc(c.fax) : '<span class="rsNo">📠 FAX 非公開</span>'}　${c.email ? "✉ " + esc(c.email) : '<span class="rsNo">✉ メール 非公開</span>'}</div>
           <div class="meta rslinks">${_rsUrl(c.source, "🔗 出典")}${c.formUrl ? "　" + _rsUrl(c.formUrl, "📝 問い合わせフォーム") : ""}</div>
           ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
         </div>
@@ -580,6 +581,7 @@
   }
   function candidateToLead(c) {
     const noteLines = [];
+    if (c.fax) noteLines.push("FAX: " + c.fax);
     if (c.formUrl) noteLines.push("問い合わせフォーム: " + c.formUrl);
     if (c.source) noteLines.push("出典: " + c.source);
     if (c.note) noteLines.push(c.note);
