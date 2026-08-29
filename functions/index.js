@@ -1671,6 +1671,51 @@ exports.unsub = functions.region(REGION).https.onRequest(async (req, res) => {
     "<p style='color:#888;font-size:13px'>メカノAI（Cablueie）</p></div>");
 });
 
+/* ①-0 店舗リサーチの自動実行(半自動運用)。毎朝ドリップ送信の少し前(09:00)に走る。
+   salesConfig/main.arEnabled=true のとき、arAreas(改行/カンマ区切り)×arKind を検索グラウンディングでリサーチし、
+   連絡手段(メール/フォーム/FAX)のある"新規"候補だけを salesLeads(見込み)へ自動追加。以降ドリップが少量ずつ自動送信。
+   ※捏造防止は researchCandidates 側で担保(出典URL必須)。メール宛の実送信はドリップの少量制限で安全運用。 */
+exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "512MB" })
+  .pubsub.schedule("every day 09:00").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    if (!conf.arEnabled) { console.log("autoResearch: 無効のためスキップ"); return null; }
+    const areas = String(conf.arAreas || "").split(/[\n,、]/).map((s) => s.trim()).filter(Boolean).slice(0, 3);
+    if (!areas.length) { console.log("autoResearch: 地域未設定のためスキップ"); return null; }
+    const kind = String(conf.arKind || "整備工場");
+    const perRun = Math.min(Math.max(parseInt(conf.arPerRun, 10) || 10, 1), 20);
+    const norm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
+    const leadsSnap = await db.collection("salesLeads").select("company").limit(1000).get();
+    const existNames = leadsSnap.docs.map((d) => d.data().company).filter(Boolean);
+    const existSet = new Set(existNames.map(norm));
+    let added = 0;
+    for (const area of areas) {
+      let cands = [];
+      try { cands = await researchCandidates(area, kind, perRun, existNames); }
+      catch (e) { console.error("autoResearch検索エラー", area, e.message); continue; }
+      for (const c of cands) {
+        if (existSet.has(norm(c.company))) continue;
+        if (!(c.email || c.formUrl || c.fax)) continue;   // 連絡手段のある先だけ追加
+        const noteLines = [];
+        if (c.fax) noteLines.push("FAX: " + c.fax);
+        if (c.formUrl) noteLines.push("問い合わせフォーム: " + c.formUrl);
+        if (c.source) noteLines.push("出典: " + c.source);
+        if (c.note) noteLines.push(c.note);
+        noteLines.push("（自動リサーチで収集・要確認）");
+        await db.collection("salesLeads").add({
+          company: c.company, contact: "", phone: c.phone || "", email: c.email || "",
+          kind: c.kind || kind, status: "見込み", note: noteLines.join("\n"),
+          autoResearched: true, createdAt: Date.now(), updatedAt: Date.now(),
+        });
+        existSet.add(norm(c.company));
+        added++;
+      }
+    }
+    await db.collection("salesConfig").doc("main").set({ arLastRun: Date.now(), arLastAdded: added }, { merge: true });
+    console.log("autoResearch: 追加 " + added + " 件 (areas=" + areas.join("/") + ")");
+    return null;
+  });
+
 /* ① 営業メールの自動ドリップ送信(1日数件)。毎朝スケジュール実行。
    salesConfig/main.dripEnabled=true のときだけ、salesLeads(status=見込み・email有)へ
    AI生成のコールドメール(配信停止＋署名つき)を dripPerDay 件送り、状況を「アプローチ中」に更新。 */
@@ -2008,6 +2053,60 @@ async function isSuper(uid) {
   } catch (e) { return false; }
 }
 
+// 店舗リサーチの中核(公開情報のみ・検索グラウンディング)。手動アクションと自動スケジュールで共用。
+// 返り値: {company,area,kind,phone,fax,email,formUrl,source,note} の配列(店名と出典URL必須・捏造は除外)。
+async function researchCandidates(area, kind, count, excludeNames) {
+  area = String(area || "").trim().slice(0, 80);
+  kind = String(kind || "整備工場").trim().slice(0, 40);
+  count = Math.min(Math.max(parseInt(count, 10) || 10, 1), 20);
+  const freeKeys = cfg().geminiFree || [];
+  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  if (!freeKeys.length) throw new Error("サーバーのGeminiキーが未設定です。");
+  const latest = await latestModels(freeKeys[0]);
+  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const rnorm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
+  const exclude = Array.isArray(excludeNames) ? excludeNames.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 250) : [];
+  const exSet = new Set(exclude.map(rnorm));
+  const excludeBlock = exclude.length
+    ? `\n【既に取得済み(重複禁止・必ず除外)】次の事業者は既にリスト済みです。これらは絶対に結果に含めず、これら以外の"別の"事業者を新たに探してください:\n${exclude.slice(0, 150).join(" / ")}\n`
+    : "";
+  const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。
+${excludeBlock}
+【最重要ルール(厳守・違反禁止)】
+・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
+・メールアドレス・電話番号・FAX番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
+・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
+・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる(メール非公開の先はフォーム営業に使うため)。
+・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
+
+【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
+[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
+  const rparts = [{ text: rprompt }];
+  let rout = { failed: true };
+  if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
+  if (rout.failed) {
+    const start = Math.floor(Math.random() * freeKeys.length);
+    for (let i = 0; i < freeKeys.length; i++) { rout = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, rparts, "flash", true, 8192); if (!rout.failed) break; }
+  }
+  if (rout.failed) throw new Error("AIが混みあっています。");
+  let rtext = String(rout.text || "").trim();
+  let arr = [];
+  try { const m = rtext.match(/\[[\s\S]*\]/); arr = JSON.parse(m ? m[0] : rtext); } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  const isUrl = (s) => /^https?:\/\//i.test(String(s || ""));
+  return arr.map((x) => ({
+    company: String(x.company || "").slice(0, 200),
+    area: String(x.area || "").slice(0, 200),
+    kind: String(x.kind || kind).slice(0, 60),
+    phone: String(x.phone || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
+    fax: String(x.fax || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(x.email || "").trim()) ? String(x.email).trim().slice(0, 200) : "",
+    formUrl: isUrl(x.formUrl) ? String(x.formUrl).slice(0, 400) : "",
+    source: isUrl(x.source) ? String(x.source).slice(0, 400) : "",
+    note: String(x.note || "").slice(0, 500),
+  })).filter((x) => x.company && x.source && !exSet.has(rnorm(x.company))).slice(0, count);
+}
+
 exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -2048,15 +2147,25 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   if (action === "getConfig") {
     const c = (await db.collection("salesConfig").doc("main").get()).data() || {};
     const sgReady = !!(cfg().sendgrid.key && cfg().sendgrid.from);
-    return res.json({ config: { dripEnabled: !!c.dripEnabled, dripPerDay: c.dripPerDay || 3 }, sgReady: sgReady });
+    return res.json({
+      config: {
+        dripEnabled: !!c.dripEnabled, dripPerDay: c.dripPerDay || 3,
+        arEnabled: !!c.arEnabled, arAreas: c.arAreas || "", arKind: c.arKind || "整備工場", arPerRun: c.arPerRun || 10,
+        arLastRun: c.arLastRun || 0, arLastAdded: typeof c.arLastAdded === "number" ? c.arLastAdded : null,
+      },
+      sgReady: sgReady,
+    });
   }
   if (action === "setConfig") {
     const c = data.config || {};
-    await db.collection("salesConfig").doc("main").set({
-      dripEnabled: !!c.dripEnabled,
-      dripPerDay: Math.min(Math.max(parseInt(c.dripPerDay, 10) || 3, 1), 20),
-      updatedAt: Date.now(),
-    }, { merge: true });
+    const patch = { updatedAt: Date.now() };
+    if ("dripEnabled" in c) patch.dripEnabled = !!c.dripEnabled;
+    if ("dripPerDay" in c) patch.dripPerDay = Math.min(Math.max(parseInt(c.dripPerDay, 10) || 3, 1), 20);
+    if ("arEnabled" in c) patch.arEnabled = !!c.arEnabled;
+    if ("arAreas" in c) patch.arAreas = String(c.arAreas || "").slice(0, 1000);
+    if ("arKind" in c) patch.arKind = String(c.arKind || "整備工場").slice(0, 40);
+    if ("arPerRun" in c) patch.arPerRun = Math.min(Math.max(parseInt(c.arPerRun, 10) || 10, 1), 20);
+    await db.collection("salesConfig").doc("main").set(patch, { merge: true });
     return res.json({ ok: true });
   }
 
@@ -2138,54 +2247,12 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
 
   // ---- 店舗リサーチ(公開情報のみ・検索グラウンディング) ----
-  // ネットで実際に公開されている整備工場等の連絡先を集める。捏造は厳禁、出典URL必須、要人手確認。
   if (action === "research") {
-    const area = String(data.area || "").trim().slice(0, 80);
-    const kind = String(data.kind || "整備工場").trim().slice(0, 40);
-    const count = Math.min(Math.max(parseInt(data.count, 10) || 10, 1), 20);
-    if (!area) return res.status(400).json({ error: "地域(都道府県・市区町村など)を入力してください。" });
-    const rnorm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
-    const exclude = Array.isArray(data.exclude) ? data.exclude.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 250) : [];
-    const exSet = new Set(exclude.map(rnorm));
-    const excludeBlock = exclude.length
-      ? `\n【既に取得済み(重複禁止・必ず除外)】次の事業者は既にリスト済みです。これらは絶対に結果に含めず、これら以外の"別の"事業者を新たに探してください:\n${exclude.slice(0, 150).join(" / ")}\n`
-      : "";
-    const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。
-${excludeBlock}
-【最重要ルール(厳守・違反禁止)】
-・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
-・メールアドレス・電話番号・FAX番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
-・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
-・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる(メール非公開の先はフォーム営業に使うため)。
-・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
-
-【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
-[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
-    const rparts = [{ text: rprompt }];
-    let rout = { failed: true };
-    if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
-    if (rout.failed) {
-      const start = Math.floor(Math.random() * freeKeys.length);
-      for (let i = 0; i < freeKeys.length; i++) { rout = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, rparts, "flash", true, 8192); if (!rout.failed) break; }
-    }
-    if (rout.failed) return res.status(503).json({ error: "AIが混みあっています。少し待って再度お試しください。" });
-    let rtext = String(rout.text || "").trim();
-    let arr = [];
-    try { const m = rtext.match(/\[[\s\S]*\]/); arr = JSON.parse(m ? m[0] : rtext); } catch (e) { arr = []; }
-    if (!Array.isArray(arr)) arr = [];
-    const isUrl = (s) => /^https?:\/\//i.test(String(s || ""));
-    const candidates = arr.map((x) => ({
-      company: String(x.company || "").slice(0, 200),
-      area: String(x.area || "").slice(0, 200),
-      kind: String(x.kind || kind).slice(0, 60),
-      phone: String(x.phone || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
-      fax: String(x.fax || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
-      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(x.email || "").trim()) ? String(x.email).trim().slice(0, 200) : "",
-      formUrl: isUrl(x.formUrl) ? String(x.formUrl).slice(0, 400) : "",
-      source: isUrl(x.source) ? String(x.source).slice(0, 400) : "",
-      note: String(x.note || "").slice(0, 500),
-    })).filter((x) => x.company && x.source && !exSet.has(rnorm(x.company))).slice(0, count);   // 店名と出典URL必須(捏造防止)＋既出は除外
-    return res.json({ candidates: candidates, found: candidates.length });
+    if (!String(data.area || "").trim()) return res.status(400).json({ error: "地域(都道府県・市区町村など)を入力してください。" });
+    try {
+      const candidates = await researchCandidates(data.area, data.kind, data.count, data.exclude);
+      return res.json({ candidates: candidates, found: candidates.length });
+    } catch (e) { return res.status(503).json({ error: e.message || "リサーチに失敗しました。" }); }
   }
 
   // 商材: works=法人(MECHANO-AI Works) / pocket=個人(MECHANO-AI Pocket)

@@ -114,11 +114,13 @@
       show("tab-team", teamView);
       show("tab-leads", tab === "leads");
       show("tab-research", tab === "research");
+      show("tab-sns", tab === "sns");
       show("tab-camp", tab === "camp");
       show("tab-inbox", tab === "inbox");
       show("tab-issue", tab === "issue");
       if (teamView) setProduct(tab === "pocket" ? "pocket" : "works");
       if (tab === "camp") { updateCampCount(); loadDripConfig(); }
+      if (tab === "research") loadArConfig();
       if (tab === "inbox") loadInbox();
     };
   });
@@ -594,6 +596,39 @@
     try { await api("saveLead", { lead: candidateToLead(c) }); if (btn) btn.textContent = "✓ 追加済み"; toast("見込み客に追加しました"); }
     catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = "見込み客に追加"; } }
   }
+  // ---- 自動リサーチ設定(毎朝9:00の自動収集) ----
+  async function loadArConfig() {
+    try {
+      const j = await api("getConfig"); const c = j.config || {};
+      if ($("arEnabled")) $("arEnabled").checked = !!c.arEnabled;
+      if ($("arAreas")) $("arAreas").value = c.arAreas || "";
+      if ($("arKind")) $("arKind").value = c.arKind || "整備工場";
+      if ($("arPerRun")) $("arPerRun").value = c.arPerRun || 10;
+      if ($("arStat")) {
+        let s = "";
+        if (c.arLastRun) {
+          const d = new Date(c.arLastRun);
+          s = "前回自動実行: " + d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() +
+            (typeof c.arLastAdded === "number" ? "（追加 " + c.arLastAdded + " 件）" : "");
+        }
+        $("arStat").textContent = s;
+      }
+    } catch (e) { if ($("arStat")) $("arStat").textContent = e.message; }
+  }
+  { const b = $("btnSaveAr"); if (b) b.onclick = async () => {
+      b.disabled = true;
+      try {
+        await api("setConfig", { config: {
+          arEnabled: $("arEnabled").checked, arAreas: $("arAreas").value,
+          arKind: $("arKind").value, arPerRun: parseInt($("arPerRun").value, 10) || 10,
+        } });
+        toast("自動リサーチの設定を保存しました");
+        loadArConfig();
+      } catch (e) { toast(e.message); }
+      finally { b.disabled = false; }
+    };
+  }
+
   // ---- フォーム営業アシスト(AI本文生成→コピー→相手フォームを開く。送信は人が行う) ----
   let fmCtx = null;
   const formUrlFromNote = (note) => { const m = String(note || "").match(/問い合わせフォーム:\s*(https?:\/\/\S+)/); return m ? m[1] : ""; };
@@ -687,6 +722,47 @@
     _rsAll.disabled = false;
     toast(ok + " 件を追加しました");
   };
+
+  // ---------- SNS発信アシスト(投稿文生成→コピー→投稿画面を開く) ----------
+  const SNS = {
+    x: { name: "X（旧Twitter）", limit: 280, compose: (t) => "https://twitter.com/intent/tweet?text=" + encodeURIComponent(t), prefill: true, guide: "140〜280字。ハッシュタグは2〜3個まで。1投稿で完結させる。過度な絵文字は避ける。" },
+    instagram: { name: "Instagram", limit: 2200, compose: () => "https://www.instagram.com/", prefill: false, guide: "写真に添えるキャプション。改行で読みやすく、共感→ひとこと訴求。ハッシュタグは末尾にまとめて5〜10個。" },
+    facebook: { name: "Facebook", limit: 2000, compose: () => "https://www.facebook.com/", prefill: false, guide: "やや丁寧な語り口。段落で読みやすく。リンク誘導OK。" },
+    line: { name: "LINE公式", limit: 500, compose: () => "https://manager.line.biz/", prefill: false, guide: "友だち向けのお知らせ調。短く親しみやすく、1メッセージで完結。" },
+  };
+  const snsCfg = () => SNS[($("snsPlatform") && $("snsPlatform").value) || "x"] || SNS.x;
+  function updateSnsCount() {
+    const g = snsCfg(); const n = ($("snsBody").value || "").length;
+    if ($("snsCount")) $("snsCount").textContent = "　" + n + " / " + g.limit + "字" + (n > g.limit ? " ⚠字数超過" : "");
+    if (g.prefill && $("snsOpen")) $("snsOpen").href = g.compose($("snsBody").value || "");
+  }
+  async function snsGen() {
+    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const g = snsCfg();
+    const theme = ($("snsTheme").value || "").trim();
+    const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の宣伝投稿を1本、そのまま投稿できる完成形で作成してください。
+・${g.guide}
+・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
+・宣伝くさくしすぎず、読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
+・文字数の目安は ${g.limit} 字以内。前置きの説明や「以下が投稿文です」等は不要、本文だけ。`;
+    $("snsStat").textContent = "生成中…"; $("btnSns").disabled = true;
+    try {
+      const j = await api("generate", { role: "marke", task, product });
+      const t = String(j.text || "").trim();
+      $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount();
+      $("snsOpen").href = g.compose(t);
+      $("snsHint").textContent = g.prefill
+        ? "「投稿画面を開く」で、本文が入力済みのXの投稿画面が開きます。画像添付や最終送信はご自身で。"
+        : g.name + "は本文の事前入力に対応していないため、まず「コピー」→「投稿画面を開く」→貼り付け、で投稿してください。";
+      $("snsStat").textContent = "";
+    } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); }
+    finally { $("btnSns").disabled = false; }
+  }
+  { const b = $("btnSns"); if (b) b.onclick = snsGen; }
+  { const b = $("snsRegen"); if (b) b.onclick = snsGen; }
+  { const b = $("snsCopy"); if (b) b.onclick = () => copy($("snsBody").value || ""); }
+  { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
+  { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
 
   // ---------- キャンペーン一括生成 ----------
   const CHANNEL_TXT = {

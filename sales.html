@@ -49,6 +49,10 @@
         <svg viewBox="0 0 24 24" class="ic"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
         <span>Pocket文面<small class="tab-sub">個人向け</small></span>
       </button>
+      <button class="tab" data-tab="sns">
+        <svg viewBox="0 0 24 24" class="ic"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        <span>SNS発信<small class="tab-sub">拡散アシスト</small></span>
+      </button>
       <button class="tab" data-tab="inbox">
         <svg viewBox="0 0 24 24" class="ic"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>
         <span>問い合わせ<span id="inboxBadge" class="badge hidden">0</span></span>
@@ -203,9 +207,37 @@
       <header class="vhead">
         <div>
           <h1>店舗リサーチ</h1>
-          <p class="vsub">地域と業種を指定すると、ネットで<b>公開されている情報だけ</b>から営業先の候補を集めます。メール・電話は公開されている場合のみ表示（無ければ空欄）。各件に出典URLを付け、送信前に必ずご確認ください。</p>
+          <p class="vsub">地域と業種を指定すると、ネットで<b>公開されている情報だけ</b>から営業先の候補を集めます。メール・電話・FAXは公開されている場合のみ表示（無ければ空欄）。各件に出典URLを付け、送信前に必ずご確認ください。</p>
         </div>
       </header>
+
+      <div class="panel" id="arPanel">
+        <div class="field" style="margin:0 0 6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="arEnabled" style="width:auto"> <b>🤖 自動リサーチを有効にする（毎朝9:00）</b>
+          </label>
+        </div>
+        <p class="vsub" style="margin:0 0 10px">指定した地域・業種を毎朝自動で検索し、連絡手段（メール／フォーム／FAX）のある<b>新規</b>候補だけを見込み客に自動追加します。メールがある先は、その後「毎朝ドリップ送信」で少量ずつ自動送信（送信の有効化は一括作成タブ）。既存の見込み客と重複する先は自動で除外します。</p>
+        <div class="form-grid">
+          <div class="field" style="grid-column:1/-1"><label>対象の地域（改行またはカンマ区切りで複数可・最大3件/日）</label><textarea id="arAreas" rows="2" placeholder="例：鹿児島県奄美市&#10;大阪府堺市"></textarea></div>
+          <div class="field"><label>業種</label>
+            <select id="arKind">
+              <option value="整備工場">整備工場</option>
+              <option value="運送会社">運送会社</option>
+              <option value="ディーラー">ディーラー</option>
+              <option value="板金/塗装">板金/塗装</option>
+              <option value="ガソリンスタンド併設整備">GS併設整備</option>
+              <option value="自動車販売店">自動車販売店</option>
+            </select>
+          </div>
+          <div class="field"><label>1地域あたりの件数（最大20）</label><input type="number" id="arPerRun" min="1" max="20" value="10"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnSaveAr" class="btn btn-accent btn-sm">保存</button>
+          <span id="arStat" class="muted"></span>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="form-grid">
           <div class="field"><label>地域 <span class="req">必須</span></label><input id="rsArea" placeholder="例：鹿児島県奄美市 / 大阪府堺市 / 北海道"></div>
@@ -240,6 +272,38 @@
         <p class="vsub" style="margin:10px 0 0;font-size:12px">※ 公開情報の収集です。得られた連絡先が最新・正確とは限りません。コールドメールは特定電子メール法に基づき、配信停止の一文と署名を付けて送信されます（フォームのみの先はフォームからご連絡ください）。</p>
       </div>
       <div id="rsResults" class="leadlist"></div>
+    </section>
+
+    <!-- SNS発信アシスト -->
+    <section id="tab-sns" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>SNS発信アシスト</h1>
+          <p class="vsub">AIが投稿文を作成 → コピー →投稿画面を開きます。実際の投稿はご自身で（画像添付・最終確認・各SNSの規約のため）。<b>Xは本文を事前入力した投稿画面</b>が開きます。</p>
+        </div>
+      </header>
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field"><label>商材</label><select id="snsProduct"><option value="works">Works（法人向け）</option><option value="pocket">Pocket（個人向け）</option></select></div>
+          <div class="field"><label>プラットフォーム</label><select id="snsPlatform">
+            <option value="x">X（旧Twitter）</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="line">LINE公式</option>
+          </select></div>
+          <div class="field" style="grid-column:1/-1"><label>テーマ・伝えたいこと（任意）</label><input id="snsTheme" placeholder="例：整備士不足に効く／7日間無料／車検証スキャンの便利さ"></div>
+        </div>
+        <div class="panel-actions"><button id="btnSns" class="btn btn-accent">投稿文を作成</button><span id="snsStat" class="muted"></span></div>
+      </div>
+      <div class="panel hidden" id="snsOutPanel">
+        <div class="field"><label>投稿文（編集できます）<span id="snsCount" class="muted"></span></label><textarea id="snsBody" rows="8"></textarea></div>
+        <div class="fmActs">
+          <button id="snsCopy" class="btn btn-dark btn-sm">📋 コピー</button>
+          <a id="snsOpen" class="btn btn-accent btn-sm" href="#" target="_blank" rel="noopener">🌐 投稿画面を開く</a>
+          <button id="snsRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
+        </div>
+        <p class="vsub" id="snsHint" style="margin:8px 0 0;font-size:12px"></p>
+      </div>
     </section>
 
     <!-- 一括作成 -->
