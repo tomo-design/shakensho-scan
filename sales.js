@@ -725,7 +725,7 @@
 
   // ---------- SNS発信アシスト(投稿文生成→コピー→投稿画面を開く) ----------
   const SNS = {
-    x: { name: "X（旧Twitter）", limit: 280, compose: (t) => "https://twitter.com/intent/tweet?text=" + encodeURIComponent(t), prefill: true, guide: "140〜280字。ハッシュタグは2〜3個まで。1投稿で完結させる。過度な絵文字は避ける。" },
+    x: { name: "X（旧Twitter・Premium）", limit: 25000, compose: (t) => "https://twitter.com/intent/tweet?text=" + encodeURIComponent(t), prefill: true, guide: "Premium契約なので長文OK（目安300〜1500字。読み手が飽きない範囲で）。冒頭1〜2行で引きを作り→本文→締め。ハッシュタグは2〜3個まで。過度な絵文字は避け、改行で読みやすく。短く刺したい時は280字前後でもよい。" },
     instagram: { name: "Instagram", limit: 2200, compose: () => "https://www.instagram.com/", prefill: false, guide: "写真に添えるキャプション。改行で読みやすく、共感→ひとこと訴求。ハッシュタグは末尾にまとめて5〜10個。" },
     facebook: { name: "Facebook", limit: 2000, compose: () => "https://www.facebook.com/", prefill: false, guide: "やや丁寧な語り口。段落で読みやすく。リンク誘導OK。" },
     line: { name: "LINE公式", limit: 500, compose: () => "https://manager.line.biz/", prefill: false, guide: "友だち向けのお知らせ調。短く親しみやすく、1メッセージで完結。" },
