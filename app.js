@@ -3594,8 +3594,7 @@ function renderIntakeCalendar() {
                    (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '');
     html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
       '<div class="icNum">' + d + '</div>' +
-      '<div class="icBadges">' + badges + '</div>' +
-      (has ? '<div class="icDotsRow">' + dots(ins.concat(outs)) + '</div>' : '') + '</div>';
+      '<div class="icBadges">' + badges + '</div>' + '</div>';
   }
   html += '</div>';
   grid.innerHTML = html;
