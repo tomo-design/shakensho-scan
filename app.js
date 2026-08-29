@@ -3867,7 +3867,16 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
       ov.style.background = "transparent"; ov.style.pointerEvents = "none";
       const hd = ov.querySelector(".ikTitle");
       card.style.pointerEvents = "auto"; card.style.boxShadow = "0 18px 60px rgba(0,0,0,.3)";
-      if (hd) makeDraggable(card, hd);
+      if (hd) {
+        // 掴む当たり判定をヘッダー全幅・広めに(文字だけだとシビアなため)
+        hd.style.display = "block";
+        hd.style.padding = "12px 34px";
+        hd.style.margin = "-4px -6px 8px";
+        hd.style.borderRadius = "12px 12px 0 0";
+        hd.style.background = "var(--panel2,#f4f6fa)";
+        hd.style.borderBottom = "1px solid var(--line,#e2e8f0)";
+        makeDraggable(card, hd);
+      }
       enableRaise(card, ov);
     }
   };
