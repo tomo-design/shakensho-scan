@@ -354,8 +354,13 @@
         <div class="acts">
           <button class="btn btn-ghost btn-sm" data-edit="${l.id}">編集</button>
           <button class="btn btn-dark btn-sm" data-ai="${l.id}">AIに相談</button>
+          ${formUrlFromNote(l.note) ? `<button class="btn btn-accent btn-sm" data-leadform="${l.id}">📝 フォームで営業</button>` : ""}
         </div>
       </div>`).join("");
+    box.querySelectorAll("[data-leadform]").forEach((b) => b.onclick = () => {
+      const l = leads.find((x) => x.id === b.dataset.leadform); if (!l) return;
+      openFormAssist({ company: l.company, kind: l.kind, note: l.note || "", formUrl: formUrlFromNote(l.note), lead: l });
+    });
     box.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openLead(b.dataset.edit));
     box.querySelectorAll("[data-ai]").forEach((b) => b.onclick = () => {
       curLeadId = b.dataset.ai;
@@ -563,10 +568,15 @@
         </div>
         <div class="acts">
           <button class="btn btn-dark btn-sm" data-rsadd="${i}">見込み客に追加</button>
+          ${c.formUrl ? `<button class="btn btn-accent btn-sm" data-rsform="${i}">📝 フォームで営業</button>` : ""}
         </div>
       </div>`;
     }).join("");
     box.querySelectorAll("[data-rsadd]").forEach((b) => b.onclick = () => addCandidate(+b.dataset.rsadd, b));
+    box.querySelectorAll("[data-rsform]").forEach((b) => b.onclick = () => {
+      const c = rsCandidates[+b.dataset.rsform]; if (!c) return;
+      openFormAssist({ company: c.company, kind: c.kind, note: c.note || "", formUrl: c.formUrl, source: c.source || "", leadId: "", candidate: c });
+    });
   }
   function candidateToLead(c) {
     const noteLines = [];
@@ -582,6 +592,50 @@
     try { await api("saveLead", { lead: candidateToLead(c) }); if (btn) btn.textContent = "✓ 追加済み"; toast("見込み客に追加しました"); }
     catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = "見込み客に追加"; } }
   }
+  // ---- フォーム営業アシスト(AI本文生成→コピー→相手フォームを開く。送信は人が行う) ----
+  let fmCtx = null;
+  const formUrlFromNote = (note) => { const m = String(note || "").match(/問い合わせフォーム:\s*(https?:\/\/\S+)/); return m ? m[1] : ""; };
+  function formTask(ctx) {
+    return `「${ctx.company}」（業種:${ctx.kind || "整備関連"}）の"問い合わせフォーム"から送る、初回の問い合わせ文を作成してください。
+・フォーム送信用なので簡潔に（180〜300字程度）。件名行や【】などの見出しは付けない。
+・流れ: 軽い挨拶 → 自己紹介(メカノAI／Cablueie 中江) → 用件(整備現場の調べ物・記録の手間を減らすツールのご案内。資料やデモをご覧いただけます) → 返信先(メール cablueie.123@gmail.com ／ TEL 080-3692-0101)。
+・押し売りにしない。相手が読んで負担にならない自然な文章。プレースホルダ([会社名]等)は使わない。
+・相手メモがあれば軽く反映: ${ctx.note || "（特記なし）"}`;
+  }
+  async function genFormBody(ctx) {
+    const j = await api("generate", { role: "writer", task: formTask(ctx), lead: { company: ctx.company, kind: ctx.kind, note: ctx.note }, product: "works" });
+    return String(j.text || "").trim();
+  }
+  function fmFill(ctx) {
+    $("fmBody").value = ""; $("fmBody").placeholder = "生成中…（10〜20秒）";
+    genFormBody(ctx).then((t) => { $("fmBody").value = t; }).catch((e) => { $("fmBody").placeholder = "生成に失敗しました: " + (e.message || e); });
+  }
+  function openFormAssist(ctx) {
+    fmCtx = ctx;
+    $("fmTitle").textContent = "フォーム営業 — " + ctx.company;
+    $("fmOpen").href = ctx.formUrl || "#";
+    show("formModal", true);
+    fmFill(ctx);
+  }
+  window.openFormAssist = openFormAssist;
+  { const b = $("fmClose"); if (b) b.onclick = () => show("formModal", false); }
+  { const b = $("fmCopy"); if (b) b.onclick = () => copy($("fmBody").value || ""); }
+  { const b = $("fmRegen"); if (b) b.onclick = () => { if (fmCtx) fmFill(fmCtx); }; }
+  { const b = $("fmDone"); if (b) b.onclick = async () => {
+      if (!fmCtx) return;
+      b.disabled = true;
+      try {
+        let lead;
+        if (fmCtx.lead) lead = Object.assign({}, fmCtx.lead, { status: "アプローチ中" });
+        else if (fmCtx.candidate) { lead = candidateToLead(fmCtx.candidate); lead.status = "アプローチ中"; }
+        if (lead) { await api("saveLead", { lead }); await loadLeads(); }
+        toast("「アプローチ中」にしました");
+        show("formModal", false);
+      } catch (e) { toast(e.message); }
+      finally { b.disabled = false; }
+    };
+  }
+
   const _rsBtn = $("btnResearch");
   if (_rsBtn) _rsBtn.onclick = async () => {
     const area = ($("rsArea").value || "").trim();

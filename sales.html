@@ -404,6 +404,23 @@
   </div>
 </div>
 
+<!-- ============ フォーム営業アシスト ============ -->
+<div id="formModal" class="modal hidden">
+  <div class="modalbox">
+    <h3 id="fmTitle">フォーム営業</h3>
+    <p class="vsub" style="margin:0">相手の問い合わせフォームから送る文面です。<b>下の「フォームを開く」で相手ページを開き、本文を貼り付けて送信</b>してください（CAPTCHAや最終送信はご自身で）。</p>
+    <div class="field"><label>本文（編集できます）</label><textarea id="fmBody" rows="10" placeholder="生成中…"></textarea></div>
+    <div class="fmActs">
+      <button id="fmCopy" class="btn btn-dark btn-sm">📋 本文をコピー</button>
+      <a id="fmOpen" class="btn btn-accent btn-sm" href="#" target="_blank" rel="noopener">🌐 フォームを開く</a>
+      <button id="fmRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
+      <span class="spacer" style="flex:1"></span>
+      <button id="fmDone" class="btn btn-ghost btn-sm">✓ 送信済み（アプローチ中に）</button>
+    </div>
+    <div class="modalbtns"><span class="spacer" style="flex:1"></span><button id="fmClose" class="btn btn-ghost btn-sm">閉じる</button></div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script src="sales.js"></script>
