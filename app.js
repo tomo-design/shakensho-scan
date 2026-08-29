@@ -364,6 +364,7 @@ window.clearLocalUserData = function () {
     localStorage.removeItem("ss_learnedspecs");  // AIが学習した諸元
     localStorage.removeItem("ss_katacache");     // 型式キャッシュ
     localStorage.removeItem("ss_intakeFilter");  // 入庫フィルタ
+    localStorage.removeItem("ss_intakePlans");   // 入庫予定
     CUSTOM_DB = [];                              // メモリ上の車種DBも空に(uploadLocalが参照するため必須)
   } catch (e) {}
   try { renderHistory(); } catch (e) {}
@@ -3716,6 +3717,22 @@ function icMonthRef() {
 function intakeAllInScope() {
   return getHistory().filter(h => h && h.intakeKind && INTAKE_KINDS[h.intakeKind] && recordInScope(h));
 }
+/* ===== 入庫予定(カレンダーに手動で入れる今後の予定) ===== */
+function allPlansRaw() { try { return JSON.parse(localStorage.getItem("ss_intakePlans") || "[]"); } catch (e) { return []; } }
+function savePlansRaw(arr) { try { localStorage.setItem("ss_intakePlans", JSON.stringify(arr.slice(-1000))); } catch (e) {} }
+function getPlans() { return allPlansRaw().filter(p => p && !p.deleted); }
+function plansForDay(y, m, d) { return getPlans().filter(p => p.y === y && p.m === m && p.d === d); }
+function upsertPlan(p) {
+  const arr = allPlansRaw(); const i = arr.findIndex(x => x.id === p.id);
+  if (i >= 0) arr[i] = p; else arr.push(p);
+  savePlansRaw(arr);
+  try { if (window.Cloud && window.Cloud.savePlan) window.Cloud.savePlan(p); } catch (e) {}
+}
+function removePlan(id) {
+  const arr = allPlansRaw(); const i = arr.findIndex(x => x.id === id);
+  if (i >= 0) { arr[i].deleted = true; arr[i].updatedAt = Date.now(); savePlansRaw(arr); }
+  try { if (window.Cloud && window.Cloud.deletePlan) window.Cloud.deletePlan(id); } catch (e) {}
+}
 function renderIntakeCalendar() {
   const grid = $("icGrid"); if (!grid) return;
   const ref = icMonthRef();
@@ -3726,10 +3743,13 @@ function renderIntakeCalendar() {
   const inByDay = {}, outByDay = {};
   const put = (map, ts, h) => { if (ts >= monthStart && ts < monthEnd) { const k = new Date(ts).getDate(); (map[k] = map[k] || []).push(h); } };
   intakeAllInScope().forEach(h => { if (h.intakeAt) put(inByDay, h.intakeAt, h); if (h.intakeOut) put(outByDay, h.intakeOut, h); });
-  let inTot = 0, outTot = 0;
+  const planByDay = {};
+  getPlans().forEach(p => { if (p.y === y && p.m === m) (planByDay[p.d] = planByDay[p.d] || []).push(p); });
+  let inTot = 0, outTot = 0, planTot = 0;
   Object.keys(inByDay).forEach(k => inTot += inByDay[k].length);
   Object.keys(outByDay).forEach(k => outTot += outByDay[k].length);
-  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>';
+  Object.keys(planByDay).forEach(k => planTot += planByDay[k].length);
+  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 予定 ' + planTot + '件</span>' : '');
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -3738,10 +3758,11 @@ function renderIntakeCalendar() {
     .map((w, i) => '<div class="icDowC' + (i === 0 ? ' icSun' : i === 6 ? ' icSat' : '') + '">' + w + '</div>').join('') + '</div><div class="icCells">';
   for (let i = 0; i < firstDow; i++) html += '<div class="icCell icEmpty"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
-    const ins = inByDay[d] || [], outs = outByDay[d] || [];
-    const has = ins.length || outs.length;
+    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = planByDay[d] || [];
+    const has = ins.length || outs.length || plans.length;
     const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
-                   (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '');
+                   (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '') +
+                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '');
     html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
       '<div class="icNum">' + d + '</div>' +
       '<div class="icBadges">' + badges + '</div>' + '</div>';
@@ -3759,33 +3780,90 @@ function renderIntakeCalendar() {
     openIntakeDayDetail(y, m, d, inByDay[d] || [], outByDay[d] || []);
   }));
 }
-/* カレンダーの日をタップ → その日の入庫・出庫の明細を表示 */
+/* カレンダーの日をタップ → その日の入庫・出庫・予定の明細を表示(予定の追加/削除も) */
 function openIntakeDayDetail(y, m, d, ins, outs) {
-  if (!ins.length && !outs.length) return;
+  const dayKey = y + "-" + m + "-" + d;
+  // 同じ日付のカードは重複表示しない。既に開いていればそれを最前面へ。
+  const existing = document.querySelector('.ikModal[data-daykey="' + dayKey + '"]');
+  if (existing) { bringToFront(existing); return; }
+  const isDesk = window.matchMedia("(min-width:1024px)").matches;
   const row = h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
     return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(title) + '</span></div>';
   };
-  const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760";
-  ov.innerHTML = '<div class="ikCard" style="max-width:380px;text-align:left">' +
-    '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" +
-    '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
-    '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
-    '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
+  const planRow = p => {
+    const info = INTAKE_KINDS[p.kind] || { cls: "" };
+    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(p.title) +
+      (p.note ? ' <span class="icDetNote">' + esc(p.note) + '</span>' : '') + '</span>' +
+      '<button type="button" class="icPlanDel" data-id="' + esc(p.id) + '" title="削除">✕</button></div>';
+  };
+  const build = () => {
+    const plans = plansForDay(y, m, d);
+    return '<div class="ikCard" style="max-width:380px;text-align:left">' +
+      '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" +
+      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + plans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (plans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>' +
+      '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
+      '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
+      '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
+  };
+  const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760"; ov.dataset.daykey = dayKey;
+  const close = () => ov.remove();
+  const bindCard = () => {
+    const card = ov.querySelector(".ikCard");
+    const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
+    const add = ov.querySelector("#icAddPlan");
+    if (add) add.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }));
+    ov.querySelectorAll(".icPlanDel").forEach(b => b.addEventListener("click", () => {
+      if (confirm("この入庫予定を削除しますか？")) { removePlan(b.dataset.id); rerender(); try { renderIntakeCalendar(); } catch (e) {} }
+    }));
+    if (isDesk && card) {
+      ov.style.background = "transparent"; ov.style.pointerEvents = "none";
+      const hd = ov.querySelector(".ikTitle");
+      card.style.pointerEvents = "auto"; card.style.boxShadow = "0 18px 60px rgba(0,0,0,.3)";
+      if (hd) makeDraggable(card, hd);
+      enableRaise(card, ov);
+    }
+  };
+  const rerender = () => {
+    const c = ov.querySelector(".ikCard"); const pos = c ? { l: c.style.left, t: c.style.top } : null;
+    ov.innerHTML = build(); bindCard();
+    if (pos && pos.l) { const nc = ov.querySelector(".ikCard"); nc.style.position = "fixed"; nc.style.left = pos.l; nc.style.top = pos.t; nc.style.margin = "0"; }
+  };
+  ov.innerHTML = build();
   document.body.appendChild(ov);
+  ov.addEventListener("click", e => { if (e.target === ov && !isDesk) close(); });
+  bindCard();
+  if (isDesk) bringToFront(ov);
+}
+/* 入庫予定の追加フォーム */
+function openAddPlan(y, m, d, cb) {
+  const kinds = Object.keys(INTAKE_KINDS).map(k => '<button type="button" class="apKind ' + INTAKE_KINDS[k].cls + '" data-kind="' + k + '">' + INTAKE_KINDS[k].label + '</button>').join('');
+  const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = String(_floatZ + 5);
+  ov.innerHTML = '<div class="ikCard" style="max-width:330px;text-align:left">' +
+    '<div class="ikTitle">入庫予定を追加</div>' +
+    '<div class="apDate">' + (m + 1) + '月' + d + '日</div>' +
+    '<input type="text" id="apTitle" placeholder="車両（ナンバー・使用者・車種など）" class="apInput">' +
+    '<div class="apKindRow">' + kinds + '</div>' +
+    '<input type="text" id="apNote" placeholder="メモ（任意）" class="apInput">' +
+    '<div class="apBtns"><button type="button" class="ikLater" id="apCancel">やめる</button><button type="button" class="btn btn-cyan" id="apSave">追加</button></div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  let kind = "修理";
+  const setSel = () => ov.querySelectorAll(".apKind").forEach(x => x.classList.toggle("on", x.dataset.kind === kind));
+  ov.querySelectorAll(".apKind").forEach(b => b.addEventListener("click", () => { kind = b.dataset.kind; setSel(); }));
+  setSel();
   const close = () => ov.remove();
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
-  const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
-  // PC: このカードも独立フローティング(背景は透過して背後を操作可)＋タイトルでドラッグ移動。
-  //     複数の日をタップすると重なるので、新規は最前面に出し、クリックで前面化する。
-  if (window.matchMedia("(min-width:1024px)").matches) {
-    ov.style.background = "transparent"; ov.style.pointerEvents = "none";
-    const card = ov.querySelector(".ikCard"); const hd = ov.querySelector(".ikTitle");
-    if (card) { card.style.pointerEvents = "auto"; card.style.boxShadow = "0 18px 60px rgba(0,0,0,.3)"; }
-    if (card && hd) makeDraggable(card, hd);
-    if (card) { enableRaise(card, ov); bringToFront(ov); }
-  }
+  ov.querySelector("#apCancel").addEventListener("click", close);
+  ov.querySelector("#apSave").addEventListener("click", () => {
+    const title = (ov.querySelector("#apTitle").value || "").trim();
+    if (!title) { ov.querySelector("#apTitle").focus(); return; }
+    const note = (ov.querySelector("#apNote").value || "").trim();
+    upsertPlan({ id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), y, m, d, title, kind, note, updatedAt: Date.now(), deleted: false });
+    close(); if (cb) cb();
+  });
+  setTimeout(() => { const t = ov.querySelector("#apTitle"); if (t) t.focus(); }, 50);
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
 function renderIntakeDetail(list) {
