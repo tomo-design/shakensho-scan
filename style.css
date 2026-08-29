@@ -1253,7 +1253,7 @@ body.officeMode #view-scan{padding-top:0}
   /* 事務モードのPC表示: 画面を広く使い、左=一覧/右=詳細の2ペインに */
   body.officeMode{max-width:1080px}
   nav#tabs{max-width:1080px}
-  body.officeMode #intakeBoard{display:grid !important;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
+  body.officeMode #intakeBoard{display:grid !important;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start;align-content:start}
   body.officeMode #intakeBoard .ibHead{grid-column:1 / -1}
   /* 左右を明示的に固定(自動配置で入れ替わらないように): 一覧=1列目 / 詳細=2列目 */
   body.officeMode #intakeBoard #ibList{grid-column:1}
