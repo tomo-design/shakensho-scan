@@ -3461,12 +3461,7 @@ function renderIntakeBoard() {
   // 区分フィルター(この端末で記憶): すべて / 車検 / 点検 / 修理 / 事故
   const filter = getIntakeFilter();
   renderIntakeFilter(all, filter);
-  const list = (filter ? all.filter(h => h.intakeKind === filter) : all.slice());
-  // 選択中のカードは先頭へ移動(タップしたカードが一番手前・全体が見える位置に来るように)
-  if (_ibSelected) {
-    const si = list.findIndex(h => h.rid === _ibSelected);
-    if (si > 0) { const [sel] = list.splice(si, 1); list.unshift(sel); }
-  }
+  const list = filter ? all.filter(h => h.intakeKind === filter) : all;
   const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + (filter ? list.length + "/" + all.length : all.length) + "台）" : "";
   const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
   const sm = $("ibSummary"); if (sm) sm.textContent = unpaid ? "未回収 " + unpaid + "件" : "";
@@ -3564,6 +3559,15 @@ function restoreFloatPos(key, el) {
     el.style.margin = "0"; el.dataset.placed = "1"; return true;
   } catch (e) { return false; }
 }
+/* フローティングカードのクリックで最前面に出す(重なり順の管理。開いた順に隠れるのを解消) */
+let _floatZ = 800;
+function bringToFront(el) { if (!el) return; _floatZ += 1; el.style.zIndex = _floatZ; }
+/* 指定カードにクリックで最前面化する挙動を1回だけ付与。topEl=重なり順を持つ最上位要素(既定はcard自身)。 */
+function enableRaise(card, topEl) {
+  if (!card || card._raiseOn) return; card._raiseOn = true;
+  const t = topEl || card;
+  card.addEventListener("pointerdown", () => bringToFront(t));
+}
 /* 任意のカードを指定ハンドルでドラッグ移動可能にする(PC限定) */
 function makeDraggable(card, handle) {
   if (!card || !handle) return;
@@ -3624,6 +3628,7 @@ function bindBoardDrag() {
   if (!board || !hd) return;
   _ibDragBound = true;
   try { makeResizable(board, 520, 360, "ss_boardPos"); } catch (e) {}
+  try { enableRaise(board); } catch (e) {}   // クリックで最前面へ
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
   if (isDesk()) { try { restoreFloatPos("ss_boardPos", board); } catch (e) {} }   // 前回の配置を復元
   let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
@@ -3655,6 +3660,7 @@ function bindIntakeCal() {
   _icBound = true;
   const card = modal.querySelector(".icModalCard");
   try { makeResizable(card, 360, 320, "ss_calPos"); } catch (e) {}
+  try { enableRaise(card, modal); } catch (e) {}   // クリックで最前面へ(重なり順管理)
   const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
   const show = () => {
     try { renderIntakeCalendar(); } catch (e) {}
@@ -3770,11 +3776,13 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
   // PC: このカードも独立フローティング(背景は透過して背後を操作可)＋タイトルでドラッグ移動。
+  //     複数の日をタップすると重なるので、新規は最前面に出し、クリックで前面化する。
   if (window.matchMedia("(min-width:1024px)").matches) {
     ov.style.background = "transparent"; ov.style.pointerEvents = "none";
     const card = ov.querySelector(".ikCard"); const hd = ov.querySelector(".ikTitle");
     if (card) { card.style.pointerEvents = "auto"; card.style.boxShadow = "0 18px 60px rgba(0,0,0,.3)"; }
     if (card && hd) makeDraggable(card, hd);
+    if (card) { enableRaise(card, ov); bringToFront(ov); }
   }
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
