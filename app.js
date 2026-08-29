@@ -3837,7 +3837,9 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   };
   ov.innerHTML = build();
   document.body.appendChild(ov);
-  ov.addEventListener("click", e => { if (e.target === ov && !isDesk) close(); });
+  const openedAt = Date.now();
+  // スマホ: 開いた直後(350ms以内)の背景タップは無視(タップ貫通=ゴーストクリックで即閉じるのを防ぐ)。
+  ov.addEventListener("click", e => { if (e.target === ov && !isDesk && Date.now() - openedAt > 350) close(); });
   bindCard();
   if (isDesk) bringToFront(ov);
 }
