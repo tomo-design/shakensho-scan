@@ -3544,6 +3544,29 @@ function renderIntakeBoard() {
   try { bindBoardDrag(); } catch (e) {}
   toggle("intakeBoard", true);
 }
+/* 任意のカードを指定ハンドルでドラッグ移動可能にする(PC限定) */
+function makeDraggable(card, handle) {
+  if (!card || !handle) return;
+  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
+  handle.style.cursor = "move"; handle.style.userSelect = "none"; handle.style.touchAction = "none";
+  let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
+  handle.addEventListener("pointerdown", e => {
+    if (!isDesk() || e.target.closest("button")) return;
+    drag = true; const r = card.getBoundingClientRect();
+    ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
+    card.style.position = "fixed"; card.style.left = ox + "px"; card.style.top = oy + "px"; card.style.margin = "0";
+    try { handle.setPointerCapture(e.pointerId); } catch (er) {}
+  });
+  handle.addEventListener("pointermove", e => {
+    if (!drag) return;
+    let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
+    nx = Math.min(Math.max(nx, -card.offsetWidth + 120), window.innerWidth - 120);
+    ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
+    card.style.left = nx + "px"; card.style.top = ny + "px";
+  });
+  const end = () => { drag = false; };
+  handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
+}
 /* フローティングカードに四隅リサイズハンドルを付与(PC)。左上・右上・左下・右下すべてで大小変更可。 */
 function makeResizable(el, minW, minH) {
   if (!el || el._rzDone) return;
@@ -3723,6 +3746,13 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const close = () => ov.remove();
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
+  // PC: このカードも独立フローティング(背景は透過して背後を操作可)＋タイトルでドラッグ移動。
+  if (window.matchMedia("(min-width:1024px)").matches) {
+    ov.style.background = "transparent"; ov.style.pointerEvents = "none";
+    const card = ov.querySelector(".ikCard"); const hd = ov.querySelector(".ikTitle");
+    if (card) { card.style.pointerEvents = "auto"; card.style.boxShadow = "0 18px 60px rgba(0,0,0,.3)"; }
+    if (card && hd) makeDraggable(card, hd);
+  }
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
 function renderIntakeDetail(list) {

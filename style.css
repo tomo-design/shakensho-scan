@@ -1467,3 +1467,10 @@ body.gated{overflow:hidden}
   .rzH.rz-sw{bottom:-4px;left:-4px;cursor:nesw-resize}
   .rzH.rz-se{bottom:-4px;right:-4px;cursor:nwse-resize}
 }
+
+/* PC事務モード: フッター文言を画面最下部に固定(フローティングボードで中央に浮くのを防ぐ) */
+@media(min-width:1024px){
+  body.officeMode #appFoot{position:fixed;left:0;right:0;bottom:0;z-index:50;margin:0;
+    background:var(--panel,#fff);border-top:1px solid var(--line,#D5DDE8);padding:5px 14px 6px}
+  body.officeMode #appFoot .note{margin:1px 0;font-size:11px}
+}
