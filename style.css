@@ -1069,6 +1069,14 @@ body.pwLocked{ overflow:hidden }
 .apKind.on.ikJiko{background:#DC2626;border-color:#DC2626}
 .apBtns{display:flex;gap:8px;margin-top:8px}
 .apBtns>button{flex:1}
+/* 予定追加フォームを大きめに */
+.apCard{padding:24px 22px 20px}
+.apCard .ikTitle{font-size:19px}
+.apCard .apDate{font-size:15px;margin:6px 0 4px}
+.apCard .apInput{padding:14px;font-size:16px;margin:10px 0}
+.apCard .apKind{padding:12px 6px;font-size:15px}
+.apCard .apBtns{margin-top:12px}
+.apCard .apBtns>button{padding:13px;font-size:16px}
 /* ヘッダーのカレンダーアイコンボタン */
 .ibCalBtn{flex:none;width:32px;height:32px;padding:0;border:0;background:transparent;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ibCalBtn:active{opacity:.6}

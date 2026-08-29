@@ -3868,7 +3868,7 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
 function openAddPlan(y, m, d, cb) {
   const kinds = Object.keys(INTAKE_KINDS).map(k => '<button type="button" class="apKind ' + INTAKE_KINDS[k].cls + '" data-kind="' + k + '">' + INTAKE_KINDS[k].label + '</button>').join('');
   const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = String(_floatZ + 5);
-  ov.innerHTML = '<div class="ikCard" style="max-width:330px;text-align:left">' +
+  ov.innerHTML = '<div class="ikCard apCard" style="max-width:460px;text-align:left">' +
     '<div class="ikTitle">入庫予定を追加</div>' +
     '<div class="apDate">' + (m + 1) + '月' + d + '日</div>' +
     '<input type="text" id="apTitle" placeholder="車両（ナンバー・使用者・車種など）" class="apInput">' +
