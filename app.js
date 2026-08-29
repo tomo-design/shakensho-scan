@@ -3541,7 +3541,36 @@ function renderIntakeBoard() {
   });
   renderIntakeDetail(list);
   try { bindIntakeCal(); } catch (e) {}
+  try { bindBoardDrag(); } catch (e) {}
   toggle("intakeBoard", true);
+}
+/* 入庫ボード(事務モード・PC)をヘッダーでドラッグ移動できるようにする(リサイズはCSSのresizeで対応) */
+let _ibDragBound = false;
+function bindBoardDrag() {
+  if (_ibDragBound) return;
+  const board = $("intakeBoard"); const hd = board && board.querySelector(".ibHead");
+  if (!board || !hd) return;
+  _ibDragBound = true;
+  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
+  let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
+  hd.addEventListener("pointerdown", e => {
+    if (!isDesk() || !officeMode() || e.target.closest("button")) return;   // ボタン(更新/カレンダー)はドラッグしない
+    drag = true;
+    const r = board.getBoundingClientRect();
+    ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
+    board.style.left = ox + "px"; board.style.top = oy + "px"; board.style.margin = "0";
+    try { hd.setPointerCapture(e.pointerId); } catch (er) {}
+  });
+  hd.addEventListener("pointermove", e => {
+    if (!drag) return;
+    let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
+    nx = Math.min(Math.max(nx, -board.offsetWidth + 160), window.innerWidth - 160);
+    ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
+    board.style.left = nx + "px"; board.style.top = ny + "px";
+  });
+  const end = () => { drag = false; };
+  hd.addEventListener("pointerup", end);
+  hd.addEventListener("pointercancel", end);
 }
 /* カレンダーのポップアップ開閉を1回だけバインド */
 let _icBound = false;

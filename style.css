@@ -1439,3 +1439,19 @@ body.gated{overflow:hidden}
 .hiMain.hiNoTap{cursor:default}
 
 .ibMemo.locked{cursor:default;opacity:.75}
+
+/* PC: 入庫ボードも独立フローティングカード化(ヘッダーでドラッグ移動・右下でリサイズ) */
+@media(min-width:1024px){
+  body.officeMode #intakeBoard{
+    position:fixed;top:96px;left:24px;
+    width:min(70vw,1000px);height:78vh;
+    min-width:520px;min-height:360px;max-width:96vw;max-height:90vh;
+    resize:both;overflow:auto;z-index:60;
+    background:var(--panel,#fff);border:1px solid var(--line,#D5DDE8);border-radius:16px;
+    padding:12px 16px;box-shadow:0 18px 60px rgba(0,0,0,.18)}
+  body.officeMode #intakeBoard .ibHead{cursor:move;user-select:none;touch-action:none}
+  body.officeMode #intakeBoard .ibHead button{cursor:pointer}
+  body.officeMode #intakeBoard .ibHead h2::before{content:"\2837 ";color:var(--dim,#9aa4b2);font-size:12px;letter-spacing:-1px}
+  body.officeMode #intakeBoard #ibList{max-height:none}
+  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;max-height:none}
+}
