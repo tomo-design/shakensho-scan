@@ -749,11 +749,19 @@
       }
     }
   }
+  const SNS_STYLE = {
+    balanced: "スタイル: 標準。価値の1つを分かりやすく伝え、最後にさりげなく体験導線(7日無料/デモ)を添える。",
+    honne: "スタイル: 整備士の現場のリアルな本音・あるある(例:今の車は自動化・電動化で故障リスク増、診断が複雑化、修理費が高騰、余計な機能はいらない…等)に強く共感するところから入り、『その複雑化した診断・修理こそAIが手伝える』と自然にメカノAIへつなげる。宣伝は前面に出さず、共感が主役・導線は最後にひとことだけ。整備士が『それなー』と刺さる生々しさ・リアルさを大事に。押し売り厳禁。",
+    tips: "スタイル: 整備士に役立つ豆知識・小ネタを1つ提供し、最後に『メカノAIならこれが一発で出る』等で自然に導線。",
+    campaign: "スタイル: 7日間無料・月¥500(Pocket)などの告知を主軸に、簡潔に魅力とCTAを伝える。",
+  };
   async function snsGen() {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const g = snsCfg();
     const theme = ($("snsTheme").value || "").trim();
-    const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の宣伝投稿を1本、そのまま投稿できる完成形で作成してください。
+    const style = ($("snsStyle") && $("snsStyle").value) || "balanced";
+    const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
+・${SNS_STYLE[style] || SNS_STYLE.balanced}
 ・${g.guide}
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
 ・宣伝くさくしすぎず、読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
@@ -774,6 +782,42 @@
   { const a = $("snsOpen"); if (a) a.addEventListener("click", () => { try { if (navigator.clipboard) navigator.clipboard.writeText($("snsBody").value || ""); } catch (e) {} }); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
   { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
+
+  // 他人のツイートへの返信コメント生成(共感→自然にメカノAI導線)
+  function repCount() { const n = ($("repBody").value || "").length; if ($("repCount")) $("repCount").textContent = "　" + n + "字" + (n > 200 ? " ⚠長め" : ""); }
+  async function repGen() {
+    const src = ($("repSrc").value || "").trim();
+    if (!src) { toast("相手のツイート本文を貼り付けてください"); $("repSrc").focus(); return; }
+    const product = ($("repProduct").value === "pocket") ? "pocket" : "works";
+    const tone = { soft: "やわらかく共感する", frank: "現場の同僚のようにフランクに(ただし失礼にはならない)", polite: "丁寧に" }[$("repTone").value] || "やわらかく共感する";
+    const push = ($("repPush") && $("repPush").value) || "subtle";
+    const pushLine = push === "none"
+      ? "メカノAIの宣伝や導線は入れず、純粋に共感・会話の返信に徹する。商品名も出さない。"
+      : push === "clear"
+        ? "最後に『メカノAI（AIで故障診断や修理手順が出せる整備アプリ）』を一言はっきり案内してよい。ただし押し売り・定型宣伝にはしない。"
+        : "最後にさりげなく『今はそういう複雑な診断・修理もAIに聞ける』程度でメカノAIの存在を匂わせる。商品名の連呼やリンク貼りはしない。押し売り厳禁。";
+    const task = `次のツイートへの「返信リプライ」を1つ作成してください。
+【相手のツイート】
+${src}
+
+・${tone}トーンで、まず相手の言い分に本気で共感・同意する。整備士の現場感を出す。
+・${pushLine}
+・Xの返信なので短く（目安60〜140字、最長でも200字）。1〜3文。
+・宣伝くさい定型文・ハッシュタグの羅列・絵文字の多用はしない。いかにもAIが書いた感を出さない。リンクは貼らない。
+・本文だけを出力（前置き・説明・「返信案：」等は不要）。`;
+    $("repStat").textContent = "生成中…"; $("btnRep").disabled = true;
+    try {
+      const j = await api("generate", { role: "marke", task, product });
+      $("repBody").value = String(j.text || "").trim();
+      show("repOutWrap", true); repCount();
+      $("repStat").textContent = "";
+    } catch (e) { $("repStat").textContent = "⚠ " + (e.message || e); }
+    finally { $("btnRep").disabled = false; }
+  }
+  { const b = $("btnRep"); if (b) b.onclick = repGen; }
+  { const b = $("repRegen"); if (b) b.onclick = repGen; }
+  { const b = $("repCopy"); if (b) b.onclick = () => copy($("repBody").value || ""); }
+  { const b = $("repBody"); if (b) b.addEventListener("input", repCount); }
 
   // ---------- キャンペーン一括生成 ----------
   const CHANNEL_TXT = {

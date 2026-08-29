@@ -291,7 +291,13 @@
             <option value="facebook">Facebook</option>
             <option value="line">LINE公式</option>
           </select></div>
-          <div class="field" style="grid-column:1/-1"><label>テーマ・伝えたいこと（任意）</label><input id="snsTheme" placeholder="例：整備士不足に効く／7日間無料／車検証スキャンの便利さ"></div>
+          <div class="field"><label>投稿スタイル</label><select id="snsStyle">
+            <option value="balanced">おすすめ（バランス）</option>
+            <option value="honne">現場の本音・あるある → 自然に導線（共感型）</option>
+            <option value="tips">お役立ち・豆知識 → 導線</option>
+            <option value="campaign">告知（7日間無料 など）</option>
+          </select></div>
+          <div class="field" style="grid-column:1/-1"><label>テーマ・伝えたいこと（任意）</label><input id="snsTheme" placeholder="例：自動化・電動化で故障リスク増／整備士不足／車検証スキャンの便利さ"></div>
         </div>
         <div class="panel-actions"><button id="btnSns" class="btn btn-accent">投稿文を作成</button><span id="snsStat" class="muted"></span></div>
       </div>
@@ -303,6 +309,30 @@
           <button id="snsRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
         </div>
         <p class="vsub" id="snsHint" style="margin:8px 0 0;font-size:12px"></p>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:0 0 4px;font-size:15px">🗨 ツイートへの返信コメントを作る</h3>
+        <p class="vsub" style="margin:0 0 10px">他の人のツイート（例：「今の車は自動化・電動化で故障も診断も修理費も大変…」）に、<b>共感しつつ自然にメカノAIへつなげる短い返信</b>を作ります。相手のツイート本文を貼り付けてください。売り込みすぎない自然なリプにします。</p>
+        <div class="field"><label>相手のツイート本文</label><textarea id="repSrc" rows="3" placeholder="相手のツイートを貼り付け"></textarea></div>
+        <div class="form-grid">
+          <div class="field"><label>商材</label><select id="repProduct"><option value="works">Works（法人向け）</option><option value="pocket">Pocket（個人向け）</option></select></div>
+          <div class="field"><label>トーン</label><select id="repTone">
+            <option value="soft">共感（やわらかめ）</option>
+            <option value="frank">フランク（現場の同僚っぽく）</option>
+            <option value="polite">丁寧</option>
+          </select></div>
+          <div class="field"><label>導線の強さ</label><select id="repPush">
+            <option value="subtle">さりげなく（おすすめ）</option>
+            <option value="none">導線なし（共感だけ）</option>
+            <option value="clear">はっきり案内</option>
+          </select></div>
+        </div>
+        <div class="panel-actions"><button id="btnRep" class="btn btn-accent">返信を作成</button><span id="repStat" class="muted"></span></div>
+        <div class="field hidden" id="repOutWrap"><label>返信文（編集できます）<span id="repCount" class="muted"></span></label><textarea id="repBody" rows="3"></textarea>
+          <div class="fmActs" style="margin-top:8px"><button id="repCopy" class="btn btn-dark btn-sm">📋 コピー</button><button id="repRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button></div>
+          <p class="vsub" style="margin:8px 0 0;font-size:12px">相手のツイートの返信欄に貼り付けて投稿してください。連投・同じ文の使い回しはスパム扱いになりやすいので、少しずつ手直しを。</p>
+        </div>
       </div>
     </section>
 
