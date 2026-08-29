@@ -3658,6 +3658,8 @@ function bindIntakeCal() {
   const modal = $("intakeCalModal"), open = $("icOpen"), close = $("icClose");
   if (!modal || !open) return;
   _icBound = true;
+  // カレンダーは入庫ボードの子だと重なり順をボードと独立管理できないため、body直下へ移す。
+  try { if (modal.parentElement !== document.body) document.body.appendChild(modal); } catch (e) {}
   const card = modal.querySelector(".icModalCard");
   try { makeResizable(card, 360, 320, "ss_calPos"); } catch (e) {}
   try { enableRaise(card, modal); } catch (e) {}   // クリックで最前面へ(重なり順管理)
