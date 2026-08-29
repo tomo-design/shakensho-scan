@@ -3461,7 +3461,12 @@ function renderIntakeBoard() {
   // 区分フィルター(この端末で記憶): すべて / 車検 / 点検 / 修理 / 事故
   const filter = getIntakeFilter();
   renderIntakeFilter(all, filter);
-  const list = filter ? all.filter(h => h.intakeKind === filter) : all;
+  const list = (filter ? all.filter(h => h.intakeKind === filter) : all.slice());
+  // 選択中のカードは先頭へ移動(タップしたカードが一番手前・全体が見える位置に来るように)
+  if (_ibSelected) {
+    const si = list.findIndex(h => h.rid === _ibSelected);
+    if (si > 0) { const [sel] = list.splice(si, 1); list.unshift(sel); }
+  }
   const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + (filter ? list.length + "/" + all.length : all.length) + "台）" : "";
   const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
   const sm = $("ibSummary"); if (sm) sm.textContent = unpaid ? "未回収 " + unpaid + "件" : "";
