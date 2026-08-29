@@ -605,7 +605,7 @@
     show("cloudLoggedIn", inLogged);
     const isSuperUser = !!(profile && profile.active && profile.role === "super");
     show("tabAdmin", isSuperUser);   // 運営の隠しタブはsuperのみ表示
-    if (!inLogged) { closeForm(); show("tabAdmin", false); show("cloudDevices", false); show("cloudPlan", false); return; }
+    if (!inLogged) { try { if (typeof closeAllIntakeCards === "function") closeAllIntakeCards(); } catch (e) {} closeForm(); show("tabAdmin", false); show("cloudDevices", false); show("cloudPlan", false); return; }
     const roleJa = profile ? ({ super: "運営管理者", admin: "代表管理者", staff: "メンバー" }[profile.role] || profile.role) : "—";
     const who = profile && profile.name ? profile.name + "（" + me.email + "）" : me.email;
     if (!profile) {

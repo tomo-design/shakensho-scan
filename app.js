@@ -3814,6 +3814,15 @@ function renderIntakeCalendar() {
     openIntakeDayDetail(y, m, d, inByDay[d] || [], outByDay[d] || []);
   }));
 }
+/* ログアウト/入庫管理終了時に、開いているフローティングカードを全て閉じる。
+   日別明細・予定追加のオーバーレイ(body直下の.ikModal)＋カレンダーモーダルを対象。 */
+function closeAllIntakeCards() {
+  // 日別明細(data-daykey付き)と予定追加(.apCardを含む)のオーバーレイを除去
+  document.querySelectorAll(".ikModal[data-daykey]").forEach(el => el.remove());
+  document.querySelectorAll(".ikModal").forEach(el => { if (el.querySelector(".apCard")) el.remove(); });
+  // カレンダーモーダルを閉じる
+  try { const cal = document.getElementById("intakeCalModal"); if (cal) cal.classList.add("hidden"); } catch (e) {}
+}
 /* カレンダーの日をタップ → その日の入庫・出庫・予定の明細を表示(予定の追加/削除も) */
 function openIntakeDayDetail(y, m, d, ins, outs) {
   const dayKey = y + "-" + m + "-" + d;
@@ -4000,6 +4009,7 @@ function applyOfficeMode() {
   const exit = document.getElementById("obExit");
   if (exit) exit.addEventListener("click", () => {
     if (!confirm("入庫管理を終了してログアウトします。よろしいですか？")) return;
+    try { closeAllIntakeCards(); } catch (e) {}
     localStorage.removeItem("ss_office");
     applyOfficeMode();
     try { switchView("settings"); } catch (e) {}
