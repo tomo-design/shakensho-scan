@@ -57,6 +57,10 @@
         <svg viewBox="0 0 24 24" class="ic"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg>
         <span>見込み客</span>
       </button>
+      <button class="tab" data-tab="research">
+        <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span>店舗リサーチ<small class="tab-sub">公開情報から収集</small></span>
+      </button>
       <button class="tab" data-tab="camp">
         <svg viewBox="0 0 24 24" class="ic"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
         <span>一括作成</span>
@@ -192,6 +196,39 @@
         <span id="leadCount" class="muted"></span>
       </div>
       <div id="leadList" class="leadlist"></div>
+    </section>
+
+    <!-- 店舗リサーチ(公開情報から営業先候補を収集) -->
+    <section id="tab-research" class="view hidden">
+      <header class="vhead">
+        <div>
+          <h1>店舗リサーチ</h1>
+          <p class="vsub">地域と業種を指定すると、ネットで<b>公開されている情報だけ</b>から営業先の候補を集めます。メール・電話は公開されている場合のみ表示（無ければ空欄）。各件に出典URLを付け、送信前に必ずご確認ください。</p>
+        </div>
+      </header>
+      <div class="panel">
+        <div class="form-grid">
+          <div class="field"><label>地域 <span class="req">必須</span></label><input id="rsArea" placeholder="例：鹿児島県奄美市 / 大阪府堺市 / 北海道"></div>
+          <div class="field"><label>業種</label>
+            <select id="rsKind">
+              <option value="整備工場">整備工場</option>
+              <option value="運送会社">運送会社</option>
+              <option value="ディーラー">ディーラー</option>
+              <option value="板金/塗装">板金/塗装</option>
+              <option value="ガソリンスタンド併設整備">GS併設整備</option>
+              <option value="自動車販売店">自動車販売店</option>
+            </select>
+          </div>
+          <div class="field"><label>件数（最大20）</label><input id="rsCount" type="number" min="1" max="20" value="10"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnResearch" class="btn btn-accent">🔍 候補を検索</button>
+          <button id="btnRsAddAll" class="btn btn-dark btn-sm hidden">表示中をすべて見込み客に追加</button>
+          <span id="rsStat" class="muted"></span>
+        </div>
+        <p class="vsub" style="margin:10px 0 0;font-size:12px">※ 公開情報の収集です。得られた連絡先が最新・正確とは限りません。コールドメールは特定電子メール法に基づき、配信停止の一文と署名を付けて送信されます（フォームのみの先はフォームからご連絡ください）。</p>
+      </div>
+      <div id="rsResults" class="leadlist"></div>
     </section>
 
     <!-- 一括作成 -->

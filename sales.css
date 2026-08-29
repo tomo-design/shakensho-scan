@@ -218,6 +218,9 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .st-商談中{background:#e4edfb;color:#2b5aa8}
 .st-契約{background:#e0f3e7;color:#1a7a42}
 .st-見送り{background:#fbe6e6;color:#a53838}
+.rscard .rslinks a{color:var(--accent-d);text-decoration:none;font-weight:600}
+.rscard .rslinks a:hover{text-decoration:underline}
+.rscard .rsNo{color:#a0a6b0;font-size:12px}
 .empty-block{grid-column:1/-1;text-align:center;color:var(--ink2);font-size:13.5px;padding:48px 20px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius)}
 
 /* ================= 一括作成 ================= */

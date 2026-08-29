@@ -113,6 +113,7 @@
       const teamView = (tab === "team" || tab === "pocket");   // Pocket文面タブもチーム画面を共用(商材だけ切替)
       show("tab-team", teamView);
       show("tab-leads", tab === "leads");
+      show("tab-research", tab === "research");
       show("tab-camp", tab === "camp");
       show("tab-inbox", tab === "inbox");
       show("tab-issue", tab === "issue");
@@ -515,6 +516,74 @@
     if (!editingId || !confirm("この見込み客を削除しますか？")) return;
     try { await api("delLead", { id: editingId }); show("leadModal", false); await loadLeads(); toast("削除しました"); }
     catch (e) { toast(e.message); }
+  };
+
+  // ---------- 店舗リサーチ(公開情報から営業先候補を収集) ----------
+  let rsCandidates = [];
+  const _rsUrl = (u, label) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(label)}</a>` : "";
+  function renderResearch() {
+    const box = $("rsResults");
+    show("btnRsAddAll", rsCandidates.length > 0);
+    if (!rsCandidates.length) { box.innerHTML = ""; return; }
+    box.innerHTML = rsCandidates.map((c, i) => `
+      <div class="leadcard rscard" data-i="${i}">
+        <div class="l">
+          <div class="co">${esc(c.company)} <span class="pill st-見込み">${esc(c.kind || "")}</span></div>
+          <div class="meta">${esc(c.area || "")}</div>
+          <div class="meta">${c.phone ? "☎ " + esc(c.phone) : '<span class="rsNo">☎ 電話 非公開</span>'}　${c.email ? "✉ " + esc(c.email) : '<span class="rsNo">✉ メール 非公開</span>'}</div>
+          <div class="meta rslinks">${_rsUrl(c.source, "🔗 出典")}${c.formUrl ? "　" + _rsUrl(c.formUrl, "📝 問い合わせフォーム") : ""}</div>
+          ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
+        </div>
+        <div class="acts">
+          <button class="btn btn-dark btn-sm" data-rsadd="${i}">見込み客に追加</button>
+        </div>
+      </div>`).join("");
+    box.querySelectorAll("[data-rsadd]").forEach((b) => b.onclick = () => addCandidate(+b.dataset.rsadd, b));
+  }
+  function candidateToLead(c) {
+    const noteLines = [];
+    if (c.formUrl) noteLines.push("問い合わせフォーム: " + c.formUrl);
+    if (c.source) noteLines.push("出典: " + c.source);
+    if (c.note) noteLines.push(c.note);
+    noteLines.push("（店舗リサーチで自動収集・要確認）");
+    return { company: c.company, kind: c.kind || "整備工場", status: "見込み", contact: "", phone: c.phone || "", email: c.email || "", note: noteLines.join("\n") };
+  }
+  async function addCandidate(i, btn) {
+    const c = rsCandidates[i]; if (!c) return;
+    if (btn) { btn.disabled = true; btn.textContent = "追加中…"; }
+    try { await api("saveLead", { lead: candidateToLead(c) }); if (btn) btn.textContent = "✓ 追加済み"; toast("見込み客に追加しました"); }
+    catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = "見込み客に追加"; } }
+  }
+  const _rsBtn = $("btnResearch");
+  if (_rsBtn) _rsBtn.onclick = async () => {
+    const area = ($("rsArea").value || "").trim();
+    const kind = $("rsKind").value;
+    const count = parseInt($("rsCount").value, 10) || 10;
+    if (!area) { toast("地域を入力してください"); $("rsArea").focus(); return; }
+    _rsBtn.disabled = true; $("rsStat").textContent = "検索中…（30秒ほどかかることがあります）";
+    $("rsResults").innerHTML = ""; rsCandidates = []; show("btnRsAddAll", false);
+    try {
+      const j = await api("research", { area, kind, count });
+      rsCandidates = j.candidates || [];
+      $("rsStat").textContent = rsCandidates.length
+        ? rsCandidates.length + " 件の候補が見つかりました（メール非公開の先も含みます）"
+        : "公開情報から確度の高い候補が見つかりませんでした。地域や業種を変えてお試しください。";
+      renderResearch();
+    } catch (e) { $("rsStat").textContent = "⚠ " + (e.message || e); }
+    finally { _rsBtn.disabled = false; }
+  };
+  $("rsArea") && $("rsArea").addEventListener("keydown", (e) => { if (e.key === "Enter") _rsBtn.click(); });
+  const _rsAll = $("btnRsAddAll");
+  if (_rsAll) _rsAll.onclick = async () => {
+    if (!rsCandidates.length) return;
+    if (!confirm(rsCandidates.length + " 件をすべて見込み客に追加します。よろしいですか？")) return;
+    _rsAll.disabled = true; let ok = 0;
+    for (let i = 0; i < rsCandidates.length; i++) {
+      try { await api("saveLead", { lead: candidateToLead(rsCandidates[i]) }); ok++; $("rsStat").textContent = "追加中… " + ok + "/" + rsCandidates.length; } catch (e) {}
+    }
+    $("rsStat").textContent = "✓ " + ok + " 件を見込み客に追加しました";
+    _rsAll.disabled = false;
+    toast(ok + " 件を追加しました");
   };
 
   // ---------- キャンペーン一括生成 ----------

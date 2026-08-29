@@ -114,6 +114,51 @@ exports.notifyIntake = functions.firestore
     return null;
   });
 
+/* 入庫予定(カレンダー)が新規追加されたら、店舗の事務/管理者端末に通知。
+   配信先は pushTokens の office/admin。 */
+exports.notifyPlan = functions.firestore
+  .document("tenants/{tid}/intakePlans/{pid}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : null;
+    const before = change.before.exists ? change.before.data() : null;
+    if (!after || after.deleted === true) return null;
+    if (before && before.deleted !== true) return null;   // 新規追加(または復活)時のみ
+
+    const tid = context.params.tid;
+    const db = admin.firestore();
+    let tokens = [];
+    try {
+      const pt = await db.collection("tenants").doc(tid).collection("pushTokens").get();
+      pt.forEach((d) => { const v = d.data() || {}; if (v.office === true || v.admin === true) tokens.push(d.id); });
+    } catch (e) {}
+    const uniq = [...new Set(tokens)].filter(Boolean);
+    console.log("notifyPlan: tokens=" + uniq.length + " tid=" + tid);
+    if (!uniq.length) return null;
+
+    const kindJa = { "車検": "車検", "点検": "点検", "修理": "修理", "事故": "板金" }[after.kind] || after.kind || "";
+    const md = (Number(after.m) + 1) + "月" + Number(after.d) + "日";
+    const who = after.title || "車両";
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens: uniq,
+      data: { title: "入庫予定が追加されました", body: md + "：" + who + (kindJa ? "（" + kindJa + "）" : "") + " の入庫予定が登録されました。", link: "/", tag: "plan" },
+      webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
+    });
+    console.log("notifyPlan: success=" + res.successCount + " fail=" + res.failureCount);
+    const stale = [];
+    res.responses.forEach((r, i) => {
+      if (!r.success) {
+        const code = r.error && r.error.code;
+        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") stale.push(uniq[i]);
+      }
+    });
+    if (stale.length) {
+      const batch = db.batch();
+      stale.forEach((t) => batch.delete(db.collection("tenants").doc(tid).collection("pushTokens").doc(t)));
+      try { await batch.commit(); } catch (e) {}
+    }
+    return null;
+  });
+
 /* 入庫ボードのコメントが追加されたら、店舗の事務/管理者端末に通知(投稿者本人の端末は除く)。
    comments 配列が増えた時だけ送信。配信先は pushTokens の office/admin。 */
 exports.notifyComment = functions.firestore
@@ -2084,6 +2129,50 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const latest = await latestModels(freeKeys[0]);
   const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+
+  // ---- 店舗リサーチ(公開情報のみ・検索グラウンディング) ----
+  // ネットで実際に公開されている整備工場等の連絡先を集める。捏造は厳禁、出典URL必須、要人手確認。
+  if (action === "research") {
+    const area = String(data.area || "").trim().slice(0, 80);
+    const kind = String(data.kind || "整備工場").trim().slice(0, 40);
+    const count = Math.min(Math.max(parseInt(data.count, 10) || 10, 1), 20);
+    if (!area) return res.status(400).json({ error: "地域(都道府県・市区町村など)を入力してください。" });
+    const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。
+
+【最重要ルール(厳守・違反禁止)】
+・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
+・メールアドレスと電話番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
+・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
+・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる(メール非公開の先はフォーム営業に使うため)。
+・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
+
+【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
+[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
+    const rparts = [{ text: rprompt }];
+    let rout = { failed: true };
+    if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
+    if (rout.failed) {
+      const start = Math.floor(Math.random() * freeKeys.length);
+      for (let i = 0; i < freeKeys.length; i++) { rout = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, rparts, "flash", true, 8192); if (!rout.failed) break; }
+    }
+    if (rout.failed) return res.status(503).json({ error: "AIが混みあっています。少し待って再度お試しください。" });
+    let rtext = String(rout.text || "").trim();
+    let arr = [];
+    try { const m = rtext.match(/\[[\s\S]*\]/); arr = JSON.parse(m ? m[0] : rtext); } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+    const isUrl = (s) => /^https?:\/\//i.test(String(s || ""));
+    const candidates = arr.map((x) => ({
+      company: String(x.company || "").slice(0, 200),
+      area: String(x.area || "").slice(0, 200),
+      kind: String(x.kind || kind).slice(0, 60),
+      phone: String(x.phone || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
+      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(x.email || "").trim()) ? String(x.email).trim().slice(0, 200) : "",
+      formUrl: isUrl(x.formUrl) ? String(x.formUrl).slice(0, 400) : "",
+      source: isUrl(x.source) ? String(x.source).slice(0, 400) : "",
+      note: String(x.note || "").slice(0, 500),
+    })).filter((x) => x.company && x.source).slice(0, count);   // 店名と出典URLが必須(無いものは捨てる=捏造防止)
+    return res.json({ candidates: candidates, found: candidates.length });
+  }
 
   // 商材: works=法人(MECHANO-AI Works) / pocket=個人(MECHANO-AI Pocket)
   const product = data.product === "pocket" ? "pocket" : "works";
