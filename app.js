@@ -8,12 +8,17 @@
    ========================================================= */
 
 const APP_VER = "1.0.0";
-/* 表示バージョン: Service Worker のキャッシュ名(shaken-scan-vNNN)から取得。無ければ APP_VER。 */
+/* ビルド番号(566等)を、それっぽい semver 表記(v5.6.6)に整形。二重管理を避けつつ体裁を整える。 */
+function fmtVer(n) {
+  n = Number(n) || 0;
+  return "v" + Math.floor(n / 100) + "." + (Math.floor(n / 10) % 10) + "." + (n % 10);
+}
+/* 表示バージョン: Service Worker のキャッシュ名(shaken-scan-vNNN)から取得し semver 風に整形。無ければ APP_VER。 */
 async function appVerDisplay() {
   try {
     const keys = await caches.keys();
     const nums = keys.map(k => (String(k).match(/shaken-scan-v(\d+)/) || [])[1]).filter(Boolean).map(Number);
-    if (nums.length) return "v" + Math.max(...nums);
+    if (nums.length) return fmtVer(Math.max(...nums));
   } catch (e) {}
   return "v" + APP_VER;
 }
