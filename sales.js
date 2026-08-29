@@ -725,16 +725,29 @@
 
   // ---------- SNS発信アシスト(投稿文生成→コピー→投稿画面を開く) ----------
   const SNS = {
-    x: { name: "X（旧Twitter・Premium）", limit: 25000, compose: (t) => "https://twitter.com/intent/tweet?text=" + encodeURIComponent(t), prefill: true, guide: "Premium契約なので長文OK（目安300〜1500字。読み手が飽きない範囲で）。冒頭1〜2行で引きを作り→本文→締め。ハッシュタグは2〜3個まで。過度な絵文字は避け、改行で読みやすく。短く刺したい時は280字前後でもよい。" },
+    // Xのintent(事前入力)は短文のみ安定。長文はURLが巨大でXがエラーになるため、通常の投稿画面を開き貼り付け運用。
+    x: { name: "X（Premium）", limit: 25000, prefill: true,
+      compose: (t) => (t && t.length <= 260) ? "https://x.com/intent/post?text=" + encodeURIComponent(t) : "https://x.com/compose/post",
+      guide: "Premium契約なので長文OK（目安300〜1500字。読み手が飽きない範囲で）。冒頭1〜2行で引きを作り→本文→締め。ハッシュタグは2〜3個まで。過度な絵文字は避け、改行で読みやすく。短く刺したい時は260字前後でもよい。" },
     instagram: { name: "Instagram", limit: 2200, compose: () => "https://www.instagram.com/", prefill: false, guide: "写真に添えるキャプション。改行で読みやすく、共感→ひとこと訴求。ハッシュタグは末尾にまとめて5〜10個。" },
     facebook: { name: "Facebook", limit: 2000, compose: () => "https://www.facebook.com/", prefill: false, guide: "やや丁寧な語り口。段落で読みやすく。リンク誘導OK。" },
     line: { name: "LINE公式", limit: 500, compose: () => "https://manager.line.biz/", prefill: false, guide: "友だち向けのお知らせ調。短く親しみやすく、1メッセージで完結。" },
   };
   const snsCfg = () => SNS[($("snsPlatform") && $("snsPlatform").value) || "x"] || SNS.x;
   function updateSnsCount() {
-    const g = snsCfg(); const n = ($("snsBody").value || "").length;
+    const g = snsCfg(); const body = ($("snsBody").value || ""); const n = body.length;
     if ($("snsCount")) $("snsCount").textContent = "　" + n + " / " + g.limit + "字" + (n > g.limit ? " ⚠字数超過" : "");
-    if (g.prefill && $("snsOpen")) $("snsOpen").href = g.compose($("snsBody").value || "");
+    if ($("snsOpen")) $("snsOpen").href = g.compose(body);
+    if ($("snsHint")) {
+      if (!body) { $("snsHint").textContent = ""; }
+      else if (g.prefill) {
+        $("snsHint").textContent = (n <= 260)
+          ? "「投稿画面を開く」で本文入力済みのX投稿画面が開きます。画像添付・最終送信はご自身で。"
+          : "長文のため事前入力できません（Xがエラーになるため）。開くと本文は自動コピーされるので、通常の投稿画面に貼り付けて投稿してください。";
+      } else {
+        $("snsHint").textContent = g.name + "は本文の事前入力に非対応です。「コピー」→「投稿画面を開く」→貼り付けで投稿してください（開くと自動コピー）。";
+      }
+    }
   }
   async function snsGen() {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
@@ -750,10 +763,6 @@
       const j = await api("generate", { role: "marke", task, product });
       const t = String(j.text || "").trim();
       $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount();
-      $("snsOpen").href = g.compose(t);
-      $("snsHint").textContent = g.prefill
-        ? "「投稿画面を開く」で、本文が入力済みのXの投稿画面が開きます。画像添付や最終送信はご自身で。"
-        : g.name + "は本文の事前入力に対応していないため、まず「コピー」→「投稿画面を開く」→貼り付け、で投稿してください。";
       $("snsStat").textContent = "";
     } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); }
     finally { $("btnSns").disabled = false; }
@@ -761,6 +770,8 @@
   { const b = $("btnSns"); if (b) b.onclick = snsGen; }
   { const b = $("snsRegen"); if (b) b.onclick = snsGen; }
   { const b = $("snsCopy"); if (b) b.onclick = () => copy($("snsBody").value || ""); }
+  // 投稿画面を開く時、本文を自動でクリップボードへ(長文Xや事前入力非対応SNSで貼り付けしやすく)
+  { const a = $("snsOpen"); if (a) a.addEventListener("click", () => { try { if (navigator.clipboard) navigator.clipboard.writeText($("snsBody").value || ""); } catch (e) {} }); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
   { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
 
