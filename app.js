@@ -3736,6 +3736,18 @@ function removePlan(id) {
   if (i >= 0) { arr[i].deleted = true; arr[i].updatedAt = Date.now(); savePlansRaw(arr); }
   try { if (window.Cloud && window.Cloud.deletePlan) window.Cloud.deletePlan(id); } catch (e) {}
 }
+/* 入庫・出庫した車両の記録を完全に削除(履歴・カルテも消える)。クラウドは墓標削除で同期。 */
+function deleteVehicleRecord(rid) {
+  if (!rid) return;
+  const hist = getHistory();
+  const t = hist.find(h => h.rid === rid);
+  localStorage.setItem(LS.hist, JSON.stringify(hist.filter(h => h.rid !== rid)));
+  try { if (t && window.Cloud && window.Cloud.deleteRecord) window.Cloud.deleteRecord(t); } catch (e) {}
+  if (_ibSelected === rid) _ibSelected = null;
+  try { renderIntakeBoard(); } catch (e) {}
+  try { renderHistory(); } catch (e) {}
+  try { renderIntakeCalendar(); } catch (e) {}
+}
 /* 実際に入庫した車両に合致する「予定日到来済み(今日以前)」の予定を自動で消す(=予定消化)。同期あり。 */
 function consumePlansForVehicle(t) {
   if (!t) return;
@@ -3812,7 +3824,8 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const row = h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
-    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(title) + '</span></div>';
+    return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(title) + '</span>' +
+      (h.rid ? '<button type="button" class="icVehDel" data-rid="' + esc(h.rid) + '" title="この車両を削除">✕</button>' : '') + '</div>';
   };
   const planRow = p => {
     const info = INTAKE_KINDS[p.kind] || { cls: "" };
@@ -3842,6 +3855,13 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
     if (add) add.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }));
     ov.querySelectorAll(".icPlanDel").forEach(b => b.addEventListener("click", () => {
       if (confirm("この入庫予定を削除しますか？")) { removePlan(b.dataset.id); rerender(); try { renderIntakeCalendar(); } catch (e) {} }
+    }));
+    ov.querySelectorAll(".icVehDel").forEach(b => b.addEventListener("click", () => {
+      const rid = b.dataset.rid;
+      if (!confirm("この車両の記録を削除しますか？\n（履歴・整備カルテも消えます。取り消せません）")) return;
+      deleteVehicleRecord(rid);
+      [ins, outs].forEach(arr => { const i = arr.findIndex(x => x.rid === rid); if (i >= 0) arr.splice(i, 1); });
+      rerender();
     }));
     if (isDesk && card) {
       ov.style.background = "transparent"; ov.style.pointerEvents = "none";
