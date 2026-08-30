@@ -2183,6 +2183,8 @@ function renderSpecs(specs, source) {
   // OBD検査対象は初度登録から端末側で判定して必ず表示(未収録なら先頭付近に追加)
   const obd = obdSpec();
   if (obd && !shownSpecs.some(s => /OBD/i.test(String(s.k || "")))) shownSpecs.push(obd);
+  // 種類ごとにまとめて並べる: 油脂・油量 → 締付トルク → 打刻位置 → その他(安定ソートで同区分内の順序は維持)
+  shownSpecs = shownSpecs.map((s, i) => [s, i]).sort((a, b) => (specCategory(a[0].k) - specCategory(b[0].k)) || (a[1] - b[1])).map(x => x[0]);
   const dl = $("specList"); dl.innerHTML = "";
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
@@ -6238,6 +6240,14 @@ function canonDisplayKey(k) {
   if (has(/ハブ/) && trq) return side + "ハブベアリングナット締付トルク";
   if (has(/(アクスル|ドライブシャフト|フランジ)/) && trq) return "リアアクスルシャフト（フランジ）締付トルク";
   return orig;
+}
+/* 諸元の並び分類: 0=油脂/油量, 1=締付トルク, 2=打刻位置, 3=その他。種類ごとにまとめて表示するため。 */
+function specCategory(k) {
+  const s = String(k == null ? "" : k).normalize("NFKC").toLowerCase();
+  if (/(締付|締め付け|トルク|ナット|ボルト)/.test(s)) return 1;                                  // トルク系
+  if (/(オイル|フルード|クーラント|冷却水|粘度|グリス|油量|油脂|atf|cvt|llc|ブレーキ液)/.test(s)) return 0; // 油脂・油量系
+  if (/(打刻|位置)/.test(s)) return 2;                                                          // 打刻位置
+  return 3;                                                                                     // その他(OBD等)
 }
 /* 同義キーで重複を除去(先頭を優先。手動確定値があればそれを優先的に残す)。 */
 function dedupSpecs(list) {
