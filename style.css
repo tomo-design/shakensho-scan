@@ -1508,3 +1508,12 @@ body.gated{overflow:hidden}
     background:var(--panel,#fff);border-top:1px solid var(--line,#D5DDE8);padding:5px 14px 6px}
   body.officeMode #appFoot .note{margin:1px 0;font-size:11px}
 }
+
+/* 安全注意(修理手順・トルク等の保安喚起)。主張しすぎず、淡いアンバーで"注意"と認識できる程度に。 */
+.hint.safetyNote{
+  border-left:3px solid rgba(217,119,6,.55);
+  padding-left:8px;
+  background:rgba(217,119,6,.06);
+  border-radius:4px;
+}
+.hint.safetyNote b{color:#b45309}
