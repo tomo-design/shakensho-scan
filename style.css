@@ -1389,6 +1389,8 @@ body.gated{overflow:hidden}
 .hiStaff{flex:none;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 担当設定済み: 背景色は付けず、文字を通常色にするだけ(人アイコン・色背景なし) */
 .hiStaff.on{background:transparent;border-color:var(--line);color:var(--txt)}
+/* メンバー閲覧時: 担当は表示のみ(枠なし・操作不可) */
+.hiStaff.hiStaffRO{border-color:transparent;cursor:default;padding:5px 4px}
 /* 横スワイプで出現する出庫ボタン(行の背後・右端) */
 /* 背面ラッパは透明(カードから赤がはみ出て“赤い線”に見えるのを防ぐ)。赤はボタン自体だけ。 */
 .hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none;visibility:hidden}

@@ -3870,11 +3870,12 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const existing = document.querySelector('.ikModal[data-daykey="' + dayKey + '"]');
   if (existing) { bringToFront(existing); return; }
   const isDesk = window.matchMedia("(min-width:1024px)").matches;
+  const canEdit = (typeof canEditIntake === "function") ? canEditIntake() : true;   // メンバーは車両削除不可(管理者のみ)
   const row = h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "車両";
     return '<div class="icDetRow"><span class="icDot ' + info.cls + '"></span><span class="icDetTitle">' + esc(title) + '</span>' +
-      (h.rid ? '<button type="button" class="icVehDel" data-rid="' + esc(h.rid) + '" title="この車両を削除">✕</button>' : '') + '</div>';
+      (canEdit && h.rid ? '<button type="button" class="icVehDel" data-rid="' + esc(h.rid) + '" title="この車両を削除">✕</button>' : '') + '</div>';
   };
   const planRow = p => {
     const info = INTAKE_KINDS[p.kind] || { cls: "" };
@@ -4075,16 +4076,15 @@ function renderHomeIntake() {
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
   // 車両検索を開いている間は入庫状況ボードを閉じる(重なり防止・検索に集中)
   const searchOpen = $("plateArea") && !$("plateArea").classList.contains("hidden");
-  // カレンダー(社内共有)は会社メンバー全員が見られる。配置は役割で分ける:
-  //  管理者 → 「現在の入庫状況」見出しの📅(一覧も表示)。 一般メンバー → トップヘッダーの📅(入庫一覧は出さない)。
+  // 「現在の入庫状況」＋カレンダー(社内共有)は会社メンバー全員が閲覧可。
+  // ただし出庫・担当変更などの操作は管理者のみ(メンバーは閲覧のみ)。
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
   const isWorksMember = loggedIn && !officeMode() && !isDemoNow && getAppMode() !== "personal";
-  try { bindIntakeCal(); } catch (e) {}   // 📅(ヘッダー/見出し)を有効化
-  // ヘッダーの📅は「一般メンバー(非管理者)」だけに出す。管理者は「現在の入庫状況」側に出す。
-  toggle("hdrCalBtn", isWorksMember && !loggedInMgr);
-  // 「現在の入庫状況」パネルは管理者のみ(オンホーム・検索を開いていない時)。
-  const baseShow = onHome && !searchOpen && loggedInMgr;
+  try { bindIntakeCal(); } catch (e) {}   // 見出しの📅を有効化
+  toggle("hdrCalBtn", false);   // ヘッダーの📅は廃止(カレンダーは「現在の入庫状況」見出しに集約)
+  const baseShow = onHome && !searchOpen && isWorksMember;
   if (!baseShow) { toggle("homeIntake", false); box.innerHTML = ""; return; }
+  const canEdit = loggedInMgr;   // 出庫・担当の操作は管理者のみ
   const list = activeIntakes();
   const cnt = $("hiCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
   box.innerHTML = "";
@@ -4097,23 +4097,26 @@ function renderHomeIntake() {
     const slide = document.createElement("div"); slide.className = "hiSlide";
     const main = document.createElement("div"); main.className = "hiMain";
     main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
-    // 車両をタップ → コメント(申し送り)スレッドを開く。スワイプ直後のクリックはaddSwipeRevealが抑制する。
+    // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
     main.addEventListener("click", () => { try { openIntakeComments(h.rid); } catch (e) {} });
-    // 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ→担当者を設定
-    const staff = document.createElement("button");
-    staff.className = "hiStaff" + (h.staff ? " on" : "");
-    staff.textContent = h.staff ? h.staff : "＋ 担当";
-    staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
+    // 担当表示。管理者はタップで名簿から設定/変更。メンバーは表示のみ(操作不可)。
+    const staff = document.createElement(canEdit ? "button" : "span");
+    staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
+    staff.textContent = h.staff ? h.staff : (canEdit ? "＋ 担当" : "—");
+    if (canEdit) staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
     slide.appendChild(main); slide.appendChild(staff);
-    // 横スワイプで出現する出庫ボタン
-    const outWrap = document.createElement("div"); outWrap.className = "hiOutWrap";
-    const out = document.createElement("button"); out.className = "hiOut"; out.textContent = "出庫";
-    out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
-    outWrap.appendChild(out);
-    row.appendChild(slide); row.appendChild(outWrap); box.appendChild(row);
-    addSwipeReveal(row, slide);
+    row.appendChild(slide);
+    // 出庫は管理者のみ。メンバーはスワイプ出庫を出さない(閲覧のみ)。
+    if (canEdit) {
+      const outWrap = document.createElement("div"); outWrap.className = "hiOutWrap";
+      const out = document.createElement("button"); out.className = "hiOut"; out.textContent = "出庫";
+      out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
+      outWrap.appendChild(out);
+      row.appendChild(outWrap);
+      addSwipeReveal(row, slide);
+    }
+    box.appendChild(row);
   });
-  toggle("homeIntake", true);
 }
 /* 担当者の名簿(この事業所で共有せずローカル記憶。名前は後から追加編集できる) */
 const STAFF_ROSTER_LS = "ss_staffRoster";
