@@ -3366,14 +3366,23 @@ function fmtCommentTime(ts) {
 function myDevId() {
   try { let d = localStorage.getItem("ss_devId"); if (!d) { d = "d" + Math.random().toString(36).slice(2, 8); localStorage.setItem("ss_devId", d); } return d; } catch (e) { return ""; }
 }
-/* コメントスレッドを開く(履歴＋追記・リアルタイム更新) */
-function openIntakeComments(rid) {
+/* 日付ごとコメント用の疑似レコードを用意(無ければローカルに作る。クラウド送信は初コメント時のsendで行う)。 */
+function ensureCalRecord(rid) {
+  const hist = getHistory();
+  let t = hist.find(h => h.rid === rid);
+  if (!t) { t = { rid, calDay: true, at: new Date().toISOString(), updatedAt: Date.now(), comments: [] }; hist.push(t); localStorage.setItem(LS.hist, JSON.stringify(hist)); }
+  return t;
+}
+/* コメントスレッドを開く(履歴＋追記・リアルタイム更新)。opts.title=見出し上書き, opts.ensureStub=疑似レコード生成(カレンダー日別) */
+function openIntakeComments(rid, opts) {
+  opts = opts || {};
+  if (opts.ensureStub) { try { ensureCalRecord(rid); } catch (e) {} }
   const getRec = () => getHistory().find(h => h.rid === rid);
   let t = getRec(); if (!t) return;
   const me = myConfirmId();
   document.querySelectorAll(".cmtOv").forEach(x => x.remove());
   const ov = document.createElement("div"); ov.className = "cmtOv";
-  const title = dispText(t.plate) || dispText(t.name) || "この車両";
+  const title = opts.title || dispText(t.plate) || dispText(t.name) || "この車両";
   ov.innerHTML =
     '<div class="cmtBox">' +
       '<div class="cmtHd"><b>💬 コメント</b><span class="cmtCar">' + esc(title) + '</span></div>' +
@@ -3426,6 +3435,7 @@ function openIntakeComments(rid) {
       else window.Cloud.pushRecord(t);
     }
     input.value = ""; draw(); renderIntakeBoard();
+    try { renderIntakeCalendar(); } catch (e) {}   // カレンダーの💬バッジ・日別明細の件数を即更新
   };
   ov.querySelector("#cmtSend").addEventListener("click", send);
   input.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); } });
@@ -3703,6 +3713,9 @@ function bindIntakeCal() {
   };
   const hide = () => toggle("intakeCalModal", false);
   open.addEventListener("click", show);
+  // 「現在の入庫状況」見出しの📅(全メンバーが開ける)。summary内なのでdetails開閉を止める。
+  const openHome = $("hiCalBtn");
+  if (openHome) openHome.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); show(); });
   if (close) close.addEventListener("click", hide);
   // PC限定: 背景クリックでは閉じない(独立ウィンドウとして扱う)。モバイルは従来どおり背景タップで閉じる。
   modal.addEventListener("click", e => { if (e.target === modal && !isDesk()) hide(); });
@@ -3808,6 +3821,14 @@ function renderIntakeCalendar() {
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
+  // その日にコメント(申し送り)がある日を集計 → 💬バッジで全員に見えるように
+  const cmtDays = {};
+  getHistory().forEach(h => {
+    if (!h || typeof h.rid !== "string" || h.rid.indexOf("cal-") !== 0) return;
+    if (!getComments(h).length) return;
+    const mm = h.rid.match(/^cal-(\d+)-(\d+)-(\d+)/);
+    if (mm && Number(mm[1]) === y && Number(mm[2]) === m + 1) cmtDays[Number(mm[3])] = true;
+  });
   const now = new Date(); const thisMonth = now.getFullYear() === y && now.getMonth() === m; const todayD = now.getDate();
   let html = '<div class="icDowRow">' + ["日", "月", "火", "水", "木", "金", "土"]
     .map((w, i) => '<div class="icDowC' + (i === 0 ? ' icSun' : i === 6 ? ' icSat' : '') + '">' + w + '</div>').join('') + '</div><div class="icCells">';
@@ -3815,10 +3836,12 @@ function renderIntakeCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const dayIsPast = new Date(y, m, d).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0);
     const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []);
-    const has = ins.length || outs.length || plans.length;
+    const hasCmt = !!cmtDays[d];
+    const has = ins.length || outs.length || plans.length || hasCmt;
     const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
                    (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '') +
-                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '');
+                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '') +
+                   (hasCmt ? '<span class="icBadge icCmtB">💬</span>' : '');
     html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
       '<div class="icNum">' + d + '</div>' +
       '<div class="icBadges">' + badges + '</div>' + '</div>';
@@ -3867,14 +3890,19 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   // 過去の日付には入庫予定を出さない(今日以降のみ追加・表示)
   const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
   const isPast = new Date(y, m, d).getTime() < todayMid.getTime();
+  const calRid = "cal-" + y + "-" + (m + 1) + "-" + d;
+  const dayLabel = (m + 1) + "月" + d + "日";
   const build = () => {
     const plans = plansForDay(y, m, d);
     const planSec = isPast ? '' :
       '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + plans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (plans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
+    const calRec = getHistory().find(h => h.rid === calRid);
+    const cmtN = calRec ? getComments(calRec).length : 0;
     return '<div class="ikCard" style="max-width:380px;text-align:left">' +
-      '<div class="ikTitle">' + (m + 1) + "月" + d + "日 の入出庫</div>" + planSec +
+      '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + planSec +
       '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
+      '<button type="button" class="ikDayCmt" id="icDayCmt">💬 この日のコメント' + (cmtN ? '（' + cmtN + '）' : '') + '</button>' +
       '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
   };
   const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760"; ov.dataset.daykey = dayKey;
@@ -3882,6 +3910,10 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const bindCard = () => {
     const card = ov.querySelector(".ikCard");
     const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
+    const cmt = ov.querySelector("#icDayCmt");
+    if (cmt) cmt.addEventListener("click", () => {
+      try { openIntakeComments(calRid, { title: dayLabel, ensureStub: true }); } catch (e) {}
+    });
     const add = ov.querySelector("#icAddPlan");
     if (add) add.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }));
     ov.querySelectorAll(".icPlanDel").forEach(b => b.addEventListener("click", () => {
@@ -4048,12 +4080,17 @@ function renderHomeIntake() {
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
   // 車両検索を開いている間は入庫状況ボードを閉じる(重なり防止・検索に集中)
   const searchOpen = $("plateArea") && !$("plateArea").classList.contains("hidden");
-  // 個人版には入庫状況(法人向け機能)は出さない
-  const show = onHome && !searchOpen && !officeMode() && !isDemoNow && loggedInMgr && getAppMode() !== "personal";
-  const list = show ? activeIntakes() : [];
-  if (!list.length) { toggle("homeIntake", false); box.innerHTML = ""; return; }
-  const cnt = $("hiCount"); if (cnt) cnt.textContent = "（" + list.length + "台）";
-  box.innerHTML = "";
+  // カレンダー(社内共有)は会社メンバー全員に見せる。入庫一覧(出庫・担当操作)は従来どおり管理者のみ。
+  const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
+  const baseShow = onHome && !searchOpen && !officeMode() && !isDemoNow && loggedIn && getAppMode() !== "personal";
+  if (!baseShow) { toggle("homeIntake", false); box.innerHTML = ""; return; }
+  try { bindIntakeCal(); } catch (e) {}   // 一般メンバーは入庫ボード非表示のため、ここでも📅を有効化
+  const list = loggedInMgr ? activeIntakes() : [];
+  const cnt = $("hiCount"); if (cnt) cnt.textContent = (loggedInMgr && list.length) ? "（" + list.length + "台）" : "";
+  // 管理者以外はカレンダーへの入口だけ(一覧は出さない)。管理者は従来どおり一覧も表示。
+  box.innerHTML = loggedInMgr ? "" : '<div class="hiCalOnly">📅 入出庫カレンダーを開けます（コメントで申し送り・全員に通知）。</div>';
+  toggle("homeIntake", true);
+  if (!loggedInMgr) return;
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";

@@ -188,7 +188,12 @@ exports.notifyComment = functions.firestore
     console.log("notifyComment: entries=" + entries.length + " sendTo=" + tokens.length + " authorDev=" + authorDev + " tid=" + tid);
     if (!tokens.length) { console.log("notifyComment: 宛先0件(投稿端末のみ登録/他端末が未登録)"); return null; }
 
-    const who = after.plate || after.name || after.type || "車両";
+    let who = after.plate || after.name || after.type || "車両";
+    // 日付ごとカレンダーのコメント(rid=cal-YYYY-M-D)は「M月D日のカレンダー」と表示する
+    if (after.rid && /^cal-/.test(String(after.rid))) {
+      const mm = String(after.rid).match(/^cal-(\d+)-(\d+)-(\d+)/);
+      who = mm ? (Number(mm[2]) + "月" + Number(mm[3]) + "日のカレンダー") : "カレンダー";
+    }
     const nm = added.name ? (added.name + "さん") : "担当者";
     let text = String(added.text || "").replace(/\s+/g, " ").trim();
     if (text.length > 60) text = text.slice(0, 60) + "…";

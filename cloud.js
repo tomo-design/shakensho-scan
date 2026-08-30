@@ -768,6 +768,11 @@
         if (typeof dedupeHistory === "function") hist = dedupeHistory(hist);
         localStorage.setItem(LS.hist, JSON.stringify(hist.slice(0, 500)));
         try { renderHistory(); } catch (e) {}
+        // 他端末のコメント/入庫変更を、入庫ボード・カレンダー・ホーム入庫・開いているコメント欄へ即反映
+        try { if (typeof renderIntakeBoard === "function") renderIntakeBoard(); } catch (e) {}
+        try { if (typeof renderHomeIntake === "function") renderHomeIntake(); } catch (e) {}
+        try { if (typeof renderIntakeCalendar === "function") renderIntakeCalendar(); } catch (e) {}
+        try { if (typeof window.__cmtRefresh === "function") window.__cmtRefresh(); } catch (e) {}
       } catch (e) {}
     }, err => syncMsg("⚠ 同期エラー(車両): " + (err.code || err.message)));
     // 入庫予定(カレンダー): クラウド→ローカル(ss_intakePlans)へ反映。ローカル分は先にアップして共有。
