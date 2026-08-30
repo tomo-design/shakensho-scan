@@ -767,8 +767,9 @@
     const style = ($("snsStyle") && $("snsStyle").value) || "balanced";
     const len = ($("snsLen") && $("snsLen").value) || "medium";
     const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
+    const instruct = ($("snsInstruct") && $("snsInstruct").value || "").trim();
     const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
-・${SNS_STYLE[style] || SNS_STYLE.balanced}
+${instruct ? "・【最優先の指示（他のスタイル設定より優先）】" + instruct + "\n" : ""}・${SNS_STYLE[style] || SNS_STYLE.balanced}
 ・${g.guide}
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
 ・宣伝くさくしすぎず、読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
