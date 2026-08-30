@@ -755,17 +755,25 @@
     tips: "スタイル: 整備士に役立つ豆知識・小ネタを1つ提供し、最後に『メカノAIならこれが一発で出る』等で自然に導線。",
     campaign: "スタイル: 7日間無料・月¥500(Pocket)などの告知を主軸に、簡潔に魅力とCTAを伝える。",
   };
+  const SNS_LEN = {
+    short: "短め・ひと言で刺す(目安120〜200字)",
+    medium: "標準(目安300〜500字)",
+    long: "じっくり長め(目安800〜1500字)",
+  };
   async function snsGen() {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const g = snsCfg();
     const theme = ($("snsTheme").value || "").trim();
     const style = ($("snsStyle") && $("snsStyle").value) || "balanced";
+    const len = ($("snsLen") && $("snsLen").value) || "medium";
+    const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
     const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
 ・${SNS_STYLE[style] || SNS_STYLE.balanced}
 ・${g.guide}
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
 ・宣伝くさくしすぎず、読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
-・文字数の目安は ${g.limit} 字以内。前置きの説明や「以下が投稿文です」等は不要、本文だけ。`;
+・文量は ${lenTxt}。この範囲を目安にし、${g.limit} 字は超えないこと（冗長に引き伸ばさない）。
+・前置きの説明や「以下が投稿文です」等は不要、本文だけ。`;
     $("snsStat").textContent = "生成中…"; $("btnSns").disabled = true;
     try {
       const j = await api("generate", { role: "marke", task, product });
