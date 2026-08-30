@@ -1517,3 +1517,13 @@ body.gated{overflow:hidden}
   border-radius:4px;
 }
 .hint.safetyNote b{color:#b45309}
+
+/* トルク出典リンク: 注意書き内の控えめなインラインリンク(主張しすぎず・折り返さない) */
+.hint a.srcLink{
+  margin-left:6px;
+  white-space:nowrap;
+  color:inherit;
+  opacity:.85;
+  text-decoration:underline;
+  text-underline-offset:2px;
+}

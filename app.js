@@ -351,6 +351,21 @@ const MAKER_RECALL = {
 };
 const MLIT_RECALL = "https://renrakuda.mlit.go.jp/renrakuda/recall-search.html";
 
+/* トルク出典リンク: 数値はアプリ内(諸元)に保存済み。リンクは一次情報への"裏取り導線"のみ(サイト内容は転載しない)。
+   車両区分で出し分け: トラック系メーカー=大型(全日本トラック協会)/それ以外=乗用車一覧。 */
+const TORQUE_SRC = {
+  heavy: "https://jta.or.jp/member/anzen/wheel_torque.html",       // 全日本トラック協会 ホイールトルク(大型の一次基準)
+  passenger: "https://kuruma-lifehack.com/wheel-nut-torque-j-car/", // 国産乗用車ホイールナットトルク一覧
+};
+const TRUCK_MAKERS = new Set(["isuzu", "hino", "fuso", "ud"]);
+document.addEventListener("click", e => {
+  const a = e.target.closest && e.target.closest("#torqueSrcLink");
+  if (!a) return;
+  e.preventDefault();
+  const mk = ((typeof current !== "undefined" && current && current.maker) || "").toLowerCase();
+  window.open(TRUCK_MAKERS.has(mk) ? TORQUE_SRC.heavy : TORQUE_SRC.passenger, "torqueSrcWin", "noopener");
+});
+
 /* ================= 車両DB ================= */
 let BUILTIN_DB = [];
 let CUSTOM_DB = [];   // {id,name,match,maker,faults[],checks[],notes}
