@@ -793,6 +793,32 @@ ${instruct ? "・【最優先の指示（他のスタイル設定より優先）
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
   { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
 
+  // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、整備現場に合うビジュアルに。
+  async function snsGenImage() {
+    const post = ($("snsBody").value || "").trim();
+    if (!post) { toast("先に投稿文を作成してください"); return; }
+    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const prompt = `Create a high-quality, eye-catching square social-media image for an automotive-repair AI smartphone app called "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
+The mood and scene should match this Japanese social post:
+"""${post.slice(0, 1200)}"""
+Style: clean, modern, realistic photo or tasteful illustration of a car mechanic / auto garage / working on a car / using a smartphone diagnostic app. Bright, professional, trustworthy. Composition suitable for social media.
+IMPORTANT: Do NOT render any text, letters, words, logos, or watermarks in the image (text would look broken). No captions. Image only.`;
+    show("snsImgWrap", true); show("snsImgEl", false); show("snsImgActs", false);
+    $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
+    if ($("snsImg")) $("snsImg").disabled = true; if ($("snsImgRegen")) $("snsImgRegen").disabled = true;
+    try {
+      const j = await api("image", { prompt });
+      if (j.image) {
+        $("snsImgEl").src = j.image; show("snsImgEl", true);
+        $("snsImgDl").href = j.image; show("snsImgActs", true);
+        $("snsImgStat").textContent = "画像を生成しました（保存して投稿に添付してください）";
+      } else { $("snsImgStat").textContent = "画像を取得できませんでした。"; }
+    } catch (e) { $("snsImgStat").textContent = "⚠ " + (e.message || e); }
+    finally { if ($("snsImg")) $("snsImg").disabled = false; if ($("snsImgRegen")) $("snsImgRegen").disabled = false; }
+  }
+  { const b = $("snsImg"); if (b) b.onclick = snsGenImage; }
+  { const b = $("snsImgRegen"); if (b) b.onclick = snsGenImage; }
+
   // 他人のツイートへの返信コメント生成(共感→自然にメカノAI導線)
   function repCount() { const n = ($("repBody").value || "").length; if ($("repCount")) $("repCount").textContent = "　" + n + "字" + (n > 200 ? " ⚠長め" : ""); }
   async function repGen() {

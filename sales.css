@@ -218,6 +218,9 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .st-商談中{background:#e4edfb;color:#2b5aa8}
 .st-契約{background:#e0f3e7;color:#1a7a42}
 .st-見送り{background:#fbe6e6;color:#a53838}
+.snsImgWrap{margin-top:6px}
+.snsImg{display:block;max-width:100%;width:420px;border-radius:12px;border:1px solid var(--line);margin-bottom:10px}
+.snsImg.hidden{display:none}
 .fmActs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
 .fmActs a.btn{text-decoration:none}
 .rsFilterWrap{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);font-weight:600}

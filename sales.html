@@ -313,9 +313,18 @@
         <div class="fmActs">
           <button id="snsCopy" class="btn btn-dark btn-sm">📋 コピー</button>
           <a id="snsOpen" class="btn btn-accent btn-sm" href="#" target="_blank" rel="noopener">🌐 投稿画面を開く</a>
+          <button id="snsImg" class="btn btn-ghost btn-sm">🖼 画像も生成</button>
           <button id="snsRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
         </div>
         <p class="vsub" id="snsHint" style="margin:8px 0 0;font-size:12px"></p>
+        <div id="snsImgWrap" class="snsImgWrap hidden">
+          <div id="snsImgStat" class="muted" style="margin:10px 0 6px"></div>
+          <img id="snsImgEl" class="snsImg hidden" alt="生成画像">
+          <div class="fmActs hidden" id="snsImgActs">
+            <a id="snsImgDl" class="btn btn-dark btn-sm" download="mechanoai-sns.png" href="#">⬇ 画像を保存</a>
+            <button id="snsImgRegen" class="btn btn-ghost btn-sm">↻ 画像を作り直す</button>
+          </div>
+        </div>
       </div>
 
       <div class="panel">
