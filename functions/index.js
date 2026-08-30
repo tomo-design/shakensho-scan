@@ -679,9 +679,12 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     const seatOk = pc.seats > 0 ? (Array.isArray(g.t.seatMembers) && g.t.seatMembers.indexOf(uidReq) >= 0) : true;
     effSearch = !overCap && seatOk;
   }
+  // 車検証など個人情報(氏名・住所)が写り得る画像の読み取りは、プランに関わらず必ず有料キーで処理する。
+  // 有料枠はGoogleが入力を学習に使わないため、車検証画像が無料キー(学習されうる)に乗るのを防ぐ(NAプランでもここだけは有料)。
+  const forcePaidScan = !!data.paidScan && !!paidKey;
   // 契約店舗(ターボ以上)は常に有料キーで実行する。無料キーは共有プールで429待ち→数十秒の遅延が出るため、
   // 検索なしのFlash諸元でも有料キーを使うことで安定して数秒で返す(検索課金はeffSearch時のみ計上)。na=常に無料Flash。
-  const usePaid = paidCapable;
+  const usePaid = paidCapable || forcePaidScan;
 
   let out = { failed: true, quota: true }, tier = "free", freeExhausted = false;
 

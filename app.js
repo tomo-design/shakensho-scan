@@ -1121,7 +1121,7 @@ async function fileToJpegBase64(file, maxDim, quality) {
 }
 async function readShakenPhotoAI(file) {
   const data = await fileToJpegBase64(file, 1800, 0.85);
-  const r = await geminiAskMedia(buildPhotoReadPrompt(), [{ mimeType: "image/jpeg", data }]);
+  const r = await geminiAskMedia(buildPhotoReadPrompt(), [{ mimeType: "image/jpeg", data }], { paidScan: true });   // 車検証画像は個人情報が写り得るため必ず有料キーで(学習防止)
   const obj = extractJson(r.text);
   if (!obj) throw new Error("AIの応答を解釈できませんでした");
   return obj;
@@ -6481,13 +6481,16 @@ const GEMINI_MEDIA_MODELS = {
   flash: ["gemini-flash-latest", "gemini-2.5-flash"],
   pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
 };
-async function geminiAskMedia(prompt, media) {
+async function geminiAskMedia(prompt, media, opts) {
+  opts = opts || {};
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return demoAnswer(prompt);   // デモ: 固定サンプル回答
   const key = localStorage.getItem(LS.gemini);
   // 契約店舗はサーバー(mecha)経由=プラン準拠を最優先(個人キーが残っていてもゲートを効かせる)。
   if (contractAi()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media });
+    // paidScan: 車検証など個人情報(氏名・住所)が写り得る画像の読み取りは、プランに関わらず必ず有料キーで処理させる。
+    // 有料枠はGoogleが学習に使わないため、車検証画像が無料キー(学習されうる)に乗るのを防ぐ。
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media, paidScan: !!opts.paidScan });
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: (d && d.model) || "" };
     throw new Error("AIから回答が得られませんでした");
   }
