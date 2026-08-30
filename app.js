@@ -3890,12 +3890,13 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
     const plans = plansForDay(y, m, d);
     const inPlans = plans.filter(p => p.dir !== "out");
     const outPlans = plans.filter(p => p.dir === "out");
-    const inPlanSec = isPast ? '' :
-      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + inPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (inPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
-    const outPlanSec = isPast ? '' :
-      '<div class="icDetSec"><div class="icDetHd icOutPlanT">🚚 出庫予定 ' + outPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddOutPlan">＋ 追加</button></div>' + (outPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
+    const inPlanSec =
+      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + inPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋</button></div>' + (inPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
+    const outPlanSec =
+      '<div class="icDetSec"><div class="icDetHd icOutPlanT">🚚 出庫予定 ' + outPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddOutPlan">＋</button></div>' + (outPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
+    const planCols = isPast ? '' : '<div class="icPlanCols">' + inPlanSec + outPlanSec + '</div>';
     return '<div class="ikCard" style="max-width:380px;text-align:left">' +
-      '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + inPlanSec + outPlanSec +
+      '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + planCols +
       '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';

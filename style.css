@@ -1053,6 +1053,11 @@ body.pwLocked{ overflow:hidden }
 .icBadge.icPlanB{background:#7C3AED}
 .icTot.icPlanT{background:rgba(124,58,237,.12);color:#6D28D9}
 .icDetHd.icPlanT{color:#6D28D9}
+/* 入庫予定・出庫予定を左右2カラムで横並び(赤枠にきれいに収める) */
+.icPlanCols{display:flex;gap:8px}
+.icPlanCols>.icDetSec{flex:1;min-width:0}
+.icPlanCols .icDetHd{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px}
+.icPlanCols .icPlanAdd{margin-left:auto;min-width:24px;padding:2px 0;text-align:center}
 /* 出庫予定(カレンダー) */
 .icBadge.icOutPlanB{background:#0E7490}
 .icTot.icOutPlanT{background:rgba(14,116,144,.12);color:#0E7490}
