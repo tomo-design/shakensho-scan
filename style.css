@@ -1542,6 +1542,8 @@ body.gated{overflow:hidden}
 .hiCalBtn,.hdrCalBtn{margin-left:auto;border:0;background:none;padding:0 2px;
   font-size:20px;line-height:1;cursor:pointer;color:inherit}
 .hiCalBtn:active,.hdrCalBtn:active{opacity:.5}
+/* ヘッダーの📅は右上固定の言語ボタン(EN)の左へ離して配置(重なり防止) */
+.hdrCalBtn{margin-right:52px}
 .hdrCalBtn.hidden{display:none}
 
 /* カレンダー: 日別明細の「この日のコメント」ボタン＋日セルの💬バッジ */
