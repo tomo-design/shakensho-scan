@@ -3713,9 +3713,12 @@ function bindIntakeCal() {
   };
   const hide = () => toggle("intakeCalModal", false);
   open.addEventListener("click", show);
-  // 「現在の入庫状況」見出しの📅(全メンバーが開ける)。summary内なのでdetails開閉を止める。
+  // 「現在の入庫状況」見出しの📅(管理者)。summary内なのでdetails開閉を止める。
   const openHome = $("hiCalBtn");
   if (openHome) openHome.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); show(); });
+  // トップヘッダーの📅(一般メンバー)。
+  const openHdr = $("hdrCalBtn");
+  if (openHdr) openHdr.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); show(); });
   if (close) close.addEventListener("click", hide);
   // PC限定: 背景クリックでは閉じない(独立ウィンドウとして扱う)。モバイルは従来どおり背景タップで閉じる。
   modal.addEventListener("click", e => { if (e.target === modal && !isDesk()) hide(); });
@@ -3811,37 +3814,29 @@ function renderIntakeCalendar() {
   const inByDay = {}, outByDay = {};
   const put = (map, ts, h) => { if (ts >= monthStart && ts < monthEnd) { const k = new Date(ts).getDate(); (map[k] = map[k] || []).push(h); } };
   intakeAllInScope().forEach(h => { if (h.intakeAt) put(inByDay, h.intakeAt, h); if (h.intakeOut) put(outByDay, h.intakeOut, h); });
-  const planByDay = {};
-  getPlans().forEach(p => { if (p.y === y && p.m === m) (planByDay[p.d] = planByDay[p.d] || []).push(p); });
-  let inTot = 0, outTot = 0, planTot = 0;
+  const planByDay = {}, outPlanByDay = {};
+  getPlans().forEach(p => { if (p.y === y && p.m === m) { const map = (p.dir === "out") ? outPlanByDay : planByDay; (map[p.d] = map[p.d] || []).push(p); } });
+  let inTot = 0, outTot = 0, planTot = 0, outPlanTot = 0;
   Object.keys(inByDay).forEach(k => inTot += inByDay[k].length);
   Object.keys(outByDay).forEach(k => outTot += outByDay[k].length);
   Object.keys(planByDay).forEach(k => planTot += planByDay[k].length);
-  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 予定 ' + planTot + '件</span>' : '');
+  Object.keys(outPlanByDay).forEach(k => outPlanTot += outPlanByDay[k].length);
+  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 入庫予定 ' + planTot + '</span>' : '') + (outPlanTot ? '<span class="icTot icOutPlanT">🚚 出庫予定 ' + outPlanTot + '</span>' : '');
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
-  // その日にコメント(申し送り)がある日を集計 → 💬バッジで全員に見えるように
-  const cmtDays = {};
-  getHistory().forEach(h => {
-    if (!h || typeof h.rid !== "string" || h.rid.indexOf("cal-") !== 0) return;
-    if (!getComments(h).length) return;
-    const mm = h.rid.match(/^cal-(\d+)-(\d+)-(\d+)/);
-    if (mm && Number(mm[1]) === y && Number(mm[2]) === m + 1) cmtDays[Number(mm[3])] = true;
-  });
   const now = new Date(); const thisMonth = now.getFullYear() === y && now.getMonth() === m; const todayD = now.getDate();
   let html = '<div class="icDowRow">' + ["日", "月", "火", "水", "木", "金", "土"]
     .map((w, i) => '<div class="icDowC' + (i === 0 ? ' icSun' : i === 6 ? ' icSat' : '') + '">' + w + '</div>').join('') + '</div><div class="icCells">';
   for (let i = 0; i < firstDow; i++) html += '<div class="icCell icEmpty"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
     const dayIsPast = new Date(y, m, d).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0);
-    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []);
-    const hasCmt = !!cmtDays[d];
-    const has = ins.length || outs.length || plans.length || hasCmt;
+    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []), outPlans = dayIsPast ? [] : (outPlanByDay[d] || []);
+    const has = ins.length || outs.length || plans.length || outPlans.length;
     const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
                    (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '') +
-                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '') +
-                   (hasCmt ? '<span class="icBadge icCmtB">💬</span>' : '');
+                   (outPlans.length ? '<span class="icBadge icOutPlanB">🚚' + outPlans.length + '</span>' : '') +
+                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '');
     html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
       '<div class="icNum">' + d + '</div>' +
       '<div class="icBadges">' + badges + '</div>' + '</div>';
@@ -3849,7 +3844,7 @@ function renderIntakeCalendar() {
   html += '</div>';
   grid.innerHTML = html;
   const lg = $("icLegend");
-  if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫日 ／ ▲＝出庫日</span>';
+  if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫 ／ ▲＝出庫 ／ 📌＝入庫予定 ／ 🚚＝出庫予定</span>';
   const prev = $("icPrev"), next = $("icNext"), tod = $("icToday");
   if (prev) prev.onclick = () => { _icMonth = new Date(y, m - 1, 1); renderIntakeCalendar(); };
   if (next) next.onclick = () => { _icMonth = new Date(y, m + 1, 1); renderIntakeCalendar(); };
@@ -3890,19 +3885,19 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   // 過去の日付には入庫予定を出さない(今日以降のみ追加・表示)
   const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
   const isPast = new Date(y, m, d).getTime() < todayMid.getTime();
-  const calRid = "cal-" + y + "-" + (m + 1) + "-" + d;
   const dayLabel = (m + 1) + "月" + d + "日";
   const build = () => {
     const plans = plansForDay(y, m, d);
-    const planSec = isPast ? '' :
-      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + plans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (plans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
-    const calRec = getHistory().find(h => h.rid === calRid);
-    const cmtN = calRec ? getComments(calRec).length : 0;
+    const inPlans = plans.filter(p => p.dir !== "out");
+    const outPlans = plans.filter(p => p.dir === "out");
+    const inPlanSec = isPast ? '' :
+      '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + inPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋ 追加</button></div>' + (inPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
+    const outPlanSec = isPast ? '' :
+      '<div class="icDetSec"><div class="icDetHd icOutPlanT">🚚 出庫予定 ' + outPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddOutPlan">＋ 追加</button></div>' + (outPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
     return '<div class="ikCard" style="max-width:380px;text-align:left">' +
-      '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + planSec +
+      '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + inPlanSec + outPlanSec +
       '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
       '<div class="icDetSec"><div class="icDetHd icOutT">▲ 出庫 ' + outs.length + '台</div>' + (outs.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
-      '<button type="button" class="ikDayCmt" id="icDayCmt">💬 この日のコメント' + (cmtN ? '（' + cmtN + '）' : '') + '</button>' +
       '<button type="button" class="ikLater" id="icDetClose">とじる</button></div>';
   };
   const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = "760"; ov.dataset.daykey = dayKey;
@@ -3910,12 +3905,10 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const bindCard = () => {
     const card = ov.querySelector(".ikCard");
     const cb = ov.querySelector("#icDetClose"); if (cb) cb.addEventListener("click", close);
-    const cmt = ov.querySelector("#icDayCmt");
-    if (cmt) cmt.addEventListener("click", () => {
-      try { openIntakeComments(calRid, { title: dayLabel, ensureStub: true }); } catch (e) {}
-    });
     const add = ov.querySelector("#icAddPlan");
-    if (add) add.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }));
+    if (add) add.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }, "in"));
+    const addOut = ov.querySelector("#icAddOutPlan");
+    if (addOut) addOut.addEventListener("click", () => openAddPlan(y, m, d, () => { rerender(); try { renderIntakeCalendar(); } catch (e) {} }, "out"));
     ov.querySelectorAll(".icPlanDel").forEach(b => b.addEventListener("click", () => {
       if (confirm("この入庫予定を削除しますか？")) { removePlan(b.dataset.id); rerender(); try { renderIntakeCalendar(); } catch (e) {} }
     }));
@@ -3957,11 +3950,12 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   if (isDesk) bringToFront(ov);
 }
 /* 入庫予定の追加フォーム */
-function openAddPlan(y, m, d, cb) {
+function openAddPlan(y, m, d, cb, dir) {
+  const isOut = dir === "out";
   const kinds = Object.keys(INTAKE_KINDS).map(k => '<button type="button" class="apKind ' + INTAKE_KINDS[k].cls + '" data-kind="' + k + '">' + INTAKE_KINDS[k].label + '</button>').join('');
   const ov = document.createElement("div"); ov.className = "ikModal"; ov.style.zIndex = String(_floatZ + 5);
   ov.innerHTML = '<div class="ikCard apCard" style="max-width:460px;text-align:left">' +
-    '<div class="ikTitle">入庫予定を追加</div>' +
+    '<div class="ikTitle">' + (isOut ? "出庫予定を追加" : "入庫予定を追加") + '</div>' +
     '<div class="apDate">' + (m + 1) + '月' + d + '日</div>' +
     '<input type="text" id="apTitle" placeholder="車両（ナンバー・使用者・車種など）" class="apInput">' +
     '<div class="apKindRow">' + kinds + '</div>' +
@@ -3980,7 +3974,7 @@ function openAddPlan(y, m, d, cb) {
     const title = (ov.querySelector("#apTitle").value || "").trim();
     if (!title) { ov.querySelector("#apTitle").focus(); return; }
     const note = (ov.querySelector("#apNote").value || "").trim();
-    upsertPlan({ id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), y, m, d, title, kind, note, updatedAt: Date.now(), deleted: false });
+    upsertPlan({ id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), y, m, d, title, kind, note, dir: (isOut ? "out" : "in"), updatedAt: Date.now(), deleted: false });
     close(); if (cb) cb();
   });
   setTimeout(() => { const t = ov.querySelector("#apTitle"); if (t) t.focus(); }, 50);
@@ -4080,17 +4074,20 @@ function renderHomeIntake() {
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
   // 車両検索を開いている間は入庫状況ボードを閉じる(重なり防止・検索に集中)
   const searchOpen = $("plateArea") && !$("plateArea").classList.contains("hidden");
-  // カレンダー(社内共有)は会社メンバー全員に見せる。入庫一覧(出庫・担当操作)は従来どおり管理者のみ。
+  // カレンダー(社内共有)は会社メンバー全員が見られる。配置は役割で分ける:
+  //  管理者 → 「現在の入庫状況」見出しの📅(一覧も表示)。 一般メンバー → トップヘッダーの📅(入庫一覧は出さない)。
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
-  const baseShow = onHome && !searchOpen && !officeMode() && !isDemoNow && loggedIn && getAppMode() !== "personal";
+  const isWorksMember = loggedIn && !officeMode() && !isDemoNow && getAppMode() !== "personal";
+  try { bindIntakeCal(); } catch (e) {}   // 📅(ヘッダー/見出し)を有効化
+  // ヘッダーの📅は「一般メンバー(非管理者)」だけに出す。管理者は「現在の入庫状況」側に出す。
+  toggle("hdrCalBtn", isWorksMember && !loggedInMgr);
+  // 「現在の入庫状況」パネルは管理者のみ(オンホーム・検索を開いていない時)。
+  const baseShow = onHome && !searchOpen && loggedInMgr;
   if (!baseShow) { toggle("homeIntake", false); box.innerHTML = ""; return; }
-  try { bindIntakeCal(); } catch (e) {}   // 一般メンバーは入庫ボード非表示のため、ここでも📅を有効化
-  const list = loggedInMgr ? activeIntakes() : [];
-  const cnt = $("hiCount"); if (cnt) cnt.textContent = (loggedInMgr && list.length) ? "（" + list.length + "台）" : "";
-  // 管理者以外はカレンダーへの入口だけ(一覧は出さない)。管理者は従来どおり一覧も表示。
-  box.innerHTML = loggedInMgr ? "" : '<div class="hiCalOnly">📅 入出庫カレンダーを開けます（コメントで申し送り・全員に通知）。</div>';
+  const list = activeIntakes();
+  const cnt = $("hiCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
+  box.innerHTML = "";
   toggle("homeIntake", true);
-  if (!loggedInMgr) return;
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";

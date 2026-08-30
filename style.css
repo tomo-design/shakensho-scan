@@ -1053,7 +1053,12 @@ body.pwLocked{ overflow:hidden }
 .icBadge.icPlanB{background:#7C3AED}
 .icTot.icPlanT{background:rgba(124,58,237,.12);color:#6D28D9}
 .icDetHd.icPlanT{color:#6D28D9}
+/* 出庫予定(カレンダー) */
+.icBadge.icOutPlanB{background:#0E7490}
+.icTot.icOutPlanT{background:rgba(14,116,144,.12);color:#0E7490}
+.icDetHd.icOutPlanT{color:#0E7490}
 .icPlanAdd{margin-left:6px;border:1px solid #C4B5FD;background:#F5F3FF;color:#6D28D9;border-radius:8px;font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer}
+.icDetHd.icOutPlanT .icPlanAdd{border-color:#67E8F9;background:#ECFEFF;color:#0E7490}
 .icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#c0392b;font-size:13px;cursor:pointer;padding:0 4px}
 .icDetNote{color:var(--dim,#9aa4b2);font-size:11.5px}
 .icDetRow{position:relative}
@@ -1528,11 +1533,11 @@ body.gated{overflow:hidden}
   text-underline-offset:2px;
 }
 
-/* 現在の入庫状況ヘッダーの📅カレンダーボタン(社内共有・全メンバー) */
-.hiCalBtn{margin-left:auto;border:1px solid var(--line);background:var(--panel);border-radius:8px;
-  font-size:16px;line-height:1;padding:4px 9px;cursor:pointer;color:var(--txt)}
-.hiCalBtn:active{opacity:.6}
-.hiCalOnly{font-size:12.5px;color:var(--dim);line-height:1.6;padding:6px 2px 2px}
+/* 入出庫カレンダーを開く📅: 枠なし・アイコンのみ(見出し右／トップヘッダー右) */
+.hiCalBtn,.hdrCalBtn{margin-left:auto;border:0;background:none;padding:0 2px;
+  font-size:20px;line-height:1;cursor:pointer;color:inherit}
+.hiCalBtn:active,.hdrCalBtn:active{opacity:.5}
+.hdrCalBtn.hidden{display:none}
 
 /* カレンダー: 日別明細の「この日のコメント」ボタン＋日セルの💬バッジ */
 .ikDayCmt{width:100%;margin:2px 0 8px;border:1px solid var(--line);background:var(--panel);color:var(--txt);
