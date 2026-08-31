@@ -1034,7 +1034,7 @@ body.pwLocked{ overflow:hidden }
 .icCell.icToday{border-color:#2563EB;box-shadow:inset 0 0 0 1px #2563EB}
 .icNum{font-size:11.5px;font-weight:500;color:var(--dim,#5E6B7C);line-height:1.2}
 .icBadges{display:flex;flex-wrap:wrap;gap:2px;margin-top:1px}
-.icBadge{font-size:10px;font-weight:600;padding:0 4px;border-radius:4px;line-height:15px}
+.icBadge{font-size:8.5px;font-weight:700;padding:0 3px;border-radius:4px;line-height:13px}
 .icInB{color:#fff;background:#2563EB}
 .icOutB{color:#fff;background:#EA8C00}
 .icDotsRow{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
@@ -1111,6 +1111,22 @@ body.pwLocked{ overflow:hidden }
   #intakeCalModal .icCell{min-height:78px}
   #intakeCalModal .icNum{font-size:13px}
   #intakeCalModal.dragging .icModalCard{box-shadow:0 24px 70px rgba(0,0,0,.4)}
+}
+/* スマホ: 入出庫カレンダーを全画面表示にして見やすく(月グリッドが画面いっぱいに広がる) */
+@media (max-width:1023px){
+  #intakeCalModal.ikModal{padding:0;align-items:stretch}
+  #intakeCalModal .icModalCard{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;
+    display:flex;flex-direction:column;overflow:hidden;
+    padding:calc(8px + env(safe-area-inset-top,0px)) 8px calc(8px + env(safe-area-inset-bottom,0px))}
+  #intakeCalModal .icModalHd{margin-bottom:4px}
+  #intakeCalModal .icModalTitle{font-size:17px}
+  #intakeCalModal .icClose{font-size:24px;padding:6px 10px}
+  #intakeCalModal .icModalBody{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  #intakeCalModal .icGrid{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 2px 2px}
+  #intakeCalModal .icCells{flex:1;min-height:0;grid-auto-rows:1fr}   /* 各週を均等に伸ばして画面を埋める */
+  #intakeCalModal .icCell{min-height:0}
+  #intakeCalModal .icNum{font-size:13px}
+  #intakeCalModal .icLegend{flex:none}
 }
 
 /* ===== 入庫区分ポップアップ ===== */
