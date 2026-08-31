@@ -1159,7 +1159,7 @@ body.pwLocked{ overflow:hidden }
 .ibAdd.hidden{display:none}
 .ibCard{flex-wrap:wrap}
 .ibMeta{flex-basis:100%;display:flex;gap:8px;align-items:center;padding:0 12px 10px;flex-wrap:wrap}
-.ibFee{border:0;border-radius:999px;font-size:12px;font-weight:800;padding:5px 14px;cursor:pointer;color:#fff;margin-left:auto}
+.ibFee{border:0;border-radius:999px;font-size:10px;font-weight:800;padding:3px 9px;cursor:pointer;color:#fff;margin-left:auto}
 .ibFee.feeUnpaid{background:#DC2626}
 .ibFee.feePaid{background:#16A34A}
 .ibFee.feeAdvance{background:#7C3AED}
@@ -1258,11 +1258,11 @@ body.officeMode #view-scan{padding-top:0}
 /* 入庫ボード: 確認レ点(右上・横1列) */
 .ibCard{position:relative}
 .ibConfirms{position:absolute;top:8px;right:12px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:55%;justify-content:flex-end}
-.ibCk{width:20px;height:20px;border-radius:50%;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ibCk{width:16px;height:16px;border-radius:50%;color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .ibCkAdd{border:1.5px solid;border-radius:999px;font-size:11.5px;font-weight:800;padding:3px 10px;cursor:pointer;background:transparent}
 .ibCkAdd.on{box-shadow:0 1px 3px rgba(0,0,0,.2)}
 /* 確認レ点トグル(単押し): 未確認=空の丸 / 確認済み=色付き✓。ダブルタップ廃止のスマート版 */
-.ibCkBtn{width:24px;height:24px;flex:none;border-radius:50%;border:2px dashed var(--line);background:transparent;color:#fff;font-size:13px;font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:transform .12s ease,box-shadow .12s ease}
+.ibCkBtn{width:18px;height:18px;flex:none;border-radius:50%;border:1.5px dashed var(--line);background:transparent;color:#fff;font-size:10px;font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:transform .12s ease,box-shadow .12s ease}
 .ibCkBtn:active{transform:scale(.88)}
 .ibCkBtn.on{border-style:solid;border-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 /* 未選択カードのレ点は操作不可(コメントと同様にロック) */
