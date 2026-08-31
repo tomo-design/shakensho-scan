@@ -1495,13 +1495,15 @@ body.gated{overflow:hidden}
     width:min(70vw,1000px);height:78vh;
     min-width:520px;min-height:360px;max-width:96vw;max-height:90vh;
     overflow:hidden;z-index:60;
+    /* ヘッダー/フィルター/小見出しは自動高、最後の行(一覧+詳細)がウィンドウの残り高を埋めて内部スクロール */
+    grid-template-rows:auto auto auto minmax(0,1fr);align-content:stretch;
     background:var(--panel,#fff);border:1px solid var(--line,#D5DDE8);border-radius:16px;
     padding:12px 16px;box-shadow:0 18px 60px rgba(0,0,0,.18)}
   body.officeMode #intakeBoard .ibHead{cursor:move;user-select:none;touch-action:none}
   body.officeMode #intakeBoard .ibHead button{cursor:pointer}
   body.officeMode #intakeBoard .ibHead h2::before{content:"\2837 ";color:var(--dim,#9aa4b2);font-size:12px;letter-spacing:-1px}
-  body.officeMode #intakeBoard #ibList{max-height:calc(90vh - 150px);overflow-y:auto}
-  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;max-height:calc(90vh - 150px);overflow-y:auto}
+  body.officeMode #intakeBoard #ibList{min-height:0;max-height:none;height:100%;overflow-y:auto;padding-right:4px}
+  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;min-height:0;max-height:none;height:100%;overflow-y:auto}
 }
 /* 四隅リサイズハンドル(PCのフローティングカード用) */
 .rzH{display:none}
