@@ -591,6 +591,7 @@ async function clearFreeExhausted(tid) {
 /* 常に最新のGeminiを使う: モデル一覧から「数字付きの最新flash/pro」を動的に選ぶ(新モデル発表に自動追従)。
    1時間キャッシュ。取得失敗時は -latest 別名にフォールバック。 */
 let _modelCache = { at: 0, flash: "", pro: "" };
+let _freeStart = 0;   // 前回成功した無料キーの位置。次回はそこから試して枠切れキーの巡回(待ち時間)を減らす。
 async function latestModels(key) {
   const now = Date.now();
   if (_modelCache.flash && (now - _modelCache.at) < 3600e3) return _modelCache;
@@ -671,7 +672,10 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
-  const tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
+  let tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
+  // ★NAは無料Flashで動くため、大きな思考予算(診断3072/2048等)は最初のトークンまで長くかかり遅くなる。
+  //   NAは思考を512にキャップして高速化(検索/Proの差別化はそのまま。品質より応答速度を優先)。
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
   const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)。実working&高速なモデルを優先
@@ -705,11 +709,11 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   //    ★あるキーがそのモデルで404/429でも、他キーなら回答できることが多い。1キーの失敗で諦めない。
   if (out.failed) {
     out = { failed: true, quota: true };
-    const start = Math.floor(Math.random() * freeKeys.length);
+    const start = _freeStart % freeKeys.length;   // 前回成功キーから開始(枠切れキーの無駄な巡回を減らす)
     for (let i = 0; i < freeKeys.length; i++) {
-      const key = freeKeys[(start + i) % freeKeys.length];
-      out = await callGeminiModels(key, freeModels, parts, "flash", false, maxTokens, tb);
-      if (!out.failed) break;   // 成功で終了。404/429等の失敗は次のキーを試す
+      const idx = (start + i) % freeKeys.length;
+      out = await callGeminiModels(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb);
+      if (!out.failed) { _freeStart = idx; break; }   // 成功で終了＋次回の開始位置を記憶。404/429等は次のキーへ
     }
     // 全無料キーで失敗 → 有料キーがあれば最後の砦として試す(モデル未提供の穴埋め)
     if (out.failed && paidKey) { const o = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens, tb); if (!o.failed) { out = o; tier = "paid"; } }
@@ -747,7 +751,8 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
-  const tb = clampThinking(data.thinkingBudget);
+  let tb = clampThinking(data.thinkingBudget);
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;   // NAは思考を512にキャップして高速化
   const paidCapable = pc.plan !== "na" && !!paidKey;
   const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
   let effSearch = false;
@@ -765,12 +770,12 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
     if (out.started) { if (effSearch) await bumpPaidUsage(g.tid); finish(out.truncated, "paid", out.model); return; }
   }
   // ② 無料キー(Flash) → ①失敗のフォールバック。★全キーを必ず試す(1キーの404/429で諦めない)。
-  const start = Math.floor(Math.random() * freeKeys.length);
+  const start = _freeStart % freeKeys.length;   // 前回成功キーから開始(枠切れキーの無駄な巡回を減らす)
   let quotaAll = true;
   for (let i = 0; i < freeKeys.length; i++) {
-    const key = freeKeys[(start + i) % freeKeys.length];
-    const out = await callGeminiStream(key, freeModels, parts, "flash", false, maxTokens, tb, res);
-    if (out.started) { clearFreeExhausted(g.tid); finish(out.truncated, "free", out.model); return; }
+    const idx = (start + i) % freeKeys.length;
+    const out = await callGeminiStream(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb, res);
+    if (out.started) { _freeStart = idx; clearFreeExhausted(g.tid); finish(out.truncated, "free", out.model); return; }
     if (!out.quota) quotaAll = false;   // 実エラー(404等)があった。それでも次のキーを試す
   }
   // 全無料キーで失敗 → 有料キーを最後の砦に
