@@ -991,6 +991,8 @@ body.pwLocked{ overflow:hidden }
 .intakeBoard .ibHead h2{font-size:14px;margin:0 0 8px;color:var(--txt);display:flex;align-items:center;gap:6px}
 .ibCount{font-size:12px;color:var(--dim);font-weight:600}
 .ibList{display:flex;flex-direction:column;gap:8px}
+/* 一覧がスクロール領域(height固定)になっても各カードは縮めず自然な高さを保つ(下部のコメント/費用バッジ切れ防止) */
+.ibList>.ibCard{flex:0 0 auto}
 .ibCard{display:flex;align-items:stretch;gap:0;background:var(--panel);border:1px solid var(--line);
   border-left:5px solid var(--line);border-radius:10px;overflow:hidden}
 .ibCard .ibMain{flex:1;min-width:0;padding:9px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
