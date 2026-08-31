@@ -674,8 +674,8 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
   let tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
   // ★NAは無料Flashで動くため、大きな思考予算(診断3072/2048等)は最初のトークンまで長くかかり遅くなる。
-  //   NAは思考を512にキャップして高速化(検索/Proの差別化はそのまま。品質より応答速度を優先)。
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;
+  //   NAは思考を1024にキャップして高速化(検索/Proの差別化はそのまま。品質より応答速度を優先)。
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 1024) : 1024;
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
   const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)。実working&高速なモデルを優先
@@ -752,7 +752,7 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   let tb = clampThinking(data.thinkingBudget);
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;   // NAは思考を512にキャップして高速化
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 1024) : 1024;   // NAは思考を1024にキャップして高速化
   const paidCapable = pc.plan !== "na" && !!paidKey;
   const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
   let effSearch = false;
