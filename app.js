@@ -4046,7 +4046,12 @@ function openAddPlan(y, m, d, cb, dir) {
     upsertPlan({ id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), y, m, d, title, kind, note, dir: (isOut ? "out" : "in"), updatedAt: Date.now(), deleted: false });
     close(); if (cb) cb();
   });
-  setTimeout(() => { const t = ov.querySelector("#apTitle"); if (t) t.focus(); }, 50);
+  // キーボードは自動で出さない(自動focusしない)。入力欄をタップした時だけ表示。
+  // タップでキーボードが出たらカードを上寄せにして、予定カードがキーボードで隠れないようにする。
+  ov.querySelectorAll(".apInput").forEach(inp => {
+    inp.addEventListener("focus", () => { ov.classList.add("kbUp"); setTimeout(() => { try { inp.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} }, 60); });
+    inp.addEventListener("blur", () => { if (!ov.querySelector(".apInput:focus")) ov.classList.remove("kbUp"); });
+  });
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
 function renderIntakeDetail(list) {
