@@ -1406,9 +1406,6 @@ body.gated{overflow:hidden}
 .hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 未読コメントの小さな赤丸。他の担当者が新しく残した申し送りがある時だけ表示 */
 .hiUnread{flex:none;width:8px;height:8px;border-radius:50%;background:#DC2626;box-shadow:0 0 0 2px rgba(220,38,38,.18)}
-/* カルテ「AIで整理」ボタン(保存前の下書き整形) */
-.kAiSortBtn{width:100%;margin-top:8px;font-size:13px;font-weight:700}
-.kAiSortBtn.busy{opacity:.6;pointer-events:none}
 /* 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ */
 .hiStaff{flex:none;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 担当設定済み: 背景色は付けず、文字を通常色にするだけ(人アイコン・色背景なし) */

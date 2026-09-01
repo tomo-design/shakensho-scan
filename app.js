@@ -2477,71 +2477,70 @@ document.addEventListener("input", e => { if (e.target && e.target.classList && 
 let karteEditId = null;
 $("btnKarteAdd") && $("btnKarteAdd").addEventListener("click", () => openKarteForm(null));
 $("btnKarteCancel") && $("btnKarteCancel").addEventListener("click", () => { stopFieldMic(); toggle("karteForm", false); });
-$("btnKarteSave") && $("btnKarteSave").addEventListener("click", () => {
+$("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   stopFieldMic();
-  const work = $("kWork").value.trim();
-  const parts = $("kParts").value.trim();
-  const note = $("kNote").value.trim();
-  if (!work && !parts && !note) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+  const work0 = $("kWork").value.trim();
+  const parts0 = $("kParts").value.trim();
+  const note0 = $("kNote").value.trim();
+  if (!work0 && !parts0 && !note0) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+  const sb = $("btnKarteSave"); setBtnLoading(sb, true);
+  const st = $("kAiSortStatus");
+  // 保存時に自動でAI仕分け(人それぞれの書き方を項目ごとに整理してから保存)。失敗時は入力そのままで保存。
+  if (st) st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が内容を整理しています…';
+  const sorted = await karteAiSortFields({
+    date: $("kDate").value.trim(), odo: $("kOdo").value.trim(),
+    work: work0, parts: parts0, cost: $("kCost").value.trim(), staff: $("kStaff").value.trim(), note: note0,
+  });
+  if (st) st.textContent = "";
   const entry = {
     id: karteEditId || ("k" + Date.now() + Math.floor(Math.random() * 1000)),
-    date: $("kDate").value || "", odo: $("kOdo").value ? Number($("kOdo").value) : null,
-    work, parts, cost: $("kCost").value ? Number($("kCost").value) : null,
-    staff: $("kStaff").value.trim(), note,
+    date: sorted.date || "", odo: sorted.odo ? Number(sorted.odo) : null,
+    work: sorted.work || "", parts: sorted.parts || "", cost: sorted.cost ? Number(sorted.cost) : null,
+    staff: sorted.staff || "", note: sorted.note || "",
     at: new Date().toISOString(),
   };
-  const sb = $("btnKarteSave"); setBtnLoading(sb, true);
   saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); renderKarte(); });
 });
 
-/* AIで整理: 人それぞれの書き方(1欄に全部書く/略字/箇条書き等)をAIが判読し、
-   作業・部品・費用・担当・日付・走行・メモの各項目に仕分けして下書きし直す。
-   保存前の下書きなので、AIの結果は確認・修正してから保存できる。 */
-async function runKarteAiSort() {
-  const st = $("kAiSortStatus"), btn = $("btnKarteAiSort");
-  const cur = {
-    date: $("kDate").value.trim(), odo: $("kOdo").value.trim(),
-    work: $("kWork").value.trim(), parts: $("kParts").value.trim(),
-    cost: $("kCost").value.trim(), staff: $("kStaff").value.trim(), note: $("kNote").value.trim(),
-  };
+/* AIで整理(自動): 人それぞれの書き方(1欄に全部書く/略字/箇条書き等)をAIが判読し、
+   作業・部品・費用・担当・日付・走行・メモの各項目に仕分けして整形する。
+   保存時に自動で呼び出す。cur={date,odo,work,parts,cost,staff,note}(すべて文字列)を渡すと、
+   仕分け済みの同形オブジェクトを返す。AIが使えない/失敗した時は cur をそのまま返す(保存は止めない)。 */
+async function karteAiSortFields(cur) {
   const raw = [cur.work, cur.parts, cur.note].filter(Boolean).join("\n");
-  if (!raw && !cur.cost && !cur.odo && !cur.staff) { if (st) st.textContent = "整理する内容がありません。作業内容やメモを入力してから押してください。"; return; }
-  if (btn) { btn.disabled = true; btn.classList.add("busy"); }
-  if (st) st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が内容を仕分けしています…';
+  // 仕分ける文字が無い(数値だけ等)なら、AIを呼ばずそのまま返す
+  if (!raw) return Object.assign({}, cur);
+  const prompt = [
+    "次は日本の自動車整備士が整備カルテに書いた下書きです。人によって書き方がバラバラ(1つの欄に全部書く/略字/箇条書き/雑多な順序)なので、整備の文脈で読み取り、各項目に仕分けし直してJSONで返してください。",
+    "入力(現在の各欄):",
+    "・日付: " + (cur.date || "(空)"),
+    "・走行距離km: " + (cur.odo || "(空)"),
+    "・作業内容: " + (cur.work || "(空)"),
+    "・交換部品/材料: " + (cur.parts || "(空)"),
+    "・費用: " + (cur.cost || "(空)"),
+    "・担当者: " + (cur.staff || "(空)"),
+    "・メモ: " + (cur.note || "(空)"),
+    "略号の展開(書かれていれば正式名に。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキフルード, M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, BATT=バッテリー, プラグ=スパークプラグ, O/H=オーバーホール, 脱着=取り外し・取り付け。",
+    "振り分け方: work=実施した作業・点検内容, parts=交換した部品・使用材料(品番があれば含む・数量はそのまま), cost=合計金額の数値のみ, staff=担当者/記入者名, note=次回への申し送り・気づき・不具合等の特記。走行距離は数値(km)に統一。日付は西暦YYYY-MM-DD(『R7.6.1』等も変換、年が無ければ空)。金額は¥/円/カンマを除く数値のみ。",
+    "【厳守】書かれていない情報を勝手に補完・推測・追加しない(メーカー名・銘柄・品番・数量・単位はメモに無ければ足さない)。元の言葉をできるだけそのまま活かし、仕分けと軽い整形(重複の統合・改行整理)だけ行う。メモは箇条書き記号(・)を付けず、素の文/改行で。",
+    "該当する内容が無い項目は空文字/null。出力は厳密なJSONのみ(コードフェンス・説明不要)。数字は半角。",
+    "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
+  ].join("\n");
   try {
-    const prompt = [
-      "次は日本の自動車整備士が整備カルテに書いた下書きです。人によって書き方がバラバラ(1つの欄に全部書く/略字/箇条書き/雑多な順序)なので、整備の文脈で読み取り、各項目に仕分けし直してJSONで返してください。",
-      "入力(現在の各欄):",
-      "・日付: " + (cur.date || "(空)"),
-      "・走行距離km: " + (cur.odo || "(空)"),
-      "・作業内容: " + (cur.work || "(空)"),
-      "・交換部品/材料: " + (cur.parts || "(空)"),
-      "・費用: " + (cur.cost || "(空)"),
-      "・担当者: " + (cur.staff || "(空)"),
-      "・メモ: " + (cur.note || "(空)"),
-      "略号の展開(書かれていれば正式名に。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキフルード, M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, BATT=バッテリー, プラグ=スパークプラグ, O/H=オーバーホール, 脱着=取り外し・取り付け。",
-      "振り分け方: work=実施した作業・点検内容, parts=交換した部品・使用材料(品番があれば含む・数量はそのまま), cost=合計金額の数値のみ, staff=担当者/記入者名, note=次回への申し送り・気づき・不具合等の特記。走行距離は数値(km)に統一。日付は西暦YYYY-MM-DD(『R7.6.1』等も変換、年が無ければ空)。金額は¥/円/カンマを除く数値のみ。",
-      "【厳守】書かれていない情報を勝手に補完・推測・追加しない(メーカー名・銘柄・品番・数量・単位はメモに無ければ足さない)。元の言葉をできるだけそのまま活かし、仕分けと軽い整形(重複の統合・改行整理)だけ行う。メモは箇条書き記号(・)を付けず、素の文/改行で。",
-      "該当する内容が無い項目は空文字/null。出力は厳密なJSONのみ(コードフェンス・説明不要)。数字は半角。",
-      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
-    ].join("\n");
     const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 4096, noCache: true });
-    const obj = extractJson(r.text) || {};
-    $("kDate").value = obj.date ? String(obj.date).trim() : cur.date;
-    $("kOdo").value = (obj.odo != null && obj.odo !== "") ? String(obj.odo).replace(/[^\d]/g, "") : cur.odo;
-    $("kWork").value = obj.work != null ? String(obj.work).trim() : cur.work;
-    $("kParts").value = obj.parts != null ? String(obj.parts).trim() : cur.parts;
-    $("kCost").value = (obj.cost != null && obj.cost !== "") ? String(obj.cost).replace(/[^\d]/g, "") : cur.cost;
-    $("kStaff").value = obj.staff ? String(obj.staff).trim() : cur.staff;
-    $("kNote").value = obj.note != null ? String(obj.note).trim() : cur.note;
-    if (st) st.textContent = "✓ 項目ごとに整理しました。内容を確認・修正して保存してください。";
-  } catch (err) {
-    if (st) st.textContent = "⚠ " + (err && err.message === "__cancelled__" ? "中断しました" : "整理できませんでした。そのまま手入力で保存できます。");
-  } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove("busy"); }
-  }
+    const obj = extractJson(r.text);
+    if (!obj) return Object.assign({}, cur);
+    return {
+      date: obj.date ? String(obj.date).trim() : cur.date,
+      odo: (obj.odo != null && obj.odo !== "") ? String(obj.odo).replace(/[^\d]/g, "") : cur.odo,
+      work: obj.work != null ? String(obj.work).trim() : cur.work,
+      parts: obj.parts != null ? String(obj.parts).trim() : cur.parts,
+      cost: (obj.cost != null && obj.cost !== "") ? String(obj.cost).replace(/[^\d]/g, "") : cur.cost,
+      staff: obj.staff ? String(obj.staff).trim() : cur.staff,
+      note: obj.note != null ? String(obj.note).trim() : cur.note,
+    };
+  } catch (e) { return Object.assign({}, cur); }   // 失敗しても保存は止めない
 }
-$("btnKarteAiSort") && $("btnKarteAiSort").addEventListener("click", runKarteAiSort);
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
 let kartePhotoMedia = [];   // カメラで撮った写真(圧縮済み {mimeType,data})を蓄積 → まとめてAI読み取り
 function renderKartePhotoStatus() {
