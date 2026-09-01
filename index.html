@@ -351,7 +351,9 @@
         </div>
         <label class="fld">メモ</label>
         <textarea id="kNote" class="kGrow" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
-        <div class="btnRow">
+        <button type="button" class="btn btn-ghost kAiSortBtn" id="btnKarteAiSort">🪄 AIで整理（書いた内容を項目ごとに仕分け）</button>
+        <div class="hint" id="kAiSortStatus" style="margin:4px 0 0"></div>
+        <div class="btnRow" style="margin-top:8px">
           <button class="btn btn-amber" id="btnKarteSave">保存</button>
           <button class="btn btn-ghost" id="btnKarteCancel" style="flex:0 0 28%">取消</button>
         </div>
