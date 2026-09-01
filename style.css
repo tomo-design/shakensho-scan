@@ -1468,6 +1468,14 @@ body.gated{overflow:hidden}
 .hiSummary::before{content:"▸";color:var(--dim);font-size:12px;transition:transform .15s}
 .hiFold[open] .hiSummary::before{transform:rotate(90deg)}
 .hiFold[open] .hiList{margin-top:8px}
+/* カルテの記録一覧も折り畳み(現在の入庫状況と同じ見た目) */
+.kFold{border:0}
+.kFoldSum{font-size:13.5px;font-weight:700;color:var(--txt);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:2px 0}
+.kFoldSum::-webkit-details-marker{display:none}
+.kFoldSum::before{content:"▸";color:var(--dim);font-size:12px;transition:transform .15s}
+.kFold[open] .kFoldSum::before{transform:rotate(90deg)}
+.kFold[open] #karteList{margin-top:8px}
+.kFoldCount{font-size:12px;color:var(--dim);font-weight:600}
 
 /* PC2ペイン: 左は独立スクロール(スライダー)、右は固定表示で常に高さが揃う */
 @media(min-width:900px){

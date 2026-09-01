@@ -2366,9 +2366,11 @@ function canEditKarte(k) {
 }
 function renderKarte() {
   const box = $("karteList"); if (!box) return;
+  const cntEl = $("karteCount");
   box.innerHTML = "";
-  if (!current || !vehicleKey(current)) { box.innerHTML = '<div class="hint">車両を読み込むと、その車の作業記録を残せます。まず車検証をスキャンするか、履歴/検索から車両を開いてください。</div>'; return; }
+  if (!current || !vehicleKey(current)) { box.innerHTML = '<div class="hint">車両を読み込むと、その車の作業記録を残せます。まず車検証をスキャンするか、履歴/検索から車両を開いてください。</div>'; if (cntEl) cntEl.textContent = ""; return; }
   const list = getKarteList();
+  if (cntEl) cntEl.textContent = list.length ? "（" + list.length + "件）" : "";
   if (!list.length) { box.innerHTML = '<div class="hint">まだ記録がありません。「＋ 記録を追加」から作業内容を残せます。</div>'; return; }
   list.forEach(k => {
     const card = document.createElement("div"); card.className = "karteItem";
@@ -2499,7 +2501,7 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
     staff: sorted.staff || "", note: sorted.note || "",
     at: new Date().toISOString(),
   };
-  saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); renderKarte(); });
+  saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); const fold = $("karteFold"); if (fold) fold.open = true; renderKarte(); });
 });
 
 /* AIで整理(自動): 人それぞれの書き方(1欄に全部書く/略字/箇条書き等)をAIが判読し、

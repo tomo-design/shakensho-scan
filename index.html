@@ -335,7 +335,10 @@
     <div class="sec-body">
       <input type="file" id="kPhotoIn" accept="image/*" capture="environment" class="hidden">
       <div id="kPhotoStatus" class="hint hidden" style="margin-bottom:8px"></div>
-      <div id="karteList"></div>
+      <details id="karteFold" class="kFold">
+        <summary class="kFoldSum">記録一覧 <span id="karteCount" class="kFoldCount"></span></summary>
+        <div id="karteList"></div>
+      </details>
       <div id="karteForm" class="hidden karteForm">
         <div class="kRow2">
           <div><label class="fld">日付</label><input type="date" id="kDate"></div>
