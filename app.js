@@ -2372,12 +2372,30 @@ function renderKarte() {
   const list = getKarteList();
   if (cntEl) cntEl.textContent = list.length ? "（" + list.length + "件）" : "";
   if (!list.length) { box.innerHTML = '<div class="hint">まだ記録がありません。「＋ 記録を追加」から作業内容を残せます。</div>'; return; }
+  // 日付ごとにグループ化して折りたたみ表示(最新の日付グループだけ開く)。list は新しい順。
+  const groups = [];
+  const gIndex = {};
   list.forEach(k => {
+    const key = dispText(k.date) || "日付なし";
+    if (gIndex[key] == null) { gIndex[key] = groups.length; groups.push({ key: key, items: [] }); }
+    groups[gIndex[key]].items.push(k);
+  });
+  groups.forEach((g, gi) => {
+    const fold = document.createElement("details"); fold.className = "kDayFold"; if (gi === 0) fold.open = true;
+    const sum = document.createElement("summary"); sum.className = "kDaySum";
+    sum.innerHTML = '<span class="kDayDate">' + esc(g.key) + '</span><span class="kDayCnt">' + g.items.length + '件</span>';
+    fold.appendChild(sum);
+    g.items.forEach(k => fold.appendChild(buildKarteCard(k)));
+    box.appendChild(fold);
+  });
+}
+/* カルテ1件分のカードDOMを生成(renderKarteの日付グループ内に並べる) */
+function buildKarteCard(k) {
     const card = document.createElement("div"); card.className = "karteItem";
-    // ヘッダー: 日付/走行/担当 + 編集・削除
+    // ヘッダー: 走行/担当 + 編集・削除 (日付は上の折りたたみ見出しに表示)
     const head = document.createElement("div"); head.className = "kHead";
-    const metaBits = [dispText(k.date), k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(han(k.staff)) : ""].filter(Boolean);
-    head.innerHTML = '<span class="kDate">' + metaBits.join(' <i class="kSep">・</i> ') + '</span>';
+    const metaBits = [k.odo ? han(String(k.odo)) + "km" : "", k.staff ? "担当: " + esc(han(k.staff)) : ""].filter(Boolean);
+    head.innerHTML = '<span class="kDate">' + (metaBits.join(' <i class="kSep">・</i> ') || '<i class="kSep">記録</i>') + '</span>';
     const btns = document.createElement("div"); btns.className = "kBtns";
     if (canEditKarte(k)) {   // 記入者本人・管理者のみ 編集/削除ボタンを表示
       const edit = document.createElement("button"); edit.className = "kEdit"; edit.textContent = "編集";
@@ -2426,8 +2444,8 @@ function renderKarte() {
     body.innerHTML = block("作業", k.work) + partsBlock(k.parts) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
       noteBlock("メモ", k.note);   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
-    card.append(head, body); box.appendChild(card);
-  });
+    card.append(head, body);
+    return card;
 }
 /* カード内でその場編集(別フォームに飛ばず直接編集) */
 function editKarteInline(card, k) {

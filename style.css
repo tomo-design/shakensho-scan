@@ -526,6 +526,16 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kPartRows .kPn{flex:1 1 auto;min-width:0;font-size:13px;line-height:1.5}
 .karteItem .kPartRows .kPnSub{display:block;font-size:12px;color:var(--dim);padding-left:2px}
 .karteItem .kPartRows .kQty{flex:0 0 auto;min-width:34px;text-align:right;color:var(--cyan);font-weight:700;white-space:nowrap;font-size:13px;line-height:1.5}
+/* カルテの日付ごと折りたたみ */
+.kDayFold{border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:10px;overflow:hidden}
+.kDayFold>.kDaySum{display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;cursor:pointer;padding:11px 14px;font-weight:700;color:var(--cyan);user-select:none}
+.kDayFold>.kDaySum::-webkit-details-marker{display:none}
+.kDayFold>.kDaySum::after{content:"▾";color:var(--dim);font-size:12px;transition:transform .15s;margin-left:auto}
+.kDayFold[open]>.kDaySum::after{transform:rotate(180deg)}
+.kDayFold>.kDaySum .kDayDate{flex:1 1 auto;font-size:14px}
+.kDayFold>.kDaySum .kDayCnt{flex:0 0 auto;color:var(--dim);font-weight:700;font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.kDayFold>.karteItem{margin:0 10px 10px}
+.kDayFold[open]>.kDaySum{border-bottom:1px solid var(--line);margin-bottom:10px}
 /* 内容量で自動拡大する入力欄 */
 textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 /* カルテのその場編集 */
