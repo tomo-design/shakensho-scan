@@ -938,6 +938,9 @@
     tenantId() { return (profile && profile.tenantId) || ""; },
     isSuper() { return !!(profile && profile.role === "super"); },
     isLoggedIn() { return !!me; },
+    // ログイン中アカウントの版(personal=Pocket / works=Works)。運営(super)は両用のため空を返す。
+    // 未設定の旧法人アカウントは works 扱い。ゲートのエディション不一致検知に使用。
+    accountEdition() { if (!me || !profile) return ""; if (profile.role === "super") return ""; return profile.edition === "personal" ? "personal" : "works"; },
     // 契約状態(プラン・期限)。Web版Pocketの無料お試し残日数表示などに使用。
     trialInfo() {
       if (!tenantDoc) return null;

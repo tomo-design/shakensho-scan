@@ -7818,7 +7818,16 @@ function refreshAuthGate() {
   let hadSession = false; try { hadSession = localStorage.getItem("ss_hadSession") === "1"; } catch (e) {}
   // 認証状態が未解決の初回はゲートを出さない(ログイン済みユーザーへのちらつき防止)
   // 未ログインなら法人・個人どちらのモードでもゲートを出す(未認証のままメイン画面へ入れない)。
-  let gated = _authResolved && !isDemo() && !loggedIn && !hadSession;
+  // エディション不一致: ストア版Pocketと同一オリジンでセッションが共有されるため、
+  //  Worksを開いてもPocket(personal)アカウントのログインが残り、Pocket画面になってしまう混線がある。
+  //  その場合はログイン状態は保持したまま(自動ログアウトしない)ゲートを出し、正しい版を選ばせる。
+  //  ★正しくログイン中の(モードと版が一致した)メンバーは対象外＝再ログインを求めない。運営(super)も除外(空を返す)。
+  let editionMismatch = false;
+  try {
+    const acctEd = (window.Cloud && typeof window.Cloud.accountEdition === "function") ? window.Cloud.accountEdition() : "";
+    if (loggedIn && acctEd) editionMismatch = (acctEd !== (personal ? "personal" : "works"));
+  } catch (e) {}
+  let gated = _authResolved && !isDemo() && ((!loggedIn && !hadSession) || editionMismatch);
   // 一度ゲートが立ったら、ログイン/デモ完了まで必須を維持(モードを個人へ切替えても解除しない)
   if (gated) { try { sessionStorage.setItem("ss_needAuth", "1"); } catch (e) {} }
   else if (loggedIn || isDemo()) { try { sessionStorage.removeItem("ss_needAuth"); } catch (e) {} }
@@ -7848,7 +7857,13 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
     }, 60);
   };
   // Works=法人モード / Pocket=個人モードに切替えてからログイン(発行IDのエディションと一致させる)
-  const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("login"); });
+  // 既にWorksアカウントでログイン中なら、ログインフォームを出さずモードを法人に合わせて即表示(混線の解消・再ログイン不要)。
+  const agEd = () => { try { return (window.Cloud && window.Cloud.accountEdition) ? window.Cloud.accountEdition() : ""; } catch (e) { return ""; } };
+  const l = document.getElementById("agLogin"); if (l) l.addEventListener("click", () => {
+    try { setAppMode("corp"); } catch (e) {}
+    if (window.Cloud && window.Cloud.isLoggedIn && window.Cloud.isLoggedIn() && agEd() === "works") { refreshAuthGate(); return; }
+    toSettings("login");
+  });
   const n = document.getElementById("agNew"); if (n) n.addEventListener("click", () => { try { setAppMode("corp"); } catch (e) {} toSettings("choice"); });
   const d = document.getElementById("agDemo"); if (d) d.addEventListener("click", () => { try { startDemo(); } catch (e) {} refreshAuthGate(); });
   // Web版Pocketのログアウト(設定のアカウント欄)
@@ -7871,6 +7886,8 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
   if (ps) ps.addEventListener("click", () => { try { openPocketApply(); } catch (e) {} });
   const pl = document.getElementById("agPocketLogin"); if (pl) pl.addEventListener("click", () => {
     try { setAppMode("personal"); } catch (e) {}
+    // 既にPocketアカウントでログイン中なら、ログインモーダルを出さずモードを個人に合わせて即表示(再ログイン不要)。
+    if (window.Cloud && window.Cloud.isLoggedIn && window.Cloud.isLoggedIn() && agEd() === "personal") { refreshAuthGate(); return; }
     // Web版Pocketは専用ログインモーダルを表示(個人モードでは設定内の同期フォームが隠れているため)。
     // Playストア(storeApp)版は従来動作のまま(このモーダルは出さない)。
     if (document.body.classList.contains("storeApp")) { toSettings("login"); return; }
