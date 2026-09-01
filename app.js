@@ -2383,7 +2383,7 @@ function renderKarte() {
   groups.forEach((g, gi) => {
     const fold = document.createElement("details"); fold.className = "kDayFold"; if (gi === 0) fold.open = true;
     const sum = document.createElement("summary"); sum.className = "kDaySum";
-    sum.innerHTML = '<span class="kDayDate">' + esc(g.key) + '</span><span class="kDayCnt">' + g.items.length + '件</span>';
+    sum.innerHTML = '<span class="kDayDate">' + esc(g.key) + '</span>' + (g.items.length > 1 ? '<span class="kDayCnt">' + g.items.length + '</span>' : '');
     fold.appendChild(sum);
     g.items.forEach(k => fold.appendChild(buildKarteCard(k)));
     box.appendChild(fold);
