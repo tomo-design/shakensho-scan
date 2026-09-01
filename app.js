@@ -2423,7 +2423,7 @@ function renderKarte() {
     };
     body.innerHTML = block("作業", k.work) + partsBlock(k.parts) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
-      (k.auto ? noteBlock("メモ", k.note) : block("メモ", k.note));
+      noteBlock("メモ", k.note);   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
     card.append(head, body); box.appendChild(card);
   });
 }
@@ -5835,8 +5835,8 @@ function summarizeDiagText(t) {
     const circ = ["①", "②", "③", "④", "⑤"];
     return "考えられる原因\n" + causes.map((c, i) => (circ[i] || (i + 1) + ".") + " " + c).join("\n");
   }
-  const first = lines.filter(l => !/^[■【]/.test(l)).join(" ").replace(/\s+/g, " ").trim();
-  return first.slice(0, 120);
+  // 原因候補が並ばない=「バッテリーの標準サイズは？」等の単発の質問。カルテには残さない(""を返すと保存スキップ)。
+  return "";
 }
 /* 修理(点検手引書)結果を短い要約に(カルテのメモ用)。位置・所要時間・手順数などを1行に。 */
 function summarizeRepairText(obj, q) {
@@ -5847,8 +5847,8 @@ function summarizeRepairText(obj, q) {
   const steps = Array.isArray(obj.order) ? obj.order.length : (Array.isArray(obj.steps) ? obj.steps.length : 0);
   if (steps) parts.push("手順: " + steps + " ステップ");
   if (parts.length) return parts.join("\n");
-  const a = String(obj.answer == null ? "" : obj.answer).replace(/\*\*(.+?)\*\*/g, "$1").replace(/\s+/g, " ").trim();
-  return a.slice(0, 120);
+  // 位置・所要・手順が無い=手引書ではない単発の質問。カルテには残さない(""を返すと保存スキップ)。
+  return "";
 }
 /* 診断・修理の結果を整備カルテに自動記録する(=永続保存＋クラウド同期で社内共有)。
    ・車両が特定できている時のみ / デモでは保存しない / 空結果は保存しない。 */
