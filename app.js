@@ -3323,6 +3323,21 @@ function rawComments(t) {
 }
 /* 表示用: 削除済み(del)を除いたコメント */
 function getComments(t) { return rawComments(t).filter(c => c && !c.del); }
+/* コメント既読管理(端末ローカル)。rid毎に「最後に開いて見た時刻」を保持。
+   他の担当者が自分の最終閲覧より後に投稿していたら未読とみなす(自分の投稿は未読にしない)。 */
+const CMT_SEEN_LS = "ss_cmtSeen";
+function getCmtSeen() { try { return JSON.parse(localStorage.getItem(CMT_SEEN_LS) || "{}") || {}; } catch (e) { return {}; } }
+function markCmtSeen(rid) {
+  if (!rid) return;
+  try { const m = getCmtSeen(); m[rid] = Date.now(); localStorage.setItem(CMT_SEEN_LS, JSON.stringify(m)); } catch (e) {}
+}
+/* この車両に未読(他の担当者の新しいコメント)があるか */
+function cmtHasUnread(t) {
+  if (!t || !t.rid) return false;
+  const me = myConfirmId();
+  const seen = getCmtSeen()[t.rid] || 0;
+  return getComments(t).some(c => (c.at || 0) > seen && c.id !== me.id);
+}
 function cmtKey(c) { return (c.id || "") + "|" + (c.at || "") + "|" + (c.text || ""); }
 /* コメントの複数端末統合(投稿を失わないようunion。削除(del)は優先して残す=消したものが復活しない) */
 function mergeComments(a, b) {
@@ -3444,7 +3459,10 @@ function openIntakeComments(rid, opts) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   // クラウド購読(onSnapshot)で他端末の投稿が入ったら、開いているスレッドを自動更新
   window.__cmtRefresh = () => { if (!document.body.contains(ov)) { window.__cmtRefresh = null; return; } draw(); };
-  setTimeout(() => { try { input.focus(); } catch (e) {} }, 50);
+  // 開いた時点で既読にする(未読マークを消す)。ホームの入庫状況の未読表示も更新。
+  try { markCmtSeen(rid); renderHomeIntake(); } catch (e) {}
+  // 車両タップで開いた時はキーボードを自動で立ち上げない(opts.noFocus)。送信時は手動でタップ。
+  if (!opts.noFocus) setTimeout(() => { try { input.focus(); } catch (e) {} }, 50);
 }
 /* 手動で入庫を追加(電話予約など未スキャンの車)。ナンバー＋区分だけ */
 function addManualIntake() {
@@ -4096,9 +4114,12 @@ function renderHomeIntake() {
     const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const slide = document.createElement("div"); slide.className = "hiSlide";
     const main = document.createElement("div"); main.className = "hiMain";
-    main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>';
+    const unread = cmtHasUnread(h);
+    main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>' +
+      (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
     // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
-    main.addEventListener("click", () => { try { openIntakeComments(h.rid); } catch (e) {} });
+    // noFocus: タップしただけでキーボードが立ち上がるのを防ぐ(入力欄タップで初めて出す)。
+    main.addEventListener("click", () => { try { openIntakeComments(h.rid, { noFocus: true }); } catch (e) {} });
     // 担当表示。管理者はタップで名簿から設定/変更。メンバーは表示のみ(操作不可)。
     const staff = document.createElement(canEdit ? "button" : "span");
     staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
