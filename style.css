@@ -1080,6 +1080,10 @@ body.pwLocked{ overflow:hidden }
 .icBadge.icOutPlanB{background:#0E7490}
 .icTot.icOutPlanT{background:rgba(14,116,144,.12);color:#0E7490}
 .icDetHd.icOutPlanT{color:#0E7490}
+/* 集金予定(💰・コメントからAI自動登録) */
+.icBadge.icPayB{background:#B45309}
+.icTot.icPayT{background:rgba(180,83,9,.12);color:#B45309}
+.icDetHd.icPayT{color:#B45309}
 .icPlanAdd{margin-left:6px;border:1px solid #C4B5FD;background:#F5F3FF;color:#6D28D9;border-radius:8px;font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer}
 .icDetHd.icOutPlanT .icPlanAdd{border-color:#67E8F9;background:#ECFEFF;color:#0E7490}
 .icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#c0392b;font-size:13px;cursor:pointer;padding:0 4px}

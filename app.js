@@ -3518,6 +3518,7 @@ function openIntakeComments(rid, opts) {
     }
     input.value = ""; draw(); renderIntakeBoard();
     try { renderIntakeCalendar(); } catch (e) {}   // カレンダーの💬バッジ・日別明細の件数を即更新
+    try { maybeRecordCollection(rid, v); } catch (e) {}   // 集金日らしき内容ならAIで判別してカレンダーに集金予定を登録
   };
   ov.querySelector("#cmtSend").addEventListener("click", send);
   input.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); } });
@@ -3880,6 +3881,7 @@ function consumePlansForVehicle(t) {
   const todayTs = new Date().setHours(0, 0, 0, 0);
   let changed = false;
   getPlans().forEach(p => {
+    if (p.dir === "pay") return;   // 集金予定は入庫では消化しない(別管理)
     const planTs = new Date(p.y, p.m, p.d).setHours(0, 0, 0, 0);
     if (planTs > todayTs) return;   // まだ先の予定(予定日が未到来)は消さない
     const title = norm(p.title); if (!title) return;
@@ -3888,6 +3890,57 @@ function consumePlansForVehicle(t) {
     if (match) { removePlan(p.id); changed = true; }
   });
   if (changed) { try { renderIntakeCalendar(); } catch (e) {} }
+}
+/* ===== 集金(未回収代金の回収)をコメントから自動でカレンダーに記録 =====
+   入庫車両のコメントに「◯日集金」「集金は来週火曜」等が付いたらAIが判別し、
+   その車両の『集金予定』をカレンダーに登録。「キャンセル」「集金済み」等なら予定を取り消す。
+   予定は dir:"pay"、id は "pay-<rid>" で1車両1件(再設定で日付を上書き)。クラウド同期あり。 */
+const COLLECT_KW = ["集金", "回収", "入金", "支払", "支払い", "振込", "振り込み", "取りに", "受け取", "受取", "現金", "代金", "料金", "お金", "精算", "清算", "キャンセル", "済"];
+function collectPlanId(rid) { return "pay-" + rid; }
+async function maybeRecordCollection(rid, text) {
+  try {
+    if (!rid) return;
+    if (typeof isDemo === "function" && isDemo()) return;
+    const s = String(text || "");
+    if (!s.trim()) return;
+    if (!COLLECT_KW.some(k => s.includes(k))) return;   // 集金に無関係なコメントはAIを呼ばない(節約)
+    const rec = getHistory().find(h => h.rid === rid);
+    const vTitle = rec ? ([dispText(rec.plate), dispText(rec.name)].filter(Boolean).join(" ／ ") || dispText(rec.type) || "車両") : "車両";
+    const now = new Date();
+    const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+    const dow = ["日", "月", "火", "水", "木", "金", "土"][now.getDay()];
+    const prompt = [
+      "あなたは自動車整備工場の受付です。整備した車の代金を後日『集金(回収)』に行く/来てもらう予定を、担当者のコメントから読み取ります。",
+      "今日は " + todayStr + "(" + dow + "曜)です。相対表現(今日/明日/明後日/来週◯曜/月末 等)は今日基準で西暦の日付に直してください。",
+      "対象車両: " + vTitle,
+      "コメント本文: 「" + s.replace(/\n/g, " ") + "」",
+      "判定して次のJSONだけ返す(前後の文章・コードフェンス不要): {\"action\":\"set|cancel|none\",\"date\":\"YYYY-MM-DD\",\"amount\":null,\"note\":\"\"}",
+      "・action=set: 集金・入金・回収・支払い・引き取り等の予定日が読み取れる場合。dateにその日付。金額があればamountに数値(円)。noteに補足(時間帯・場所・相手など短く)。",
+      "・action=cancel: 『集金キャンセル』『集金なくなった』『回収済み』『入金済み』『精算済み』等、予定を取り消す/完了した内容の場合。dateは空でよい。",
+      "・action=none: 集金の予定日でも取消でもない(単なる連絡・費用メモ等)場合。",
+      "日付が特定できない(『近いうちに』等の曖昧)場合や集金と無関係ならnone。憶測で日付を作らない。数字は半角。",
+    ].join("\n");
+    const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 512, noCache: true });
+    const obj = extractJson(r.text) || {};
+    const act = obj.action;
+    if (act === "cancel") {
+      const arr = allPlansRaw(); const cur = arr.find(x => x.id === collectPlanId(rid) && !x.deleted);
+      if (cur) { removePlan(collectPlanId(rid)); try { renderIntakeCalendar(); } catch (e) {} }
+      return;
+    }
+    if (act === "set" && obj.date && /^\d{4}-\d{2}-\d{2}$/.test(String(obj.date))) {
+      const dt = new Date(obj.date + "T00:00:00");
+      if (isNaN(dt)) return;
+      const amt = (obj.amount != null && obj.amount !== "") ? String(obj.amount).replace(/[^\d]/g, "") : "";
+      const note = [amt ? "¥" + Number(amt).toLocaleString() : "", String(obj.note || "").trim()].filter(Boolean).join(" ");
+      upsertPlan({
+        id: collectPlanId(rid), rid, dir: "pay", kind: "集金",
+        y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate(),
+        title: vTitle, note, updatedAt: Date.now(), deleted: false,
+      });
+      try { renderIntakeCalendar(); } catch (e) {}
+    }
+  } catch (e) {}   // 失敗しても通常のコメント投稿は妨げない
 }
 function renderIntakeCalendar() {
   const grid = $("icGrid"); if (!grid) return;
@@ -3899,14 +3952,15 @@ function renderIntakeCalendar() {
   const inByDay = {}, outByDay = {};
   const put = (map, ts, h) => { if (ts >= monthStart && ts < monthEnd) { const k = new Date(ts).getDate(); (map[k] = map[k] || []).push(h); } };
   intakeAllInScope().forEach(h => { if (h.intakeAt) put(inByDay, h.intakeAt, h); if (h.intakeOut) put(outByDay, h.intakeOut, h); });
-  const planByDay = {}, outPlanByDay = {};
-  getPlans().forEach(p => { if (p.y === y && p.m === m) { const map = (p.dir === "out") ? outPlanByDay : planByDay; (map[p.d] = map[p.d] || []).push(p); } });
-  let inTot = 0, outTot = 0, planTot = 0, outPlanTot = 0;
+  const planByDay = {}, outPlanByDay = {}, payPlanByDay = {};
+  getPlans().forEach(p => { if (p.y === y && p.m === m) { const map = (p.dir === "pay") ? payPlanByDay : (p.dir === "out") ? outPlanByDay : planByDay; (map[p.d] = map[p.d] || []).push(p); } });
+  let inTot = 0, outTot = 0, planTot = 0, outPlanTot = 0, payTot = 0;
   Object.keys(inByDay).forEach(k => inTot += inByDay[k].length);
   Object.keys(outByDay).forEach(k => outTot += outByDay[k].length);
   Object.keys(planByDay).forEach(k => planTot += planByDay[k].length);
   Object.keys(outPlanByDay).forEach(k => outPlanTot += outPlanByDay[k].length);
-  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 入庫予定 ' + planTot + '</span>' : '') + (outPlanTot ? '<span class="icTot icOutPlanT">🚚 出庫予定 ' + outPlanTot + '</span>' : '');
+  Object.keys(payPlanByDay).forEach(k => payTot += payPlanByDay[k].length);
+  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 入庫予定 ' + planTot + '</span>' : '') + (outPlanTot ? '<span class="icTot icOutPlanT">🚚 出庫予定 ' + outPlanTot + '</span>' : '') + (payTot ? '<span class="icTot icPayT">💰 集金 ' + payTot + '</span>' : '');
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -3916,12 +3970,13 @@ function renderIntakeCalendar() {
   for (let i = 0; i < firstDow; i++) html += '<div class="icCell icEmpty"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
     const dayIsPast = new Date(y, m, d).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0);
-    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []), outPlans = dayIsPast ? [] : (outPlanByDay[d] || []);
-    const has = ins.length || outs.length || plans.length || outPlans.length;
+    const ins = inByDay[d] || [], outs = outByDay[d] || [], plans = dayIsPast ? [] : (planByDay[d] || []), outPlans = dayIsPast ? [] : (outPlanByDay[d] || []), payPlans = dayIsPast ? [] : (payPlanByDay[d] || []);
+    const has = ins.length || outs.length || plans.length || outPlans.length || payPlans.length;
     const badges = (ins.length ? '<span class="icBadge icInB">▼' + ins.length + '</span>' : '') +
                    (outs.length ? '<span class="icBadge icOutB">▲' + outs.length + '</span>' : '') +
                    (outPlans.length ? '<span class="icBadge icOutPlanB">🚚' + outPlans.length + '</span>' : '') +
-                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '');
+                   (plans.length ? '<span class="icBadge icPlanB">📌' + plans.length + '</span>' : '') +
+                   (payPlans.length ? '<span class="icBadge icPayB">💰' + payPlans.length + '</span>' : '');
     html += '<div class="icCell' + (thisMonth && d === todayD ? ' icToday' : '') + (has ? ' icHas' : '') + '" data-day="' + d + '">' +
       '<div class="icNum">' + d + '</div>' +
       '<div class="icBadges">' + badges + '</div>' + '</div>';
@@ -3929,7 +3984,7 @@ function renderIntakeCalendar() {
   html += '</div>';
   grid.innerHTML = html;
   const lg = $("icLegend");
-  if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫 ／ ▲＝出庫 ／ 📌＝入庫予定 ／ 🚚＝出庫予定</span>';
+  if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫 ／ ▲＝出庫 ／ 📌＝入庫予定 ／ 🚚＝出庫予定 ／ 💰＝集金</span>';
   const prev = $("icPrev"), next = $("icNext"), tod = $("icToday");
   if (prev) prev.onclick = () => { _icMonth = new Date(y, m - 1, 1); renderIntakeCalendar(); };
   if (next) next.onclick = () => { _icMonth = new Date(y, m + 1, 1); renderIntakeCalendar(); };
@@ -3974,13 +4029,18 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
   const dayLabel = (m + 1) + "月" + d + "日";
   const build = () => {
     const plans = plansForDay(y, m, d);
-    const inPlans = plans.filter(p => p.dir !== "out");
+    const inPlans = plans.filter(p => p.dir !== "out" && p.dir !== "pay");
     const outPlans = plans.filter(p => p.dir === "out");
+    const payPlans = plans.filter(p => p.dir === "pay");
     const inPlanSec =
       '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + inPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋</button></div>' + (inPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
     const outPlanSec =
       '<div class="icDetSec"><div class="icDetHd icOutPlanT">🚚 出庫予定 ' + outPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddOutPlan">＋</button></div>' + (outPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
-    const planCols = isPast ? '' : '<div class="icPlanCols">' + inPlanSec + outPlanSec + '</div>';
+    // 集金予定(コメントからAIが自動登録)。予定がある日だけ表示。手動追加ボタンは無し。
+    const paySec = payPlans.length
+      ? '<div class="icDetSec"><div class="icDetHd icPayT">💰 集金予定 ' + payPlans.length + '件</div>' + payPlans.map(planRow).join('') + '</div>'
+      : '';
+    const planCols = isPast ? '' : '<div class="icPlanCols">' + inPlanSec + outPlanSec + '</div>' + paySec;
     return '<div class="ikCard" style="max-width:380px;text-align:left">' +
       '<div class="ikTitle">' + dayLabel + ' の入出庫</div>' + planCols +
       '<div class="icDetSec"><div class="icDetHd icInT">▼ 入庫 ' + ins.length + '台</div>' + (ins.map(row).join('') || '<div class="icDetNone">なし</div>') + '</div>' +
