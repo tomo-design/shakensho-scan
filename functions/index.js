@@ -439,10 +439,10 @@ async function checkPaid(uid) {
 }
 
 /* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
-async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget) {
+async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget, temperature) {
   let lastErr = "", quota = false;
   for (const model of models) {
-    const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
+    const gc = { temperature: (typeof temperature === "number" ? temperature : 0.2), maxOutputTokens: maxTokens || 16384 };
     // 思考トークン制御(2.5系・3系・-latest)。flash=512(3系は0が400・128だと空応答になり得るため余裕を持たせる)、pro=-1(動的)。2.0系は非対応。
     // thinkingBudget が数値で渡された場合はそれを使い、思考を短く切り上げて待機時間を短縮する。
     if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
@@ -2076,7 +2076,7 @@ async function genImage(promptText) {
   const keys = (paidKey ? [paidKey] : []).concat(freeKeys);
   if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
   const models = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
-  const body = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } };
+  const body = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], temperature: 1.0 } };
   let lastErr = "";
   for (const key of keys) {
     for (const model of models) {
@@ -2355,13 +2355,15 @@ ${angleRule}
 ${mixRule}`;
 
   const parts = [{ text: prompt }];
+  // creative指定(SNS等)は温度を上げて毎回違う文章に。通常(メール等)は既定の低温で安定。
+  const temp = data.creative ? 1.1 : undefined;
   // まず有料キー(あれば)→ ダメなら無料キーを順に試す
   let out = { failed: true };
-  if (paidKey) out = await callGeminiModels(paidKey, models, parts, "flash", false, 8192);
+  if (paidKey) out = await callGeminiModels(paidKey, models, parts, "flash", false, 8192, undefined, temp);
   if (out.failed) {
     const start = Math.floor(Math.random() * freeKeys.length);
     for (let i = 0; i < freeKeys.length; i++) {
-      out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, parts, "flash", false, 8192);
+      out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, parts, "flash", false, 8192, undefined, temp);
       if (!out.failed) break;
     }
   }

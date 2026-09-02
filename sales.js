@@ -755,7 +755,12 @@
     tips: "スタイル: 整備士に役立つ豆知識・小ネタを1つ提供し、最後に『メカノAIならこれが一発で出る』等で自然に導線。",
     casual: "スタイル: 今風でカジュアルなユーザー体験レビュー風。『このアプリ、マジで便利…』のような素の一言から入り、実際に使って助かった具体シーン(例:診断で迷わなくなった/交換手順がすぐ出た/締付トルクを探さなくてよくなった 等)を1〜2個、テンションよくテンポよく語る。友達に『これ良かったよ』と勧める口調。硬い宣伝文句・かしこまった敬語は使わない。絵文字は使っても1〜3個まで。ステマにならないよう、あくまで感想ベースで自然に。最後に軽く『7日間無料だから試してみて』程度で締める。",
     campaign: "スタイル: 7日間無料・月¥500(Pocket)などの告知を主軸に、簡潔に魅力とCTAを伝える。",
+    buzz: "スタイル: バズ(拡散)狙い。最初の1行で必ずスクロールを止める強いフックを作る。共感・意外性・笑い・『え、そんなことできるの?』のいずれかを核に、思わずいいね/RT/保存したくなる要素を1つ仕込む。読み終えたら『面白そう、これは試したい/契約したい』と感じさせる。ただし誇張・嘘・過度な煽り・不快な釣りはNG。社会的証明を使う場合も具体的な数字・店名・実績は捏造せず『おかげさまで導入が増えています』程度に留める。",
   };
+  // 毎回変える"切り口"の素。ランダムに選んで指示に混ぜることで、同じ設定でも無限にパターンが変わる。
+  const SNS_HOOKS = ["意外な事実・ギャップから入る", "強烈な共感あるあるから入る", "『こんな経験ない?』と問いかける", "失敗談→救われた話の起伏", "たとえ話・比喩で刺す", "一言ボケ/ユーモアから", "ビフォーアフターの対比", "3選/ランキング形式", "実況中継風のライブ感", "ベテラン整備士キャラのなりきり語り", "新人整備士の目線・成長物語", "逆張り・あえての本音", "へぇと言わせる豆知識トリビア", "現場の名言・格言風", "数字や比較でインパクト(作り話の数字は使わない)", "『昔は〇〇→今は〇〇』の時代の変化", "ちょっと笑える極端なあるある", "感情の急上昇(困った→解決してスカッと)"];
+  const SNS_FORMATS = ["短い問いかけ＋オチ", "改行を活かしたテンポ重視", "会話・セリフ調", "ミニストーリー仕立て", "キャッチ1行＋ひとこと補足", "リスト風だが1点だけ強調"];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const SNS_LEN = {
     short: "短め・ひと言で刺す(目安120〜200字)",
     medium: "標準(目安300〜500字)",
@@ -769,16 +774,18 @@
     const len = ($("snsLen") && $("snsLen").value) || "medium";
     const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
     const instruct = ($("snsInstruct") && $("snsInstruct").value || "").trim();
+    const seed = "今回の切り口(毎回変える・過去と被らせない): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」。この切り口で新鮮な入りにする。";
     const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
 ${instruct ? "・【最優先の指示（他のスタイル設定より優先）】" + instruct + "\n" : ""}・${SNS_STYLE[style] || SNS_STYLE.balanced}
+・${seed}
 ・${g.guide}
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
-・宣伝くさくしすぎず、読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
+・毎回できるだけ違う表現・切り口にし、テンプレ的な言い回しの使い回しを避ける。読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
 ・文量は ${lenTxt}。この範囲を目安にし、${g.limit} 字は超えないこと（冗長に引き伸ばさない）。
 ・前置きの説明や「以下が投稿文です」等は不要、本文だけ。`;
     $("snsStat").textContent = "生成中…"; $("btnSns").disabled = true;
     try {
-      const j = await api("generate", { role: "marke", task, product });
+      const j = await api("generate", { role: "marke", task, product, creative: true });
       const t = String(j.text || "").trim();
       $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount();
       $("snsStat").textContent = "";
@@ -793,16 +800,37 @@ ${instruct ? "・【最優先の指示（他のスタイル設定より優先）
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
   { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
 
-  // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、整備現場に合うビジュアルに。
+  // 画像スタイルの素。毎回ランダムに選び、ありきたりを防ぎバズりやすい多彩なビジュアルに。
+  const IMG_STYLES = [
+    "cinematic dramatic lighting, shallow depth of field, film-like",
+    "bold pop-art comic style with halftone, punchy colors",
+    "clean modern flat vector illustration, friendly",
+    "isometric 3D render, playful, detailed miniature scene",
+    "dynamic action shot with motion blur and energy",
+    "warm documentary photo, authentic garage atmosphere",
+    "minimalist bold poster design, strong single focal point",
+    "vibrant neon-accented night garage, cyber vibe",
+    "retro Showa-era Japanese garage nostalgia",
+    "cute cartoon mascot / character style, meme-friendly",
+    "hyper-real close-up macro of hands and tools, gritty detail",
+    "split before/after style composition, clear contrast",
+  ];
+  function buildImgPrompt() {
+    const post = ($("snsBody").value || "").trim();
+    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const style = pick(IMG_STYLES);
+    return `Create a scroll-stopping, share-worthy square social-media image for an automotive-repair AI smartphone app "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
+Match the mood of this Japanese post:
+"""${post.slice(0, 1200)}"""
+Visual style (use this): ${style}. Make it striking, original and eye-catching — NOT a generic stock photo. Strong composition, bold focal point, emotion or humor if it fits the post.
+Subject ideas: a car mechanic / auto garage / hands working on a car / a smartphone showing a diagnostic AI, chosen to fit the post.
+IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text looks broken). Image only.`;
+  }
+  // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、毎回違う映えるビジュアルに。
   async function snsGenImage() {
     const post = ($("snsBody").value || "").trim();
     if (!post) { toast("先に投稿文を作成してください"); return; }
-    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
-    const prompt = `Create a high-quality, eye-catching square social-media image for an automotive-repair AI smartphone app called "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
-The mood and scene should match this Japanese social post:
-"""${post.slice(0, 1200)}"""
-Style: clean, modern, realistic photo or tasteful illustration of a car mechanic / auto garage / working on a car / using a smartphone diagnostic app. Bright, professional, trustworthy. Composition suitable for social media.
-IMPORTANT: Do NOT render any text, letters, words, logos, or watermarks in the image (text would look broken). No captions. Image only.`;
+    const prompt = buildImgPrompt();
     show("snsImgWrap", true); show("snsImgEl", false); show("snsImgActs", false);
     $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
     if ($("snsImg")) $("snsImg").disabled = true; if ($("snsImgRegen")) $("snsImgRegen").disabled = true;
@@ -818,6 +846,16 @@ IMPORTANT: Do NOT render any text, letters, words, logos, or watermarks in the i
   }
   { const b = $("snsImg"); if (b) b.onclick = snsGenImage; }
   { const b = $("snsImgRegen"); if (b) b.onclick = snsGenImage; }
+  // Grok Imagine(X Premium)で画像/動画を作る: 最適プロンプトをコピーして grok.com/imagine を開く
+  { const b = $("snsGrok"); if (b) b.onclick = () => {
+      const post = ($("snsBody").value || "").trim();
+      if (!post) { toast("先に投稿文を作成してください"); return; }
+      const p = buildImgPrompt() + "\n\n(For a short video: add subtle motion — e.g. slow push-in, tool in action, phone screen lighting up. Keep it 3-6 seconds, loop-friendly, no text.)";
+      copy(p);
+      window.open("https://grok.com/imagine", "_blank", "noopener");
+      toast("プロンプトをコピー。Grokに貼り付けて生成してください");
+    };
+  }
 
   // 他人のツイートへの返信コメント生成(共感→自然にメカノAI導線)
   function repCount() { const n = ($("repBody").value || "").length; if ($("repCount")) $("repCount").textContent = "　" + n + "字" + (n > 200 ? " ⚠長め" : ""); }
@@ -843,7 +881,7 @@ ${src}
 ・本文だけを出力（前置き・説明・「返信案：」等は不要）。`;
     $("repStat").textContent = "生成中…"; $("btnRep").disabled = true;
     try {
-      const j = await api("generate", { role: "marke", task, product });
+      const j = await api("generate", { role: "marke", task, product, creative: true });
       $("repBody").value = String(j.text || "").trim();
       show("repOutWrap", true); repCount();
       $("repStat").textContent = "";
