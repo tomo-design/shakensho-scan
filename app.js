@@ -3622,11 +3622,6 @@ function renderIntakeBoard() {
       info2.style.cursor = "pointer";
       info2.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
     }
-    // 完検済バッジをタップで取消できる(PCで完検を戻す手段)。編集可能時のみ。
-    if (inspDone && editable) {
-      const tagEl = info2.querySelector(".ibTag.done");
-      if (tagEl) { tagEl.style.cursor = "pointer"; tagEl.title = "完検済(タップで取消)"; tagEl.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); }); }
-    }
     card.appendChild(info2);
 
     // 右上: 上段=確認レ点(色付き✓)、下段=費用(車検のみ)
@@ -3667,15 +3662,7 @@ function renderIntakeBoard() {
       memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; openIntakeComments(h.rid); });
       meta.appendChild(memo);
       if (h.intakeKind === "車検") {
-        // 完検(完成検査終了)ボタン。未完のときだけ表示(完了時は区分バッジが「完検済」に変わるので重複させない)。
-        if (!h.inspDone) {
-          const insp = document.createElement("button");
-          insp.className = "ibInsp";
-          insp.textContent = "完検";
-          insp.title = "完成検査が終わったらタップ";
-          insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
-          meta.appendChild(insp);
-        }
+        // 完検の操作は入庫管理ボードからは行わない(表示のみ)。操作は「現在の入庫状況」の右スワイプから。
         const fee = document.createElement("button");
         const fs = FEE_STATES[feeStateOf(h)];
         fee.className = "ibFee " + fs.cls;
