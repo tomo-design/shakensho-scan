@@ -9,6 +9,7 @@
     messagingSenderId: "126560659288",
     appId: "1:126560659288:web:627b913aef320e7e76a72d"
   };
+  const OWNER_EMAIL = "cablueie.123@gmail.com";   // 運営オーナー(本体アプリと一致)。roleが外れても自動でsuper復帰させる。
   const FN_REGION = "asia-northeast1";
   const FN_BASE = "https://" + FN_REGION + "-" + firebaseConfig.projectId + ".cloudfunctions.net/";
 
@@ -88,6 +89,10 @@
     // super判定
     let role = "";
     try { role = (await db.collection("users").doc(user.uid).get()).data()?.role || ""; } catch (e) {}
+    // オーナー(運営)アカウントは、万一roleが外れていてもログイン時に自動でsuperへ復帰(コンソールがロックアウトされないように)
+    if (role !== "super" && user.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase()) {
+      try { await db.collection("users").doc(user.uid).set({ email: user.email, role: "super", active: true }, { merge: true }); role = "super"; } catch (e) {}
+    }
     if (role !== "super") {
       show("loginPane", true); show("appPane", false);
       $("loginMsg").textContent = "このアカウントには営業ルームの権限がありません（運営専用）。";

@@ -484,6 +484,15 @@
         } else throw ce;
       }
       const uid = cred.user.uid;
+      // 運営(super)アカウントを会社参加/登録で降格・上書きしない(role:superが消える事故を防ぐ)
+      try {
+        const cur = (await db.collection("users").doc(uid).get()).data();
+        const isOwner = cred.user.email && cred.user.email.toLowerCase() === OWNER_EMAIL.toLowerCase();
+        if ((cur && cur.role === "super") || isOwner) {
+          $("cloudAuthStat").textContent = "運営アカウントのため、会社への参加・登録処理はスキップしました（権限を保護）。";
+          return;
+        }
+      } catch (e) {}
       if (isNewCompany) {
         await db.collection("tenants").doc(tid).set({ name: tid, adminName: name, active: false, createdAt: Date.now() }, { merge: true });
         await db.collection("users").doc(uid).set({ name, email, tenantId: tid, role: "admin", active: false, rejected: false, createdAt: Date.now() });
