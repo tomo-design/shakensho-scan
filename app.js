@@ -4285,7 +4285,7 @@ function renderHomeIntake() {
       if (isShaken) {
         const inspWrap = document.createElement("div"); inspWrap.className = "hiInspWrap";
         const insp = document.createElement("button"); insp.className = "hiInsp" + (h.inspDone ? " done" : "");
-        insp.textContent = h.inspDone ? "取消" : "検査済";
+        insp.textContent = h.inspDone ? "取消" : "完検";
         insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
         inspWrap.appendChild(insp);
         row.appendChild(inspWrap);
