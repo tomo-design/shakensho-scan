@@ -2098,6 +2098,20 @@ async function genImage(promptText) {
   throw new Error("画像生成に失敗しました(" + lastErr + ")。お使いのGeminiキーが画像生成に対応していない可能性があります。");
 }
 
+// 【一時関数・使用後に削除】運営アカウントの role:super を復旧するワンショット(秘密キー必須)。
+exports.grantSuperOnce = functions.region(REGION).https.onRequest(async (req, res) => {
+  const secret = String((req.query && req.query.secret) || (req.body && req.body.secret) || "");
+  if (secret !== "restore-super-9f3x7Q2z") return res.status(403).json({ error: "forbidden" });
+  const email = String((req.query && req.query.email) || (req.body && req.body.email) || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "email required" });
+  try {
+    const u = await admin.auth().getUserByEmail(email);
+    await admin.firestore().collection("users").doc(u.uid).set({ role: "super", email: email }, { merge: true });
+    const after = (await admin.firestore().collection("users").doc(u.uid).get()).data() || {};
+    return res.json({ ok: true, uid: u.uid, role: after.role, tenantId: after.tenantId || null, email: after.email || email });
+  } catch (e) { return res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+
 // 店舗リサーチの中核(公開情報のみ・検索グラウンディング)。手動アクションと自動スケジュールで共用。
 // 返り値: {company,area,kind,phone,fax,email,formUrl,source,note} の配列(店名と出典URL必須・捏造は除外)。
 async function researchCandidates(area, kind, count, excludeNames) {

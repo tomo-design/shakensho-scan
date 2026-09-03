@@ -1203,6 +1203,12 @@ body.pwLocked{ overflow:hidden }
 .ibFee.feeUnpaid{background:#DC2626}
 .ibFee.feePaid{background:#16A34A}
 .ibFee.feeAdvance{background:#7C3AED}
+/* 完検(完成検査終了)トグル */
+.ibInsp{border:1.5px solid #16A34A;background:#fff;color:#15803D;border-radius:999px;font-size:10px;font-weight:800;padding:2px 9px;cursor:pointer;margin-left:6px}
+.ibInsp.done{background:#16A34A;color:#fff;border-color:#16A34A}
+.ibInsp:active{opacity:.85}
+/* 完検済になったら区分バッジ自体を緑「完検済」に(車検の青より優先) */
+.ibCard .ibTag.done{background:#16A34A}
 .ibMemo{flex:none;display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;
   font-size:12px;color:var(--dim);padding:4px 6px;cursor:pointer;border-radius:8px}
 .ibMemo .ibMemoIc{font-size:14px;line-height:1}

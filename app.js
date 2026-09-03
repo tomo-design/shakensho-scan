@@ -3609,8 +3609,11 @@ function renderIntakeBoard() {
     const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
     const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : "", h.staff ? ("担当: " + dispText(h.staff)) : ""].filter(Boolean).join(" ・ ");
     const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
+    const inspDone = (h.intakeKind === "車検") && h.inspDone;
     const info2 = document.createElement("div"); info2.className = "ibMain";
-    info2.innerHTML = '<span class="ibTag">' + esc(info.label) + '</span>' +
+    info2.innerHTML = (inspDone
+        ? '<span class="ibTag done" title="完成検査 終了済み">完検済</span>'
+        : '<span class="ibTag">' + esc(info.label) + '</span>') +
       '<span class="ibTitle">' + esc(title) + '</span>' +
       '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
     // クリックで右ペインに詳細表示
@@ -3659,6 +3662,13 @@ function renderIntakeBoard() {
       memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; openIntakeComments(h.rid); });
       meta.appendChild(memo);
       if (h.intakeKind === "車検") {
+        // 完検(完成検査終了)トグル。押すとバッジが「完検済」に。出庫はしない。
+        const insp = document.createElement("button");
+        insp.className = "ibInsp" + (h.inspDone ? " done" : "");
+        insp.textContent = h.inspDone ? "完検済 ✓" : "完検";
+        insp.title = h.inspDone ? "完成検査 終了済み(タップで取消)" : "完成検査が終わったらタップ";
+        insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
+        meta.appendChild(insp);
         const fee = document.createElement("button");
         const fs = FEE_STATES[feeStateOf(h)];
         fee.className = "ibFee " + fs.cls;
