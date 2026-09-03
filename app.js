@@ -4260,8 +4260,12 @@ function renderHomeIntake() {
     const main = document.createElement("div"); main.className = "hiMain";
     const unread = cmtHasUnread(h);
     const isShaken = h.intakeKind === "車検";
-    main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>' +
-      (isShaken && h.inspDone ? '<span class="hiInspDone" title="完成検査 終了済み">✓完検済</span>' : '') +
+    const inspDone = isShaken && h.inspDone;
+    // 車検で完検済になったら、区分バッジ自体を「完検済」(緑)に変える
+    const tagHtml = inspDone
+      ? '<span class="hiTag done" title="完成検査 終了済み">完検済</span>'
+      : '<span class="hiTag">' + esc(info.label) + '</span>';
+    main.innerHTML = tagHtml + '<span class="hiTitle">' + esc(title) + '</span>' +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
     // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
     // noFocus: タップしただけでキーボードが立ち上がるのを防ぐ(入力欄タップで初めて出す)。
