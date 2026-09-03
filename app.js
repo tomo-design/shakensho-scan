@@ -3053,6 +3053,7 @@ function dedupeHistory(list) {
       specs: pick("specs"), faults: pick("faults"), recalls: pick("recalls"), maker: pick("maker"),
       karte: mergeKarte(a.karte, h.karte),
       intakeKind: pick("intakeKind"), intakeAt: pick("intakeAt"), intakeOut: pick("intakeOut"),
+      inspDone: pick("inspDone"), inspAt: pick("inspAt"),
       feePaid: pick("feePaid"), feeStatus: pick("feeStatus"), officeMemo: pick("officeMemo"), staff: pick("staff"),
       confirms: mergeConfirms(a.confirms, h.confirms),
       at: (newer.at || older.at), updatedAt: Math.max(a.updatedAt || 0, h.updatedAt || 0),
@@ -3201,6 +3202,7 @@ function setIntake(rid, kind, staff) {
   const t = hist.find(h => h.rid === rid) || (current && findHistEntry(hist, current));
   if (!t) return;
   t.intakeKind = kind; t.intakeAt = Date.now(); t.intakeOut = null; t.updatedAt = Date.now();
+  t.inspDone = false; t.inspAt = null;   // 新規入庫時は完検済の印をリセット
   if (staff !== undefined) t.staff = staff || null;
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);   // 社内共有へ
@@ -3226,6 +3228,7 @@ function clearIntake(rid) {
   const t = hist.find(h => h.rid === rid);
   if (!t) return;
   t.intakeOut = Date.now(); t.updatedAt = Date.now();
+  t.inspDone = false; t.inspAt = null;   // 完検済の印も次回入庫に持ち越さない
   // 出庫したらこの入庫のコメント記録・確認レ点はクリア(次回入庫に持ち越さない)。
   // コメントは削除フラグ(del)で消す=union同期で他端末でも復活しない。
   t.comments = rawComments(t).map(c => Object.assign({}, c, { del: true }));
@@ -3233,6 +3236,15 @@ function clearIntake(rid) {
   localStorage.setItem(LS.hist, JSON.stringify(hist));
   if (window.Cloud) window.Cloud.pushRecord(t);
   renderIntakeBoard(); renderHistory();
+}
+/* 車検の「完検済(完成検査終了)」印を付ける/外す。出庫はしない(入庫中のまま状態表示だけ)。社内共有。 */
+function toggleInspDone(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  t.inspDone = !t.inspDone; t.inspAt = t.inspDone ? Date.now() : null; t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) window.Cloud.pushRecord(t);
+  try { renderHomeIntake(); } catch (e) {}
+  try { renderIntakeBoard(); } catch (e) {}
 }
 /* スキャン確定時の入庫区分ポップアップ。既に入庫中なら出さない */
 function openIntakePopup(d) {
@@ -4247,7 +4259,9 @@ function renderHomeIntake() {
     const slide = document.createElement("div"); slide.className = "hiSlide";
     const main = document.createElement("div"); main.className = "hiMain";
     const unread = cmtHasUnread(h);
+    const isShaken = h.intakeKind === "車検";
     main.innerHTML = '<span class="hiTag">' + esc(info.label) + '</span><span class="hiTitle">' + esc(title) + '</span>' +
+      (isShaken && h.inspDone ? '<span class="hiInspDone" title="完成検査 終了済み">✓完検済</span>' : '') +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
     // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
     // noFocus: タップしただけでキーボードが立ち上がるのを防ぐ(入力欄タップで初めて出す)。
@@ -4266,7 +4280,18 @@ function renderHomeIntake() {
       out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
       outWrap.appendChild(out);
       row.appendChild(outWrap);
-      addSwipeReveal(row, slide);
+      // 車検は右スワイプで「検査済(完検済)」印を付け外し。出庫はしない(状態表示だけ)。
+      let leftW = 0;
+      if (isShaken) {
+        const inspWrap = document.createElement("div"); inspWrap.className = "hiInspWrap";
+        const insp = document.createElement("button"); insp.className = "hiInsp" + (h.inspDone ? " done" : "");
+        insp.textContent = h.inspDone ? "取消" : "検査済";
+        insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
+        inspWrap.appendChild(insp);
+        row.appendChild(inspWrap);
+        leftW = 84;
+      }
+      addSwipeReveal(row, slide, { leftW });
     }
     box.appendChild(row);
   });
@@ -7545,10 +7570,15 @@ function addLongPress(el, cb, ms) {
   el.addEventListener("click", e => { if (fired) { e.stopPropagation(); e.preventDefault(); fired = false; } }, true);
 }
 /* 左スワイプで削除ボタンを出す(iOS風)。slideを左へ最大Wまで移動、半分超で開いた状態を保持 */
-function addSwipeReveal(item, slide) {
-  const W = 84; let x0 = 0, y0 = 0, drag = false, moved = false, open = false;
+function addSwipeReveal(item, slide, opts) {
+  opts = opts || {};
+  const RW = (opts.rightW != null) ? opts.rightW : 84;   // 左スワイプで右側ボタン(出庫/削除)を出す幅
+  const LW = opts.leftW || 0;                            // 右スワイプで左側ボタン(検査済)を出す幅。0なら無効
+  // pos: -1=右側ボタン開, 0=閉, 1=左側ボタン開
+  let x0 = 0, y0 = 0, drag = false, moved = false, pos = 0;
   slide.style.touchAction = "pan-y";   // 縦スクロールはブラウザに任せる
   const setTx = v => { slide.style.transform = "translateX(" + v + "px)"; };
+  const restPx = () => (pos === -1 ? -RW : pos === 1 ? LW : 0);
   const start = e => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     x0 = e.clientX; y0 = e.clientY; drag = true; moved = false; slide.style.transition = "none";
@@ -7559,18 +7589,22 @@ function addSwipeReveal(item, slide) {
     const dx = e.clientX - x0, dy = e.clientY - y0;
     if (!moved) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;          // まだ方向が定まらない
-      if (Math.abs(dx) <= Math.abs(dy)) { drag = false; return; } // 縦方向 → スワイプ扱いしない(削除は出さない)
+      if (Math.abs(dx) <= Math.abs(dy)) { drag = false; return; } // 縦方向 → スワイプ扱いしない
       moved = true;
       try { slide.setPointerCapture(e.pointerId); } catch (_) {}  // 横スワイプ確定後のみ捕捉
     }
-    item.classList.add("revealing");   // スワイプ中だけ背後のボタン(赤)を見せる。静止時は隠して赤線の露出を防ぐ
-    let tx = (open ? -W : 0) + dx; tx = Math.max(-W, Math.min(0, tx)); setTx(tx);
+    item.classList.add("revealing");   // スワイプ中だけ背後のボタンを見せる
+    let tx = restPx() + dx; tx = Math.max(-RW, Math.min(LW, tx)); setTx(tx);
   };
   const end = e => {
     if (!drag) return; drag = false; slide.style.transition = "transform .18s";
-    if (!moved) { setTx(open ? -W : 0); if (!open) item.classList.remove("revealing"); return; }
-    const base = (open ? -W : 0) + (e.clientX - x0); open = base < -W / 2; setTx(open ? -W : 0);
-    if (!open) item.classList.remove("revealing");
+    if (!moved) { setTx(restPx()); if (pos === 0) item.classList.remove("revealing"); return; }
+    const base = restPx() + (e.clientX - x0);
+    if (base < -RW / 2 && RW > 0) pos = -1;
+    else if (base > LW / 2 && LW > 0) pos = 1;
+    else pos = 0;
+    setTx(restPx());
+    if (pos === 0) item.classList.remove("revealing");
   };
   slide.addEventListener("pointerdown", start);
   slide.addEventListener("pointermove", move);
