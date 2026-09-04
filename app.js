@@ -6911,7 +6911,7 @@ function buildMediaDiagPrompt() {
 /* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
 /* 汎用ライブカメラ(外カメラ固定・複数枚撮影)。撮影ごとに onShot(File[jpeg]) を呼ぶ。完了/閉じるで onDone()。
    capture属性(内カメラになる端末あり)を避け、getUserMedia facingMode=environment を使う。非対応は false を返す。 */
-let lcStream = null, lcShot = null, lcDone = null, lcCount = 0;
+let lcStream = null, lcShot = null, lcDone = null, lcCount = 0, lcCamList = [], lcCamIdx = 0;
 async function openLiveCamera(onShot, onDone) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
   lcShot = onShot; lcDone = onDone || null; lcCount = 0;
@@ -6920,7 +6920,8 @@ async function openLiveCamera(onShot, onDone) {
     ov = document.createElement("div"); ov.id = "lcOverlay"; ov.className = "kcOverlay";
     ov.innerHTML =
       '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
-      '<div class="kcTip">枠いっぱいに写す。画面タップでピント合わせ。丸ボタンで撮影、複数枚OK</div>' +
+      '<div class="kcTip">画面タップでピント合わせ。ボケる時は「レンズ切替」。丸ボタンで撮影(連写OK)</div>' +
+      '<button type="button" class="lcLens" id="lcLensBtn" hidden>⟳ レンズ切替</button>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
         '<button type="button" class="kcShot" id="lcShotBtn" aria-label="撮影"></button>' +
@@ -6930,28 +6931,71 @@ async function openLiveCamera(onShot, onDone) {
     document.getElementById("lcClose").onclick = closeLiveCamera;
     document.getElementById("lcShotBtn").onclick = shotLiveCamera;
     document.getElementById("lcDoneBtn").onclick = closeLiveCamera;
+    document.getElementById("lcLensBtn").onclick = switchLiveLens;
   }
   document.getElementById("lcCount").textContent = "0";
   ov.style.display = "flex";
-  const v = document.getElementById("lcVideo");
-  try {
-    lcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    v.srcObject = lcStream; await v.play();
-    // ピント合わせ: 連続オートフォーカスを有効化(スキャンカメラと同じ。未設定だと端末により固定ピントでボケる)
-    const track = lcStream.getVideoTracks()[0];
-    const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
-    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
-    // 画面タップでその場に再フォーカス(single-shot→continuousへ戻す)。近接や暗所でAFが迷った時の救済。
-    if (caps.focusMode && (caps.focusMode.includes("single-shot") || caps.focusMode.includes("continuous"))) {
-      v.onclick = async () => {
-        try {
-          if (caps.focusMode.includes("single-shot")) await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
-          setTimeout(() => { if (lcStream && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1200);
-        } catch (e) {}
-      };
-    }
-  } catch (e) { closeLiveCamera(); return false; }
+  const ok = await startLiveStream(null);
+  if (!ok) { closeLiveCamera(); return false; }
   return true;
+}
+/* スキャンカメラと同じ方式でストリーム開始: 記憶した接写に強いレンズ(ss_camLabel)を優先＋高解像度＋連続AF。
+   deviceId 指定時はそのレンズで開く(レンズ切替用)。 */
+async function startLiveStream(deviceId) {
+  const v = document.getElementById("lcVideo"); if (!v) return false;
+  if (lcStream) { try { lcStream.getTracks().forEach(t => t.stop()); } catch (e) {} lcStream = null; }
+  // 記憶したレンズ(スキャンで選んだピントの合うレンズ)を最優先(診断/修理でも同じレンズを使う)
+  if (!deviceId) {
+    try {
+      const savedLabel = localStorage.getItem("ss_camLabel");
+      if (savedLabel) {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const m = devs.find(d => d.kind === "videoinput" && d.label === savedLabel);
+        if (m) deviceId = m.deviceId;
+      }
+    } catch (e) {}
+  }
+  const base = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } };
+  try {
+    lcStream = await navigator.mediaDevices.getUserMedia({ video: { ...base, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false });
+  } catch (e) {
+    try { lcStream = await navigator.mediaDevices.getUserMedia({ video: base, audio: false }); } catch (e2) { return false; }
+  }
+  v.srcObject = lcStream; try { await v.play(); } catch (e) {}
+  const track = lcStream.getVideoTracks()[0];
+  const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+  // 連続AF
+  try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+  // タップで再フォーカス
+  v.onclick = async () => {
+    try {
+      if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+        setTimeout(() => { if (lcStream && caps.focusMode && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1400);
+      }
+    } catch (e) {}
+  };
+  // 背面レンズ一覧を用意(初回)。複数あればレンズ切替ボタンを出す(近接で合わない時に別レンズへ)。
+  if (!lcCamList.length) {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const cams = devs.filter(d => d.kind === "videoinput");
+      const backs = cams.filter(d => !/front|face|user|内|前面|selfie/i.test(d.label || ""));
+      lcCamList = backs.length ? backs : cams;
+    } catch (e) {}
+  }
+  const cur = (track && track.getSettings) ? track.getSettings().deviceId : null;
+  const ci = lcCamList.findIndex(d => d.deviceId === cur); if (ci >= 0) lcCamIdx = ci;
+  const lensBtn = document.getElementById("lcLensBtn"); if (lensBtn) lensBtn.hidden = !(lcCamList.length > 1);
+  return true;
+}
+/* レンズ切替(近接で合わない時)。選んだレンズはスキャンと共通のss_camLabelに記憶して次回も使う。 */
+async function switchLiveLens() {
+  if (lcCamList.length < 2) return;
+  lcCamIdx = (lcCamIdx + 1) % lcCamList.length;
+  const dev = lcCamList[lcCamIdx];
+  const ok = await startLiveStream(dev.deviceId);
+  if (ok) { try { const lbl = dev.label || (lcStream.getVideoTracks()[0] || {}).label; if (lbl) localStorage.setItem("ss_camLabel", lbl); } catch (e) {} }
 }
 function shotLiveCamera() {
   const v = document.getElementById("lcVideo"); if (!v || !v.videoWidth) return;
@@ -6988,8 +7032,12 @@ attachMap.forEach(([btn, input]) => {
     if (typeof closeVoiceChat === "function") closeVoiceChat();   // 添付選択で会話モードを閉じる
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
-    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。
-    // 連続撮影は撮影後に出る「続けて撮る」ボタン(ユーザー操作)で再度開く(自動再起動はブラウザにブロックされるため)。
+    // 写真カメラ=アプリ内ライブカメラ(連写OK・スキャンと同じレンズ/AF)。非対応時のみ純正カメラへ。
+    if (input === "inAttachPhotoCam") {
+      const ok = await openLiveCamera(async f => { await addDiagAttachment(f); }, null);
+      if (!ok) $(input).click();
+      return;
+    }
     $(input).click();
   });
   $(input).addEventListener("change", async e => {
@@ -7032,13 +7080,6 @@ function renderDiagAttachList() {
     del.addEventListener("click", () => { URL.revokeObjectURL(a.url); diagAttachments.splice(i, 1); renderDiagAttachList(); });
     d.append(media, kind, del); box.appendChild(d);
   });
-  // 続けて撮る(純正カメラを再度開く。ユーザー操作なので確実に開く)
-  if (diagAttachments.length) {
-    const more = document.createElement("button"); more.type = "button"; more.className = "axMore";
-    more.textContent = "📷 続けて撮る";
-    more.addEventListener("click", () => $("inAttachPhotoCam").click());
-    box.appendChild(more);
-  }
   toggle("diagAttachList", diagAttachments.length > 0);
 }
 function clearDiagAttachments() {
@@ -7052,7 +7093,12 @@ const vehAttachments = [];   // {file, url, kind}
 [["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
   b.addEventListener("click", async () => {
-    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。連続は「続けて撮る」ボタンで。
+    // 写真カメラ=アプリ内ライブカメラ(連写OK・スキャンと同じレンズ/AF)。非対応時のみ純正カメラへ。
+    if (input === "inVehPhotoCam") {
+      const ok = await openLiveCamera(async f => { await addVehAttachment(f); renderVehAttachList(); }, null);
+      if (!ok) inp.click();
+      return;
+    }
     inp.click();
   });
   inp.addEventListener("change", async e => {
@@ -7093,12 +7139,6 @@ function renderVehAttachList() {
     del.addEventListener("click", () => { URL.revokeObjectURL(a.url); vehAttachments.splice(i, 1); renderVehAttachList(); });
     d.append(media, kind, del); box.appendChild(d);
   });
-  if (vehAttachments.length) {
-    const more = document.createElement("button"); more.type = "button"; more.className = "axMore";
-    more.textContent = "📷 続けて撮る";
-    more.addEventListener("click", () => $("inVehPhotoCam").click());
-    box.appendChild(more);
-  }
   toggle("vehAttachList", vehAttachments.length > 0);
 }
 function clearVehAttachments() {
