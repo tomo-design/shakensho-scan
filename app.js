@@ -6973,7 +6973,6 @@ function closeLiveCamera() {
   const done = lcDone; lcShot = null; lcDone = null; if (done) done();
 }
 
-let _camChain = false;               // 純正カメラの連続撮影中フラグ(撮れたら自動で再起動・キャンセルで停止)
 const diagAttachments = [];          // {file, kind:'image'|'video', url}
 const ATTACH_MAX = 12 * 1024 * 1024;   // インライン送信の安全上限(base64で約1.37倍に膨らむため raw 12MB ≒ 16.5MB)
 const VIDEO_TARGET = 9 * 1024 * 1024;  // 圧縮の目標サイズ(余裕を持って)
@@ -6990,18 +6989,12 @@ attachMap.forEach(([btn, input]) => {
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
     // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。
-    // 連続撮影: 1枚撮るごとに自動でカメラを再起動。やめる時は端末の「戻る/キャンセル」で終了(写真が返らなければ連鎖停止)。
-    if (input === "inAttachPhotoCam") { _camChain = true; showToast("連続で撮れます。やめる時は「戻る・キャンセル」"); }
+    // 連続撮影は撮影後に出る「続けて撮る」ボタン(ユーザー操作)で再度開く(自動再起動はブラウザにブロックされるため)。
     $(input).click();
   });
   $(input).addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
     for (const f of files) await addDiagAttachment(f);
-    // 連続撮影: 純正カメラは1枚ずつなので、撮れたら自動で再起動。0枚(キャンセル)なら停止。
-    if (input === "inAttachPhotoCam" && _camChain) {
-      if (files.length) setTimeout(() => $(input).click(), 350);
-      else _camChain = false;
-    }
   });
 });
 
@@ -7039,6 +7032,13 @@ function renderDiagAttachList() {
     del.addEventListener("click", () => { URL.revokeObjectURL(a.url); diagAttachments.splice(i, 1); renderDiagAttachList(); });
     d.append(media, kind, del); box.appendChild(d);
   });
+  // 続けて撮る(純正カメラを再度開く。ユーザー操作なので確実に開く)
+  if (diagAttachments.length) {
+    const more = document.createElement("button"); more.type = "button"; more.className = "axMore";
+    more.textContent = "📷 続けて撮る";
+    more.addEventListener("click", () => $("inAttachPhotoCam").click());
+    box.appendChild(more);
+  }
   toggle("diagAttachList", diagAttachments.length > 0);
 }
 function clearDiagAttachments() {
@@ -7052,18 +7052,13 @@ const vehAttachments = [];   // {file, url, kind}
 [["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
   b.addEventListener("click", async () => {
-    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。連続撮影は自動再起動で対応。
-    if (input === "inVehPhotoCam") { _camChain = true; showToast("連続で撮れます。やめる時は「戻る・キャンセル」"); }
+    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。連続は「続けて撮る」ボタンで。
     inp.click();
   });
   inp.addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
     for (const f of files) await addVehAttachment(f);
     renderVehAttachList();
-    if (input === "inVehPhotoCam" && _camChain) {
-      if (files.length) setTimeout(() => inp.click(), 350);
-      else _camChain = false;
-    }
   });
 });
 async function addVehAttachment(file) {
@@ -7098,6 +7093,12 @@ function renderVehAttachList() {
     del.addEventListener("click", () => { URL.revokeObjectURL(a.url); vehAttachments.splice(i, 1); renderVehAttachList(); });
     d.append(media, kind, del); box.appendChild(d);
   });
+  if (vehAttachments.length) {
+    const more = document.createElement("button"); more.type = "button"; more.className = "axMore";
+    more.textContent = "📷 続けて撮る";
+    more.addEventListener("click", () => $("inVehPhotoCam").click());
+    box.appendChild(more);
+  }
   toggle("vehAttachList", vehAttachments.length > 0);
 }
 function clearVehAttachments() {

@@ -760,6 +760,9 @@ details[open] > .secSummary::after{content:"▴"}
 .attachThumb img,.attachThumb video{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
 .attachThumb .axDel{position:absolute;top:-7px;right:-7px;width:24px;height:24px;border:2px solid #fff;border-radius:50%;background:var(--alert);color:#fff;font-size:14px;line-height:20px;cursor:pointer;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.3);z-index:2}
 .attachThumb .axKind{position:absolute;left:2px;bottom:2px;font-size:10px;background:rgba(0,0,0,.6);color:#fff;border-radius:4px;padding:0 4px}
+/* 「続けて撮る」ボタン(添付サムネイルの末尾) */
+.axMore{flex:0 0 auto;width:74px;height:74px;border:1.5px dashed var(--line);border-radius:8px;background:var(--panel2);color:var(--txt);font-size:11px;font-weight:700;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2px}
+.axMore:active{opacity:.8}
 /* 音声会話ログ */
 .vcMsg{font-size:14px;line-height:1.6;padding:8px 12px;border-radius:12px;max-width:88%}
 .vcMsg.user{align-self:flex-end;background:var(--amber);color:#3a2a00}
