@@ -6920,7 +6920,6 @@ async function openLiveCamera(onShot, onDone) {
     ov = document.createElement("div"); ov.id = "lcOverlay"; ov.className = "kcOverlay";
     ov.innerHTML =
       '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
-      '<div class="kcTip">画面タップでピント合わせ。ボケる時は「レンズ切替」。丸ボタンで撮影(連写OK)</div>' +
       '<button type="button" class="lcLens" id="lcLensBtn" hidden>⟳ レンズ切替</button>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
