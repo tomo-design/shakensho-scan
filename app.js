@@ -6973,6 +6973,7 @@ function closeLiveCamera() {
   const done = lcDone; lcShot = null; lcDone = null; if (done) done();
 }
 
+let _camChain = false;               // 純正カメラの連続撮影中フラグ(撮れたら自動で再起動・キャンセルで停止)
 const diagAttachments = [];          // {file, kind:'image'|'video', url}
 const ATTACH_MAX = 12 * 1024 * 1024;   // インライン送信の安全上限(base64で約1.37倍に膨らむため raw 12MB ≒ 16.5MB)
 const VIDEO_TARGET = 9 * 1024 * 1024;  // 圧縮の目標サイズ(余裕を持って)
@@ -6988,13 +6989,19 @@ attachMap.forEach(([btn, input]) => {
     if (typeof closeVoiceChat === "function") closeVoiceChat();   // 添付選択で会話モードを閉じる
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
-    // 写真カメラ=端末の純正カメラ(capture=environment)。純正カメラはピント合わせ(オートフォーカス/タップ)が確実に効く。
-    // ※以前はアプリ内ライブカメラ(getUserMedia)だったが、端末によりピントが合わない不具合があったため純正カメラに変更。
+    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。
+    // 連続撮影: 1枚撮るごとに自動でカメラを再起動。やめる時は端末の「戻る/キャンセル」で終了(写真が返らなければ連鎖停止)。
+    if (input === "inAttachPhotoCam") { _camChain = true; showToast("連続で撮れます。やめる時は「戻る・キャンセル」"); }
     $(input).click();
   });
   $(input).addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
     for (const f of files) await addDiagAttachment(f);
+    // 連続撮影: 純正カメラは1枚ずつなので、撮れたら自動で再起動。0枚(キャンセル)なら停止。
+    if (input === "inAttachPhotoCam" && _camChain) {
+      if (files.length) setTimeout(() => $(input).click(), 350);
+      else _camChain = false;
+    }
   });
 });
 
@@ -7045,13 +7052,18 @@ const vehAttachments = [];   // {file, url, kind}
 [["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
   b.addEventListener("click", async () => {
-    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く(旧アプリ内カメラはピント不良の端末あり)。
+    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く。連続撮影は自動再起動で対応。
+    if (input === "inVehPhotoCam") { _camChain = true; showToast("連続で撮れます。やめる時は「戻る・キャンセル」"); }
     inp.click();
   });
   inp.addEventListener("change", async e => {
     const files = [...e.target.files]; e.target.value = "";
     for (const f of files) await addVehAttachment(f);
     renderVehAttachList();
+    if (input === "inVehPhotoCam" && _camChain) {
+      if (files.length) setTimeout(() => inp.click(), 350);
+      else _camChain = false;
+    }
   });
 });
 async function addVehAttachment(file) {
