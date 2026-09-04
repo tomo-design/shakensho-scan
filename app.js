@@ -6988,11 +6988,8 @@ attachMap.forEach(([btn, input]) => {
     if (typeof closeVoiceChat === "function") closeVoiceChat();   // 添付選択で会話モードを閉じる
     document.querySelectorAll(".diagIco").forEach(b => b.classList.remove("sel"));
     $(btn).classList.add("sel");
-    if (input === "inAttachPhotoCam") {   // 写真カメラ=ライブカメラ(外カメラ・複数撮影)。非対応時はファイル入力へ
-      const ok = await openLiveCamera(async f => { await addDiagAttachment(f); }, null);
-      if (!ok) $(input).click();
-      return;
-    }
+    // 写真カメラ=端末の純正カメラ(capture=environment)。純正カメラはピント合わせ(オートフォーカス/タップ)が確実に効く。
+    // ※以前はアプリ内ライブカメラ(getUserMedia)だったが、端末によりピントが合わない不具合があったため純正カメラに変更。
     $(input).click();
   });
   $(input).addEventListener("change", async e => {
@@ -7048,11 +7045,7 @@ const vehAttachments = [];   // {file, url, kind}
 [["btnVehPhoto", "inVehPhoto"], ["btnVehPhotoCam", "inVehPhotoCam"], ["btnVehVideo", "inVehVideo"], ["btnVehVideoCam", "inVehVideoCam"]].forEach(([btn, input]) => {
   const b = $(btn), inp = $(input); if (!b || !inp) return;
   b.addEventListener("click", async () => {
-    if (input === "inVehPhotoCam") {   // 写真カメラ=ライブカメラ(外カメラ・複数撮影)。非対応時はファイル入力へ
-      const ok = await openLiveCamera(async f => { await addVehAttachment(f); renderVehAttachList(); }, null);
-      if (!ok) inp.click();
-      return;
-    }
+    // 写真カメラ=端末の純正カメラ(capture=environment)。ピント合わせが確実に効く(旧アプリ内カメラはピント不良の端末あり)。
     inp.click();
   });
   inp.addEventListener("change", async e => {
