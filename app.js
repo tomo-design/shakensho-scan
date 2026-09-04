@@ -2615,6 +2615,18 @@ async function openKarteCamera() {
   try {
     kcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     v.srcObject = kcStream; await v.play();
+    // ピント合わせ: 連続オートフォーカス＋画面タップ再フォーカス(未設定だと固定ピントでボケる端末がある)
+    const track = kcStream.getVideoTracks()[0];
+    const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+    if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+      v.onclick = async () => {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+          setTimeout(() => { if (kcStream && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1200);
+        } catch (e) {}
+      };
+    }
   } catch (e) { closeKarteCamera(); $("kPhotoIn").click(); }   // カメラ不許可等はファイル入力へ
 }
 function shotKarteCamera() {
@@ -6908,7 +6920,7 @@ async function openLiveCamera(onShot, onDone) {
     ov = document.createElement("div"); ov.id = "lcOverlay"; ov.className = "kcOverlay";
     ov.innerHTML =
       '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
-      '<div class="kcTip">枠いっぱいに写す。丸ボタンで撮影、複数枚OK</div>' +
+      '<div class="kcTip">枠いっぱいに写す。画面タップでピント合わせ。丸ボタンで撮影、複数枚OK</div>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
         '<button type="button" class="kcShot" id="lcShotBtn" aria-label="撮影"></button>' +
@@ -6925,6 +6937,19 @@ async function openLiveCamera(onShot, onDone) {
   try {
     lcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     v.srcObject = lcStream; await v.play();
+    // ピント合わせ: 連続オートフォーカスを有効化(スキャンカメラと同じ。未設定だと端末により固定ピントでボケる)
+    const track = lcStream.getVideoTracks()[0];
+    const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+    // 画面タップでその場に再フォーカス(single-shot→continuousへ戻す)。近接や暗所でAFが迷った時の救済。
+    if (caps.focusMode && (caps.focusMode.includes("single-shot") || caps.focusMode.includes("continuous"))) {
+      v.onclick = async () => {
+        try {
+          if (caps.focusMode.includes("single-shot")) await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+          setTimeout(() => { if (lcStream && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1200);
+        } catch (e) {}
+      };
+    }
   } catch (e) { closeLiveCamera(); return false; }
   return true;
 }
