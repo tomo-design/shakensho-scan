@@ -4049,6 +4049,20 @@ function renderIntakeCalendar() {
   }
   html += '</div>';
   grid.innerHTML = html;
+  // その月の入庫を区分別に集計(車検/点検/修理/板金 何台)。月が終われば確定、今月は途中経過。
+  const sum = $("icSummary");
+  if (sum) {
+    const kindCount = {};
+    Object.keys(inByDay).forEach(k => inByDay[k].forEach(h => { kindCount[h.intakeKind] = (kindCount[h.intakeKind] || 0) + 1; }));
+    const totalMonth = Object.keys(kindCount).reduce((a, k) => a + kindCount[k], 0);
+    const monthOver = monthEnd <= Date.now();
+    const items = Object.keys(INTAKE_KINDS).map(k => {
+      const info = INTAKE_KINDS[k];
+      return '<span class="icSumItem"><span class="icDot ' + info.cls + '"></span>' + info.label + ' <b>' + (kindCount[k] || 0) + '</b>台</span>';
+    }).join('');
+    const label = (m + 1) + '月のまとめ' + (monthOver ? '（確定）' : '（今月・途中経過）');
+    sum.innerHTML = '<div class="icSumHd">' + label + ' ： 入庫 計 ' + totalMonth + ' 台</div><div class="icSumRow">' + items + '</div>';
+  }
   const lg = $("icLegend");
   if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫 ／ ▲＝出庫 ／ 📌＝入庫予定 ／ 🚚＝出庫予定 ／ 💰＝集金</span>';
   const prev = $("icPrev"), next = $("icNext"), tod = $("icToday");
