@@ -4058,10 +4058,13 @@ function renderIntakeCalendar() {
     const monthOver = monthEnd <= Date.now();
     const items = Object.keys(INTAKE_KINDS).map(k => {
       const info = INTAKE_KINDS[k];
-      return '<span class="icSumItem"><span class="icDot ' + info.cls + '"></span>' + info.label + ' <b>' + (kindCount[k] || 0) + '</b>台</span>';
+      return '<div class="icSumCell ' + info.cls + '"><span class="icSumN">' + (kindCount[k] || 0) + '</span><span class="icSumL">' + info.label + '</span></div>';
     }).join('');
-    const label = (m + 1) + '月のまとめ' + (monthOver ? '（確定）' : '（今月・途中経過）');
-    sum.innerHTML = '<div class="icSumHd">' + label + ' ： 入庫 計 ' + totalMonth + ' 台</div><div class="icSumRow">' + items + '</div>';
+    sum.innerHTML =
+      '<div class="icSumHd"><span class="icSumMon">' + (m + 1) + '月のまとめ</span>' +
+      '<span class="icSumTag' + (monthOver ? ' fixed' : '') + '">' + (monthOver ? '確定' : '途中') + '</span>' +
+      '<span class="icSumTot">入庫 ' + totalMonth + '台</span></div>' +
+      '<div class="icSumGrid">' + items + '</div>';
   }
   const lg = $("icLegend");
   if (lg) lg.innerHTML = Object.keys(INTAKE_KINDS).map(k => '<span class="icLeg"><span class="icDot ' + INTAKE_KINDS[k].cls + '"></span>' + INTAKE_KINDS[k].label + '</span>').join('') + '<span class="icLegNote">▼＝入庫 ／ ▲＝出庫 ／ 📌＝入庫予定 ／ 🚚＝出庫予定 ／ 💰＝集金</span>';

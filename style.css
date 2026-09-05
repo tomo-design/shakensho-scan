@@ -1042,12 +1042,26 @@ body.pwLocked{ overflow:hidden }
 .icInT{color:#1D4ED8;background:rgba(37,99,235,.10)}
 .icOutT{color:#B45309;background:rgba(234,140,0,.12)}
 .icGrid{padding:0 8px 8px}
-/* 月間まとめ(区分別 何台) */
-.icSummary{margin:4px 10px 8px;padding:8px 10px;border:1px solid var(--line,#E3E9F1);border-radius:10px;background:var(--panel2,#F4F7FB)}
-.icSumHd{font-size:12.5px;font-weight:800;color:var(--txt);margin-bottom:6px}
-.icSumRow{display:flex;flex-wrap:wrap;gap:6px 12px}
-.icSumItem{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--txt)}
-.icSumItem b{font-size:15px;font-weight:800}
+/* 月間まとめ(区分別 何台) — スタイリッシュな4分割スタッツ */
+.icSummary{margin:6px 10px 8px}
+.icSumHd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.icSumMon{font-size:13px;font-weight:800;color:var(--txt)}
+.icSumTag{font-size:10px;font-weight:800;color:var(--dim,#5E6B7C);background:var(--panel2,#EEF2F7);border-radius:999px;padding:1px 8px}
+.icSumTag.fixed{color:#15803D;background:rgba(22,163,74,.14)}
+.icSumTot{margin-left:auto;font-size:12px;font-weight:700;color:var(--dim,#5E6B7C)}
+.icSumGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.icSumCell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:10px 2px 8px;border-radius:12px;background:var(--panel,#fff);border:1px solid var(--line,#E3E9F1);overflow:hidden}
+.icSumCell::before{content:"";position:absolute;top:0;left:0;right:0;height:3px}
+.icSumCell.ikShaken::before{background:#2563EB}
+.icSumCell.ikTenken::before{background:#16A34A}
+.icSumCell.ikRepair::before{background:#EA8C00}
+.icSumCell.ikJiko::before{background:#DC2626}
+.icSumN{font-size:22px;font-weight:800;line-height:1.05;color:var(--txt)}
+.icSumCell.ikShaken .icSumN{color:#2563EB}
+.icSumCell.ikTenken .icSumN{color:#16A34A}
+.icSumCell.ikRepair .icSumN{color:#EA8C00}
+.icSumCell.ikJiko .icSumN{color:#DC2626}
+.icSumL{font-size:11px;font-weight:700;color:var(--dim,#5E6B7C)}
 .icDowRow,.icCells{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .icDowRow{margin-bottom:4px}
 .icDowC{text-align:center;font-size:11px;font-weight:500;color:var(--dim,#5E6B7C);padding:2px 0}
