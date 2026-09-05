@@ -589,7 +589,7 @@
       startSync(profile.tenantId);
       startMembersWatch(profile.tenantId);   // 店舗メンバー名簿(カルテ担当者の照合用)
       if (profile.role === "admin" || profile.role === "super") { startJoinWatch(profile.tenantId); registerPush(); }
-      else if (officeNow() && !pushExcluded()) { registerPush(); }   // 事務モード端末も入庫通知の配信先に登録
+      else { registerPush(); }   // 一般メンバーも呼ぶ(内部ゲートで事務端末/集金通知指名者のみ実際に登録)
       try { if (window.syncPushBtn) window.syncPushBtn(); } catch (e) {}   // ログイン確定後に通知ボタン表示を最新化
       // 入庫管理(事務モード)はログイン時に最新版へ自動更新(新版があれば適用・無ければ何もしない)
       if (officeNow() && !pushExcluded()) { try { if (window.appAutoUpdate) window.appAutoUpdate(); } catch (e) {} }
@@ -875,7 +875,9 @@
       // 通知対象: 管理者(admin/super) または 事務(入庫管理)モードの端末。個人版は除外。
       if (pushExcluded()) return;
       try { if (localStorage.getItem("ss_pushOn") === "0") return; } catch (e) {}   // ユーザーが明示的に無効化した端末は自動登録しない
-      if (!(profile && (profile.role === "admin" || profile.role === "super" || officeNow()))) return;
+      // 集金通知に指名されたメンバーも配信先に登録(一般メンバーでも自分の端末で受け取れるように)
+      const isCollectTarget = !!(tenantDoc && Array.isArray(tenantDoc.collectNotifyUids) && me && tenantDoc.collectNotifyUids.indexOf(me.uid) >= 0);
+      if (!(profile && (profile.role === "admin" || profile.role === "super" || officeNow())) && !isCollectTarget) return;
       if (typeof firebase.messaging !== "function" || !("serviceWorker" in navigator)) return;
       if (!VAPID_KEY || VAPID_KEY.indexOf("PASTE_") === 0) return;   // 鍵未設定なら在アプリ通知のみで運用
       try { if (firebase.messaging && typeof firebase.messaging.isSupported === "function" && !(await firebase.messaging.isSupported())) return; } catch (e) { return; }
