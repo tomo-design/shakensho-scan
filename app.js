@@ -1396,7 +1396,7 @@ $("lnkFixRead").addEventListener("click", () => {
   toggle("vidEdit", true); $("vidEdit").scrollIntoView({ behavior: "smooth" });
 });
 $("btnVidCancel").addEventListener("click", () => toggle("vidEdit", false));
-$("lnkRawChips").addEventListener("click", () => { toggle("secRaw", true); $("secRaw").scrollIntoView({ behavior: "smooth" }); });
+{ const l = $("lnkRawChips"); if (l) l.addEventListener("click", () => { toggle("secRaw", true); const s = $("secRaw"); if (s) s.scrollIntoView({ behavior: "smooth" }); }); }
 { const b = $("btnCopyQrRaw"); if (b) b.addEventListener("click", async () => {
   const raw = (current && current.qrRaw && current.qrRaw.length) ? current.qrRaw : [...payloads];
   const txt = raw.length ? raw.join("\n") : "(QR生データなし)";
@@ -2120,12 +2120,15 @@ function showResult(d, opt = {}) {
   $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || d.vin || "") + " リコール 改善対策");
   renderRecallVin(d.type, d.vin);   // 型式(車台番号から特定)と車台番号をそれぞれコピー
 
-  // RAWチップ (「手動で修正する」リンクから開く。読取データが無ければリンク自体を隠す)
-  const wrap = $("rawChips"); wrap.innerHTML = "";
-  (d.raw || []).forEach(f => {
-    const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
-    c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
-  });
+  // RAWチップ (廃止済み。要素が無ければ何もしない)
+  const wrap = $("rawChips");
+  if (wrap) {
+    wrap.innerHTML = "";
+    (d.raw || []).forEach(f => {
+      const c = document.createElement("div"); c.className = "chip"; c.textContent = f;
+      c.addEventListener("click", () => showAssign(f)); wrap.appendChild(c);
+    });
+  }
   // 履歴への統合保存は上部(pushRecentVehicleの直前)で実施済み。
   toggle("karteForm", false); renderKarte();   // 整備カルテ(車両ごとの作業記録)
   $("result").scrollIntoView({ behavior: "smooth" });
