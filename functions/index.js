@@ -1435,6 +1435,86 @@ exports.assignSeat = functions.region(REGION).https.onRequest(async (req, res) =
   } catch (e) { return res.status(500).json({ error: "席の更新に失敗: " + (e.message || e) }); }
 });
 
+/* 集金通知の宛先メンバーを設定(管理者/運営)。POST {tid, uid, on}。
+   tenants/{tid}.collectNotifyUids にメンバーuidを出し入れする。集金日にこの人達だけへ通知。 */
+exports.setCollectNotify = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const callerUid = await uidFromReq(req);
+  if (!callerUid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(callerUid).get()).data();
+  const data = req.body || {};
+  const tid = data.tid, uid = data.uid, on = !!data.on;
+  if (!tid || !uid) return res.status(400).json({ error: "パラメータ不足です。" });
+  const allowed = me && (me.role === "super" || (me.role === "admin" && me.tenantId === tid));
+  if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  const tu = (await db.collection("users").doc(uid).get()).data();
+  if (!tu || tu.tenantId !== tid) return res.status(400).json({ error: "対象メンバーが店舗に属していません。" });
+  const tRef = db.collection("tenants").doc(tid);
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const t = (await tx.get(tRef)).data() || {};
+      let list = (Array.isArray(t.collectNotifyUids) ? t.collectNotifyUids : []).filter((x, i, a) => x && a.indexOf(x) === i);
+      const idx = list.indexOf(uid);
+      if (on) { if (idx < 0) list.push(uid); } else if (idx >= 0) { list.splice(idx, 1); }
+      tx.set(tRef, { collectNotifyUids: list }, { merge: true });
+      return list;
+    });
+    return res.json({ ok: true, collectNotifyUids: result });
+  } catch (e) { return res.status(500).json({ error: "集金通知の更新に失敗: " + (e.message || e) }); }
+});
+
+/* 集金日の定時通知(毎時0分・JST起動)。当日・その時刻の集金予定を、店舗が指定した
+   集金通知メンバー(collectNotifyUids)の端末だけへプッシュ。notifyHour: 明記時刻/午後13/午前9/既定9。 */
+exports.collectNotifier = functions.region(REGION).pubsub.schedule("0 * * * *").timeZone("Asia/Tokyo").onRun(async () => {
+  const db = admin.firestore();
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 3600 * 1000);   // GCFはUTC。JSTに変換して当日・現在時を判定
+  const curY = jst.getUTCFullYear(), curM = jst.getUTCMonth(), curD = jst.getUTCDate(), curH = jst.getUTCHours();
+  const ymd = curY + "-" + String(curM + 1).padStart(2, "0") + "-" + String(curD).padStart(2, "0");
+  let snap;
+  try { snap = await db.collectionGroup("intakePlans").where("dir", "==", "pay").get(); }
+  catch (e) { console.error("collectNotifier query error", e); return null; }
+  const targets = [];
+  snap.forEach((doc) => {
+    const p = doc.data() || {};
+    if (p.deleted === true) return;
+    if (p.y !== curY || p.m !== curM || p.d !== curD) return;
+    const nh = (typeof p.notifyHour === "number") ? p.notifyHour : 9;
+    if (nh !== curH) return;
+    if (p.notifiedYmd === ymd) return;   // 同日二重送信の防止
+    const tRef = doc.ref.parent.parent;  // tenants/{tid}
+    if (!tRef) return;
+    targets.push({ ref: doc.ref, plan: p, tid: tRef.id });
+  });
+  console.log("collectNotifier: ymd=" + ymd + " hour=" + curH + " targets=" + targets.length);
+  for (const t of targets) {
+    try {
+      const tenant = (await db.collection("tenants").doc(t.tid).get()).data() || {};
+      const uids = Array.isArray(tenant.collectNotifyUids) ? tenant.collectNotifyUids : [];
+      if (uids.length) {
+        const ptSnap = await db.collection("tenants").doc(t.tid).collection("pushTokens").get();
+        const tokens = [];
+        ptSnap.forEach((d) => { const v = d.data() || {}; if (v.uid && uids.indexOf(v.uid) >= 0) tokens.push(d.id); });
+        const uniq = [...new Set(tokens)].filter(Boolean);
+        if (uniq.length) {
+          const title = "💰 集金日: " + (t.plan.title || "車両");
+          const body = (t.plan.note ? String(t.plan.note) + " ・ " : "") + "本日集金予定です";
+          const res = await admin.messaging().sendEachForMulticast({
+            tokens: uniq,
+            data: { title: title, body: body, link: "/", tag: "collect-" + t.tid + "-" + ymd },
+            webpush: { headers: { Urgency: "high", TTL: "3600" }, fcmOptions: { link: "/" } },
+          });
+          console.log("collectNotifier: tid=" + t.tid + " sent=" + res.successCount + " fail=" + res.failureCount);
+        }
+      }
+      await t.ref.set({ notifiedYmd: ymd }, { merge: true });   // 宛先0でも既済にして毎時の再処理を止める
+    } catch (e) { console.error("collectNotifier send error tid=" + t.tid, e); }
+  }
+  return null;
+});
+
 /* ツインターボの検索『席数』を設定(運営のみ)。POST {tid, seats}。
    3席は標準(無料)。4席目以降は Stripe のサブスクに『追加席』priceを“数量”として付与し、
    proration_behavior="none" で当月は請求せず、次サイクルでメイン料金にまとめて自動請求する。
@@ -1962,7 +2042,7 @@ const PRODUCT_KB = `【製品】メカノAI（MECHANO-AI）— 自動車・ト�
 ・整備カルテ(作業記録・写真・担当者管理。カルテは担当者のみ編集可)
 ・法人向けクラウド同期(店舗内で車両DB・記録を共有。席指名・端末管理)
 ・入庫管理ボード(車検証スキャン時に「車検/点検/修理/事故」の入庫区分を選ぶだけで色分けボードに自動表示。費用回収=未回収/回収済/自社立替やコメントも記録。事務は"入庫管理だけの専用モード"で使え、新規入庫は音とポップで全端末に通知・自動同期。事務と工場の連携がスムーズに)
-・入出庫カレンダー(社内共有。入庫/出庫の実績と入庫予定/出庫予定を月カレンダーで一覧。会社メンバー全員が閲覧可)。★集金の自動記録: 入庫車両の申し送りコメントに「◯日集金」等と書くだけで、AIが集金日を判別してカレンダーに💰集金予定を自動登録。「キャンセル」「集金済み」等と書けば予定を自動で取り消し。未回収代金の集金忘れを防ぐ。
+・入出庫カレンダー(社内共有。入庫/出庫の実績と入庫予定/出庫予定を月カレンダーで一覧。会社メンバー全員が閲覧可)。★集金の自動記録＋通知: 入庫車両の申し送りコメントに「◯日集金」等と書くだけで、AIが集金日を判別してカレンダーに💰集金予定を自動登録。「キャンセル」「集金済み」等と書けば予定を自動で取り消し。さらに集金日当日、指定した担当メンバー(管理者がメンバー管理で選ぶ)だけにプッシュ通知(午後→13時/午前→9時/時刻明記→その時刻/記載なし→9時)。未回収代金の集金忘れを防ぐ。
 ・申し送りコメント(入庫車両ごとにコメントを残すと全端末に通知。未読は小さな赤丸で表示)
 【料金(法人)】3プラン。①NA: 月¥7,980/年¥86,000(AI検索なし)。②ターボ: 月¥12,800/年¥138,000(月500回検索)。③ツインターボ: 月¥19,800/年¥198,000(検索無制限・指名3席、4席目〜+¥3,000/月)。端末追加も可。年額は約2か月分お得。
 【無料トライアル】法人はご契約から7日間無料。期間中は自社の実データで全機能を試せ、初回請求は8日目から。カード登録なしでも開始できる（クロージングの後押しに使える強力な材料）。

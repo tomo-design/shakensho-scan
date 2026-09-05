@@ -3980,10 +3980,11 @@ async function maybeRecordCollection(rid, text) {
       "今日は " + todayStr + "(" + dow + "曜)です。相対表現(今日/明日/明後日/来週◯曜/月末 等)は今日基準で西暦の日付に直してください。",
       "対象車両: " + vTitle,
       "コメント本文: 「" + s.replace(/\n/g, " ") + "」",
-      "判定して次のJSONだけ返す(前後の文章・コードフェンス不要): {\"action\":\"set|cancel|none\",\"date\":\"YYYY-MM-DD\",\"amount\":null,\"note\":\"\"}",
-      "・action=set: 集金・入金・回収・支払い・引き取り等の予定日が読み取れる場合。dateにその日付。金額があればamountに数値(円)。noteに補足(時間帯・場所・相手など短く)。",
+      "判定して次のJSONだけ返す(前後の文章・コードフェンス不要): {\"action\":\"set|cancel|none\",\"date\":\"YYYY-MM-DD\",\"amount\":null,\"note\":\"\",\"time\":\"\"}",
+      "・action=set: 集金・入金・回収・支払い・引き取り等の予定日が読み取れる場合。dateにその日付。金額があればamountに数値(円)。noteに補足(場所・相手など短く)。",
       "・action=cancel: 『集金キャンセル』『集金なくなった』『回収済み』『入金済み』『精算済み』等、予定を取り消す/完了した内容の場合。dateは空でよい。",
       "・action=none: 集金の予定日でも取消でもない(単なる連絡・費用メモ等)場合。",
+      "・time: 集金の時間帯。具体的な時刻が書かれていれば24時間制の\"HH:MM\"(例『15時』→\"15:00\"、『14時半』→\"14:30\"、『夕方5時』→\"17:00\")。時刻は無いが『午後/PM/昼から』等なら\"pm\"、『午前/朝/AM』等なら\"am\"。時間の記載が全く無ければ\"\"(空)。",
       "日付が特定できない(『近いうちに』等の曖昧)場合や集金と無関係ならnone。憶測で日付を作らない。数字は半角。",
     ].join("\n");
     const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 512, noCache: true });
@@ -3999,10 +4000,17 @@ async function maybeRecordCollection(rid, text) {
       if (isNaN(dt)) return;
       const amt = (obj.amount != null && obj.amount !== "") ? String(obj.amount).replace(/[^\d]/g, "") : "";
       const note = [amt ? "¥" + Number(amt).toLocaleString() : "", String(obj.note || "").trim()].filter(Boolean).join(" ");
+      // 通知時刻の決定: 明記時刻→その「時」/ 午後→13時 / 午前→9時 / 記載なし→9時
+      let notifyHour = 9;
+      const tstr = String(obj.time || "").trim().toLowerCase();
+      const hm = tstr.match(/^(\d{1,2}):(\d{2})$/);
+      if (hm) { const hh = Math.min(23, Math.max(0, parseInt(hm[1], 10))); if (!isNaN(hh)) notifyHour = hh; }
+      else if (tstr === "pm") notifyHour = 13;
+      else if (tstr === "am") notifyHour = 9;
       upsertPlan({
         id: collectPlanId(rid), rid, dir: "pay", kind: "集金",
         y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate(),
-        title: vTitle, note, updatedAt: Date.now(), deleted: false,
+        title: vTitle, note, notifyHour, notifiedYmd: null, updatedAt: Date.now(), deleted: false,
       });
       try { renderIntakeCalendar(); } catch (e) {}
     }

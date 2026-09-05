@@ -1394,12 +1394,18 @@
       const on = Array.isArray(t.seatMembers) && t.seatMembers.indexOf(id) >= 0;
       seatBtn = btn(on ? "seatoff" : "seaton", "u", id, on ? "🔎席 ✓" : "🔎席", on ? "btn-amber" : "btn-ghost");
     }
+    // 集金通知の指名トグル(有効メンバーのみ)。ON=このメンバーに集金日の通知が届く。
+    let collectBtn = "";
+    if (t && u.active) {
+      const on = Array.isArray(t.collectNotifyUids) && t.collectNotifyUids.indexOf(id) >= 0;
+      collectBtn = btn(on ? "collectoff" : "collecton", "u", id, on ? "💰通知 ✓" : "💰通知", on ? "btn-amber" : "btn-ghost");
+    }
     let btns;
     if (u.active) {
       // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
       const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
         : u.role === "admin" ? btn("demote", "u", id, "メンバーに") : "";
-      btns = seatBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
+      btns = seatBtn + collectBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
     } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
@@ -1462,6 +1468,24 @@
             btnEl.classList.toggle("btn-ghost", !on);
           }
         } catch (e) { uiAlert("検索席の変更に失敗: " + (e.message || e)); }
+        finally { if (btnEl) btnEl.disabled = false; }
+        return "inplace";
+      }
+      if (act === "collecton" || act === "collectoff") {
+        // 集金通知の指名/解除。id=メンバーuid。所属店舗にこのメンバーを登録/解除。
+        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
+        if (!u.tenantId) { uiAlert("所属店舗が不明です。"); return "inplace"; }
+        const on = act === "collecton";
+        if (btnEl) btnEl.disabled = true;
+        try {
+          await window.Cloud.callFn("setCollectNotify", { tid: u.tenantId, uid: id, on: on });
+          if (btnEl) {
+            btnEl.dataset.act = on ? "collectoff" : "collecton";
+            btnEl.textContent = on ? "💰通知 ✓" : "💰通知";
+            btnEl.classList.toggle("btn-amber", on);
+            btnEl.classList.toggle("btn-ghost", !on);
+          }
+        } catch (e) { uiAlert("集金通知の変更に失敗: " + (e.message || e)); }
         finally { if (btnEl) btnEl.disabled = false; }
         return "inplace";
       }
