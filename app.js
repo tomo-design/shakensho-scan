@@ -2598,7 +2598,7 @@ async function openKarteCamera() {
     ov = document.createElement("div"); ov.id = "kcOverlay"; ov.className = "kcOverlay";
     ov.innerHTML =
       '<video id="kcVideo" class="kcVideo" playsinline muted></video>' +
-      '<div class="kcTip">書類を枠いっぱいに。丸ボタンで撮影、複数枚OK</div>' +
+      '<button type="button" class="lcLens" id="kcLensBtn" hidden>⟳ レンズ切替</button>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="kcClose" aria-label="閉じる">×</button>' +
         '<button type="button" class="kcShot" id="kcShot" aria-label="撮影"></button>' +
@@ -2608,26 +2608,64 @@ async function openKarteCamera() {
     document.getElementById("kcClose").onclick = () => { closeKarteCamera(); renderKartePhotoStatus(); };
     document.getElementById("kcShot").onclick = shotKarteCamera;
     document.getElementById("kcDone").onclick = () => { closeKarteCamera(); renderKartePhotoStatus(); };
+    document.getElementById("kcLensBtn").onclick = switchKarteLens;
   }
   ov.style.display = "flex";
   document.getElementById("kcCount").textContent = kartePhotoMedia.length;
-  const v = document.getElementById("kcVideo");
+  const ok = await startKarteStream(null);
+  if (!ok) { closeKarteCamera(); $("kPhotoIn").click(); }   // カメラ不許可等はファイル入力へ
+}
+/* カルテカメラのストリーム開始(スキャン/診断と同じ: 記憶レンズ優先＋高解像度＋連続AF＋タップ再フォーカス) */
+async function startKarteStream(deviceId) {
+  const v = document.getElementById("kcVideo"); if (!v) return false;
+  if (kcStream) { try { kcStream.getTracks().forEach(t => t.stop()); } catch (e) {} kcStream = null; }
+  if (!deviceId) {
+    try {
+      const savedLabel = localStorage.getItem("ss_camLabel");
+      if (savedLabel) {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const m = devs.find(d => d.kind === "videoinput" && d.label === savedLabel);
+        if (m) deviceId = m.deviceId;
+      }
+    } catch (e) {}
+  }
+  const base = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } };
   try {
-    kcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    v.srcObject = kcStream; await v.play();
-    // ピント合わせ: 連続オートフォーカス＋画面タップ再フォーカス(未設定だと固定ピントでボケる端末がある)
-    const track = kcStream.getVideoTracks()[0];
-    const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
-    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
-    if (caps.focusMode && caps.focusMode.includes("single-shot")) {
-      v.onclick = async () => {
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
-          setTimeout(() => { if (kcStream && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1200);
-        } catch (e) {}
-      };
-    }
-  } catch (e) { closeKarteCamera(); $("kPhotoIn").click(); }   // カメラ不許可等はファイル入力へ
+    kcStream = await navigator.mediaDevices.getUserMedia({ video: { ...base, width: { ideal: 2560 }, height: { ideal: 1440 } }, audio: false });
+  } catch (e) {
+    try { kcStream = await navigator.mediaDevices.getUserMedia({ video: base, audio: false }); } catch (e2) { return false; }
+  }
+  v.srcObject = kcStream; try { await v.play(); } catch (e) {}
+  const track = kcStream.getVideoTracks()[0];
+  const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+  try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+  v.onclick = async () => {
+    try {
+      if (caps.focusMode && caps.focusMode.includes("single-shot")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+        setTimeout(() => { if (kcStream && caps.focusMode && caps.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); }, 1400);
+      }
+    } catch (e) {}
+  };
+  if (!lcCamList.length) {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const cams = devs.filter(d => d.kind === "videoinput");
+      const backs = cams.filter(d => !/front|face|user|内|前面|selfie/i.test(d.label || ""));
+      lcCamList = backs.length ? backs : cams;
+    } catch (e) {}
+  }
+  const cur = (track && track.getSettings) ? track.getSettings().deviceId : null;
+  const ci = lcCamList.findIndex(d => d.deviceId === cur); if (ci >= 0) lcCamIdx = ci;
+  const lensBtn = document.getElementById("kcLensBtn"); if (lensBtn) lensBtn.hidden = !(lcCamList.length > 1);
+  return true;
+}
+async function switchKarteLens() {
+  if (lcCamList.length < 2) return;
+  lcCamIdx = (lcCamIdx + 1) % lcCamList.length;
+  const dev = lcCamList[lcCamIdx];
+  const ok = await startKarteStream(dev.deviceId);
+  if (ok) { try { const lbl = dev.label || (kcStream.getVideoTracks()[0] || {}).label; if (lbl) localStorage.setItem("ss_camLabel", lbl); } catch (e) {} }
 }
 function shotKarteCamera() {
   const v = document.getElementById("kcVideo"); if (!v || !v.videoWidth) return;
