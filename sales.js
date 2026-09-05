@@ -783,6 +783,7 @@
     instagram: { name: "Instagram", limit: 2200, compose: () => "https://www.instagram.com/", prefill: false, guide: "写真に添えるキャプション。改行で読みやすく、共感→ひとこと訴求。ハッシュタグは末尾にまとめて5〜10個。" },
     facebook: { name: "Facebook", limit: 2000, compose: () => "https://www.facebook.com/", prefill: false, guide: "やや丁寧な語り口。段落で読みやすく。リンク誘導OK。" },
     line: { name: "LINE公式", limit: 500, compose: () => "https://manager.line.biz/", prefill: false, guide: "友だち向けのお知らせ調。短く親しみやすく、1メッセージで完結。" },
+    note: { name: "note（記事）", limit: 6000, compose: () => "https://note.com/notes/new", prefill: false, guide: "note記事の体裁で書く。構成: 【1行目に記事タイトル(30字前後・思わず開きたくなる)】→空行→リード文(2〜3行で共感と『この記事で分かること』)→本文は見出し(『## 』記法)で3〜5セクションに分け、各セクションは具体例やエピソードを交えて読みやすく→まとめ→最後にやわらかいCTA(体験デモや無料お試し)。読者が最後まで読める語り口で、宣伝は最後だけ。1500〜3000字目安。" },
   };
   const snsCfg = () => SNS[($("snsPlatform") && $("snsPlatform").value) || "x"] || SNS.x;
   function updateSnsCount() {
@@ -824,7 +825,8 @@
     const theme = ($("snsTheme").value || "").trim();
     const style = ($("snsStyle") && $("snsStyle").value) || "balanced";
     const len = ($("snsLen") && $("snsLen").value) || "medium";
-    const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
+    const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
+    const lenTxt = isNote ? "note記事として1500〜3000字程度（読み応えのある本文に）" : (SNS_LEN[len] || SNS_LEN.medium);
     const instruct = ($("snsInstruct") && $("snsInstruct").value || "").trim();
     const seed = "今回の切り口(毎回変える・過去と被らせない): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」。この切り口で新鮮な入りにする。";
     const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
