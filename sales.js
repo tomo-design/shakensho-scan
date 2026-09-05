@@ -361,12 +361,13 @@
         <div class="acts">
           <button class="btn btn-ghost btn-sm" data-edit="${l.id}">編集</button>
           <button class="btn btn-dark btn-sm" data-ai="${l.id}">AIに相談</button>
-          ${formUrlFromNote(l.note) ? `<button class="btn btn-accent btn-sm" data-leadform="${l.id}">📝 フォームで営業</button>` : ""}
+          ${(l.phone || l.email || formUrlFromNote(l.note) || faxFromNote(l.note)) ? `<button class="btn btn-accent btn-sm" data-leadform="${l.id}">📣 営業文を作る</button>` : ""}
         </div>
       </div>`).join("");
     box.querySelectorAll("[data-leadform]").forEach((b) => b.onclick = () => {
       const l = leads.find((x) => x.id === b.dataset.leadform); if (!l) return;
-      openFormAssist({ company: l.company, kind: l.kind, note: l.note || "", formUrl: formUrlFromNote(l.note), lead: l });
+      const addrM = String(l.note || "").match(/住所:\s*(.+)/);
+      openFormAssist({ company: l.company, kind: l.kind, note: l.note || "", formUrl: formUrlFromNote(l.note), fax: faxFromNote(l.note), phone: l.phone || "", address: addrM ? addrM[1].trim() : "", lead: l });
     });
     box.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openLead(b.dataset.edit));
     box.querySelectorAll("[data-ai]").forEach((b) => b.onclick = () => {
@@ -576,19 +577,20 @@
         </div>
         <div class="acts">
           <button class="btn btn-dark btn-sm" data-rsadd="${i}">見込み客に追加</button>
-          ${c.formUrl ? `<button class="btn btn-accent btn-sm" data-rsform="${i}">📝 フォームで営業</button>` : ""}
+          ${(c.formUrl || c.fax || c.phone || c.address) ? `<button class="btn btn-accent btn-sm" data-rsform="${i}">📣 営業文を作る</button>` : ""}
         </div>
       </div>`;
     }).join("");
     box.querySelectorAll("[data-rsadd]").forEach((b) => b.onclick = () => addCandidate(+b.dataset.rsadd, b));
     box.querySelectorAll("[data-rsform]").forEach((b) => b.onclick = () => {
       const c = rsCandidates[+b.dataset.rsform]; if (!c) return;
-      openFormAssist({ company: c.company, kind: c.kind, note: c.note || "", formUrl: c.formUrl, source: c.source || "", leadId: "", candidate: c });
+      openFormAssist({ company: c.company, kind: c.kind, note: c.note || "", formUrl: c.formUrl || "", fax: c.fax || "", phone: c.phone || "", address: c.address || "", source: c.source || "", leadId: "", candidate: c });
     });
   }
   function candidateToLead(c) {
     const noteLines = [];
     if (c.fax) noteLines.push("FAX: " + c.fax);
+    if (c.address) noteLines.push("住所: " + c.address);
     if (c.formUrl) noteLines.push("問い合わせフォーム: " + c.formUrl);
     if (c.source) noteLines.push("出典: " + c.source);
     if (c.note) noteLines.push(c.note);
@@ -637,25 +639,68 @@
   // ---- フォーム営業アシスト(AI本文生成→コピー→相手フォームを開く。送信は人が行う) ----
   let fmCtx = null;
   const formUrlFromNote = (note) => { const m = String(note || "").match(/問い合わせフォーム:\s*(https?:\/\/\S+)/); return m ? m[1] : ""; };
-  function formTask(ctx) {
-    return `「${ctx.company}」（業種:${ctx.kind || "整備関連"}）の"問い合わせフォーム"から送る、初回の問い合わせ文を作成してください。
+  const faxFromNote = (note) => { const m = String(note || "").match(/FAX:\s*([\d\-+()\s]{6,})/); return m ? m[1].trim() : ""; };
+  // チャネル別の原稿生成タスク
+  function channelTask(ctx, ch) {
+    const co = ctx.company, kind = ctx.kind || "整備関連", note = ctx.note || "（特記なし）";
+    const sign = "メカノAI／Cablueie（カブリエ）担当:中江／TEL:080-3692-0101／Mail:cablueie.123@gmail.com";
+    if (ch === "fax") {
+      return `「${co}」（業種:${kind}）宛に送る、そのまま送信できる【FAX DM原稿】を作成してください。
+・冒頭に簡単なFAX送信状(宛先:${co} 御中／差出:${sign}／送信枚数:1枚／日付は空欄)。
+・本文はA4・1枚で読める分量。整備現場の『調べ物・記録の手間を減らす』『AI故障診断・修理手順』を要点で。人手不足・若手育成にも触れてよい。
+・末尾に「FAX不要の場合はお手数ですがその旨ご返信ください」と一文＋署名(${sign})。
+・誇張・煽りはしない。プレースホルダ([会社名]等)は使わない。`;
+    }
+    if (ch === "postal") {
+      return `「${co}」（業種:${kind}）宛に送る【郵送DMの原稿】を作成してください。
+・先頭に宛名ブロック（${ctx.address ? "住所:" + ctx.address + "／" : ""}${co} 御中）。
+・丁寧な挨拶状の体裁で、A4・1枚程度。整備現場の『調べ物・記録の手間を減らす』『AI故障診断・修理手順』を中心に、人手不足・若手育成の時代背景を一言。
+・「まずは無料でお試しいただけます（体験デモ: https://mechanoai-cablueie.com/?demo=1）」と案内。
+・末尾に署名(${sign})。押し売りにしない。プレースホルダは使わない。`;
+    }
+    if (ch === "phone") {
+      return `「${co}」（業種:${kind}）へ電話する【電話トークスクリプト】を作成してください。
+・流れを台本形式で: 受付突破の一言→担当者へ→つかみ(整備現場の調べ物・記録を減らすツールのご案内)→用件(AI故障診断・修理手順・カルテ)→相手の反応別の切り返し(「間に合ってる」「高いのでは」「忙しい」への返し各1つ)→次アクション(体験デモ/資料送付の許可取り)。
+・1回の電話は1〜2分で終わる長さ。台本の各行の頭に【受付】【担当】等のラベル。自然な口語で。
+・相手メモ: ${note}`;
+    }
+    // form
+    return `「${co}」（業種:${kind}）の"問い合わせフォーム"から送る、初回の問い合わせ文を作成してください。
 ・フォーム送信用なので簡潔に（180〜300字程度）。件名行や【】などの見出しは付けない。
-・流れ: 軽い挨拶 → 自己紹介(メカノAI／Cablueie 中江) → 用件(整備現場の調べ物・記録の手間を減らすツールのご案内。資料やデモをご覧いただけます) → 返信先(メール cablueie.123@gmail.com ／ TEL 080-3692-0101)。
-・押し売りにしない。相手が読んで負担にならない自然な文章。プレースホルダ([会社名]等)は使わない。
-・相手メモがあれば軽く反映: ${ctx.note || "（特記なし）"}`;
+・流れ: 軽い挨拶 → 自己紹介(メカノAI／Cablueie 中江) → 用件(整備現場の調べ物・記録の手間を減らすツールのご案内。資料やデモをご覧いただけます) → 返信先(${sign})。
+・押し売りにしない。相手が読んで負担にならない自然な文章。プレースホルダは使わない。
+・相手メモがあれば軽く反映: ${note}`;
   }
-  async function genFormBody(ctx) {
-    const j = await api("generate", { role: "writer", task: formTask(ctx), lead: { company: ctx.company, kind: ctx.kind, note: ctx.note }, product: "works" });
+  function fmChannel() { return ($("fmChannel") && $("fmChannel").value) || "form"; }
+  async function genFormBody(ctx, ch) {
+    const j = await api("generate", { role: "writer", task: channelTask(ctx, ch), lead: { company: ctx.company, kind: ctx.kind, note: ctx.note }, product: "works" });
     return String(j.text || "").trim();
   }
+  function fmSyncChannelUI(ctx) {
+    const ch = fmChannel();
+    show("fmOpen", ch === "form" && !!ctx.formUrl);
+    if (ch === "form" && ctx.formUrl) $("fmOpen").href = ctx.formUrl;
+    const contacts = [];
+    if (ctx.phone) contacts.push("☎ " + ctx.phone);
+    if (ctx.fax) contacts.push("📠 " + ctx.fax);
+    if (ctx.address) contacts.push("📮 " + ctx.address);
+    if (ctx.formUrl) contacts.push("📝 フォームあり");
+    if ($("fmContacts")) $("fmContacts").textContent = contacts.length ? "連絡先: " + contacts.join("　") : "";
+    const hint = { form: "フォームを開いて本文を貼り付け送信（CAPTCHA・最終送信はご自身で）。", fax: "コピーしてFAX送信システム/複合機で送ってください。", postal: "コピー/印刷して封書で郵送してください。", phone: "この台本を見ながら電話をかけてください。" };
+    if ($("fmHint")) $("fmHint").textContent = hint[ch] || "";
+  }
   function fmFill(ctx) {
+    const ch = fmChannel();
+    fmSyncChannelUI(ctx);
     $("fmBody").value = ""; $("fmBody").placeholder = "生成中…（10〜20秒）";
-    genFormBody(ctx).then((t) => { $("fmBody").value = t; }).catch((e) => { $("fmBody").placeholder = "生成に失敗しました: " + (e.message || e); });
+    genFormBody(ctx, ch).then((t) => { $("fmBody").value = t; }).catch((e) => { $("fmBody").placeholder = "生成に失敗しました: " + (e.message || e); });
   }
   function openFormAssist(ctx) {
     fmCtx = ctx;
-    $("fmTitle").textContent = "フォーム営業 — " + ctx.company;
-    $("fmOpen").href = ctx.formUrl || "#";
+    $("fmTitle").textContent = "営業文を作る — " + ctx.company;
+    // 使えるチャネルの初期選択(フォーム→FAX→郵送→電話の優先)
+    const def = ctx.formUrl ? "form" : (ctx.fax ? "fax" : (ctx.address ? "postal" : (ctx.phone ? "phone" : "form")));
+    if ($("fmChannel")) $("fmChannel").value = def;
     show("formModal", true);
     fmFill(ctx);
   }
@@ -663,6 +708,7 @@
   { const b = $("fmClose"); if (b) b.onclick = () => show("formModal", false); }
   { const b = $("fmCopy"); if (b) b.onclick = () => copy($("fmBody").value || ""); }
   { const b = $("fmRegen"); if (b) b.onclick = () => { if (fmCtx) fmFill(fmCtx); }; }
+  { const s = $("fmChannel"); if (s) s.onchange = () => { if (fmCtx) fmFill(fmCtx); }; }
   { const b = $("fmDone"); if (b) b.onclick = async () => {
       if (!fmCtx) return;
       b.disabled = true;
@@ -862,6 +908,55 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       toast("プロンプトをコピー。Grokに貼り付けて生成してください");
     };
   }
+
+  // 1週間分(7本)を一括生成。毎回スタイル/切り口を変えて、日替わり投稿ネタをまとめて用意。
+  let snsWeekStop = false;
+  { const b = $("btnSnsWeekStop"); if (b) b.onclick = () => { snsWeekStop = true; toast("中止しました"); }; }
+  { const b = $("btnSnsWeek"); if (b) b.onclick = async () => {
+      const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+      const g = snsCfg();
+      const theme = ($("snsTheme").value || "").trim();
+      const styles = ["honne", "casual", "tips", "drama", "buzz", "balanced", "honne"];   // 7本ぶん・多様に
+      snsWeekStop = false;
+      show("btnSnsWeekStop", true); $("btnSnsWeek").disabled = true; $("btnSns").disabled = true;
+      $("snsWeek").innerHTML = ""; $("snsStat").textContent = "1週間分を生成中… 0/7";
+      for (let i = 0; i < 7; i++) {
+        if (snsWeekStop) break;
+        const style = styles[i];
+        const len = (style === "drama") ? "long" : (Math.random() < 0.5 ? "short" : "medium");
+        const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
+        const seed = "今回の切り口(毎回変える): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」。";
+        const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
+・${SNS_STYLE[style] || SNS_STYLE.balanced}
+・${seed}
+・${g.guide}
+・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
+・他の曜日の投稿と被らない新鮮な切り口に。誇張・虚偽はしない。文量は ${lenTxt}（${g.limit}字以内）。本文だけ。`;
+        let text = "";
+        try { const j = await api("generate", { role: "marke", task, product, creative: true }); text = String(j.text || "").trim(); }
+        catch (e) { text = "⚠️ " + (e.message || e); }
+        const dayN = i + 1;
+        const div = document.createElement("div");
+        div.className = "crcard";
+        div.innerHTML = `<div class="crhead"><span class="crco">Day ${dayN}・${esc({ honne: "本音", casual: "カジュアル", tips: "豆知識", drama: "会話劇", buzz: "バズ", balanced: "標準" }[style] || style)}</span><span class="muted">${text.length}字</span></div>
+          <div class="crtext"></div>
+          <div class="crbtns"><button class="btn btn-ghost btn-sm wkcopy">コピー</button></div>`;
+        div.querySelector(".crtext").textContent = text;
+        div.querySelector(".wkcopy").onclick = () => copy(text);
+        $("snsWeek").appendChild(div);
+        $("snsStat").textContent = "1週間分を生成中… " + dayN + "/7";
+      }
+      $("snsStat").textContent = snsWeekStop ? "中止しました" : "✓ 1週間分（7本）を生成しました";
+      show("btnSnsWeekStop", false); $("btnSnsWeek").disabled = false; $("btnSns").disabled = false;
+    };
+  }
+  // 整備士の投稿を探すXライブ検索ショートカット(見つけたら下の欄に貼って返信を作成)
+  (function renderXSearch() {
+    const box = $("xsearch"); if (!box) return;
+    const qs = [["整備士 あるある", "整備士 あるある"], ["車検 高い", "車検 高い"], ["整備工場 人手不足", "整備工場 人手不足"], ["自動車整備 疲れた", "自動車整備 疲れた"], ["ブレーキパッド 交換", "ブレーキパッド 交換"], ["メカニック", "メカニック"]];
+    box.innerHTML = '<span class="muted" style="margin-right:6px">Xで探す:</span>' +
+      qs.map(([label, q]) => `<a class="xchip" target="_blank" rel="noopener" href="https://x.com/search?q=${encodeURIComponent(q)}&f=live">🔎 ${esc(label)}</a>`).join("");
+  })();
 
   // 他人のツイートへの返信コメント生成(共感→自然にメカノAI導線)
   function repCount() { const n = ($("repBody").value || "").length; if ($("repCount")) $("repCount").textContent = "　" + n + "字" + (n > 200 ? " ⚠長め" : ""); }

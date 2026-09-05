@@ -2195,17 +2195,19 @@ async function researchCandidates(area, kind, count, excludeNames) {
   const excludeBlock = exclude.length
     ? `\n【既に取得済み(重複禁止・必ず除外)】次の事業者は既にリスト済みです。これらは絶対に結果に含めず、これら以外の"別の"事業者を新たに探してください:\n${exclude.slice(0, 150).join(" / ")}\n`
     : "";
-  const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。
+  const rprompt = `あなたは日本のBtoB営業のリサーチ担当です。Google検索(グラウンディング)を使って、実在し、かつインターネット上に公開されている「${area}」の「${kind}」を最大${count}件集めてください。これは、整備業向けの車検証スキャン&整備支援ツール「メカノAI」の営業先候補リストです。この業界はメール非公開が多いので、営業は電話・FAX・郵送DMが主軸になります。よって【電話番号・FAX番号・郵送用の住所】をできるだけ埋めることを最優先にしてください。
 ${excludeBlock}
+【探すと良い情報源(公開のもの)】各都道府県の自動車整備振興会の会員名簿、認証工場・指定工場の一覧、iタウンページ、Googleマップ/Googleビジネス、各社の公式サイト会社概要ページ。これらには電話・FAX・住所が載っていることが多い。
 【最重要ルール(厳守・違反禁止)】
 ・検索で実際に確認できた公開情報のみを書く。推測・記憶・創作で埋めない。少しでも不確かな項目は必ず空文字 "" にする。
-・メールアドレス・電話番号・FAX番号は、その事業者の公式サイト等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
+・電話番号・FAX番号・住所・メールは、その事業者の公式サイトや公開名簿等に"実際に公開されている場合のみ"記載する。見つからなければ必ず ""(空) にする。絶対に作らない・推測しない・似た番号で埋めない。
+・address は郵送DMに使うので、都道府県から始まる正確な住所を(公開されていれば)入れる。
 ・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
-・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる(メール非公開の先はフォーム営業に使うため)。
+・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる。
 ・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
 
 【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
-[{"company":"店名","area":"市区町村または住所","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
+[{"company":"店名","area":"市区町村","address":"郵送できる正確な住所(都道府県から)","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
   const rparts = [{ text: rprompt }];
   let rout = { failed: true };
   if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
@@ -2222,6 +2224,7 @@ ${excludeBlock}
   return arr.map((x) => ({
     company: String(x.company || "").slice(0, 200),
     area: String(x.area || "").slice(0, 200),
+    address: String(x.address || "").slice(0, 300),
     kind: String(x.kind || kind).slice(0, 60),
     phone: String(x.phone || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),
     fax: String(x.fax || "").replace(/[^\d\-+()\s]/g, "").slice(0, 60),

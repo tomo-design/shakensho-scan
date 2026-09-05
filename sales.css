@@ -221,6 +221,9 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .snsImgWrap{margin-top:6px}
 .snsImg{display:block;max-width:100%;width:420px;border-radius:12px;border:1px solid var(--line);margin-bottom:10px}
 .snsImg.hidden{display:none}
+.xsearch{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.xsearch .xchip{font-size:12.5px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;text-decoration:none;transition:.14s}
+.xsearch .xchip:hover{border-color:var(--accent);color:var(--accent-d);background:#fff8f0}
 .fmActs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
 .fmActs a.btn{text-decoration:none}
 .rsFilterWrap{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);font-weight:600}
@@ -287,6 +290,8 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
   .empty-block{background:#171b22}
   .st-見込み{background:#2b303a;color:#c2c8d2}
   .prodBadge.works{background:#2b303a;color:#c2c8d2}
+  .xsearch .xchip{background:#171b22}
+  .xsearch .xchip:hover{background:#241d12}
 }
 
 /* 契約発行 */

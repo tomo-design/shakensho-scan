@@ -308,7 +308,12 @@
           <div class="field" style="grid-column:1/-1"><label>テーマ・伝えたいこと（任意）</label><input id="snsTheme" placeholder="例：自動化・電動化で故障リスク増／整備士不足／車検証スキャンの便利さ"></div>
           <div class="field" style="grid-column:1/-1"><label>自由に直接指示（任意・入力すると最優先で反映）</label><textarea id="snsInstruct" rows="2" placeholder="例：電動化に疲れた整備士に向けて、あるあるネタで笑わせてから最後にメカノAIをそっと勧めて。関西弁っぽく。"></textarea></div>
         </div>
-        <div class="panel-actions"><button id="btnSns" class="btn btn-accent">投稿文を作成</button><span id="snsStat" class="muted"></span></div>
+        <div class="panel-actions">
+          <button id="btnSns" class="btn btn-accent">投稿文を作成</button>
+          <button id="btnSnsWeek" class="btn btn-dark">📅 1週間分（7本）を一括生成</button>
+          <button id="btnSnsWeekStop" class="btn btn-ghost btn-sm hidden">中止</button>
+          <span id="snsStat" class="muted"></span>
+        </div>
       </div>
       <div class="panel hidden" id="snsOutPanel">
         <div class="field"><label>投稿文（編集できます）<span id="snsCount" class="muted"></span></label><textarea id="snsBody" rows="8"></textarea></div>
@@ -330,9 +335,12 @@
         </div>
       </div>
 
+      <div id="snsWeek" class="campresults"></div>
+
       <div class="panel">
         <h3 style="margin:0 0 4px;font-size:15px">🗨 ツイートへの返信コメントを作る</h3>
-        <p class="vsub" style="margin:0 0 10px">他の人のツイート（例：「今の車は自動化・電動化で故障も診断も修理費も大変…」）に、<b>共感しつつ自然にメカノAIへつなげる短い返信</b>を作ります。相手のツイート本文を貼り付けてください。売り込みすぎない自然なリプにします。</p>
+        <p class="vsub" style="margin:0 0 8px">まず整備士の投稿を探して、気になるツイートを下に貼り付け → 共感リプを作成。フォロー・いいね・リプの往復で最初のフォロワーを作りましょう。</p>
+        <div class="xsearch" id="xsearch"></div>
         <div class="field"><label>相手のツイート本文</label><textarea id="repSrc" rows="3" placeholder="相手のツイートを貼り付け"></textarea></div>
         <div class="form-grid">
           <div class="field"><label>商材</label><select id="repProduct"><option value="works">Works（法人向け）</option><option value="pocket">Pocket（個人向け）</option></select></div>
@@ -521,15 +529,24 @@
 <!-- ============ フォーム営業アシスト ============ -->
 <div id="formModal" class="modal hidden">
   <div class="modalbox">
-    <h3 id="fmTitle">フォーム営業</h3>
-    <p class="vsub" style="margin:0">相手の問い合わせフォームから送る文面です。<b>下の「フォームを開く」で相手ページを開き、本文を貼り付けて送信</b>してください（CAPTCHAや最終送信はご自身で）。</p>
-    <div class="field"><label>本文（編集できます）</label><textarea id="fmBody" rows="10" placeholder="生成中…"></textarea></div>
+    <h3 id="fmTitle">営業文を作る</h3>
+    <div class="field"><label>チャネル（相手に合わせて選ぶ）</label>
+      <select id="fmChannel">
+        <option value="form">問い合わせフォーム</option>
+        <option value="fax">FAX DM（送信状つき）</option>
+        <option value="postal">郵送DM（宛名＋本文）</option>
+        <option value="phone">電話トークスクリプト</option>
+      </select>
+    </div>
+    <div id="fmContacts" class="muted" style="margin:-4px 0 2px"></div>
+    <p class="vsub" id="fmHint" style="margin:0"></p>
+    <div class="field"><label>原稿（編集できます）</label><textarea id="fmBody" rows="11" placeholder="生成中…"></textarea></div>
     <div class="fmActs">
-      <button id="fmCopy" class="btn btn-dark btn-sm">📋 本文をコピー</button>
-      <a id="fmOpen" class="btn btn-accent btn-sm" href="#" target="_blank" rel="noopener">🌐 フォームを開く</a>
+      <button id="fmCopy" class="btn btn-dark btn-sm">📋 コピー</button>
+      <a id="fmOpen" class="btn btn-accent btn-sm hidden" href="#" target="_blank" rel="noopener">🌐 フォームを開く</a>
       <button id="fmRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
       <span class="spacer" style="flex:1"></span>
-      <button id="fmDone" class="btn btn-ghost btn-sm">✓ 送信済み（アプローチ中に）</button>
+      <button id="fmDone" class="btn btn-ghost btn-sm">✓ 対応済み（アプローチ中に）</button>
     </div>
     <div class="modalbtns"><span class="spacer" style="flex:1"></span><button id="fmClose" class="btn btn-ghost btn-sm">閉じる</button></div>
   </div>
