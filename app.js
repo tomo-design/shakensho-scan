@@ -4000,11 +4000,12 @@ async function maybeRecordCollection(rid, text) {
       if (isNaN(dt)) return;
       const amt = (obj.amount != null && obj.amount !== "") ? String(obj.amount).replace(/[^\d]/g, "") : "";
       const note = [amt ? "¥" + Number(amt).toLocaleString() : "", String(obj.note || "").trim()].filter(Boolean).join(" ");
-      // 通知時刻の決定: 明記時刻→その「時」/ 午後→13時 / 午前→9時 / 記載なし→9時
+      // 通知時刻の決定: 集金が午後(12時以降)なら13時 / 午前(12時より前)なら9時 / 記載なし→9時。
+      //  ※集金時刻ちょうどでは遅いので、その前に知らせる(午前は9時・午後は13時に固定)。
       let notifyHour = 9;
       const tstr = String(obj.time || "").trim().toLowerCase();
       const hm = tstr.match(/^(\d{1,2}):(\d{2})$/);
-      if (hm) { const hh = Math.min(23, Math.max(0, parseInt(hm[1], 10))); if (!isNaN(hh)) notifyHour = hh; }
+      if (hm) { const hh = parseInt(hm[1], 10); if (!isNaN(hh)) notifyHour = (hh >= 12) ? 13 : 9; }
       else if (tstr === "pm") notifyHour = 13;
       else if (tstr === "am") notifyHour = 9;
       upsertPlan({
