@@ -4067,7 +4067,7 @@ function renderIntakeCalendar() {
     const monthOver = monthEnd <= Date.now();
     const items = Object.keys(INTAKE_KINDS).map(k => {
       const info = INTAKE_KINDS[k];
-      return '<div class="icSumCell ' + info.cls + '"><span class="icSumN">' + (kindCount[k] || 0) + '</span><span class="icSumL">' + info.label + '</span></div>';
+      return '<div class="icSumCell ' + info.cls + '" title="' + info.label + '"><span class="icSumN">' + (kindCount[k] || 0) + '</span></div>';
     }).join('');
     sum.innerHTML =
       '<div class="icSumHd"><span class="icSumMon">' + (m + 1) + '月のまとめ</span>' +
