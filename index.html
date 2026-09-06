@@ -766,9 +766,11 @@
 
   <!-- 個人モードのみ表示: メカ君サポート(一番下) -->
   <section id="secContact">
-    <details>
+    <details id="scDetails">
       <summary class="secSummary">メカ君サポート</summary>
-      <div class="sec-body">
+      <div class="sec-body scPanel">
+        <!-- 全画面表示時のヘッダー(閉じる) -->
+        <div class="scFullHd"><span class="scFullTtl">🔧 メカ君サポート</span><button type="button" class="scCloseBtn" id="scClose" aria-label="閉じる">✕</button></div>
         <!-- AIサポートチャット(LINE風): 開くとすぐチャット。使い方・仕様を熟知したメカ君が回答 -->
         <div class="supportChat" id="scWrap">
           <div class="scBodyWrap">
@@ -781,6 +783,12 @@
           </div>
         </div>
         <div class="hint" style="margin-top:14px">解決しない場合：<a href="mailto:ai@reply.mechanoai-cablueie.com?subject=%E3%83%A1%E3%82%AB%E3%83%8EAI%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B" style="color:var(--cyan)">お問い合わせ</a></div>
+        <!-- 匿名フィードバック: 名前・連絡先不要で意見/不具合を送れる -->
+        <div class="fbBox">
+          <div class="fbTitle">📝 ご意見・不具合を送る（匿名でOK）</div>
+          <textarea id="fbText" class="fbText" rows="3" placeholder="気づいた点・ほしい機能・不具合など。匿名で送れます。"></textarea>
+          <div class="fbRow"><button type="button" class="btn btn-ghost btn-sm" id="fbSend" style="flex:0 0 auto;display:inline-block;min-height:40px">匿名で送信</button><span class="hint" id="fbStatus"></span></div>
+        </div>
       </div>
     </details>
   </section>

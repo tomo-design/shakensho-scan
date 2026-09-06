@@ -1435,6 +1435,31 @@ exports.assignSeat = functions.region(REGION).https.onRequest(async (req, res) =
   } catch (e) { return res.status(500).json({ error: "席の更新に失敗: " + (e.message || e) }); }
 });
 
+/* 匿名フィードバック受付。POST {text, edition, ver, ua}。認証不要=匿名。
+   Firestore(feedback)に保存し、運営へメール通知。個人情報は要求しない。 */
+exports.submitFeedback = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const data = req.body || {};
+  const text = String(data.text || "").trim();
+  if (!text) return res.status(400).json({ error: "内容が空です。" });
+  const db = admin.firestore();
+  const doc = {
+    text: text.slice(0, 4000), edition: String(data.edition || "").slice(0, 40),
+    ver: String(data.ver || "").slice(0, 40), ua: String(data.ua || "").slice(0, 300),
+    at: Date.now(), anon: true,
+  };
+  try { await db.collection("feedback").add(doc); } catch (e) { console.error("submitFeedback save error", e); }
+  try {
+    const to = cfg().sendgrid.notify;
+    if (to) await sendMail(to, "📝 メカノAI 匿名フィードバック",
+      "匿名フィードバックが届きました。\n\n【内容】\n" + text +
+      "\n\n【版】" + (doc.edition || "-") + "\n【バージョン】" + (doc.ver || "-") + "\n【環境】" + (doc.ua || "-") + "\n\n" + MAIL_SIGN,
+      cfg().sendgrid.from).catch(() => {});
+  } catch (e) {}
+  return res.json({ ok: true });
+});
+
 /* 集金通知の宛先メンバーを設定(管理者/運営)。POST {tid, uid, on}。
    tenants/{tid}.collectNotifyUids にメンバーuidを出し入れする。集金日にこの人達だけへ通知。 */
 exports.setCollectNotify = functions.region(REGION).https.onRequest(async (req, res) => {

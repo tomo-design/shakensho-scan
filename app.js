@@ -8010,6 +8010,34 @@ const SUPPORT_KB = [
   // 初回あいさつ
   append("bot", "こんにちは、サポートのメカ君です🔧 このツールの使い方や仕様について、なんでも聞いてください。");
 })();
+/* メカ君サポート: 全画面の✕で閉じる ＋ 匿名フィードバック送信 */
+(function initSupportExtras() {
+  const det = document.getElementById("scDetails");
+  const close = document.getElementById("scClose");
+  if (close && det) close.addEventListener("click", () => { det.open = false; });
+  // 全画面表示時は背面スクロールを止める
+  if (det) det.addEventListener("toggle", () => { try { document.body.style.overflow = det.open ? "hidden" : ""; } catch (e) {} });
+  const fbT = document.getElementById("fbText"), fbB = document.getElementById("fbSend"), fbS = document.getElementById("fbStatus");
+  if (fbT && fbB) {
+    fbB.addEventListener("click", async () => {
+      const text = (fbT.value || "").trim();
+      if (!text) { if (fbS) fbS.textContent = "内容を入力してください。"; return; }
+      fbB.disabled = true; if (fbS) fbS.textContent = "送信中…";
+      let edition = ""; try { edition = (typeof officeMode === "function" && officeMode()) ? "works-office" : (typeof getAppMode === "function" ? getAppMode() : ""); } catch (e) {}
+      let ver = ""; try { ver = (document.getElementById("verNote") || {}).textContent || ""; } catch (e) {}
+      try {
+        const r = await fetch("https://asia-northeast1-mecanoai.cloudfunctions.net/submitFeedback", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text, edition: edition, ver: ver, ua: navigator.userAgent }),
+        });
+        if (!r.ok) throw new Error("send");
+        fbT.value = ""; if (fbS) fbS.textContent = "✓ 送信しました。ありがとうございます！";
+      } catch (e) {
+        if (fbS) fbS.textContent = "送信に失敗しました。時間をおいて再度お試しください。";
+      } finally { fbB.disabled = false; }
+    });
+  }
+})();
 
 /* ============================================================
    法人向け 無料デモ(ログイン不要・サンプルデータ・APIコストゼロ)
