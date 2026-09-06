@@ -2384,7 +2384,8 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
   if (action === "image") {
     const p = String(data.prompt || "").trim().slice(0, 2500);
     if (!p) return res.status(400).json({ error: "画像の指示が空です。" });
-    try { const url = await genImage(p); return res.json({ image: url }); }
+    const aspect = /^(1:1|16:9|9:16|4:3|3:4|3:2|2:3|4:5|5:4|21:9)$/.test(String(data.aspect || "")) ? data.aspect : "";
+    try { const url = await genImage(p, aspect); return res.json({ image: url }); }
     catch (e) { return res.status(503).json({ error: e.message || "画像生成に失敗しました。" }); }
   }
 

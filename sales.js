@@ -892,15 +892,18 @@ Subject ideas: a car mechanic / auto garage / hands working on a car / a smartph
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text looks broken). Image only.`;
   }
   // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、毎回違う映えるビジュアルに。
+  const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9" };
+  const imgRatio = () => IMG_RATIO[($("snsPlatform") && $("snsPlatform").value) || "x"] || "16:9";
   async function snsGenImage() {
     const post = ($("snsBody").value || "").trim();
     if (!post) { toast("先に投稿文を作成してください"); return; }
     const prompt = buildImgPrompt();
+    const aspect = imgRatio();
     show("snsImgWrap", true); show("snsImgEl", false); show("snsImgActs", false);
     $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
     if ($("snsImg")) $("snsImg").disabled = true; if ($("snsImgRegen")) $("snsImgRegen").disabled = true;
     try {
-      const j = await api("image", { prompt });
+      const j = await api("image", { prompt, aspect });
       if (j.image) {
         $("snsImgEl").src = j.image; show("snsImgEl", true);
         $("snsImgDl").href = j.image; show("snsImgActs", true);
