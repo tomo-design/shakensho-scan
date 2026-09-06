@@ -18,9 +18,12 @@ service cloud.firestore {
       allow write: if request.auth.uid == uid && isOwner();
       // 一般の自己登録は「メンバー(staff)として既存店舗へ参加」のみ許可(active=false)。
       // 代表管理者(admin)アカウントは運営(営業)がサーバー(Admin SDK)で発行する。クライアントからのadmin自己作成は不可。
+      // ★端末枠(deviceLimit)の自己申告を禁止(=有料枠のクライアント側詐称=課金回避を防ぐ)。付与は super/サーバーのみ。
       allow create: if request.auth.uid == uid
                     && request.resource.data.active == false
-                    && request.resource.data.role == 'staff';
+                    && request.resource.data.role == 'staff'
+                    && (!('deviceLimit' in request.resource.data) || request.resource.data.deviceLimit == 2)
+                    && (!('edition' in request.resource.data) || request.resource.data.edition in ['works','personal']);
       // 本人は 最終ログイン時刻 / プッシュトークン / 登録端末 のみ更新可(役割・所属などは変更不可)
       // 端末数は deviceLimit(既定2)まで。deviceLimit 自体は本人には変更させない(=有料枠の付与は下の admin/super のみ)。
       allow update: if request.auth.uid == uid
@@ -28,10 +31,13 @@ service cloud.firestore {
                     && request.resource.data.get('devices', []).size() <= resource.data.get('deviceLimit', 2);
       // 承認/無効化: super は全員、admin は自社のみ
       allow delete: if isSuper() || (isAdmin() && resource.data.tenantId == myTenant());
-      // 更新も同様。ただし有料枠(deviceLimit)の変更は super のみ(代表管理者=adminによる無料付与を防止)
+      // 代表管理者(admin)は自社メンバーの「承認/却下/改名/代表管理者への選任・解任」が可能(複数admin可)。
+      // ★ただし変更できるキーは active/rejected/name/lastLogin/role に限定し、role の新値は staff|admin のみ許可。
+      //   これにより super(運営)への昇格・他店への付け替え(tenantId)・端末枠(deviceLimit)や版(edition)の無料改変を防ぐ。全権変更は super のみ。
       allow update: if isSuper()
                     || (isAdmin() && resource.data.tenantId == myTenant()
-                        && request.resource.data.get('deviceLimit', 2) == resource.data.get('deviceLimit', 2));
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','rejected','name','lastLogin','role'])
+                        && request.resource.data.role in ['staff','admin']);
     }
 
     // 契約の申し込み(請求書送付先メール等)。所属者が自社分を作成、運営が閲覧/更新。
@@ -41,7 +47,9 @@ service cloud.firestore {
     }
 
     match /tenants/{tid} {
-      allow read: if signedIn();
+      // ★自社テナント or 運営のみ閲覧可(以前は signedIn() で他店の stripeCustomerId・プラン等が全ユーザーに見えていた)。
+      //   参加申請フロー(店舗コード入力)は active=false の自分のusersドキュメント作成で成立し、tenant本体の事前読取は不要。
+      allow read: if isSuper() || (meActive() && tid == myTenant());
       // 店舗(事業所)の作成は運営(super)のみ。契約発行はサーバー(Admin SDK)が実行するため一般ユーザーの自由作成は不可。
       allow create: if isSuper();
       allow delete: if isSuper();

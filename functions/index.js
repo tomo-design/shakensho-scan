@@ -4,6 +4,7 @@
 const functions = require("firebase-functions/v1");   // v6でも従来(v1)記法をそのまま使う
 const admin = require("firebase-admin");
 admin.initializeApp();
+const pure = require("./lib/pure");   // 依存なしの純粋ロジック(単体テスト対象)
 
 exports.notifyJoin = functions.firestore
   .document("users/{uid}")
@@ -358,14 +359,7 @@ const MAIL_SIGN = "――――――――――――\n" +
   "詳細・お申し込み：https://mechanoai-cablueie.com/biz.html\n" +
   "――――――――――――";
 // price ID → プランコード(webフックで購入プランを店舗に反映するため)
-function tierFromPriceId(pid) {
-  if (!pid) return "";
-  const P = cfg().stripe.prices;
-  for (const code of ["na", "turbo", "twinturbo"]) {
-    if (P[code] && (P[code].month === pid || P[code].year === pid)) return code;
-  }
-  return "";
-}
+function tierFromPriceId(pid) { return pure.tierFromPriceId(pid, cfg().stripe.prices); }
 
 /* ---- 通常HTTP(onRequest)方式。callable(onCall)はMessagingのSW取得を巻き込み、
        GitHub Pagesのサブパス配信で404になるため、fetch+IDトークン方式にする。 ---- */
@@ -601,15 +595,10 @@ async function latestModels(key) {
     const names = (j.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
       .map((m) => String(m.name || "").replace("models/", ""));
-    const pickHighest = (re) => {
-      let best = "", bestV = -1;
-      for (const n of names) { const m = n.match(re); if (m) { const v = parseFloat(m[1]); if (v > bestV) { bestV = v; best = n; } } }
-      return best;
-    };
     // 例: gemini-3.6-flash を選ぶ。lite/image/tts等は除外。flash/pro とも preview も対象
     // (3系flashは現状 gemini-3-flash-preview のみ提供。previewを除外すると旧2.5系(404)を掴むため許可する)。
-    const flash = pickHighest(/^gemini-(\d+(?:\.\d+)?)-flash(?:-preview)?$/);
-    const pro = pickHighest(/^gemini-(\d+(?:\.\d+)?)-pro(?:-preview)?$/);
+    const flash = pure.pickHighestModel(names, pure.FLASH_RE);
+    const pro = pure.pickHighestModel(names, pure.PRO_RE);
     if (flash || pro) _modelCache = { at: now, flash: flash, pro: pro };
   } catch (e) {}
   return _modelCache;
@@ -618,15 +607,8 @@ const uniq = (a) => a.filter((x, i) => x && a.indexOf(x) === i);
 
 /* 店舗のAIプラン設定を返す。aiPlan: "na"|"turbo"|"twinturbo"(旧 aiPaidFallback も互換解釈)。
    searchCap: 0=検索なし / 500=月上限 / -1=無制限。 seats: 0=人数制限なし / N=検索を使える人数(月内)。 */
-function planConfig(t) {
-  t = t || {};
-  let plan = t.aiPlan;
-  if (!plan) plan = (t.aiPaidFallback === true) ? "twinturbo" : "na";   // 旧データ互換(有料ON=無制限扱い)
-  if (plan === "turbo") return { plan: "turbo", searchCap: 500, seats: 0 };
-  if (plan === "twinturbo") return { plan: "twinturbo", searchCap: -1, seats: Math.max(1, +(t.searchSeats || 3)) };
-  return { plan: "na", searchCap: 0, seats: 0 };
-}
-function jstMonth() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7); }
+function planConfig(t) { return pure.planConfig(t); }
+function jstMonth() { return pure.jstMonth(); }
 /* ツインターボの席(=月内に検索を使える人数)を確保。空席があればuidを登録してtrue。満席で未登録ならfalse。 */
 async function claimSeat(tid, uid, seats) {
   if (!uid) return true;

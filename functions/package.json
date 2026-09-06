@@ -5,12 +5,18 @@
     "node": "22"
   },
   "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
   "dependencies": {
     "busboy": "^1.6.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.4.0",
     "googleapis": "^144.0.0",
     "stripe": "^16.12.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   },
   "private": true
 }
