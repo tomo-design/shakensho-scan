@@ -894,20 +894,71 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、毎回違う映えるビジュアルに。
   const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9" };
   const imgRatio = () => IMG_RATIO[($("snsPlatform") && $("snsPlatform").value) || "x"] || "16:9";
+  let snsImgBase = "";   // 文字を載せる前の元画像(data URL)。文字だけ載せ直すのに使う。
+  // 生成画像の上に短い文字をキレイに合成(AIに日本語を描かせず、canvasで正確に描く)
+  function overlayText(dataUrl, text) {
+    return new Promise((resolve) => {
+      text = String(text || "").trim();
+      if (!text) return resolve(dataUrl);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas");
+          cv.width = img.naturalWidth || 1280; cv.height = img.naturalHeight || 720;
+          const ctx = cv.getContext("2d");
+          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          const grad = ctx.createLinearGradient(0, cv.height * 0.4, 0, cv.height);
+          grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,0,0,0.75)");
+          ctx.fillStyle = grad; ctx.fillRect(0, cv.height * 0.4, cv.width, cv.height * 0.6);
+          const pad = Math.round(cv.width * 0.05);
+          const fs = Math.round(cv.width / 13);
+          const fam = (getComputedStyle(document.body).fontFamily) || "sans-serif";
+          ctx.font = "800 " + fs + "px " + fam;
+          ctx.textBaseline = "alphabetic"; ctx.fillStyle = "#fff";
+          const maxW = cv.width - pad * 2; const lines = []; let line = "";
+          for (const ch of text.split("")) {
+            if (ch === "\n") { lines.push(line); line = ""; continue; }
+            const t = line + ch;
+            if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = ch; } else line = t;
+          }
+          if (line) lines.push(line);
+          const lh = fs * 1.28;
+          let y = cv.height - pad - (lines.length - 1) * lh;
+          ctx.lineJoin = "round"; ctx.lineWidth = Math.max(4, fs / 7); ctx.strokeStyle = "rgba(0,0,0,0.6)";
+          for (const ln of lines) { ctx.strokeText(ln, pad, y); ctx.fillText(ln, pad, y); y += lh; }
+          resolve(cv.toDataURL("image/png"));
+        } catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  async function snsShowImg(base) {
+    snsImgBase = base;
+    const text = ($("snsImgText") && $("snsImgText").value || "").trim();
+    const url = await overlayText(base, text);
+    $("snsImgEl").src = url; show("snsImgEl", true);
+    $("snsImgDl").href = url; show("snsImgActs", true);
+  }
+  { const b = $("snsImgApplyText"); if (b) b.onclick = async () => { if (snsImgBase) await snsShowImg(snsImgBase); }; }
   async function snsGenImage() {
     const post = ($("snsBody").value || "").trim();
     if (!post) { toast("先に投稿文を作成してください"); return; }
     const prompt = buildImgPrompt();
     const aspect = imgRatio();
+    // noteでサムネ文字が空なら、投稿1行目(タイトル)を短く自動提案
+    if (($("snsPlatform") && $("snsPlatform").value) === "note" && $("snsImgText") && !$("snsImgText").value.trim()) {
+      const firstLine = (post.split("\n")[0] || "").replace(/^#+\s*/, "").trim();
+      if (firstLine) $("snsImgText").value = firstLine.slice(0, 24);
+    }
     show("snsImgWrap", true); show("snsImgEl", false); show("snsImgActs", false);
     $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
     if ($("snsImg")) $("snsImg").disabled = true; if ($("snsImgRegen")) $("snsImgRegen").disabled = true;
     try {
       const j = await api("image", { prompt, aspect });
       if (j.image) {
-        $("snsImgEl").src = j.image; show("snsImgEl", true);
-        $("snsImgDl").href = j.image; show("snsImgActs", true);
-        $("snsImgStat").textContent = "画像を生成しました（保存して投稿に添付してください）";
+        await snsShowImg(j.image);
+        $("snsImgStat").textContent = "画像を生成しました（文字は上の欄で変更→「文字を反映」。保存して投稿に添付）";
       } else { $("snsImgStat").textContent = "画像を取得できませんでした。"; }
     } catch (e) { $("snsImgStat").textContent = "⚠ " + (e.message || e); }
     finally { if ($("snsImg")) $("snsImg").disabled = false; if ($("snsImgRegen")) $("snsImgRegen").disabled = false; }
