@@ -895,10 +895,16 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9" };
   const imgRatio = () => IMG_RATIO[($("snsPlatform") && $("snsPlatform").value) || "x"] || "16:9";
   let snsImgBase = "";   // 文字を載せる前の元画像(data URL)。文字だけ載せ直すのに使う。
-  // 生成画像の上に短い文字をキレイに合成(AIに日本語を描かせず、canvasで正確に描く)
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  // 生成画像の上に短い文字をキレイに合成(AIに日本語を描かせず、canvasで正確に描く)。
+  // 位置はランダム、できるだけ1行に収める(フォントを自動縮小)、角丸の半透明パネル背景で位置を選ばず読みやすく。
   function overlayText(dataUrl, text) {
     return new Promise((resolve) => {
-      text = String(text || "").trim();
+      text = String(text || "").replace(/\s*\n\s*/g, " ").trim();
       if (!text) return resolve(dataUrl);
       const img = new Image();
       img.onload = () => {
@@ -907,25 +913,41 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
           cv.width = img.naturalWidth || 1280; cv.height = img.naturalHeight || 720;
           const ctx = cv.getContext("2d");
           ctx.drawImage(img, 0, 0, cv.width, cv.height);
-          const grad = ctx.createLinearGradient(0, cv.height * 0.4, 0, cv.height);
-          grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,0,0,0.75)");
-          ctx.fillStyle = grad; ctx.fillRect(0, cv.height * 0.4, cv.width, cv.height * 0.6);
-          const pad = Math.round(cv.width * 0.05);
-          const fs = Math.round(cv.width / 13);
           const fam = (getComputedStyle(document.body).fontFamily) || "sans-serif";
+          const pad = Math.round(cv.width * 0.045);
+          const maxW = cv.width - pad * 2;
+          // 1行で収まるフォントサイズを探す(大→縮小)。最小でも収まらなければ2行に折り返し(保険)
+          let fs = Math.round(cv.width / 11);
+          const minFs = Math.round(cv.width / 24);
           ctx.font = "800 " + fs + "px " + fam;
-          ctx.textBaseline = "alphabetic"; ctx.fillStyle = "#fff";
-          const maxW = cv.width - pad * 2; const lines = []; let line = "";
-          for (const ch of text.split("")) {
-            if (ch === "\n") { lines.push(line); line = ""; continue; }
-            const t = line + ch;
-            if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = ch; } else line = t;
+          while (fs > minFs && ctx.measureText(text).width > maxW) { fs -= 2; ctx.font = "800 " + fs + "px " + fam; }
+          let lines = [text];
+          if (ctx.measureText(text).width > maxW) {
+            lines = []; let line = "";
+            for (const ch of text.split("")) { const t = line + ch; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = ch; } else line = t; }
+            if (line) lines.push(line);
           }
-          if (line) lines.push(line);
-          const lh = fs * 1.28;
-          let y = cv.height - pad - (lines.length - 1) * lh;
-          ctx.lineJoin = "round"; ctx.lineWidth = Math.max(4, fs / 7); ctx.strokeStyle = "rgba(0,0,0,0.6)";
-          for (const ln of lines) { ctx.strokeText(ln, pad, y); ctx.fillText(ln, pad, y); y += lh; }
+          const lh = fs * 1.25;
+          const blockW = Math.min(maxW, Math.max.apply(null, lines.map((l) => ctx.measureText(l).width)));
+          const blockH = lines.length * lh;
+          // ランダム配置(左右×上中下。上下をやや多めに)
+          const alignX = pick(["left", "center", "right"]);
+          const posY = pick(["top", "top", "middle", "bottom", "bottom"]);
+          const bx = alignX === "left" ? pad : (alignX === "right" ? (cv.width - pad - blockW) : (cv.width - blockW) / 2);
+          const byTop = posY === "top" ? pad : (posY === "bottom" ? (cv.height - pad - blockH) : (cv.height - blockH) / 2);
+          // 角丸パネル背景
+          const bp = Math.round(fs * 0.42);
+          ctx.fillStyle = "rgba(0,0,0,0.5)";
+          roundRect(ctx, bx - bp, byTop - bp, blockW + bp * 2, blockH + bp * 2, Math.round(fs * 0.35)); ctx.fill();
+          // テキスト
+          ctx.fillStyle = "#fff"; ctx.textBaseline = "top"; ctx.textAlign = "left";
+          ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = Math.max(2, fs / 12);
+          let y = byTop;
+          for (const ln of lines) {
+            const lw = ctx.measureText(ln).width;
+            const x = alignX === "center" ? bx + (blockW - lw) / 2 : (alignX === "right" ? bx + (blockW - lw) : bx);
+            ctx.fillText(ln, x, y); y += lh;
+          }
           resolve(cv.toDataURL("image/png"));
         } catch (e) { resolve(dataUrl); }
       };
