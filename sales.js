@@ -869,11 +869,22 @@ ${instruct ? "・【最優先の指示（他のスタイル設定より優先）
     "hyper-real close-up macro of hands and tools, gritty detail",
     "split before/after style composition, clear contrast",
   ];
+  // 媒体ごとの推奨アスペクト比(画像生成の指示に使う)
+  const IMG_ASPECT = {
+    x: "16:9 horizontal (landscape, about 1200x675px)",
+    instagram: "1:1 square (1080x1080px)",
+    facebook: "1.91:1 horizontal (landscape, about 1200x630px)",
+    line: "1:1 square (1080x1080px)",
+    note: "16:9 horizontal header banner (about 1280x670px)",
+  };
   function buildImgPrompt() {
     const post = ($("snsBody").value || "").trim();
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
+    const aspect = IMG_ASPECT[platform] || IMG_ASPECT.x;
     const style = pick(IMG_STYLES);
-    return `Create a scroll-stopping, share-worthy square social-media image for an automotive-repair AI smartphone app "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
+    return `Create a scroll-stopping, share-worthy social-media image for an automotive-repair AI smartphone app "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
+Aspect ratio / size (IMPORTANT — compose for this exact shape): ${aspect}. Fill the whole frame edge to edge in this ratio.
 Match the mood of this Japanese post:
 """${post.slice(0, 1200)}"""
 Visual style (use this): ${style}. Make it striking, original and eye-catching — NOT a generic stock photo. Strong composition, bold focal point, emotion or humor if it fits the post.

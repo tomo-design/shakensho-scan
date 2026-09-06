@@ -1646,6 +1646,7 @@ $("btnPartsLoc") && $("btnPartsLoc").addEventListener("click", async () => {
 /* この車両について質問(AI Q&A) */
 let vehAskBusy = false;
 $("btnVehClear").addEventListener("click", () => {
+  stopFieldMic();   // 音声入力中ならクリアで確実に停止
   cancelAI();
   $("qVehText").value = ""; autoGrow($("qVehText"));
   $("qVehResult").innerHTML = ""; toggle("qVehResult", false);
@@ -4900,6 +4901,7 @@ $("btnDiagRun").addEventListener("click", async () => {
   try { await runDiag(); } finally { setBtnLoading(btn, false); }
 });
 $("btnDiagClear").addEventListener("click", () => {
+  stopFieldMic();   // 音声入力中ならクリアで確実に停止
   cancelAI();   // 考え中のメカ君を中断
   $("diagText").value = ""; autoGrow($("diagText")); $("diagResults").innerHTML = "";
   toggle("diagVideoStatus", false);
@@ -7335,54 +7337,53 @@ function getSpeechRecognition() {
   const r = new SR(); r.lang = "ja-JP"; r.interimResults = true; r.continuous = false;
   return r;
 }
-let micRec = null, micListening = false, micBtnCur = null;
-/* 検索/相談ボタン押下時に音声入力を終了させる */
-function stopFieldMic() { micListening = false; if (micRec) { try { micRec.stop(); } catch (e) {} } }
-/* 音声で文字入力: 押すと認識開始。無音で切れても押すまで自動再開し続ける。再押下で停止 */
+let micRec = null, micListening = false, micBtnCur = null, micIdleLabel = "🎤";
+/* 音声入力を確実に終了(クリア/タブ切替/検索実行/画面非表示時に呼ぶ)。
+   abort()で即停止＋onendを無効化して自動再開させない＋ボタン表示も元に戻す。 */
+function stopFieldMic() {
+  micListening = false;
+  if (micRec) {
+    try { micRec.onresult = null; micRec.onend = null; micRec.onerror = null; } catch (e) {}
+    try { if (micRec.abort) micRec.abort(); else micRec.stop(); } catch (e) {}
+    micRec = null;
+  }
+  if (micBtnCur) { try { micBtnCur.textContent = micIdleLabel; micBtnCur.classList.remove("sel"); } catch (e) {} micBtnCur = null; }
+}
+/* 音声で文字入力: 押すと認識開始、もう一度押すと停止。無音が続けば自動で終了(自動再開はしない=ピコピコ音・重複入力を防止)。 */
 function wireFieldMic(btnId, fieldId, idleLabel) {
   const btn = $(btnId); if (!btn) return;
   btn.addEventListener("click", () => {
     if (typeof closeVoiceChat === "function") closeVoiceChat();
-    if (micListening && micBtnCur === btn) {      // 停止
-      micListening = false;
-      if (micRec) { try { micRec.stop(); } catch (e) {} }
-      btn.textContent = idleLabel; btn.classList.remove("sel");
-      return;
-    }
-    if (micRec) { try { micRec.stop(); } catch (e) {} micRec = null; }
-    if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    if (micListening && micBtnCur === btn) { stopFieldMic(); return; }   // 停止(トグル)
+    stopFieldMic();   // 別欄で録音中なら先に確実に止める
+    const rec = getSpeechRecognition();
+    if (!rec) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
     const fld = $(fieldId);
     const base = fld.value ? fld.value + " " : "";
-    let accum = "", sessionFinal = "";
-    micListening = true; micBtnCur = btn; btn.textContent = "●"; btn.classList.add("sel");
-    const startSession = () => {
-      const rec = getSpeechRecognition(); if (!rec) { micListening = false; return; }
-      rec.continuous = true; rec.interimResults = true; micRec = rec; sessionFinal = "";
-      let sessionFatal = false;
-      rec.onresult = e => {
-        let f = "", interim = "";
-        for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
-        sessionFinal = f;
-        fld.value = base + dedupRepeats(accum + f + interim);
-        if (typeof autoGrow === "function") autoGrow(fld);
-      };
-      rec.onerror = e => { const err = e && e.error; if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") sessionFatal = true; };
-      rec.onend = () => {
-        accum += sessionFinal; sessionFinal = ""; micRec = null;
-        fld.value = base + dedupRepeats(accum);
-        // ★無音で切れても、停止ボタンを押すまで自動再開して話し続けられるようにする(喋るたびに押す不便を解消)
-        if (micListening && !sessionFatal) { setTimeout(() => { if (micListening) startSession(); }, 120); return; }
-        micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel");
-      };
-      try { rec.start(); } catch (e) { micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel"); }
+    micListening = true; micBtnCur = btn; micIdleLabel = idleLabel;
+    btn.textContent = "●"; btn.classList.add("sel");
+    rec.continuous = true; rec.interimResults = true; micRec = rec;
+    // 1セッション内で e.results は累積するので、毎回「確定+暫定」を丸ごと反映すれば重複しない。
+    rec.onresult = e => {
+      let f = "", interim = "";
+      for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
+      fld.value = base + dedupRepeats(f + interim);
+      if (typeof autoGrow === "function") autoGrow(fld);
     };
-    startSession();
+    rec.onerror = () => {};
+    rec.onend = () => {   // 無音や停止で終了 → 自動再開はしない。ボタンを元に戻す。
+      micRec = null;
+      if (micBtnCur === btn) { micListening = false; btn.textContent = idleLabel; btn.classList.remove("sel"); micBtnCur = null; }
+    };
+    try { rec.start(); } catch (e) { stopFieldMic(); }
   });
 }
 wireFieldMic("btnDiagMic", "diagText", "🎤");
 wireFieldMic("btnPartsMic", "partName", "🎤");
 wireFieldMic("btnVehMic", "qVehText", "🎤");
 wireFieldMic("btnKarteMic", "kWork", "🎤");
+// 画面が隠れた(タブ切替・アプリを閉じる・ロック)ら音声入力を確実に終了(鳴りっぱなし防止)
+document.addEventListener("visibilitychange", () => { if (document.hidden) { try { stopFieldMic(); } catch (e) {} } });
 
 /* ===== メカ君と音声会話(STT → Gemini → TTS) ===== */
 let voiceRec = null, voiceHistory = [], voiceActive = false;
@@ -7522,6 +7523,7 @@ function buildVoiceChatPrompt() {
 let curView = "scan";        // 現在の主要ビュー
 let lastVehPage = "scan";    // 車両表示中に最後に開いていたページ(scan/maint/diag/parts/karte)
 function switchView(name) {
+  try { stopFieldMic(); } catch (e) {}   // タブ/ページ切替で音声入力を確実に終了
   if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   curView = name;
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;

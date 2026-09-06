@@ -2150,29 +2150,35 @@ async function isSuper(uid) {
 
 // SNS投稿に添える画像をGeminiの画像生成モデルで作る。data URL(base64)を返す。
 // ※キーが画像生成に対応していない場合は失敗する(呼び出し側でメッセージ表示)。
-async function genImage(promptText) {
+async function genImage(promptText, aspectRatio) {
   const freeKeys = cfg().geminiFree || [];
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
   const keys = (paidKey ? [paidKey] : []).concat(freeKeys);
   if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
   const models = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
-  const body = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], temperature: 1.0 } };
+  const base = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], temperature: 1.0 } };
+  // アスペクト比指定つきを先に試し、未対応(400)なら指定なしにフォールバック
+  const bodies = [];
+  if (aspectRatio) { const b = JSON.parse(JSON.stringify(base)); b.generationConfig.imageConfig = { aspectRatio: aspectRatio }; bodies.push(b); }
+  bodies.push(base);
   let lastErr = "";
   for (const key of keys) {
     for (const model of models) {
-      let r;
-      try {
-        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        });
-      } catch (e) { lastErr = "network"; continue; }
-      if (r.status === 429) { lastErr = "quota"; continue; }
-      if (!r.ok) { lastErr = "http " + r.status; continue; }
-      const j = await r.json();
-      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-      const img = parts.find((p) => p.inlineData && p.inlineData.data);
-      if (img) return "data:" + (img.inlineData.mimeType || "image/png") + ";base64," + img.inlineData.data;
-      lastErr = "no-image";
+      for (const body of bodies) {
+        let r;
+        try {
+          r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+          });
+        } catch (e) { lastErr = "network"; continue; }
+        if (r.status === 429) { lastErr = "quota"; break; }   // 枠切れは次キーへ
+        if (!r.ok) { lastErr = "http " + r.status; continue; }  // 400等(imageConfig非対応など)は次のbody/モデルへ
+        const j = await r.json();
+        const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+        const img = parts.find((p) => p.inlineData && p.inlineData.data);
+        if (img) return "data:" + (img.inlineData.mimeType || "image/png") + ";base64," + img.inlineData.data;
+        lastErr = "no-image";
+      }
     }
   }
   throw new Error("画像生成に失敗しました(" + lastErr + ")。お使いのGeminiキーが画像生成に対応していない可能性があります。");
