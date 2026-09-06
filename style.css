@@ -783,9 +783,15 @@ details[open] > .secSummary::after{content:"▴"}
 #scDetails[open] .supportChat{flex:1;min-height:0;display:flex;flex-direction:column}
 #scDetails[open] .scBodyWrap{flex:1;min-height:0;display:flex;flex-direction:column}
 #scDetails[open] .scMsgs{flex:1;max-height:none;min-height:0}
-/* 匿名フィードバック */
-.fbBox{margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
-.fbTitle{font-size:13px;font-weight:800;color:var(--txt);margin-bottom:6px}
+#scDetails[open] .scMailHint{flex:0 0 auto}
+/* 匿名フィードバック(折り畳み) */
+.fbFold{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);flex:0 0 auto}
+.fbSummary{list-style:none;cursor:pointer;padding:10px 12px;font-size:13px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+.fbSummary::-webkit-details-marker{display:none}
+.fbSummary::before{content:"▸";color:var(--dim);transition:transform .15s}
+.fbFold[open] .fbSummary::before{transform:rotate(90deg)}
+.fbSubttl{font-size:11px;font-weight:600;color:var(--dim)}
+.fbBox{padding:0 12px 12px}
 .fbText{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;background:var(--panel2);color:var(--txt);resize:vertical}
 .fbRow{display:flex;align-items:center;gap:10px;margin-top:8px}
 .scSummary{list-style:none;cursor:pointer;padding:12px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}

@@ -782,13 +782,15 @@
             <div class="scNote hint">回答はAIによる案内です。契約・請求の確定情報は運営にご確認ください。</div>
           </div>
         </div>
-        <div class="hint" style="margin-top:14px">解決しない場合：<a href="mailto:ai@reply.mechanoai-cablueie.com?subject=%E3%83%A1%E3%82%AB%E3%83%8EAI%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B" style="color:var(--cyan)">お問い合わせ</a></div>
-        <!-- 匿名フィードバック: 名前・連絡先不要で意見/不具合を送れる -->
-        <div class="fbBox">
-          <div class="fbTitle">📝 ご意見・不具合を送る（匿名でOK）</div>
-          <textarea id="fbText" class="fbText" rows="3" placeholder="気づいた点・ほしい機能・不具合など。匿名で送れます。"></textarea>
-          <div class="fbRow"><button type="button" class="btn btn-ghost btn-sm" id="fbSend" style="flex:0 0 auto;display:inline-block;min-height:40px">匿名で送信</button><span class="hint" id="fbStatus"></span></div>
-        </div>
+        <div class="hint scMailHint" style="margin-top:14px">解決しない場合：<a href="mailto:ai@reply.mechanoai-cablueie.com?subject=%E3%83%A1%E3%82%AB%E3%83%8EAI%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B" style="color:var(--cyan)">お問い合わせ</a></div>
+        <!-- 匿名フィードバック: 折り畳み。名前・連絡先不要で意見/不具合を送れる -->
+        <details class="fbFold" id="fbFold">
+          <summary class="fbSummary">フィードバック<span class="fbSubttl">（匿名でOK）</span></summary>
+          <div class="fbBox">
+            <textarea id="fbText" class="fbText" rows="3" placeholder="気づいた点・ほしい機能・不具合など。匿名で送れます。"></textarea>
+            <div class="fbRow"><button type="button" class="btn btn-ghost btn-sm" id="fbSend" style="flex:0 0 auto;display:inline-block;min-height:40px">匿名で送信</button><span class="hint" id="fbStatus"></span></div>
+          </div>
+        </details>
       </div>
     </details>
   </section>
