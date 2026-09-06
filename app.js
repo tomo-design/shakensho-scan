@@ -1890,12 +1890,32 @@ function renderRepairAnswer(box, obj, q) {
   if (obj.torque) {
     sec("締付トルク・規定値");
     const raw = keepUnit(han(String(obj.torque)));
-    // 末尾の注記(（…FAINES/確認/推奨/目安…）)を分離
+    // 括弧の深さを見て「括弧の外(トップレベル)」だけで注記分離・分割する。
+    //  ★これをしないと（JIS方式 5穴・スチールホイール）等の括弧内の区切りや※で途中分割されてしまう。
     let body = raw, note = "";
-    const nm = raw.match(/[（(][^（()）]*(?:FAINES|確認|推奨|目安|参考)[^（()）]*[)）]\s*$/);
-    if (nm) { note = nm[0].replace(/^[（(]/, "").replace(/[)）]\s*$/, ""); body = raw.slice(0, nm.index).trim().replace(/[、,／/;]\s*$/, ""); }
-    // 「/」「、」「,」「;」いずれの区切りでも部位ごとに分割
-    const items = body.split(/\s*[\/／、,;]\s*/).map(s => s.trim()).filter(Boolean);
+    // 1) トップレベルの「※」以降を注記として分離(括弧内の※左輪は逆ネジ等は本文のまま残す)
+    { let depth = 0, idx = -1;
+      for (let i = 0; i < raw.length; i++) { const ch = raw[i];
+        if (ch === "（" || ch === "(") depth++;
+        else if (ch === "）" || ch === ")") depth = Math.max(0, depth - 1);
+        else if (depth === 0 && ch === "※") { idx = i; break; } }
+      if (idx >= 0) { note = raw.slice(idx).replace(/^※\s*/, "").trim(); body = raw.slice(0, idx).trim().replace(/[、,／/;]\s*$/, ""); }
+    }
+    // 2) 注記が無ければ、末尾の（…FAINES/確認/推奨/目安…）を注記として分離
+    if (!note) { const nm = body.match(/[（(][^（()）]*(?:FAINES|確認|推奨|目安|参考)[^（()）]*[)）]\s*$/);
+      if (nm) { note = nm[0].replace(/^[（(]/, "").replace(/[)）]\s*$/, ""); body = body.slice(0, nm.index).trim().replace(/[、,／/;]\s*$/, ""); } }
+    // 3) 部位ごとに分割。ただし括弧の外の「/／、,;」だけで区切る(括弧内は割らない)
+    const items = (() => {
+      const out = []; let cur = "", depth = 0;
+      for (const ch of body) {
+        if (ch === "（" || ch === "(") depth++;
+        else if (ch === "）" || ch === ")") depth = Math.max(0, depth - 1);
+        if (depth === 0 && /[\/／、,;]/.test(ch)) { const t = cur.trim(); if (t) out.push(t); cur = ""; }
+        else cur += ch;
+      }
+      const t = cur.trim(); if (t) out.push(t);
+      return out;
+    })();
     const list = document.createElement("div"); list.className = "torqueList";
     items.forEach(it => {
       const row = document.createElement("div"); row.className = "torqueRow";

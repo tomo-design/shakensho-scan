@@ -1,0 +1,350 @@
+<title>メカノAI 紹介</title>
+<style>
+  :root{
+    --bg:#0A0F1A; --bg2:#0E1524; --panel:#131D30; --panel2:#182339;
+    --line:#25324A; --txt:#E7EEF7; --dim:#93A6BE;
+    --cyan:#22D3EE; --cyan2:#38BDF8; --amber:#F5B23D; --green:#34D399;
+    --glow:0 0 40px rgba(34,211,238,.25);
+    --maxw:960px;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--txt);margin:0;
+    font-family:"Zen Kaku Gothic New","Noto Sans JP",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.7;overflow-x:hidden}
+  h1,h2,h3{font-family:"Zen Kaku Gothic New","Noto Sans JP",sans-serif;line-height:1.35;text-wrap:balance;margin:0}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  a{color:inherit}
+
+  /* 進捗バー */
+  #prog{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;
+    background:linear-gradient(90deg,var(--cyan),var(--cyan2));box-shadow:var(--glow)}
+
+  /* 背景の淡いグリッド＋グロー */
+  .bgfx{position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(600px 400px at 80% -5%,rgba(34,211,238,.10),transparent 60%),
+      radial-gradient(500px 400px at 0% 20%,rgba(56,189,248,.08),transparent 60%),
+      linear-gradient(180deg,var(--bg),var(--bg2))}
+
+  /* ===== HERO ===== */
+  header{min-height:92vh;display:flex;flex-direction:column;justify-content:center;position:relative}
+  .badge{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);border-radius:999px;
+    padding:6px 14px;font-size:13px;color:var(--cyan);letter-spacing:.03em}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:var(--glow)}
+  h1{font-size:clamp(34px,7vw,66px);font-weight:800;margin:22px 0 0;letter-spacing:-.01em}
+  h1 .accent{background:linear-gradient(90deg,var(--cyan),var(--cyan2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--dim);font-size:clamp(15px,2.4vw,20px);margin-top:20px;max-width:34ch}
+  .heroBtns{display:flex;gap:12px;flex-wrap:wrap;margin-top:34px}
+  .btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-weight:700;
+    border-radius:12px;padding:13px 22px;font-size:15px;transition:transform .15s,box-shadow .2s}
+  .btn.primary{background:linear-gradient(90deg,var(--cyan),var(--cyan2));color:#04121a;box-shadow:var(--glow)}
+  .btn.ghost{border:1px solid var(--line);color:var(--txt)}
+  .btn:hover{transform:translateY(-2px)}
+  .scrollhint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);color:var(--dim);font-size:12px;
+    display:flex;flex-direction:column;align-items:center;gap:6px}
+  .scrollhint .mouse{width:22px;height:34px;border:2px solid var(--line);border-radius:12px;position:relative}
+  .scrollhint .mouse::after{content:"";position:absolute;left:50%;top:6px;transform:translateX(-50%);
+    width:3px;height:7px;border-radius:2px;background:var(--cyan);animation:wheel 1.5s infinite}
+  @keyframes wheel{0%{opacity:0;top:6px}30%{opacity:1}60%{opacity:1;top:15px}100%{opacity:0;top:15px}}
+
+  .mecha{width:clamp(76px,16vw,120px);height:auto;filter:drop-shadow(0 8px 30px rgba(34,211,238,.3))}
+  .heroTop{display:flex;align-items:center;gap:16px}
+
+  /* ===== セクション共通 ===== */
+  section{padding:clamp(60px,11vh,120px) 0}
+  .step{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}
+  @media(max-width:760px){.step{grid-template-columns:1fr;gap:26px}}
+  .num{font-size:13px;font-weight:800;color:var(--cyan);letter-spacing:.15em}
+  h2{font-size:clamp(24px,4.4vw,38px);font-weight:800;margin:12px 0 14px}
+  .desc{color:var(--dim);font-size:clamp(14px,2vw,17px)}
+  .desc b{color:var(--txt);font-weight:700}
+
+  /* スクロール出現 */
+  .reveal{opacity:0;transform:translateY(34px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .step:nth-child(even) .visual{order:-1}
+  @media(max-width:760px){.step .visual{order:-1 !important}}
+  .delay1{transition-delay:.08s}.delay2{transition-delay:.16s}.delay3{transition-delay:.24s}
+
+  /* スマホ枠モックアップ */
+  .phone{width:min(300px,80vw);margin:0 auto;border:2px solid var(--line);border-radius:30px;
+    background:var(--panel);padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);position:relative}
+  .phone::before{content:"";position:absolute;top:9px;left:50%;transform:translateX(-50%);
+    width:80px;height:5px;border-radius:3px;background:var(--line)}
+  .screen{border-radius:18px;background:var(--bg2);padding:16px 14px;min-height:340px;overflow:hidden}
+  .srow{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+  .chip{font-size:11px;color:var(--cyan);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+  .barline{height:9px;border-radius:5px;background:var(--panel2);margin:7px 0}
+  .barline.sm{width:55%}.barline.md{width:75%}.barline.lg{width:92%}
+
+  /* スキャン枠アニメ */
+  .scanbox{border:2px dashed var(--cyan);border-radius:12px;height:120px;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px}
+  .scanline{position:absolute;left:6%;right:6%;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+    top:0;box-shadow:var(--glow)}
+  .in .scanline{animation:scan 2.2s ease-in-out infinite}
+  @keyframes scan{0%{top:8%}50%{top:88%}100%{top:8%}}
+  .qr{width:70px;height:70px;border-radius:8px;background:
+    conic-gradient(#0000 0 25%,#0003 0 50%) 0 0/16px 16px,var(--txt);opacity:.85}
+
+  /* 諸元メーター */
+  .spec{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:9px 0;font-size:13px}
+  .spec:first-child{border-top:none}
+  .spec .v{color:var(--cyan);font-weight:800;font-variant-numeric:tabular-nums}
+  .gauge{height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-top:3px}
+  .gauge > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--cyan2));transition:width 1.2s ease}
+  .in .gauge > i{width:var(--w,70%)}
+
+  /* 診断チャット */
+  .bubble{border-radius:12px;padding:10px 12px;font-size:13px;margin:8px 0;max-width:88%}
+  .bubble.me{background:var(--panel2);margin-left:auto;border:1px solid var(--line)}
+  .bubble.ai{background:linear-gradient(180deg,rgba(34,211,238,.10),rgba(34,211,238,.03));border:1px solid rgba(34,211,238,.3)}
+  .typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--cyan);margin:0 2px;opacity:.4;animation:blink 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+  .diagItem{font-size:12.5px;padding:5px 0;padding-left:16px;position:relative;color:var(--txt)}
+  .diagItem::before{content:"";position:absolute;left:2px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+
+  /* カルテ */
+  .kfold{border-bottom:1px solid var(--line);padding:9px 0}
+  .kfold .kd{color:var(--cyan);font-weight:700;font-size:13px;display:flex;gap:6px;align-items:center}
+  .kfold .body{font-size:12px;color:var(--dim);margin-top:6px}
+
+  /* カレンダー */
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal .d{aspect-ratio:1;border-radius:6px;background:var(--panel2);font-size:10px;color:var(--dim);
+    display:flex;align-items:flex-start;justify-content:flex-end;padding:3px}
+  .cal .d.inb{background:rgba(34,211,238,.16);color:var(--cyan);border:1px solid rgba(34,211,238,.35)}
+  .cal .d.plan{background:rgba(245,178,61,.14);color:var(--amber);border:1px solid rgba(245,178,61,.35)}
+
+  /* 育てるAI before/after */
+  .grow{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .growcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:13px;text-align:center}
+  .growcard .v{font-size:20px;font-weight:800}
+  .growcard.old .v{color:var(--dim);text-decoration:line-through}
+  .growcard.new .v{color:var(--green)}
+  .arrow{color:var(--cyan);font-size:22px}
+
+  /* 料金 */
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+  @media(max-width:760px){.plans{grid-template-columns:1fr}}
+  .plan{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 18px;position:relative}
+  .plan.feat{border-color:var(--cyan);box-shadow:var(--glow)}
+  .plan .tag{position:absolute;top:-11px;left:18px;background:var(--cyan);color:#04121a;font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px}
+  .plan h3{font-size:18px}
+  .plan .price{font-size:26px;font-weight:800;margin:8px 0 2px}
+  .plan .price small{font-size:13px;color:var(--dim);font-weight:600}
+  .plan .note{font-size:12.5px;color:var(--dim);margin-top:10px}
+  .free{display:inline-block;margin-top:14px;font-size:13px;color:var(--green);font-weight:700}
+
+  /* CTA */
+  .cta{text-align:center;background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:24px;padding:clamp(34px,7vw,64px) 22px;position:relative;overflow:hidden}
+  .cta::after{content:"";position:absolute;inset:0;background:radial-gradient(400px 200px at 50% 0,rgba(34,211,238,.18),transparent 70%);pointer-events:none}
+  .cta h2{margin-bottom:10px}
+  footer{color:var(--dim);font-size:12px;text-align:center;padding:36px 22px 60px}
+  .disc{color:var(--dim);font-size:11.5px;text-align:center;margin-top:14px;opacity:.8}
+  @media(prefers-reduced-motion:reduce){.reveal{transition:none;opacity:1;transform:none}.scanline,.gauge>i{animation:none}}
+</style>
+
+<div id="prog"></div>
+<div class="bgfx"></div>
+
+<header class="wrap">
+  <div class="heroTop reveal in">
+    <svg class="mecha" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="メカ君">
+      <rect x="24" y="30" width="52" height="46" rx="12" fill="#182339" stroke="#22D3EE" stroke-width="2.5"/>
+      <circle cx="40" cy="50" r="7" fill="#22D3EE"/><circle cx="60" cy="50" r="7" fill="#38BDF8"/>
+      <rect x="42" y="64" width="16" height="4" rx="2" fill="#22D3EE"/>
+      <line x1="50" y1="30" x2="50" y2="20" stroke="#22D3EE" stroke-width="2.5"/><circle cx="50" cy="17" r="4" fill="#F5B23D"/>
+      <rect x="16" y="40" width="8" height="20" rx="4" fill="#182339" stroke="#22D3EE" stroke-width="2"/>
+      <rect x="76" y="40" width="8" height="20" rx="4" fill="#182339" stroke="#22D3EE" stroke-width="2"/>
+    </svg>
+    <span class="badge"><span class="dot"></span>MECHANO-AI ｜ 整備現場のAIパートナー</span>
+  </div>
+  <h1 class="reveal in delay1">AIと共に働く時代へ。<br><span class="accent">調べる・記録する</span>を、まるごと。</h1>
+  <p class="lede reveal in delay2">締付トルク、故障の原因、修理手順、整備カルテ——<br>整備の「時間が消える作業」を、メカノAIが肩代わりします。</p>
+  <div class="heroBtns reveal in delay3">
+    <a class="btn primary" href="https://mechanoai-cablueie.com/" target="_blank" rel="noopener">▶ 無料で体験する</a>
+    <a class="btn ghost" href="https://mechanoai-cablueie.com/biz.html" target="_blank" rel="noopener">法人向け詳細</a>
+  </div>
+  <div class="scrollhint"><div class="mouse"></div>スクロール</div>
+</header>
+
+<main class="wrap">
+
+  <!-- 1 スキャン -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 01</div>
+      <h2 class="reveal delay1">車検証を<br>かざすだけ</h2>
+      <p class="desc reveal delay2">車検証のQRやカメラで<b>スキャンするだけ</b>で、車両情報を即取得。型式・車台番号から、その車の作業をすぐ始められます。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="srow"><span class="chip">スキャン</span></div>
+        <div class="scanbox"><div class="scanline"></div><div class="qr"></div></div>
+        <div style="margin-top:14px" class="srow"><span class="chip">車両情報</span></div>
+        <div class="barline lg"></div><div class="barline md"></div><div class="barline sm"></div>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 2 諸元 -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 02</div>
+      <h2 class="reveal delay1">メンテ諸元を<br>即表示</h2>
+      <p class="desc reveal delay2">締付トルク・オイル粘度/量・各種容量を<b>AIがその場で提示</b>。分厚い整備書を何冊もめくる時間をゼロに。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="srow"><span class="chip">メンテ諸元</span></div>
+        <div class="spec"><span>ホイールナット</span><span class="v">108 N·m</span></div>
+        <div class="gauge" style="--w:60%"><i></i></div>
+        <div class="spec"><span>エンジンオイル</span><span class="v">0W-20 / 3.1L</span></div>
+        <div class="gauge" style="--w:40%"><i></i></div>
+        <div class="spec"><span>ブレーキフルード</span><span class="v">DOT4</span></div>
+        <div class="gauge" style="--w:78%"><i></i></div>
+        <div class="spec"><span>冷却水容量</span><span class="v">5.6 L</span></div>
+        <div class="gauge" style="--w:55%"><i></i></div>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 3 診断→修理 -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 03 ｜ 最大の売り</div>
+      <h2 class="reveal delay1">症状を入れるだけで<br>原因から直し方まで</h2>
+      <p class="desc reveal delay2">故障コードや「エンジンがかからない」等の症状を入力すると、<b>考えられる原因・点検箇所・対処法を一括提示</b>。さらに<b>修理手順・交換部品・締付トルク</b>まで。診断から修理まで一気通貫で、若手も段取りに迷いません。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="bubble me">エンジン警告灯が点灯／アイドリング不安定</div>
+        <div class="bubble ai" id="typebox"><span class="typing"><span></span><span></span><span></span></span></div>
+        <div class="bubble ai" id="diagres" style="display:none">
+          <b style="color:var(--cyan)">考えられる原因</b>
+          <div class="diagItem">点火プラグ／イグニッションコイルの劣化</div>
+          <div class="diagItem">エアフロセンサーの汚れ</div>
+          <div class="diagItem">燃料噴射系の不調</div>
+          <div style="margin-top:8px"><b style="color:var(--cyan)">→ 修理手順・交換部品も表示</b></div>
+        </div>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 4 カルテ -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 04</div>
+      <h2 class="reveal delay1">伝票を撮れば<br>カルテに自動下書き</h2>
+      <p class="desc reveal delay2">作業伝票やメモの写真を<b>AIが読み取り、各項目に下書き</b>。確認して保存するだけ。記録は<b>日付ごとに折りたたみ</b>で見やすく整理されます。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="srow"><span class="chip">📷 写真から自動入力</span></div>
+        <div class="kfold"><div class="kd">▾ 2026-09-01</div>
+          <div class="body">35,942km ・ 担当: 中江<br>作業: エンジンオイル交換 / オイルエレメント<br>部品: 0W-20 3.1L・M-42 ×1</div></div>
+        <div class="kfold"><div class="kd">▸ 2026-08-15 <span style="color:var(--dim);font-weight:400">（2件）</span></div></div>
+        <div class="kfold"><div class="kd">▸ 2026-07-30</div></div>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 5 入庫管理 -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 05 ｜ Works（法人）</div>
+      <h2 class="reveal delay1">入庫も予定も<br>チームで共有</h2>
+      <p class="desc reveal delay2">入庫区分（車検/点検/修理/事故）で<b>色分けボード</b>に自動表示。カレンダーで<b>月間の入出庫と予定を一目</b>で把握。新規入庫は全端末に通知され、事務と現場がつながります。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="srow"><span class="chip">📅 入庫カレンダー</span></div>
+        <div class="cal">
+          <div class="d">1</div><div class="d inb">2▼</div><div class="d">3</div><div class="d plan">4📌</div><div class="d">5</div><div class="d inb">6▼</div><div class="d">7</div>
+          <div class="d">8</div><div class="d">9</div><div class="d inb">10▼</div><div class="d">11</div><div class="d">12</div><div class="d plan">13📌</div><div class="d">14</div>
+          <div class="d">15</div><div class="d inb">16▼</div><div class="d">17</div><div class="d">18</div><div class="d">19</div><div class="d">20</div><div class="d">21</div>
+        </div>
+        <div class="srow" style="margin-top:12px"><span class="chip" style="color:var(--cyan)">▼ 入庫</span><span class="chip" style="color:var(--amber)">📌 予定</span></div>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 6 育てるAI -->
+  <section><div class="step">
+    <div class="text">
+      <div class="num reveal">STEP 06</div>
+      <h2 class="reveal delay1">使うほど<br>"自社の正解"に育つ</h2>
+      <p class="desc reveal delay2">AIの回答は<b>参考値</b>。違っていればその場で正しい値に訂正して保存でき、次回からは<b>自社の正しい値</b>が表示されます。使うほど、あなたの工場だけの知識が蓄積。若手や外国人スタッフも同じ正解に到達できます。</p>
+    </div>
+    <div class="visual reveal delay1">
+      <div class="phone"><div class="screen">
+        <div class="srow"><span class="chip">締付トルク（自社修正）</span></div>
+        <div class="grow">
+          <div class="growcard old"><div style="font-size:11px;color:var(--dim)">AI参考値</div><div class="v">100 N·m</div></div>
+          <div class="arrow">→</div>
+          <div class="growcard new"><div style="font-size:11px;color:var(--dim)">保存後</div><div class="v">108 N·m</div></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--dim);text-align:center;margin-top:16px">直した値は社内で共有・次回から自動表示</p>
+      </div></div>
+    </div>
+  </div></section>
+
+  <!-- 料金 -->
+  <section>
+    <div class="num reveal" style="text-align:center">PRICING</div>
+    <h2 class="reveal delay1" style="text-align:center">まずは7日間、無料でお試し</h2>
+    <div class="plans">
+      <div class="plan reveal delay1">
+        <h3>NA</h3><div class="price">¥7,980<small>/月</small></div>
+        <div class="note">AI標準（検索なし）。諸元・故障診断・修理サポート・カルテ・入庫管理。</div>
+      </div>
+      <div class="plan feat reveal delay2">
+        <span class="tag">人気</span>
+        <h3>ターボ</h3><div class="price">¥12,800<small>/月</small></div>
+        <div class="note">Pro精度＋Web裏取り検索 月500回。</div>
+      </div>
+      <div class="plan reveal delay3">
+        <h3>ツインターボ</h3><div class="price">¥19,800<small>/月</small></div>
+        <div class="note">検索無制限・指名席3席（4席目〜+¥3,000/月）。</div>
+      </div>
+    </div>
+    <div style="text-align:center"><span class="free reveal">＋ 個人向け「Pocket」：7日間無料 → 月額¥500（AIは自分の無料APIキーで動作・クレカ登録不要）</span></div>
+    <p class="disc reveal">※料金は法人版Worksの月額。年額は約2か月分お得。AIの回答は参考値です。最終確認は必ず整備書で行ってください。</p>
+  </section>
+
+  <!-- CTA -->
+  <section>
+    <div class="cta reveal">
+      <h2>AIと共に働く現場へ。</h2>
+      <p class="desc" style="max-width:40ch;margin:0 auto 22px">人手不足を補い、若手が育つ。まずは自社の実データで、全機能を無料で試してください。</p>
+      <a class="btn primary" href="https://mechanoai-cablueie.com/" target="_blank" rel="noopener">▶ 無料ではじめる</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  メカノAI（MECHANO-AI）／ 提供：Cablueie（カブリエ）<br>
+  <a href="https://mechanoai-cablueie.com/" target="_blank" rel="noopener" style="color:var(--cyan)">mechanoai-cablueie.com</a>
+</footer>
+
+<script>
+  // 進捗バー
+  const prog=document.getElementById("prog");
+  addEventListener("scroll",()=>{const h=document.documentElement;const p=h.scrollTop/(h.scrollHeight-h.clientHeight);prog.style.width=(p*100)+"%";},{passive:true});
+
+  // スクロール出現
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});},{threshold:.18});
+  document.querySelectorAll(".reveal:not(.in)").forEach(el=>io.observe(el));
+
+  // 診断チャットの擬似タイピング → 結果表示
+  const typebox=document.getElementById("typebox"), diag=document.getElementById("diagres");
+  const dObs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){
+    setTimeout(()=>{if(typebox)typebox.style.display="none";if(diag)diag.style.display="block";},1600);
+    dObs.disconnect();
+  }});},{threshold:.4});
+  if(typebox)dObs.observe(typebox.closest("section"));
+</script>
