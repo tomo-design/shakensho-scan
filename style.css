@@ -1191,9 +1191,10 @@ body.pwLocked{ overflow:hidden }
   #intakeCalModal .icTotals{gap:6px;padding:2px 2px 12px;flex-wrap:nowrap}   /* 4つを1行に */
   #intakeCalModal .icTot{font-size:10.5px;font-weight:800;padding:3px 8px}
   #intakeCalModal .icGrid{padding:0 2px 2px}
-  #intakeCalModal .icCell{aspect-ratio:1/1.5;min-height:0;display:flex;flex-direction:column}   /* セルをもう少し大きく(縦長) */
+  #intakeCalModal .icCell{aspect-ratio:1/1.72;min-height:0;display:flex;flex-direction:column}   /* バッジ3つ(▼▲💰等)が見切れないよう縦を確保 */
   #intakeCalModal .icNum{font-size:13px}
-  #intakeCalModal .icBadge{font-size:10px;padding:1px 4px;line-height:15px}   /* 入出庫カードを少し大きく */
+  #intakeCalModal .icBadges{gap:2px;flex-wrap:wrap;align-content:flex-start}
+  #intakeCalModal .icBadge{font-size:9.5px;padding:0 3px;line-height:13.5px}   /* 3つでも収まるサイズに */
 }
 
 /* ===== 入庫区分ポップアップ ===== */

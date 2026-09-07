@@ -4051,8 +4051,15 @@ function renderIntakeCalendar() {
   const inByDay = {}, outByDay = {};
   const put = (map, ts, h) => { if (ts >= monthStart && ts < monthEnd) { const k = new Date(ts).getDate(); (map[k] = map[k] || []).push(h); } };
   intakeAllInScope().forEach(h => { if (h.intakeAt) put(inByDay, h.intakeAt, h); if (h.intakeOut) put(outByDay, h.intakeOut, h); });
+  // 自社立替(feeStatus=advance)の車両は集金に含めない
+  const advanceSet = new Set(getHistory().filter(h => feeStateOf(h) === "advance").map(h => h.rid));
   const planByDay = {}, outPlanByDay = {}, payPlanByDay = {};
-  getPlans().forEach(p => { if (p.y === y && p.m === m) { const map = (p.dir === "pay") ? payPlanByDay : (p.dir === "out") ? outPlanByDay : planByDay; (map[p.d] = map[p.d] || []).push(p); } });
+  getPlans().forEach(p => {
+    if (p.y !== y || p.m !== m) return;
+    if (p.dir === "pay" && advanceSet.has(p.rid)) return;   // 自社立替は集金カレンダーに出さない
+    const map = (p.dir === "pay") ? payPlanByDay : (p.dir === "out") ? outPlanByDay : planByDay;
+    (map[p.d] = map[p.d] || []).push(p);
+  });
   let inTot = 0, outTot = 0, planTot = 0, outPlanTot = 0, payTot = 0;
   Object.keys(inByDay).forEach(k => inTot += inByDay[k].length);
   Object.keys(outByDay).forEach(k => outTot += outByDay[k].length);
@@ -4147,7 +4154,8 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
     const plans = plansForDay(y, m, d);
     const inPlans = plans.filter(p => p.dir !== "out" && p.dir !== "pay");
     const outPlans = plans.filter(p => p.dir === "out");
-    const payPlans = plans.filter(p => p.dir === "pay");
+    const advSet = new Set(getHistory().filter(h => feeStateOf(h) === "advance").map(h => h.rid));
+    const payPlans = plans.filter(p => p.dir === "pay" && !advSet.has(p.rid));   // 自社立替は集金に含めない
     const inPlanSec =
       '<div class="icDetSec"><div class="icDetHd icPlanT">📌 入庫予定 ' + inPlans.length + '件 <button type="button" class="icPlanAdd" id="icAddPlan">＋</button></div>' + (inPlans.map(planRow).join('') || '<div class="icDetNone">予定なし</div>') + '</div>';
     const outPlanSec =

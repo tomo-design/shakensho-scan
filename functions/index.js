@@ -1498,6 +1498,10 @@ exports.collectNotifier = functions.region(REGION).pubsub.schedule("0 * * * *").
   console.log("collectNotifier: ymd=" + ymd + " hour=" + curH + " targets=" + targets.length);
   for (const t of targets) {
     try {
+      // 自社立替(feeStatus=advance / 旧feePaidと別)は集金に含めない → 通知しない
+      let advance = false;
+      try { if (t.plan.rid) { const rs = await db.collection("tenants").doc(t.tid).collection("records").where("rid", "==", t.plan.rid).limit(1).get(); if (!rs.empty) advance = (rs.docs[0].data() || {}).feeStatus === "advance"; } } catch (e) {}
+      if (advance) { await t.ref.set({ notifiedYmd: ymd }, { merge: true }); continue; }
       const tenant = (await db.collection("tenants").doc(t.tid).get()).data() || {};
       const uids = Array.isArray(tenant.collectNotifyUids) ? tenant.collectNotifyUids : [];
       if (uids.length) {
