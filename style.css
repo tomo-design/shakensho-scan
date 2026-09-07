@@ -725,7 +725,10 @@ details[open] > .secSummary::after{content:"▴"}
 /* 内側の手順リストは余白・バッジを軽くして本文の横幅を稼ぐ */
 .manualPane .guide-steps{margin-top:8px;gap:8px}
 .manualPane .guide-steps li{margin-bottom:0;padding:10px 12px;gap:10px;line-height:1.85;background:var(--panel2)}
-.manualPane .guide-steps li::before{width:22px;height:22px;font-size:12px}
+.manualPane .guide-steps li::before{width:22px;height:22px;font-size:13px}
+/* 点検手引書の手順は番号ではなく↓(流れ)で示す */
+.manualPane .guide-steps li::before,
+.imBody .guide-steps li::before{content:"↓"}
 .manualPane .ai-cause{font-size:16px;line-height:1.9;color:var(--txt);font-weight:600}
 .manualPane .ai-p{font-size:15.5px;line-height:1.9;color:var(--txt);margin-top:8px}
 .manualPane .hint{font-size:13px;color:var(--dim);line-height:1.8}
