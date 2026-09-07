@@ -5689,7 +5689,7 @@ function renderInspectManual(container, text) {
       if (!t) return;
       const row = document.createElement("div"); row.className = "imRow";
       const mk = document.createElement("span"); mk.className = "imMk";
-      if (numbered) { n++; mk.textContent = n; mk.classList.add("num"); } else { mk.textContent = "・"; }
+      if (numbered) { n++; mk.textContent = "↓"; mk.classList.add("num"); } else { mk.textContent = "・"; }
       const tx = document.createElement("span"); tx.className = "imTx"; tx.textContent = t;
       row.append(mk, tx); body.appendChild(row);
     });
