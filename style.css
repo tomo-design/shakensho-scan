@@ -716,7 +716,7 @@ details[open] > .secSummary::after{content:"▴"}
 .manualBtn:active{opacity:.55}
 /* 開いたときの手引書パネル: 見出しと本文をはっきり。
    カードの番号バッジ分だけ左に食い込ませ、パネルを横いっぱいに広げて窮屈さを解消 */
-.manualPane{margin:8px -14px 2px -40px;background:var(--panel);border:1px solid var(--line);
+.manualPane{margin:8px -14px 2px -54px;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;padding:12px 14px 14px;text-align:left;overflow:hidden}
 .manualPane.hidden{display:none}
 .manualPane .ai-h{margin:14px -14px 10px;padding:9px 14px;background:var(--cyan);color:#fff;
