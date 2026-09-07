@@ -7412,25 +7412,6 @@ wireFieldMic("btnDiagMic", "diagText", "🎤");
 wireFieldMic("btnPartsMic", "partName", "🎤");
 wireFieldMic("btnVehMic", "qVehText", "🎤");
 wireFieldMic("btnKarteMic", "kWork", "🎤");
-/* 貼り付けボタン: 長押しメニューに頼らずクリップボードの文字を入力欄へ挿入(カーソル位置に) */
-function wirePasteBtn(btnId, fieldId) {
-  const btn = $(btnId), fld = $(fieldId); if (!btn || !fld) return;
-  btn.addEventListener("click", async () => {
-    try {
-      const txt = await navigator.clipboard.readText();
-      if (!txt) { showToast("クリップボードが空です"); return; }
-      const s = fld.selectionStart != null ? fld.selectionStart : fld.value.length;
-      const e = fld.selectionEnd != null ? fld.selectionEnd : fld.value.length;
-      fld.value = fld.value.slice(0, s) + txt + fld.value.slice(e);
-      const pos = s + txt.length; try { fld.setSelectionRange(pos, pos); } catch (_) {}
-      fld.focus(); if (typeof autoGrow === "function") autoGrow(fld);
-    } catch (err) {
-      showToast("貼り付けできませんでした。入力欄を長押し→貼り付けをお試しください");
-    }
-  });
-}
-wirePasteBtn("btnDiagPaste", "diagText");
-wirePasteBtn("btnVehPaste", "qVehText");
 // 画面が隠れた(タブ切替・アプリを閉じる・ロック)ら音声入力を確実に終了(鳴りっぱなし防止)
 document.addEventListener("visibilitychange", () => { if (document.hidden) { try { stopFieldMic(); } catch (e) {} } });
 
