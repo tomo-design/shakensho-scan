@@ -277,15 +277,15 @@ label.fld:first-child{margin-top:0}
 /* 手順: 見出し(太字)と本文(通常ウェイト)を分けて読みやすく */
 .stepHead{font-weight:800;font-size:15px;line-height:1.5}
 .stepBody{font-weight:400;font-size:14.5px;line-height:1.7;margin-top:4px}
-.ai-check{margin-top:5px;font-size:15px;line-height:1.8;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:9px 12px;border-radius:0}
-.ai-check-label{color:var(--cyan);font-weight:700;font-size:12px;letter-spacing:.1em;margin-right:4px}
+.ai-check{margin-top:5px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:7px 10px;border-radius:0}
+.ai-check-label{color:var(--cyan);font-weight:700;font-size:11px;letter-spacing:.1em;margin-right:4px}
 /* 候補の「理由」: 折り畳み(タップで開閉・1つだけ開く) */
 .ai-reason{margin-top:4px}
 .ai-reason-toggle{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;cursor:pointer;letter-spacing:.06em}
 .ai-reason-toggle::after{content:"▸";font-size:9px;transition:transform .15s}
 .ai-reason.open .ai-reason-toggle::after{transform:rotate(90deg)}
 .ai-reason.open .ai-reason-toggle{color:var(--cyan);border-color:var(--cyan)}
-.ai-reason-body{display:none;margin-top:4px;font-size:14.5px;line-height:1.8;color:var(--txt);border-left:2px solid var(--line);padding:4px 0 4px 10px}
+.ai-reason-body{display:none;margin-top:4px;font-size:12px;line-height:1.6;color:var(--dim);border-left:2px solid var(--line);padding:2px 0 2px 8px}
 .ai-reason.open .ai-reason-body{display:block}
 .ai-p{margin:7px 0 7px 2px;line-height:1.9}
 ol.ai-list li{align-items:flex-start}
@@ -716,7 +716,7 @@ details[open] > .secSummary::after{content:"▴"}
 .manualBtn:active{opacity:.55}
 /* 開いたときの手引書パネル: 見出しと本文をはっきり。
    カードの番号バッジ分だけ左に食い込ませ、パネルを横いっぱいに広げて窮屈さを解消 */
-.manualPane{margin:8px -6px 2px -40px;background:var(--panel);border:1px solid var(--line);
+.manualPane{margin:8px -14px 2px -40px;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;padding:12px 14px 14px;text-align:left;overflow:hidden}
 .manualPane.hidden{display:none}
 .manualPane .ai-h{margin:14px -14px 10px;padding:9px 14px;background:var(--cyan);color:#fff;
