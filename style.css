@@ -277,7 +277,7 @@ label.fld:first-child{margin-top:0}
 /* 手順: 見出し(太字)と本文(通常ウェイト)を分けて読みやすく */
 .stepHead{font-weight:800;font-size:15px;line-height:1.5}
 .stepBody{font-weight:400;font-size:14.5px;line-height:1.7;margin-top:4px}
-.ai-check{margin-top:5px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);padding:7px 10px 7px 0;border-radius:0}
+.ai-check{margin:5px 0 0 -13px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:7px 10px;border-radius:0}
 .ai-check-label{color:var(--cyan);font-weight:700;font-size:11px;letter-spacing:.1em;margin-right:4px}
 /* 候補の「理由」: 折り畳み(タップで開閉・1つだけ開く) */
 .ai-reason{margin-top:4px}
@@ -285,7 +285,7 @@ label.fld:first-child{margin-top:0}
 .ai-reason-toggle::after{content:"▸";font-size:9px;transition:transform .15s}
 .ai-reason.open .ai-reason-toggle::after{transform:rotate(90deg)}
 .ai-reason.open .ai-reason-toggle{color:var(--cyan);border-color:var(--cyan)}
-.ai-reason-body{display:none;margin-top:4px;font-size:12px;line-height:1.6;color:var(--dim);padding:2px 0}
+.ai-reason-body{display:none;margin:4px 0 0 -10px;font-size:12px;line-height:1.6;color:var(--dim);border-left:2px solid var(--line);padding:2px 0 2px 8px}
 .ai-reason.open .ai-reason-body{display:block}
 .ai-p{margin:7px 0 7px 2px;line-height:1.9}
 ol.ai-list li{align-items:flex-start}
