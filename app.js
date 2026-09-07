@@ -7446,14 +7446,19 @@ function speak(text) {
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
-/* 連続する同一フレーズの重複を1回に圧縮(音声認識の重複バグ対策) */
+/* 連続する同一フレーズの重複を1回に圧縮(音声認識の重複バグ対策)。
+   「現在現在現在」のような2文字反復、「現在 現在」のようなトークン反復も圧縮する。 */
 function dedupRepeats(s) {
   s = String(s || "").replace(/\s+/g, " ").trim();
-  // 正規表現(.{3,}?)\1+ は長文で破滅的バックトラック→主スレッド停止(端末フリーズ)を招く。
-  // 長すぎる入力には適用せず、反復回数も上限を設けて必ず有限時間で返す。
+  if (!s) return s;
+  // 破滅的バックトラック回避のため長文には適用せず、反復回数にも上限を設ける。
   if (s.length > 2000) return s;
   let prev, guard = 0;
-  do { prev = s; s = s.replace(/(.{3,}?)\1+/g, "$1"); } while (s !== prev && ++guard < 20);
+  // 直接連続する2文字以上の反復(現在現在現在→現在 等)を圧縮
+  do { prev = s; s = s.replace(/(.{2,}?)\1+/g, "$1"); } while (s !== prev && ++guard < 30);
+  // 空白区切りで連続する同一トークン(現在 現在 現在→現在)を圧縮
+  guard = 0;
+  do { prev = s; s = s.replace(/(\S+)(?:\s+\1)+/g, "$1"); } while (s !== prev && ++guard < 10);
   return s;
 }
 let voiceListening = false, voiceAccum = "", voiceSessionFinal = "";
