@@ -4066,7 +4066,7 @@ function renderIntakeCalendar() {
   Object.keys(planByDay).forEach(k => planTot += planByDay[k].length);
   Object.keys(outPlanByDay).forEach(k => outPlanTot += outPlanByDay[k].length);
   Object.keys(payPlanByDay).forEach(k => payTot += payPlanByDay[k].length);
-  const totEl = $("icTotals"); if (totEl) totEl.innerHTML = '<span class="icTot icInT">▼ 入庫 ' + inTot + '台</span><span class="icTot icOutT">▲ 出庫 ' + outTot + '台</span>' + (planTot ? '<span class="icTot icPlanT">📌 入庫予定 ' + planTot + '</span>' : '') + (outPlanTot ? '<span class="icTot icOutPlanT">🚚 出庫予定 ' + outPlanTot + '</span>' : '') + (payTot ? '<span class="icTot icPayT">💰 集金 ' + payTot + '</span>' : '');
+  const totEl = $("icTotals"); if (totEl) { totEl.innerHTML = ""; totEl.classList.add("hidden"); }   // 上部の合計行(▼入庫/▲出庫/💰集金)は非表示
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
