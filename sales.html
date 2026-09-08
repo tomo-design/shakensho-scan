@@ -364,6 +364,27 @@
           <p class="vsub" style="margin:8px 0 0;font-size:12px">相手のツイートの返信欄に貼り付けて投稿してください。連投・同じ文の使い回しはスパム扱いになりやすいので、少しずつ手直しを。</p>
         </div>
       </div>
+
+      <div class="panel">
+        <h3 style="margin:0 0 4px;font-size:15px">✉ DM（ダイレクトメッセージ）文を作る</h3>
+        <p class="vsub" style="margin:0 0 10px">整備士アカウントへ送るDM。いきなり売り込むと嫌われるので、まず<b>関係づくり・会話のきっかけ</b>を主に。相手の情報があれば貼り付けてください。</p>
+        <div class="field"><label>相手の情報・直近の投稿など（任意）</label><textarea id="dmSrc" rows="2" placeholder="例：車検あるあるを投稿してた整備士さん／フォローありがとうの返し など"></textarea></div>
+        <div class="form-grid">
+          <div class="field"><label>商材</label><select id="dmProduct"><option value="works">Works（法人向け）</option><option value="pocket">Pocket（個人向け）</option></select></div>
+          <div class="field"><label>目的</label><select id="dmGoal">
+            <option value="relate">関係づくり（あいさつ・共感）</option>
+            <option value="thanks">フォロー/いいねのお礼</option>
+            <option value="value">役立つ情報を渡す（見返り求めず）</option>
+            <option value="intro">やんわり紹介（興味あれば、程度）</option>
+          </select></div>
+          <div class="field"><label>トーン</label><select id="dmTone"><option value="frank">フランク</option><option value="polite">丁寧</option></select></div>
+        </div>
+        <div class="panel-actions"><button id="btnDm" class="btn btn-accent">DM文を作成</button><span id="dmStat" class="muted"></span></div>
+        <div class="field hidden" id="dmOutWrap"><label>DM文（編集できます）<span id="dmCount" class="muted"></span></label><textarea id="dmBody" rows="4"></textarea>
+          <div class="fmActs" style="margin-top:8px"><button id="dmCopy" class="btn btn-dark btn-sm">📋 コピー</button><button id="dmRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button></div>
+          <p class="vsub" style="margin:8px 0 0;font-size:12px">相手のDM画面に貼り付けて送ってください。同じ文の一斉送信はスパム/凍結リスク大。1通ずつ相手に合わせて手直しを。</p>
+        </div>
+      </div>
     </section>
 
     <!-- 一括作成 -->

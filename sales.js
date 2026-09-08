@@ -1093,6 +1093,41 @@ ${SNS_HUMAN}`;
   { const b = $("repCopy"); if (b) b.onclick = () => copy($("repBody").value || ""); }
   { const b = $("repBody"); if (b) b.addEventListener("input", repCount); }
 
+  // SNSのDM文生成(関係づくり主体・売り込みすぎない)
+  function dmCount() { const n = ($("dmBody").value || "").length; if ($("dmCount")) $("dmCount").textContent = "　" + n + "字" + (n > 180 ? " ⚠長い" : ""); }
+  async function dmGen() {
+    const product = ($("dmProduct").value === "pocket") ? "pocket" : "works";
+    const src = ($("dmSrc").value || "").trim();
+    const goal = ($("dmGoal") && $("dmGoal").value) || "relate";
+    const tone = ($("dmTone") && $("dmTone").value) === "polite" ? "軽い敬語で丁寧に" : "タメ口〜フランクに(失礼にはならない)";
+    const goalLine = {
+      relate: "目的は関係づくり。あいさつ＋相手の投稿への共感だけでよい。宣伝・商品名は出さない。",
+      thanks: "フォロー/いいねのお礼を、さらっと一言。宣伝は入れない。",
+      value: "見返りを求めず役立つ一言(現場のちょっとしたコツ等)を渡す。宣伝は入れない。",
+      intro: "会話のきっかけを作ったうえで、最後に一度だけ『もし興味あれば』程度でメカノAIに軽く触れてよい(押し売り厳禁・リンクは貼らない)。",
+    }[goal] || "関係づくり中心。";
+    const task = `Xで整備士アカウントへ送る「DM(ダイレクトメッセージ)」を1通。
+${src ? "【相手の情報/直近の投稿】\n" + src + "\n" : ""}
+・${tone}。まず相手個人に向けた一言(投稿への共感など)から入り、テンプレ一斉送信っぽさを消す。
+・${goalLine}
+・短く。目安40〜120字。1〜3文。長い自己紹介・会社説明・URL・署名・ハッシュタグは入れない。
+・いきなり営業しない。相手が「感じいいな」と思って返信したくなる温度。
+・本文だけ出力(「DM案:」等の前置き不要)。
+${SNS_HUMAN}`;
+    $("dmStat").textContent = "生成中…"; $("btnDm").disabled = true;
+    try {
+      const j = await api("generate", { role: "marke", task, product, creative: true });
+      $("dmBody").value = String(j.text || "").trim();
+      show("dmOutWrap", true); dmCount();
+      $("dmStat").textContent = "";
+    } catch (e) { $("dmStat").textContent = "⚠ " + (e.message || e); }
+    finally { $("btnDm").disabled = false; }
+  }
+  { const b = $("btnDm"); if (b) b.onclick = dmGen; }
+  { const b = $("dmRegen"); if (b) b.onclick = dmGen; }
+  { const b = $("dmCopy"); if (b) b.onclick = () => copy($("dmBody").value || ""); }
+  { const b = $("dmBody"); if (b) b.addEventListener("input", dmCount); }
+
   // ---------- キャンペーン一括生成 ----------
   const CHANNEL_TXT = {
     cold: "面識のない相手に初めて送るコールドメール。件名＋本文＋末尾に配信停止の一文＋実データの固定署名を必ず付けた、特定電子メール法に準拠した完成形（そのまま送れる形）",
