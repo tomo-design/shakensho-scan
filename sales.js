@@ -850,7 +850,7 @@ ${SNS_HUMAN}`;
     try {
       const j = await api("generate", { role: "marke", task, product, creative: true });
       const t = String(j.text || "").trim();
-      $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount();
+      $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount(); updateSectBtn();
       $("snsStat").textContent = "";
     } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); }
     finally { $("btnSns").disabled = false; }
@@ -996,6 +996,60 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   }
   { const b = $("snsImg"); if (b) b.onclick = snsGenImage; }
   { const b = $("snsImgRegen"); if (b) b.onclick = snsGenImage; }
+
+  // note記事の「## 見出し」ごとに、その節の内容に合う差し込み画像を生成
+  function parseSections() {
+    const lines = ($("snsBody").value || "").split("\n");
+    const secs = []; let cur = null;
+    for (const ln of lines) {
+      const m = ln.match(/^\s{0,3}#{1,4}\s+(.+?)\s*$/);
+      if (m) { if (cur) secs.push(cur); cur = { head: m[1].trim(), body: "" }; }
+      else if (cur) cur.body += ln + " ";
+      // 見出し前の本文(リード)は無視
+    }
+    if (cur) secs.push(cur);
+    return secs.filter((s) => s.head).slice(0, 6);   // 最大6見出し
+  }
+  function updateSectBtn() {
+    const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
+    show("snsSectImg", isNote && parseSections().length > 0);
+  }
+  { const s = $("snsPlatform"); if (s) s.addEventListener("change", updateSectBtn); }
+  { const b = $("snsBody"); if (b) b.addEventListener("input", updateSectBtn); }
+  let snsSectStop = false;
+  { const b = $("snsSectImg"); if (b) b.onclick = async () => {
+      const secs = parseSections();
+      if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return; }
+      const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+      snsSectStop = false; b.disabled = true;
+      $("snsSectWrap").innerHTML = "";
+      for (let i = 0; i < secs.length; i++) {
+        if (snsSectStop) break;
+        $("snsSectStat").textContent = "見出し画像を生成中… " + (i + 1) + "/" + secs.length + "（" + secs[i].head + "）";
+        const style = pick(IMG_STYLES);
+        const prompt = `Create a clean, editorial section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${product === "pocket" ? "for individual mechanics" : "for repair shops"}).
+This image illustrates the section titled: "${secs[i].head}". Section context: "${(secs[i].body || "").slice(0, 400)}".
+Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame.
+Visual style: ${style}. Tasteful, magazine-like, relevant to the section. A garage / mechanic / car / smartphone diagnostic scene as fits.
+IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image only.`;
+        const card = document.createElement("div");
+        card.className = "secImgCard";
+        card.innerHTML = `<div class="secImgHead">${esc(secs[i].head)}</div><div class="secImgBody muted">生成中…</div>`;
+        $("snsSectWrap").appendChild(card);
+        try {
+          const j = await api("image", { prompt, aspect: "16:9" });
+          if (j.image) {
+            card.querySelector(".secImgBody").innerHTML = "";
+            const im = document.createElement("img"); im.className = "snsImg"; im.src = j.image;
+            const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = j.image; a.download = "mechanoai-note-" + (i + 1) + ".png";
+            card.querySelector(".secImgBody").appendChild(im); card.querySelector(".secImgBody").appendChild(a);
+          } else { card.querySelector(".secImgBody").textContent = "取得できませんでした"; }
+        } catch (e) { card.querySelector(".secImgBody").textContent = "⚠ " + (e.message || e); }
+      }
+      $("snsSectStat").textContent = snsSectStop ? "中止しました" : "✓ 見出しごとの画像を生成しました（各画像を保存してnoteの該当箇所に挿入）";
+      b.disabled = false;
+    };
+  }
   // Grok Imagine(X Premium)で画像/動画を作る: 最適プロンプトをコピーして grok.com/imagine を開く
   { const b = $("snsGrok"); if (b) b.onclick = () => {
       const post = ($("snsBody").value || "").trim();
