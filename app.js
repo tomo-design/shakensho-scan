@@ -5503,6 +5503,24 @@ async function continueIfTruncated(basePrompt, r, opts, onChunk) {
   }
   return r;
 }
+/* 確定リファレンス: KNORR-BREMSE EBS 故障からの復帰作業(ブレーキペダル操作)。
+   いすゞ等のKNORR EBSは診断機のリセット/学習が無く、部品交換後はこのペダル操作の復帰が必要な場合がある。
+   一次資料に基づく確定手順なので、該当が疑われる時はAIに“そのまま正確に”提示させる(創作させない)。 */
+const KNORR_EBS_RECOVERY = [
+  "【確定リファレンス: KNORR-BREMSE EBS『故障からの復帰作業1(ブレーキペダル操作による手順)』】",
+  "いすゞ等のKNORR EBSは診断機によるリセット/学習の項目が無く、部品(EPM/リレーバルブ等)交換後はこのペダル操作の復帰作業が必要な場合がある。該当が疑われる時は、この手順を改変せず正確に、最初の1手または上位候補として提示すること:",
+  "1) ブレーキペダルを戻した状態でスタータースイッチを5秒以上OFFにする。",
+  "2) 次の状態を維持したままスタータースイッチを7秒以上ONにする: 車両停止/ブレーキペダルを戻した状態/EBSコントロールユニットへの電源電圧が満足している状態/(TCV異常検出からの復帰時はパーキングブレーキレバーを戻した状態)。",
+  "3) ブレーキペダルをフルブレーキ位置まで踏み込み3秒間保持する。",
+  "注意: スタータースイッチON後7秒経過するまでペダル操作を行わない。成功時は警告灯消灯・システム制限解除。失敗例=操作中に異常検出/ペダル操作25秒超過/操作中に車両が動いた。再開はスタータースイッチON/OFFからやり直す。",
+  "※一次資料に基づく確定手順。ただし車種・年式・システム世代で細部が異なる場合があるため、最終は整備要領書で確認、と必ず添える。",
+].join("\n");
+/* EBS/ABS(特にKNORR)の復帰作業リファレンスを出すべき文脈か判定 */
+function ebsRecoveryRelevant(text) {
+  const s = String(text || "") + " " + ((current && (current.maker || current.type || "")) || "") + " " + ((current && current.name) || "");
+  return /EBS|ABS|KNORR|クノール|クノル|リレーバルブ|\bEPM\b|モジュレータ|圧力差|\bHSA\b|C[CD]\d{2}|いすゞ|イスズ|ISUZU|ギガ|フォワード|エルフ/i.test(s)
+    && /ブレーキ|EBS|ABS|KNORR|リレーバルブ|EPM|圧力|HSA|警告|消えない|交換|復帰|C[CD]\d{2}/i.test(s);
+}
 function buildDiagPrompt(text) {
   const lines = [
     "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
@@ -5538,6 +5556,7 @@ function buildDiagPrompt(text) {
     lines.push("■診断機のDTC: " + named.join(", "));
   }
   lines.push("■症状・問診内容: " + text);
+  if (ebsRecoveryRelevant(text)) lines.push("\n" + KNORR_EBS_RECOVERY);
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
@@ -7006,6 +7025,7 @@ function buildMediaDiagPrompt() {
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
   { const os = officialSpecsText(); if (os) lines.push(os); }
+  try { const cmt = ($("diagText") || {}).value || ""; if (ebsRecoveryRelevant(cmt)) lines.push("\n" + KNORR_EBS_RECOVERY); } catch (e) {}
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
