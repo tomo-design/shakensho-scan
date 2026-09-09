@@ -6528,7 +6528,8 @@ function vehicleDesc() {
   if (f.model) parts.push("車種 " + f.model);
   if (current.type) parts.push("型式 " + current.type);
   if (current.kataShitei) parts.push("型式指定番号・類別区分番号 " + current.kataShitei);
-  if (current.engine) parts.push("原動機型式 " + current.engine);
+  if (current.engine && current.engine !== "—") parts.push("原動機型式 " + current.engine);
+  else parts.push("原動機型式 記載なし（この車検証に原動機型式の記載が無い＝原動機を持たない被牽引車＝トレーラーの可能性。ただし単なる読み取り漏れの自走車と区別するため、車種名・型式・車台番号・車体形状からも被牽引車かを確認すること）");
   if (current.vin) parts.push("車台番号 " + current.vin);
   if (current.firstReg && current.firstReg.year) parts.push("初度登録 " + current.firstReg.year + "年" + (current.firstReg.month || "") + "月");
   return parts.length ? parts.join(" / ") : "不明";
