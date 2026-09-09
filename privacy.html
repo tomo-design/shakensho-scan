@@ -27,7 +27,11 @@
   <p>本ポリシーは、Cablueie（以下「提供者」）が提供するアプリ「メカノAI（MECHANO-AI）」（以下「本アプリ」）における、利用者の情報の取り扱いについて定めるものです。</p>
 
   <h2>1. 基本方針（データは端末内が原則）</h2>
-  <p>MECHANO-AI Pocket（個人向けアプリ）では、スキャン・入力された車両情報、整備カルテ、写真等のデータは、原則として<strong>利用者の端末内にのみ保存</strong>され、提供者のサーバーには送信・保存されません。アカウント登録は不要です。</p>
+  <p>MECHANO-AI Pocket（個人向けアプリ）では、スキャン・入力された車両情報、整備カルテ、写真等のデータは、原則として<strong>利用者の端末内にのみ保存</strong>され、提供者のサーバーには送信・保存されません。無料でご利用いただく範囲では<strong>アカウント登録は不要</strong>です。</p>
+  <p>ただし、有料の月額／年額プランにお申し込みいただく場合は、決済と契約状態の管理のため、入手経路に応じて次の外部サービスを利用します。<br>
+  ・アプリストア（Google Play）から入手した版：<strong>Google Play の課金（Google Play Billing）</strong><br>
+  ・ウェブブラウザから入手した版：<strong>Stripe（決済）</strong>および <strong>Google Firebase（ログイン・契約状態の管理）</strong>。この場合、契約管理のためログイン用のメールアドレス等が保存されます。<br>
+  いずれの場合も、車両情報・整備カルテ・写真等の業務データは引き続き端末内保存が原則で、外部へ送信されるのは決済・契約管理に必要な情報に限られます。</p>
 
   <h2>2. カメラ・写真の利用</h2>
   <p>本アプリはカメラ機能を、<strong>車検証のQR/写真、整備メモ・伝票、故障箇所の写真・動画の撮影のため</strong>にのみ使用します。撮影した画像・動画は端末内に保存されます。</p>
@@ -51,12 +55,14 @@
     <tr><td>車両情報・整備カルテ・写真等</td><td>アプリ機能の提供</td><td>端末内</td></tr>
     <tr><td>AI利用時の入力（画像・動画・テキスト）</td><td>AIによる解析・回答</td><td>Google(Gemini)へ送信</td></tr>
     <tr><td>APIキー等の設定</td><td>AI機能の動作</td><td>端末内</td></tr>
+    <tr><td>有料プラン申込時の決済・契約情報（メールアドレス等）</td><td>決済・契約状態の管理</td><td>入手経路により Google Play／Stripe・Google Firebase</td></tr>
   </table>
 
   <h2>5. 第三者サービス</h2>
   <ul>
     <li><strong>Google（Gemini API・Web フォント）</strong>：AI解析、表示フォントの提供。</li>
-    <li>法人向け「MECHANO-AI Works」のクラウド共有・決済を利用する場合のみ、<strong>Google Firebase</strong>（認証・データ同期）および <strong>Stripe</strong>（決済）を利用します。MECHANO-AI Pocket では利用しません。</li>
+    <li>法人向け「MECHANO-AI Works」のクラウド共有・決済を利用する場合、<strong>Google Firebase</strong>（認証・データ同期）および <strong>Stripe</strong>（決済）を利用します。</li>
+    <li>「MECHANO-AI Pocket」の<strong>有料プラン（月額／年額）</strong>にお申し込みの場合、入手経路に応じて次を利用します。アプリストア版＝<strong>Google Play Billing</strong>（課金）。ウェブ版＝<strong>Stripe</strong>（決済）および <strong>Google Firebase</strong>（ログイン・契約状態の管理）。無料でご利用の範囲ではこれらは利用しません。</li>
   </ul>
 
   <h2>6. 第三者提供・販売</h2>
