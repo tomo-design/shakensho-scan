@@ -402,8 +402,8 @@ async function enforceUsage(tid, kind, role) {
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const u = snap.exists ? snap.data() : {};
-      if (u.day !== day) { u.day = day; u.dMecha = 0; u.dVision = 0; }        // 日が変われば日次リセット
-      if (u.month !== month) { u.month = month; u.mMecha = 0; u.mVision = 0; } // 月が変われば月次リセット
+      if (u.day !== day) { u.day = day; u.dMecha = 0; u.dVision = 0; u.dImage = 0; }        // 日が変われば日次リセット(画像検索dImageも忘れず0に)
+      if (u.month !== month) { u.month = month; u.mMecha = 0; u.mVision = 0; u.mImage = 0; } // 月が変われば月次リセット(画像検索mImageも0に)
       if ((u[dKey] || 0) >= dLimit) return { ok: false, scope: "day", limit: dLimit };
       if ((u[mKey] || 0) >= mLimit) return { ok: false, scope: "month", limit: mLimit };
       u[dKey] = (u[dKey] || 0) + 1;
@@ -685,6 +685,13 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
     if (!out.failed) { tier = "paid"; if (effSearch) await bumpPaidUsage(g.tid); }   // 課金カウントは検索のみ
     // 失敗しても下の無料Flashにフォールバックして回答を返す(out.failedのまま)。
+  }
+
+  // ★車検証など個人情報を含む画像(forcePaidScan)は、有料キーで失敗しても絶対に無料キーへ流さない。
+  //   無料キーはGoogleが入力を学習に使い得るため、ここで停止して再試行を促す(プライバシー厳守)。
+  if (forcePaidScan && out.failed) {
+    if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
+    return res.status(503).json({ error: "個人情報を含む画像の読み取りが一時的に混み合っています。少し時間をおいて再度お試しください。" });
   }
 
   // ② 無料キーでFlash(通常/検索不可/①失敗フォールバック): 全キーを必ず試す。
@@ -1755,7 +1762,11 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       const ended = o.status === "canceled" || o.status === "incomplete_expired";
       await setPlan(tid, !ended, o.current_period_end ? o.current_period_end * 1000 : null, ended ? "" : tierOfSub(o));
     }
-  } catch (e) { console.error("webhook処理エラー", e); }
+  } catch (e) {
+    // ★処理失敗時は200を返さない。500を返すとStripeがこのイベントを自動再送してくれる(契約反映の取りこぼし防止)。
+    console.error("webhook処理エラー", e);
+    return res.status(500).json({ error: "処理に失敗しました。再送してください。" });
+  }
   return res.json({ received: true });
 });
 
