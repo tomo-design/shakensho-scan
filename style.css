@@ -539,6 +539,8 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .kDayFold>.kDaySum .kDayCnt::after{content:"件）"}
 /* フォルド内のカードは枠・左バー・背景を外してフラットに(見出しの下に内容だけ) */
 .kDayFold>.karteItem{border:none;border-left:none;border-radius:0;background:none;margin:0 0 4px;overflow:visible}
+/* 同じ日付内に複数の記録がある時、記録どうしの境目をはっきり分ける(内部の破線と区別) */
+.kDayFold>.karteItem+.karteItem{margin-top:14px;padding-top:16px;border-top:3px solid var(--line)}
 .kDayFold>.karteItem .kHead{background:none;border-bottom:1px dashed var(--line);padding:2px 2px 7px}
 .kDayFold>.karteItem .kBody{padding:8px 2px 4px}
 .kDayFold[open]{padding-bottom:6px}
