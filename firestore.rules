@@ -57,8 +57,23 @@ service cloud.firestore {
       allow update: if isSuper();
     }
 
+    // 車両DB: 閲覧・作成・更新は有効な同店舗メンバー。ハード削除は代表管理者(admin)/運営(super)のみ。
+    //   画面上の「車両削除は管理者のみ」をDB側でも強制する(メンバーがSDK直叩きで削除するのを防ぐ)。
+    match /tenants/{tid}/vehicles/{doc} {
+      allow read, create, update: if meActive() && (myTenant() == tid || isSuper());
+      allow delete: if isSuper() || (isAdmin() && myTenant() == tid);
+    }
+    // プッシュ通知トークン: 自店舗メンバーが自分の端末トークンを登録/削除できる。
+    match /tenants/{tid}/pushTokens/{doc} {
+      allow read, write: if isSuper() || (meActive() && myTenant() == tid);
+    }
+    // その他の社内共有データ(records=整備カルテ/履歴, intakePlans=入出庫予定 等):
+    //   閲覧・作成・更新は有効な同店舗メンバー。ハード削除は運営(super)のみ。
+    //   ※カルテ・入出庫の「取り消し」は deleted:true のソフト削除(=update)なので、メンバーでも従来どおり可能。
+    //   ※read/create/update はメンバーで一切変わらないため、現ログイン中メンバーのアクセス・ログイン状態に影響しない。
     match /tenants/{tid}/{coll}/{doc} {
-      allow read, write: if meActive() && (myTenant() == tid || isSuper());
+      allow read, create, update: if meActive() && (myTenant() == tid || isSuper());
+      allow delete: if isSuper();
     }
 
     // AI利用回数の記録(サーバーがAdmin SDKで書き込む)。閲覧は運営 or 自店舗の代表管理者のみ。

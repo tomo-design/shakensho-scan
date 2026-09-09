@@ -1892,6 +1892,14 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
 exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, memory: "512MB" })
   .https.onRequest(async (req, res) => {
     if (req.method !== "POST") return res.status(200).send("ok");
+    // ★正規の受信サービス(SendGrid Inbound Parse)からの呼び出しのみ受理する。
+    //   INBOUND_SECRET が .env に設定されている時だけ検証(未設定なら従来どおり=自動返信を止めない)。
+    //   合言葉は ?k=... または X-Inbound-Secret ヘッダで受け取る。SendGrid側のParse URLに ?k=... を付けて登録する。
+    const inSecret = String(process.env.INBOUND_SECRET || "").trim();
+    if (inSecret) {
+      const given = String((req.query && req.query.k) || req.headers["x-inbound-secret"] || "").trim();
+      if (given !== inSecret) { console.warn("inbound: 合言葉不一致で拒否"); return res.status(403).send("forbidden"); }
+    }
     const db = admin.firestore();
     let fields = {};
     try { fields = await parseInbound(req); }
