@@ -1380,7 +1380,8 @@
     const devN = Array.isArray(u.devices) ? u.devices.length : 0;
     const devLimit = Number(u.deviceLimit) || 2;
     // 端末枠 +/- は名前行の右端に(運営=superのみ・有効ユーザーのみ)。−は枠2超のときだけ。
-    const devCtrl = (u.active && profile && profile.role === "super")
+    //  ★Pocket(個人版)は端末2台固定のため +/- は表示しない(枠の付与・削減不可)。
+    const devCtrl = (u.active && profile && profile.role === "super" && !isPersonalU)
       ? "<span class='mDev'>" + (devLimit > 2 ? "<button class='mDevBtn' data-act='devminus' data-kind='u' data-id='" + esc(id) + "'>−</button>" : "") +
         "<span class='mDevN'>" + devN + "/" + devLimit + "</span>" +
         "<button class='mDevBtn' data-act='devplus' data-kind='u' data-id='" + esc(id) + "'>＋</button></span>"
@@ -1389,7 +1390,10 @@
       "<div class='mTop'><span class='mNm'>" + esc(u.name || u.email || id) + "</span>" +
       (isAdmin ? "<span class='mRole adm'>" + roleJa + "</span>" : "") + devCtrl + "</div>" +
       (u.email ? "<div class='mMail'>" + esc(u.email) + "</div>" : "") +
-      "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ 端末 " + devN + "/" + devLimit + "台</div></div>";
+      "<div class='mMeta'>" + esc(last) + (reg ? " ・ " + esc(reg) : "") + " ・ " +
+        ((profile && profile.role === "super")
+          ? "<button class='mDevMeta' data-act='devlist' data-kind='u' data-id='" + esc(id) + "'>端末 " + devN + "/" + devLimit + "台</button>"
+          : "端末 " + devN + "/" + devLimit + "台") + "</div></div>";
     // 検索席の指名トグル(ツインターボ店舗の有効メンバーのみ表示)。ON=このメンバーが検索を使える。
     let seatBtn = "";
     if (t && tierCode(t) === "twinturbo" && u.active) {
@@ -1398,17 +1402,22 @@
     }
     // 集金通知の指名トグル(有効メンバーのみ)。ON=このメンバーに集金日の通知が届く。
     let collectBtn = "";
-    if (t && u.active) {
+    if (t && u.active && !isPersonalU) {
       const on = Array.isArray(t.collectNotifyUids) && t.collectNotifyUids.indexOf(id) >= 0;
       collectBtn = btn(on ? "collectoff" : "collecton", "u", id, on ? "💰通知 ✓" : "💰通知", on ? "btn-amber" : "btn-ghost");
     }
     let btns;
     if (u.active) {
-      // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
-      const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
-        : u.role === "admin" ? btn("demote", "u", id, "メンバーに") : "";
-      btns = seatBtn + collectBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
-    } else btns = btn("rename", "u", id, "✎ 名前") + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
+      if (isPersonalU) {
+        // Pocket(個人版)は通知/名前変更/メンバー化は対象外。パスワード再発行と無効化のみ。
+        btns = btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
+      } else {
+        // 役割変更ボタン(staff→代表者に / admin→従業員に)。運営(super)は変更不可
+        const roleBtn = u.role === "staff" ? btn("promote", "u", id, "代表者に")
+          : u.role === "admin" ? btn("demote", "u", id, "メンバーに") : "";
+        btns = seatBtn + collectBtn + btn("rename", "u", id, "✎ 名前") + roleBtn + btn("pwreset", "u", id, "🔑 パスワード") + btn("off", "u", id, "無効化");
+      }
+    } else btns = (isPersonalU ? "" : btn("rename", "u", id, "✎ 名前")) + btn("on", "u", id, "承認", "btn-amber") + btn("del", "u", id, "却下");
     return "<div class='mRow'>" + info + "<div class='mBtns'>" + btns + "</div></div>";
   }
   async function fillTenantStats(tid) {
@@ -1452,6 +1461,25 @@
             prompt("一時パスワードを発行しました。\n本人にこのパスワードでログインしてもらい、後で各自で変更してください。\n（下の文字を長押しでコピーできます）", d.password);
           } else { uiAlert("発行に失敗しました。"); }
         } catch (e) { uiAlert("発行に失敗: " + (e.message || e)); }
+        return;
+      }
+      if (act === "devlist") {
+        // 運営が対象ユーザーの登録端末を一覧し、誤登録などを1台解除して枠を空ける。
+        const d = await db.collection("users").doc(id).get(); const u = d.data() || {};
+        const devs = Array.isArray(u.devices) ? u.devices : [];
+        if (!devs.length) { uiAlert("登録端末はありません。"); return; }
+        const fmt = ms => { const dt = new Date(ms); return dt.toLocaleDateString("ja-JP") + " " + String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0"); };
+        const lines = devs.map((dv, i) => (i + 1) + ". " + (dv.name || dv.id) + (dv.at ? "（最終 " + fmt(dv.at) + "）" : ""));
+        const ans = prompt("解除する端末の番号を入力してください（枠が1つ空きます）。\nキャンセルで中止。\n\n" + lines.join("\n"), "");
+        if (ans === null) return;
+        const n = parseInt(ans, 10);
+        if (!(n >= 1 && n <= devs.length)) { uiAlert("番号が正しくありません。"); return; }
+        const target = devs[n - 1];
+        if (!confirm("「" + (target.name || target.id) + "」を解除しますか？\n（この端末は次回ログイン時に再登録が必要になります）")) return;
+        try {
+          const r = await window.Cloud.callFn("removeDevice", { uid: id, devId: target.id });
+          uiAlert("端末を解除しました。現在 " + ((r && r.count) || 0) + " 台。枠が1つ空きました。");
+        } catch (e) { uiAlert("解除に失敗: " + (e.message || e)); }
         return;
       }
       if (act === "seaton" || act === "seatoff") {

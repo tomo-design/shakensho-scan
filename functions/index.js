@@ -1375,10 +1375,34 @@ exports.setDevices = functions.region(REGION).https.onRequest(async (req, res) =
   const isSelf = targetUid === uid;
   const allowed = isSelf || me.role === "super" || (me.role === "admin" && me.tenantId === tu.tenantId);
   if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  // Pocket(個人版)は端末2台固定。枠の増減は不可。
+  if (tu.edition === "personal") return res.status(400).json({ error: "個人版(Pocket)は端末2台固定です。枠は変更できません。" });
   const newLimit = Math.max(2, (Number(tu.deviceLimit) || 2) + delta);
   await db.collection("users").doc(targetUid).update({ deviceLimit: newLimit });
   const bill = tu.tenantId ? await syncDeviceQty(tu.tenantId) : { extra: 0, billed: false, note: "" };
   return res.json({ ok: true, deviceLimit: newLimit, extra: bill.extra, billed: bill.billed, note: bill.note });
+});
+
+/* 対象ユーザーの登録端末を1台解除(枠を空ける)。POST {uid, devId}。
+   運営(super) or 同店舗の代表管理者(admin)が実行可。誤ログインの解除などに使用。 */
+exports.removeDevice = functions.region(REGION).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const db = admin.firestore();
+  const me = (await db.collection("users").doc(uid).get()).data();
+  if (!me || me.active !== true) return res.status(403).json({ error: "有効なアカウントではありません。" });
+  const data = req.body || {};
+  const targetUid = data.uid, devId = data.devId;
+  if (!targetUid || !devId) return res.status(400).json({ error: "パラメータ不足です。" });
+  const tu = (await db.collection("users").doc(targetUid).get()).data();
+  if (!tu) return res.status(404).json({ error: "対象が見つかりません。" });
+  const allowed = me.role === "super" || (me.role === "admin" && me.tenantId === tu.tenantId);
+  if (!allowed) return res.status(403).json({ error: "権限がありません。" });
+  const devices = (Array.isArray(tu.devices) ? tu.devices : []).filter((d) => d && d.id !== devId);
+  await db.collection("users").doc(targetUid).update({ devices });
+  return res.json({ ok: true, count: devices.length });
 });
 
 /* ツインターボの検索席メンバーを指名/解除。POST {tid, uid, on}。運営 or 自店舗の代表管理者が実行可。
