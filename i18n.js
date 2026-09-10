@@ -507,8 +507,10 @@
     const bar = document.createElement("div");
     bar.id = "langPick";
     bar.innerHTML = '<span>Language / 言語</span><button type="button" data-l="ja">日本語</button><button type="button" data-l="en">English</button>';
-    bar.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; applyLang(b.dataset.l); bar.remove(); });
+    bar.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; applyLang(b.dataset.l); bar.remove(); document.body.classList.remove("langPicking"); });
     document.body.appendChild(bar);
+    // 言語バーは position:fixed なので、そのぶん本文を下げないとヘッダー(ロゴ)に被る
+    document.body.classList.add("langPicking");
   }
 
   function init() {
