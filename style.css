@@ -1323,7 +1323,7 @@ body.officeMode #intakeBoard .ibHead{margin-top:6px}
   .obPush,.obExit{font-size:11.5px;padding:7px 9px}
 }
 /* 専用モード: ボード以外を全部隠す */
-body.officeMode header,
+body.officeMode > header,
 body.officeMode #tabs,
 body.officeMode #mechaHero,
 body.officeMode #scanBack,
@@ -1391,14 +1391,9 @@ body.officeMode #view-scan{padding-top:0}
 .ibDetOut:active{background:var(--line)}
 .ibDetEmpty{color:var(--dim);font-size:13px;padding:30px 10px;text-align:center}
 @media(min-width:900px){
-  /* 事務モードのPC表示: 画面を広く使い、左=一覧/右=詳細の2ペインに */
-  body.officeMode{max-width:1080px}
-  nav#tabs{max-width:1080px}
-  body.officeMode #intakeBoard{display:grid !important;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start;align-content:start}
-  body.officeMode #intakeBoard .ibHead{grid-column:1 / -1}
-  /* 左右を明示的に固定(自動配置で入れ替わらないように): 一覧=1列目 / 詳細=2列目 */
-  body.officeMode #intakeBoard #ibList{grid-column:1}
-  body.officeMode #intakeBoard .ibDetail{grid-column:2;display:block;position:sticky;top:80px}
+  /* 事務モードのPC表示: カンバンを画面いっぱいに使う(詳細は右のドロワーで開く) */
+  body.officeMode{max-width:none;padding-left:20px;padding-right:20px}
+  nav#tabs{max-width:none}
 }
 
 /* ログインゲート(法人・未ログイン時の全画面) */
@@ -1547,11 +1542,8 @@ body.gated{overflow:hidden}
 /* 詳細ペインは一覧の先頭カードと上端を揃える */
 @media(min-width:900px){
   body.officeMode #intakeBoard .ibHead h2{padding-left:14px}
-  body.officeMode .ibDetail{margin-top:0;align-self:start}
 }
 
-.ibDetail.show{display:block;margin-top:10px}
-@media(min-width:900px){body.officeMode .ibDetail,body.officeMode .ibDetail.show{margin-top:0}}
 
 /* ホーム入庫状況: 折り畳み */
 .hiFold{border:0}
@@ -1569,11 +1561,7 @@ body.gated{overflow:hidden}
 .kFold[open] #karteList{margin-top:8px}
 .kFoldCount{font-size:12px;color:var(--dim);font-weight:600}
 
-/* PC2ペイン: 左は独立スクロール(スライダー)、右は固定表示で常に高さが揃う */
-@media(min-width:900px){
-  body.officeMode #ibList{max-height:calc(100vh - 150px);overflow-y:auto;padding-right:4px}
-  body.officeMode .ibDetail{position:sticky;top:80px;max-height:calc(100vh - 150px);overflow-y:auto}
-}
+
 
 /* 履歴の削除ボタン(長押しで表示) */
 .histItem .hDel.hidden{display:none}
@@ -1588,16 +1576,7 @@ body.gated{overflow:hidden}
 .ibFchip.on.ikTenken{background:#16A34A}
 .ibFchip.on.ikRepair{background:#EA8C00}
 .ibFchip.on.ikJiko{background:#DC2626}
-@media(min-width:900px){
-  body.officeMode #intakeBoard .ibFilter{grid-column:1 / -1}
-  /* レ点案内は全幅の独立行に(詳細が同じ行に入り込んで一覧を押し下げるのを防ぐ)。
-     文言は「左の一覧列の右端(=丸がある側の上)」に来るよう、右列幅ぶんの余白を右に確保して右寄せ。
-     左列1.05fr/右列.95fr/gap18px → 右padding ≒ 右列幅(47.5%)+gap半分。 */
-  body.officeMode #intakeBoard .ibSubHead{grid-column:1 / -1;justify-content:flex-end;padding-right:calc(47.5% + 9px)}
-  /* 一覧と詳細を同じ行の先頭に揃える(上に空間を作らない) */
-  body.officeMode #intakeBoard #ibList{grid-row:auto}
-  body.officeMode #intakeBoard .ibDetail{align-self:start}
-}
+
 
 /* 詳細: 担当者ボタン＋右上スロット */
 .ibDetTopR{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -1609,23 +1588,6 @@ body.gated{overflow:hidden}
 
 .ibMemo.locked{cursor:default;opacity:.75}
 
-/* PC: 入庫ボードも独立フローティングカード化(ヘッダーでドラッグ移動・右下でリサイズ) */
-@media(min-width:1024px){
-  body.officeMode #intakeBoard{
-    position:fixed;top:96px;left:24px;
-    width:min(70vw,1000px);height:78vh;
-    min-width:520px;min-height:360px;max-width:96vw;max-height:90vh;
-    overflow:hidden;z-index:60;
-    /* ヘッダー/フィルター/小見出しは自動高、最後の行(一覧+詳細)がウィンドウの残り高を埋めて内部スクロール */
-    grid-template-rows:auto auto auto minmax(0,1fr);align-content:stretch;
-    background:var(--panel,#fff);border:1px solid var(--line,#D5DDE8);border-radius:16px;
-    padding:12px 16px;box-shadow:0 18px 60px rgba(0,0,0,.18)}
-  body.officeMode #intakeBoard .ibHead{cursor:move;user-select:none;touch-action:none}
-  body.officeMode #intakeBoard .ibHead button{cursor:pointer}
-  body.officeMode #intakeBoard .ibHead h2::before{content:"\2837 ";color:var(--dim,#9aa4b2);font-size:12px;letter-spacing:-1px}
-  body.officeMode #intakeBoard #ibList{min-height:0;max-height:none;height:100%;overflow-y:auto;padding-right:4px}
-  body.officeMode #intakeBoard .ibDetail{position:static;top:auto;min-height:0;max-height:none;height:100%;overflow-y:auto}
-}
 /* 四隅リサイズハンドル(PCのフローティングカード用) */
 .rzH{display:none}
 @media(min-width:1024px){
@@ -1676,3 +1638,140 @@ body.gated{overflow:hidden}
   border-radius:10px;padding:9px 10px;font-size:13.5px;font-weight:700;cursor:pointer}
 .ikDayCmt:active{opacity:.6}
 .icBadge.icCmtB{background:transparent;padding:0;font-size:11px;line-height:1}
+
+/* ===================================================================
+   入庫管理ボード(カンバン)  —— 区分別／進捗別の列 + カード
+   色は --kbc(カンバンカラー)1本で統一。列・カード・チップ・ボタンが同じ色を共有する。
+   =================================================================== */
+.ikShaken{--kbc:#2563EB}   /* 車検 */
+.ikTenken{--kbc:#16A34A}   /* 点検 */
+.ikRepair{--kbc:#EA8C00}   /* 修理 */
+.ikJiko  {--kbc:#DC2626}   /* 板金 */
+.stIn    {--kbc:#64748B}   /* 入庫   */
+.stWork  {--kbc:#2563EB}   /* 作業中 */
+.stDone  {--kbc:#16A34A}   /* 完了   */
+.stWait  {--kbc:#D97706}   /* 引渡待 */
+
+/* --- 上部ツールバー(列の切替 / 絞り込み / サマリー) --- */
+.kbBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
+.kbSeg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px;flex:none}
+.kbSegBtn{border:0;background:transparent;color:var(--dim);font-size:12px;font-weight:700;
+  padding:7px 14px;border-radius:999px;cursor:pointer;min-height:36px;white-space:nowrap}
+.kbSegBtn.on{background:var(--panel);color:var(--txt);box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.kbSearchWrap{flex:1 1 220px;min-width:0}
+.kbSearch{width:100%;border:1px solid var(--line);border-radius:999px;background:var(--panel);
+  padding:9px 14px;font-size:13px;color:var(--txt);min-height:40px;font-family:inherit}
+.kbSearch:focus{outline:2px solid var(--amber);outline-offset:1px}
+.kbStats{display:flex;gap:6px;flex-wrap:wrap;flex:none}
+.kbStat{font-size:11px;font-weight:700;color:var(--dim);background:var(--panel2);
+  border:1px solid var(--line);border-radius:999px;padding:5px 10px;white-space:nowrap}
+.kbStat b{font-size:13px;font-weight:800;color:var(--txt);margin-right:2px}
+.kbStat.warn{background:#FEF3C7;border-color:#FDE68A;color:#92400E}
+.kbStat.warn b{color:#92400E}
+.kbStat.alert{background:#FEE2E2;border-color:#FECACA;color:#991B1B}
+.kbStat.alert b{color:#991B1B}
+
+/* --- 列(カンバンのカラム) --- */
+.kbCols{display:grid;grid-auto-flow:column;gap:14px;align-items:start;
+  overflow-x:auto;overflow-y:visible;padding-bottom:10px;-webkit-overflow-scrolling:touch}
+.kbCol{background:var(--panel2);border:1px solid var(--line);border-radius:14px;
+  display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.kbColHd{display:flex;align-items:center;gap:8px;padding:10px 12px;
+  border-bottom:1px solid var(--line);background:var(--panel2);flex:none}
+.kbDot{width:10px;height:10px;border-radius:50%;background:var(--kbc,#64748B);flex:none}
+.kbColTtl{font-size:13px;font-weight:800;color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kbColN{margin-left:auto;flex:none;font-size:12px;font-weight:800;color:#fff;
+  background:var(--kbc,#64748B);border-radius:999px;min-width:24px;text-align:center;padding:2px 8px;line-height:1.4}
+.kbColBody{padding:10px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:90px}
+.kbColBody.kbOver{background:rgba(37,99,235,.07);outline:2px dashed var(--kbc,#64748B);outline-offset:-6px}
+.kbColEmpty{font-size:12px;color:var(--dim);text-align:center;padding:20px 8px;
+  border:1px dashed var(--line);border-radius:10px}
+
+/* --- カード --- */
+.kbCard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--kbc,#64748B);
+  border-radius:12px;padding:10px 12px;box-shadow:0 1px 2px rgba(16,24,40,.05);
+  transition:box-shadow .15s ease,transform .12s ease;min-width:0}
+.kbCard:hover{box-shadow:0 4px 14px rgba(16,24,40,.12)}
+.kbCard.kbSel{outline:2px solid var(--kbc,#64748B);outline-offset:1px}
+.kbCard.kbDrag{opacity:.45}
+.kbCard[draggable="true"]{cursor:grab}
+.kbCard[draggable="true"]:active{cursor:grabbing}
+
+.kbTop{display:flex;align-items:center;gap:6px;margin-bottom:8px;min-height:26px}
+.kbChip{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#fff;
+  background:var(--kbc,#64748B);line-height:1.5;white-space:nowrap}
+.kbChip.kbDone{background:#16A34A}
+.kbChecks{margin-left:auto;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.kbCk{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.2);flex:none}
+.kbCkBtn{width:26px;height:26px;flex:none;border-radius:50%;border:1.5px dashed var(--line);
+  background:transparent;color:#fff;font-size:12px;font-weight:900;line-height:1;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+  transition:transform .12s ease}
+.kbCkBtn:active{transform:scale(.9)}
+.kbCkBtn.on{border-style:solid;border-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+
+.kbMain{cursor:pointer;min-width:0}
+.kbPlate{font-size:15px;font-weight:800;color:var(--txt);line-height:1.35;word-break:break-word}
+.kbOwner{font-size:12px;color:var(--txt);opacity:.85;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kbMeta{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.5}
+
+.kbFoot{display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:8px;
+  border-top:1px dashed var(--line);flex-wrap:wrap}
+.kbDays{font-size:11px;font-weight:800;color:var(--dim);background:var(--panel2);
+  border-radius:999px;padding:4px 9px;flex:none}
+.kbDays.warn{background:#FEF3C7;color:#92400E}
+.kbDays.alert{background:#FEE2E2;color:#991B1B}
+.kbBtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;
+  font-size:11px;font-weight:700;padding:5px 10px;min-height:32px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;color:var(--txt);font-family:inherit}
+.kbBtn:active{transform:scale(.96)}
+.kbMemoBtn .kbIc{font-size:13px;line-height:1}
+.kbMemoBtn.has{border-color:var(--kbc,#64748B);color:var(--kbc,#64748B)}
+.kbN{font-size:10px;font-weight:800}
+.kbFeeBtn{color:#fff;border:0;font-weight:800}
+.kbFeeBtn.feeUnpaid{background:#DC2626}
+.kbFeeBtn.feePaid{background:#16A34A}
+.kbFeeBtn.feeAdvance{background:#7C3AED}
+.kbNext{margin-left:auto;border-color:var(--kbc,#64748B);color:var(--kbc,#64748B);font-weight:800}
+
+/* --- 詳細ドロワー(カードを選ぶと開く) --- */
+.ibDetail{display:none}
+.ibDetail.show{display:block;position:fixed;right:0;top:61px;bottom:0;width:min(400px,94vw);
+  background:var(--panel);border-left:1px solid var(--line);box-shadow:-10px 0 44px rgba(16,24,40,.20);
+  z-index:70;overflow-y:auto;padding:18px}
+.kbDrawerClose{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;
+  border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:16px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.kbDrawerClose:active{background:var(--line)}
+.kbPick{margin-top:14px}
+.kbPickTtl{font-size:11px;font-weight:800;color:var(--dim);margin-bottom:6px}
+.kbPickRow{display:flex;gap:6px;flex-wrap:wrap}
+.kbPickBtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;
+  font-size:12px;font-weight:700;padding:7px 12px;min-height:36px;cursor:pointer;
+  color:var(--txt);font-family:inherit}
+.kbPickBtn.on{background:var(--kbc,#64748B);border-color:var(--kbc,#64748B);color:#fff}
+
+/* --- 画面幅ごとの最適化 --- */
+/* スマホ: 1列ずつ横スワイプ(スナップ)。列は縦に伸ばして全件見せる */
+@media(max-width:767px){
+  .kbCols{grid-auto-columns:minmax(82vw,1fr);scroll-snap-type:x mandatory}
+  .kbCol{scroll-snap-align:start}
+  .kbColBody{max-height:none}
+  .kbBar{gap:8px}
+  .kbStats{width:100%}
+  .ibDetail.show{top:auto;width:100%;max-height:76vh;border-left:0;
+    border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+    box-shadow:0 -10px 44px rgba(16,24,40,.20)}
+}
+/* タブレット: 2列ずつ見せて横スクロール */
+@media(min-width:768px) and (max-width:1099px){
+  .kbCols{grid-auto-columns:minmax(300px,1fr)}
+  .kbColBody{max-height:calc(100vh - 300px)}
+}
+/* PC: 4列が画面に収まる。列内はスクロール */
+@media(min-width:1100px){
+  .kbCols{grid-auto-columns:minmax(0,1fr);overflow-x:visible}
+  .kbColBody{max-height:calc(100vh - 290px)}
+}

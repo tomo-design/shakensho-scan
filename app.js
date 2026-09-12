@@ -3209,6 +3209,44 @@ const INTAKE_KINDS = {
   "修理": { label: "修理", cls: "ikRepair" },
   "事故": { label: "板金", cls: "ikJiko" },
 };
+/* ===== 進捗ステータス(入庫→作業中→完了→引渡待) =====
+   既存レコードには intakeStatus が無いため、未設定は「入庫」として扱う(後方互換)。 */
+const INTAKE_STATUS = {
+  "入庫":   { label: "入庫",   cls: "stIn",   desc: "受付済み・未着手" },
+  "作業中": { label: "作業中", cls: "stWork", desc: "作業を進行中" },
+  "完了":   { label: "完了",   cls: "stDone", desc: "作業は完了" },
+  "引渡待": { label: "引渡待", cls: "stWait", desc: "連絡済み・引渡待ち" },
+};
+const STATUS_ORDER = ["入庫", "作業中", "完了", "引渡待"];
+function statusOf(h) { return (h && INTAKE_STATUS[h.intakeStatus]) ? h.intakeStatus : "入庫"; }
+/* 進捗を設定(社内共有へも反映)。レ点と同じく軽量更新を優先。 */
+function setIntakeStatus(rid, st) {
+  if (!INTAKE_STATUS[st]) return;
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  if (statusOf(t) === st) return;
+  t.intakeStatus = st; t.statusAt = Date.now(); t.updatedAt = Date.now();
+  localStorage.setItem(LS.hist, JSON.stringify(hist));
+  if (window.Cloud) {
+    if (typeof window.Cloud.updateRecordFields === "function") window.Cloud.updateRecordFields(t, { intakeStatus: st, statusAt: t.statusAt });
+    else window.Cloud.pushRecord(t);
+  }
+  renderIntakeBoard();
+}
+/* 次の進捗へ1段進める(最終段では何もしない) */
+function advanceStatus(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const i = STATUS_ORDER.indexOf(statusOf(t));
+  if (i < 0 || i >= STATUS_ORDER.length - 1) return;
+  setIntakeStatus(rid, STATUS_ORDER[i + 1]);
+}
+/* ボードの列分け(この端末で記憶): "kind"=区分別 / "status"=進捗別 */
+function getBoardGroup() { try { return localStorage.getItem("ss_ibGroup") === "status" ? "status" : "kind"; } catch (e) { return "kind"; } }
+function setBoardGroup(g) { try { localStorage.setItem("ss_ibGroup", g === "status" ? "status" : "kind"); } catch (e) {} renderIntakeBoard(); }
+/* ボードの絞り込み語(番号・使用者・型式・担当を横断検索。この端末で記憶) */
+function getBoardQuery() { try { return localStorage.getItem("ss_ibQuery") || ""; } catch (e) { return ""; } }
+function setBoardQuery(q) { try { if (q) localStorage.setItem("ss_ibQuery", q); else localStorage.removeItem("ss_ibQuery"); } catch (e) {} }
+/* 入庫からの経過日数 */
+function intakeDays(h) { return h && h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0; }
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
 const CONFIRM_COLORS = ["#2563EB", "#16A34A", "#EA8C00", "#DC2626", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#CA8A04", "#4F46E5", "#0D9488", "#9333EA"];
 /* uid/名前から固定色を決定的に割当(毎回同じ色) */
@@ -3639,21 +3677,64 @@ function addManualIntake() {
   showToast("入庫を追加しました（" + INTAKE_KINDS[kind].label + "）");
 }
 /* 区分フィルターのチップを描画(すべて＋在庫のある区分)。件数付き・選択状態を記憶 */
-function renderIntakeFilter(all, filter) {
+/* ===== 入庫管理ボード(カンバン) =====
+   列は「区分別」または「進捗別」に切替。カードはPCでは列間ドラッグで移動でき、
+   タッチ端末では各カードの「▸次へ」ボタンと詳細ドロワーの選択で同じ操作ができる。 */
+function ibMatch(h, q) {
+  if (!q) return true;
+  const hay = [h.plate, h.name, h.type, h.staff, h.vin].map(v => dispText(v) || "").join(" ").toLowerCase();
+  return hay.indexOf(q.toLowerCase()) >= 0;
+}
+/* 上部ツールバー(列の切替・絞り込み・件数サマリー) */
+function renderIntakeToolbar(all, shown) {
   const box = $("ibFilter"); if (!box) return;
+  const group = getBoardGroup();
+  const q = getBoardQuery();
   box.innerHTML = "";
-  const mk = (key, label, n, active) => {
+  const bar = document.createElement("div"); bar.className = "kbBar";
+
+  // 列の切替(区分 / 進捗)
+  const seg = document.createElement("div"); seg.className = "kbSeg";
+  [["kind", "区分で分ける"], ["status", "進捗で分ける"]].forEach(pair => {
     const b = document.createElement("button");
-    b.className = "ibFchip" + (active ? " on " + (key ? (INTAKE_KINDS[key] || {}).cls : "ibFall") : "");
-    b.textContent = label + "（" + n + "）";
-    b.addEventListener("click", () => setIntakeFilter(key));
-    return b;
-  };
-  box.appendChild(mk("", "すべて", all.length, !filter));
-  Object.keys(INTAKE_KINDS).forEach(k => {
-    const n = all.filter(h => h.intakeKind === k).length;
-    if (n > 0 || filter === k) box.appendChild(mk(k, INTAKE_KINDS[k].label, n, filter === k));
+    b.type = "button"; b.className = "kbSegBtn" + (group === pair[0] ? " on" : ""); b.textContent = pair[1];
+    b.addEventListener("click", () => setBoardGroup(pair[0]));
+    seg.appendChild(b);
   });
+  bar.appendChild(seg);
+
+  // 絞り込み(番号・使用者・型式・担当)
+  const sw = document.createElement("div"); sw.className = "kbSearchWrap";
+  const inp = document.createElement("input");
+  inp.type = "search"; inp.className = "kbSearch"; inp.value = q;
+  inp.placeholder = "番号・使用者・型式・担当で絞り込み";
+  inp.addEventListener("input", () => {
+    setBoardQuery(inp.value.trim());
+    renderIntakeBoard();
+    const n = $("ibFilter").querySelector(".kbSearch");
+    if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+  });
+  sw.appendChild(inp);
+  bar.appendChild(sw);
+
+  // サマリー(合計・未回収・長期滞留)
+  const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
+  const longStay = all.filter(h => intakeDays(h) >= 7).length;
+  const stats = document.createElement("div"); stats.className = "kbStats";
+  const total = document.createElement("span"); total.className = "kbStat kbStatTotal";
+  total.innerHTML = "<b>" + shown + (shown !== all.length ? "/" + all.length : "") + "</b>台";
+  stats.appendChild(total);
+  const stat = (label, n, cls) => {
+    if (!n) return;
+    const e = document.createElement("span"); e.className = "kbStat " + (cls || "");
+    e.innerHTML = "<b>" + n + "</b>" + esc(label);
+    stats.appendChild(e);
+  };
+  stat("件 未回収", unpaid, "warn");
+  stat("台 7日以上", longStay, "alert");
+  bar.appendChild(stats);
+
+  box.appendChild(bar);
 }
 function renderIntakeBoard() {
   const sec = $("intakeBoard"), box = $("ibList"); if (!sec || !box) return;
@@ -3664,95 +3745,159 @@ function renderIntakeBoard() {
   const oldAdd = $("ibAdd"); if (oldAdd) oldAdd.remove();   // 手動追加ボタンは廃止
   // 入庫ボードは事務用モードの端末のみ表示(通常ログインのホームには出さない)
   if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
-  // 区分フィルター(この端末で記憶): すべて / 車検 / 点検 / 修理 / 事故
-  const filter = getIntakeFilter();
-  renderIntakeFilter(all, filter);
-  const list = filter ? all.filter(h => h.intakeKind === filter) : all;
-  const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + (filter ? list.length + "/" + all.length : all.length) + "台）" : "";
-  const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
-  const sm = $("ibSummary"); if (sm) sm.textContent = unpaid ? "未回収 " + unpaid + "件" : "";
+
+  const group = getBoardGroup();
+  const q = getBoardQuery();
+  const list = all.filter(h => ibMatch(h, q));
+  renderIntakeToolbar(all, list.length);
+  const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + all.length + "台）" : "";
+  const sm = $("ibSummary"); if (sm) sm.textContent = "";
+
+  const keys = (group === "kind") ? Object.keys(INTAKE_KINDS) : STATUS_ORDER;
+  const meta = k => (group === "kind")
+    ? { label: INTAKE_KINDS[k].label, cls: INTAKE_KINDS[k].cls }
+    : { label: INTAKE_STATUS[k].label, cls: INTAKE_STATUS[k].cls };
+  const keyOf = h => (group === "kind") ? h.intakeKind : statusOf(h);
+
+  box.className = "ibList kbCols";
   box.innerHTML = "";
-  if (!list.length) {
-    box.innerHTML = '<div class="ibEmpty">' + (all.length ? "この区分の入庫車両はありません。" : "現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。") + '</div>';
-    toggle("intakeBoard", true); renderIntakeDetail(list); return;
+
+  if (!all.length) {
+    box.className = "ibList";
+    box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
+    toggle("intakeBoard", true); renderIntakeDetail(all); return;
   }
-  list.forEach(h => {
-    const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
-    const card = document.createElement("div"); card.className = "ibCard " + info.cls;
-    card.dataset.rid = h.rid;
-    const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
-    const sub = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : "", h.staff ? ("担当: " + dispText(h.staff)) : ""].filter(Boolean).join(" ・ ");
-    const days = h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0;
-    const inspDone = (h.intakeKind === "車検") && h.inspDone;
-    const info2 = document.createElement("div"); info2.className = "ibMain";
-    info2.innerHTML = (inspDone
-        ? '<span class="ibTag done" title="完成検査 終了済み">完検済</span>'
-        : '<span class="ibTag">' + esc(info.label) + '</span>') +
-      '<span class="ibTitle">' + esc(title) + '</span>' +
-      '<span class="ibSub">' + esc(sub) + (days > 0 ? " ・ 入庫" + days + "日" : " ・ 本日入庫") + '</span>';
-    // クリックで右ペインに詳細表示
-    if (office) {
-      if (h.rid === _ibSelected) card.classList.add("ibSel");
-      info2.style.cursor = "pointer";
-      info2.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
-    }
-    card.appendChild(info2);
 
-    // 右上: 上段=確認レ点(色付き✓)、下段=費用(車検のみ)
+  keys.forEach(k => {
+    const m = meta(k);
+    const items = list.filter(h => keyOf(h) === k);
+    const col = document.createElement("section");
+    col.className = "kbCol " + m.cls;
+    col.dataset.key = k;
+
+    const hd = document.createElement("header"); hd.className = "kbColHd";
+    hd.innerHTML = '<span class="kbDot"></span><span class="kbColTtl">' + esc(m.label) + '</span>' +
+                   '<span class="kbColN">' + items.length + '</span>';
+    col.appendChild(hd);
+
+    const body = document.createElement("div"); body.className = "kbColBody"; body.dataset.key = k;
     if (editable) {
-      const me = myConfirmId();
-      const conf = Array.isArray(h.confirms) ? h.confirms : [];
-      const others = conf.filter(c => c.id !== me.id);
-      const mine = conf.some(c => c.id === me.id);
-      // 右上: 他の担当のレ点(読み取り専用) ＋ 自分用のトグルボタン(単押し)
-      const tr = document.createElement("div"); tr.className = "ibTopRight";
-      others.forEach(c => {
-        const ck = document.createElement("span"); ck.className = "ibCk";
-        ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
-        tr.appendChild(ck);
+      body.addEventListener("dragover", e => { e.preventDefault(); body.classList.add("kbOver"); });
+      body.addEventListener("dragleave", () => body.classList.remove("kbOver"));
+      body.addEventListener("drop", e => {
+        e.preventDefault(); body.classList.remove("kbOver");
+        const rid = e.dataTransfer.getData("text/plain"); if (!rid) return;
+        if (group === "kind") setIntakeKindOnly(rid, k); else setIntakeStatus(rid, k);
       });
-      // 自分のレ点は単押しトグル。確認済み=色付き✓ / 未確認=空丸。カード選択(明暗)には影響しない。
-      // ★未選択のカードはレ点操作も不可(コメントと同様。選択中のカードだけ操作できる)。
-      const ckSel = (h.rid === _ibSelected);
-      const ckBtn = document.createElement("button");
-      ckBtn.type = "button";
-      ckBtn.className = "ibCkBtn" + (mine ? " on" : "") + (ckSel ? "" : " locked");
-      if (mine) { ckBtn.style.background = me.color; ckBtn.textContent = "✓"; ckBtn.title = ckSel ? "確認を外す" : "選択すると操作できます"; }
-      else { ckBtn.textContent = ""; ckBtn.title = ckSel ? "確認レ点を付ける" : "選択すると操作できます"; }
-      ckBtn.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; toggleConfirm(h.rid); });
-      tr.appendChild(ckBtn);
-      card.appendChild(tr);
-
-      // コメント行: コメント(左)＋費用回収ボタン(右・車検のみ)
-      const meta = document.createElement("div"); meta.className = "ibMeta";
-      const memo = document.createElement("button");
-      const memoSel = (h.rid === _ibSelected);
-      const cs = getComments(h);
-      memo.className = "ibMemo" + (cs.length ? " hasMemo" : "") + (memoSel ? "" : " locked");
-      memo.title = cs.length ? (cs.length + "件のコメント") : "コメントを追加";
-      memo.innerHTML = '<span class="ibMemoIc">💬</span>' +
-        (cs.length ? '<span class="ibMemoN">' + cs.length + '</span>' : '<span class="ibMemoTxt">コメント</span>');
-      // 未選択のカードはコメント不可(選択中のみ開ける)
-      memo.addEventListener("click", e => { e.stopPropagation(); if (h.rid !== _ibSelected) return; openIntakeComments(h.rid); });
-      meta.appendChild(memo);
-      if (h.intakeKind === "車検") {
-        // 完検の操作は入庫管理ボードからは行わない(表示のみ)。操作は「現在の入庫状況」の右スワイプから。
-        const fee = document.createElement("button");
-        const fs = FEE_STATES[feeStateOf(h)];
-        fee.className = "ibFee " + fs.cls;
-        fee.textContent = fs.label;
-        fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
-        fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
-        meta.appendChild(fee);
-      }
-      card.appendChild(meta);
     }
-    box.appendChild(card);
+    if (!items.length) {
+      const em = document.createElement("div"); em.className = "kbColEmpty";
+      em.textContent = q ? "該当なし" : "なし";
+      body.appendChild(em);
+    }
+    items.forEach(h => body.appendChild(buildIntakeCard(h, group, editable)));
+    col.appendChild(body);
+    box.appendChild(col);
   });
+
   renderIntakeDetail(list);
   try { bindIntakeCal(); } catch (e) {}
-  try { bindBoardDrag(); } catch (e) {}
   toggle("intakeBoard", true);
+}
+/* カンバンのカード1枚 */
+function buildIntakeCard(h, group, editable) {
+  const kind = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
+  const st = statusOf(h), stInfo = INTAKE_STATUS[st];
+  const card = document.createElement("article");
+  card.className = "kbCard " + kind.cls + (h.rid === _ibSelected ? " kbSel" : "");
+  card.dataset.rid = h.rid;
+  if (editable) {
+    card.draggable = true;
+    card.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", h.rid); card.classList.add("kbDrag"); });
+    card.addEventListener("dragend", () => card.classList.remove("kbDrag"));
+  }
+
+  // 上段: 区分で分けている時は進捗チップ、進捗で分けている時は区分チップ(=常に足りない方の情報を出す)
+  const top = document.createElement("div"); top.className = "kbTop";
+  const chip = document.createElement("span");
+  if (group === "kind") { chip.className = "kbChip kbStatus " + stInfo.cls; chip.textContent = stInfo.label; chip.title = stInfo.desc; }
+  else { chip.className = "kbChip kbKind " + kind.cls; chip.textContent = kind.label; }
+  top.appendChild(chip);
+  if (h.intakeKind === "車検" && h.inspDone) {
+    const d = document.createElement("span"); d.className = "kbChip kbDone"; d.textContent = "完検済"; d.title = "完成検査 終了済み";
+    top.appendChild(d);
+  }
+  // 確認レ点(他メンバー + 自分のトグル)
+  if (editable) {
+    const me = myConfirmId();
+    const conf = Array.isArray(h.confirms) ? h.confirms : [];
+    const checks = document.createElement("div"); checks.className = "kbChecks";
+    conf.filter(c => c.id !== me.id).forEach(c => {
+      const ck = document.createElement("span"); ck.className = "kbCk";
+      ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
+      checks.appendChild(ck);
+    });
+    const mine = conf.some(c => c.id === me.id);
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "kbCkBtn" + (mine ? " on" : "");
+    btn.title = mine ? "自分の確認を外す" : "確認レ点を付ける";
+    if (mine) { btn.style.background = me.color; btn.textContent = "✓"; }
+    btn.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
+    checks.appendChild(btn);
+    top.appendChild(checks);
+  }
+  card.appendChild(top);
+
+  // 本体: 番号(大) / 使用者 / 型式・満了・担当
+  const main = document.createElement("div"); main.className = "kbMain";
+  const plate = dispText(h.plate) || dispText(h.type) || "型式不明";
+  const owner = dispText(h.name);
+  const bits = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : "", h.staff ? ("担当 " + dispText(h.staff)) : ""].filter(Boolean);
+  main.innerHTML = '<div class="kbPlate">' + esc(plate) + '</div>' +
+    (owner ? '<div class="kbOwner">' + esc(owner) + '</div>' : "") +
+    (bits.length ? '<div class="kbMeta">' + esc(bits.join(" ・ ")) + '</div>' : "");
+  main.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
+  card.appendChild(main);
+
+  // 下段: 滞留日数 / コメント / 費用(車検) / 次の進捗へ
+  const foot = document.createElement("div"); foot.className = "kbFoot";
+  const days = intakeDays(h);
+  const dayEl = document.createElement("span");
+  dayEl.className = "kbDays" + (days >= 14 ? " alert" : days >= 7 ? " warn" : "");
+  dayEl.textContent = days > 0 ? days + "日" : "本日";
+  dayEl.title = "入庫からの経過日数";
+  foot.appendChild(dayEl);
+
+  if (editable) {
+    const cs = getComments(h);
+    const memo = document.createElement("button");
+    memo.type = "button"; memo.className = "kbBtn kbMemoBtn" + (cs.length ? " has" : "");
+    memo.title = cs.length ? (cs.length + "件のコメント") : "コメントを追加";
+    memo.innerHTML = '<span class="kbIc">💬</span>' + (cs.length ? '<span class="kbN">' + cs.length + "</span>" : "");
+    memo.addEventListener("click", e => { e.stopPropagation(); openIntakeComments(h.rid); });
+    foot.appendChild(memo);
+
+    if (h.intakeKind === "車検") {
+      const fs = FEE_STATES[feeStateOf(h)];
+      const fee = document.createElement("button");
+      fee.type = "button"; fee.className = "kbBtn kbFeeBtn " + fs.cls; fee.textContent = fs.label;
+      fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
+      fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
+      foot.appendChild(fee);
+    }
+    // 次の進捗へ(タッチ端末でもドラッグなしで進められる)
+    const i = STATUS_ORDER.indexOf(st);
+    if (i >= 0 && i < STATUS_ORDER.length - 1) {
+      const nx = document.createElement("button");
+      nx.type = "button"; nx.className = "kbBtn kbNext";
+      nx.textContent = STATUS_ORDER[i + 1] + " ▸";
+      nx.title = "進捗を「" + STATUS_ORDER[i + 1] + "」に進める";
+      nx.addEventListener("click", e => { e.stopPropagation(); advanceStatus(h.rid); });
+      foot.appendChild(nx);
+    }
+  }
+  card.appendChild(foot);
+  return card;
 }
 /* フローティングカードの配置(位置・大きさ)を保存/復元(PC。次回同じ配置で開く) */
 function saveFloatPos(key, el) {
@@ -3833,36 +3978,6 @@ function makeResizable(el, minW, minH, saveKey) {
   });
 }
 /* 入庫ボード(事務モード・PC)をヘッダーでドラッグ移動できるようにする(リサイズは四隅ハンドルで対応) */
-let _ibDragBound = false;
-function bindBoardDrag() {
-  if (_ibDragBound) return;
-  const board = $("intakeBoard"); const hd = board && board.querySelector(".ibHead");
-  if (!board || !hd) return;
-  _ibDragBound = true;
-  try { makeResizable(board, 520, 360, "ss_boardPos"); } catch (e) {}
-  try { enableRaise(board); } catch (e) {}   // クリックで最前面へ
-  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
-  if (isDesk()) { try { restoreFloatPos("ss_boardPos", board); } catch (e) {} }   // 前回の配置を復元
-  let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
-  hd.addEventListener("pointerdown", e => {
-    if (!isDesk() || !officeMode() || e.target.closest("button")) return;   // ボタン(更新/カレンダー)はドラッグしない
-    drag = true;
-    const r = board.getBoundingClientRect();
-    ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
-    board.style.left = ox + "px"; board.style.top = oy + "px"; board.style.margin = "0";
-    try { hd.setPointerCapture(e.pointerId); } catch (er) {}
-  });
-  hd.addEventListener("pointermove", e => {
-    if (!drag) return;
-    let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
-    nx = Math.min(Math.max(nx, -board.offsetWidth + 160), window.innerWidth - 160);
-    ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
-    board.style.left = nx + "px"; board.style.top = ny + "px";
-  });
-  const end = () => { if (drag) { try { saveFloatPos("ss_boardPos", board); } catch (e) {} } drag = false; };
-  hd.addEventListener("pointerup", end);
-  hd.addEventListener("pointercancel", end);
-}
 /* カレンダーのポップアップ開閉を1回だけバインド */
 let _icBound = false;
 function bindIntakeCal() {
@@ -4256,17 +4371,19 @@ function openAddPlan(y, m, d, cb, dir) {
   });
 }
 /* PC2ペインの右側: 選択中の入庫車両の情報＋出庫ボタン */
+/* 選択中カードの詳細(右ドロワー / スマホは下からのシート)。
+   区分・進捗はここからも変更できる(タッチ端末でドラッグせずに操作するための経路)。 */
 function renderIntakeDetail(list) {
   const box = $("ibDetail"); if (!box) return;
   const sel = (list || []).find(h => h.rid === _ibSelected) || null;
-  box.classList.toggle("show", !!sel);   // 選択時のみ表示(モバイルでは一覧の下に詳細＋出庫が出る)
-  if (!sel) {
-    box.innerHTML = '<div class="ibDetEmpty">左の一覧から車両を選ぶと、ここに詳細が表示されます。</div>';
-    return;
-  }
+  box.classList.toggle("show", !!sel);
+  if (!sel) { box.innerHTML = ""; return; }
+
   const info = INTAKE_KINDS[sel.intakeKind] || { label: sel.intakeKind, cls: "" };
+  const st = statusOf(sel);
   const rows = [
     ["区分", info.label],
+    ["進捗", INTAKE_STATUS[st].label],
     ["使用者", dispText(sel.name) || "—"],
     ["型式", dispText(sel.type) || "—"],
     ["車台番号", dispText(sel.vin) || "—"],
@@ -4276,13 +4393,42 @@ function renderIntakeDetail(list) {
     ["入庫", sel.intakeAt ? fmtYMD(sel.intakeAt) : "—"],
     ["担当", dispText(sel.staff) || "—"],
   ];
-  // 担当者は事務ボードでは編集しない(メインツールのホーム入庫状況で設定)。ここでは表示のみ。
-  // 上部の区分タグ・費用は廃止(費用はカード一覧側で操作)。ラベルは左端固定・値は全幅中央寄せ。
-  const rowHtml = (k, vHtml) => '<div class="ibDetRow"><span class="k">' + esc(k) + '</span><span class="v">' + vHtml + '</span></div>';
-  box.innerHTML = '<div class="ibDetCard ' + info.cls + '">' +
-    '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
-    '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], esc(r[1]))).join("") + '</div>' +
-    '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button></div>';
+  const rowHtml = (k, v) => '<div class="ibDetRow"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+  box.innerHTML =
+    '<button type="button" class="kbDrawerClose" id="kbDrawerClose" aria-label="閉じる">✕</button>' +
+    '<div class="ibDetCard ' + info.cls + '">' +
+      '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
+      '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], r[1])).join("") + '</div>' +
+      '<div class="kbPick" id="kbPickStatus"><div class="kbPickTtl">進捗を変更</div><div class="kbPickRow"></div></div>' +
+      '<div class="kbPick" id="kbPickKind"><div class="kbPickTtl">区分を変更</div><div class="kbPickRow"></div></div>' +
+      '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button>' +
+    '</div>';
+
+  const close = $("kbDrawerClose");
+  if (close) close.addEventListener("click", () => { _ibSelected = null; renderIntakeBoard(); });
+
+  // 進捗の選択ボタン
+  const sRow = document.querySelector("#kbPickStatus .kbPickRow");
+  if (sRow) STATUS_ORDER.forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "kbPickBtn " + INTAKE_STATUS[k].cls + (k === st ? " on" : "");
+    b.textContent = INTAKE_STATUS[k].label;
+    b.title = INTAKE_STATUS[k].desc;
+    b.addEventListener("click", () => setIntakeStatus(sel.rid, k));
+    sRow.appendChild(b);
+  });
+  // 区分の選択ボタン
+  const kRow = document.querySelector("#kbPickKind .kbPickRow");
+  if (kRow) Object.keys(INTAKE_KINDS).forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "kbPickBtn " + INTAKE_KINDS[k].cls + (k === sel.intakeKind ? " on" : "");
+    b.textContent = INTAKE_KINDS[k].label;
+    b.addEventListener("click", () => setIntakeKindOnly(sel.rid, k));
+    kRow.appendChild(b);
+  });
+
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", async () => {
     const title = dispText(sel.plate) || dispText(sel.type) || "この車両";
