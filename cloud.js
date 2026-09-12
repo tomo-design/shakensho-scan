@@ -682,7 +682,12 @@
   }
   const clean = s => (typeof noEmail === "function" ? noEmail(s) : s) || null;   // メール混入除去
   function recordSubset(r) {
-    return { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, intakeStatus: r.intakeStatus || null, statusAt: r.statusAt || null, inspDone: (r.inspDone === true), inspAt: r.inspAt || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, comments: Array.isArray(r.comments) ? r.comments : null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, deleted: false, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    const sub = { rid: r.rid || null, vin: r.vin || null, plate: r.plate || null, name: clean(r.name), model: r.model || null, type: r.type || null, kataShitei: r.kataShitei || null, engine: r.engine || null, firstReg: r.firstReg || null, expiry: r.expiry || null, specs: r.specs || null, faults: r.faults || null, recalls: r.recalls || null, karte: r.karte || null, intakeKind: r.intakeKind || null, intakeAt: r.intakeAt || null, intakeOut: r.intakeOut || null, inspDone: (r.inspDone === true), inspAt: r.inspAt || null, feePaid: (r.feePaid === true), feeStatus: r.feeStatus || null, officeMemo: r.officeMemo || null, comments: Array.isArray(r.comments) ? r.comments : null, staff: r.staff || null, confirms: Array.isArray(r.confirms) ? r.confirms : null, deleted: false, at: r.at || new Date().toISOString(), updatedAt: r.updatedAt || Date.now() };
+    // ★進捗(intakeStatus/statusAt)は「持っていない端末が null を送って相手の設定を消す」のを防ぐため、
+    //   値がある時だけ載せる(mergeでは null も書き込まれて上書きになるため)。
+    if (r.intakeStatus != null) sub.intakeStatus = r.intakeStatus;
+    if (r.statusAt != null) sub.statusAt = r.statusAt;
+    return sub;
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */

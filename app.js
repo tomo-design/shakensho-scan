@@ -4498,13 +4498,8 @@ function renderHomeIntake() {
     staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
     staff.textContent = h.staff ? h.staff : (canEdit ? "＋ 担当" : "—");
     if (canEdit) staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
-    // 進捗ピル(表示専用)。変更は右スワイプで出るボタンから行う(出庫・完検と同じ操作感)
-    const st = statusOf(h), stInfo = INTAKE_STATUS[st];
-    const stEl = document.createElement("span");
-    stEl.className = "hiStatus " + stInfo.cls;
-    stEl.textContent = stInfo.label;
-    stEl.title = "進捗: " + stInfo.desc + (canEdit ? "（右スワイプで変更）" : "");
-    slide.appendChild(main); slide.appendChild(stEl); slide.appendChild(staff);
+    const st = statusOf(h);
+    slide.appendChild(main); slide.appendChild(staff);
     row.appendChild(slide);
     // 出庫は管理者のみ。メンバーはスワイプ出庫を出さない(閲覧のみ)。
     if (canEdit) {
@@ -4513,24 +4508,17 @@ function renderHomeIntake() {
       out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
       outWrap.appendChild(out);
       row.appendChild(outWrap);
-      // 右スワイプで左側に操作ボタンを出す: [完検(車検のみ)] [進捗を進める]
+      // 右スワイプで「次の進捗へ」ボタンを出す(完検は進捗の「完了」で代替できるため廃止)。
+      // 押すと1段進み、最後まで行くと先頭へ戻る(費用の切替と同じ操作感)。
       const leftWrap = document.createElement("div"); leftWrap.className = "hiInspWrap";
-      let leftN = 0;
-      if (isShaken) {
-        const insp = document.createElement("button"); insp.className = "hiInsp" + (h.inspDone ? " done" : "");
-        insp.textContent = h.inspDone ? "取消" : "完検";
-        insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
-        leftWrap.appendChild(insp); leftN++;
-      }
-      // 進捗を1段進める(最後まで行ったら先頭へ戻る＝費用の切替と同じ操作感)。ボタンには「次の進捗」を出す。
       const nextSt = STATUS_ORDER[(STATUS_ORDER.indexOf(st) + 1) % STATUS_ORDER.length];
       const stNext = document.createElement("button");
       stNext.className = "hiStNext " + INTAKE_STATUS[nextSt].cls;
-      stNext.textContent = nextSt + " ▸";   // 「▸」で“次へ進める”操作と分かるように(完検トグルと区別)
+      stNext.textContent = nextSt + " ▸";
       stNext.title = "進捗を「" + nextSt + "」にする";
       stNext.addEventListener("click", e => { e.stopPropagation(); setIntakeStatus(h.rid, nextSt); });
-      leftWrap.appendChild(stNext); leftN++;
-      const leftW = leftN * 84;
+      leftWrap.appendChild(stNext);
+      const leftW = 96;
       leftWrap.style.width = leftW + "px";
       row.appendChild(leftWrap);
       addSwipeReveal(row, slide, { leftW });
