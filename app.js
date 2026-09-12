@@ -4498,13 +4498,12 @@ function renderHomeIntake() {
     staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
     staff.textContent = h.staff ? h.staff : (canEdit ? "＋ 担当" : "—");
     if (canEdit) staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
-    // 進捗ピル: 入庫ボードへ行かなくてもここで 作業中/完了/引渡待 に動かせる(管理者のみ操作可)
+    // 進捗ピル(表示専用)。変更は右スワイプで出るボタンから行う(出庫・完検と同じ操作感)
     const st = statusOf(h), stInfo = INTAKE_STATUS[st];
-    const stEl = document.createElement(canEdit ? "button" : "span");
-    stEl.className = "hiStatus " + stInfo.cls + (canEdit ? "" : " ro");
+    const stEl = document.createElement("span");
+    stEl.className = "hiStatus " + stInfo.cls;
     stEl.textContent = stInfo.label;
-    stEl.title = canEdit ? ("進捗: " + stInfo.desc + "（タップで変更）") : ("進捗: " + stInfo.desc);
-    if (canEdit) stEl.addEventListener("click", e => { e.stopPropagation(); openStatusPicker(h.rid); });
+    stEl.title = "進捗: " + stInfo.desc + (canEdit ? "（右スワイプで変更）" : "");
     slide.appendChild(main); slide.appendChild(stEl); slide.appendChild(staff);
     row.appendChild(slide);
     // 出庫は管理者のみ。メンバーはスワイプ出庫を出さない(閲覧のみ)。
@@ -4514,17 +4513,26 @@ function renderHomeIntake() {
       out.addEventListener("click", e => { e.stopPropagation(); if (confirm("「" + title + "」を出庫にしますか？")) clearIntake(h.rid); });
       outWrap.appendChild(out);
       row.appendChild(outWrap);
-      // 車検は右スワイプで「検査済(完検済)」印を付け外し。出庫はしない(状態表示だけ)。
-      let leftW = 0;
+      // 右スワイプで左側に操作ボタンを出す: [完検(車検のみ)] [進捗を進める]
+      const leftWrap = document.createElement("div"); leftWrap.className = "hiInspWrap";
+      let leftN = 0;
       if (isShaken) {
-        const inspWrap = document.createElement("div"); inspWrap.className = "hiInspWrap";
         const insp = document.createElement("button"); insp.className = "hiInsp" + (h.inspDone ? " done" : "");
         insp.textContent = h.inspDone ? "取消" : "完検";
         insp.addEventListener("click", e => { e.stopPropagation(); toggleInspDone(h.rid); });
-        inspWrap.appendChild(insp);
-        row.appendChild(inspWrap);
-        leftW = 84;
+        leftWrap.appendChild(insp); leftN++;
       }
+      // 進捗を1段進める(最後まで行ったら先頭へ戻る＝費用の切替と同じ操作感)。ボタンには「次の進捗」を出す。
+      const nextSt = STATUS_ORDER[(STATUS_ORDER.indexOf(st) + 1) % STATUS_ORDER.length];
+      const stNext = document.createElement("button");
+      stNext.className = "hiStNext " + INTAKE_STATUS[nextSt].cls;
+      stNext.textContent = nextSt + " ▸";   // 「▸」で“次へ進める”操作と分かるように(完検トグルと区別)
+      stNext.title = "進捗を「" + nextSt + "」にする";
+      stNext.addEventListener("click", e => { e.stopPropagation(); setIntakeStatus(h.rid, nextSt); });
+      leftWrap.appendChild(stNext); leftN++;
+      const leftW = leftN * 84;
+      leftWrap.style.width = leftW + "px";
+      row.appendChild(leftWrap);
       addSwipeReveal(row, slide, { leftW });
     }
     box.appendChild(row);
@@ -4542,34 +4550,6 @@ function setStaffRoster(arr) {
   const uniq = []; (arr || []).forEach(n => { n = String(n || "").trim(); if (n && !uniq.includes(n)) uniq.push(n); });
   localStorage.setItem(STAFF_ROSTER_LS, JSON.stringify(uniq));
   return uniq;
-}
-/* 進捗ピッカー(「現在の入庫状況」の進捗ピル / 入庫ボード以外からも進捗を変えられるように)。
-   入庫ボードまで行かずにホーム画面で 作業中/引渡待 などへ動かせる。 */
-function openStatusPicker(rid) {
-  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
-  const cur = statusOf(t);
-  const title = [dispText(t.plate), dispText(t.name)].filter(Boolean).join(" ／ ") || dispText(t.type) || "この車両";
-  const ov = document.createElement("div"); ov.className = "ikModal";
-  const card = document.createElement("div"); card.className = "ikCard";
-  card.innerHTML = '<div class="ikTitle">進捗を変更</div><div class="ikVeh">' + esc(title) + '</div>';
-  const row = document.createElement("div"); row.className = "hiStRow";
-  STATUS_ORDER.forEach(k => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "kbPickBtn " + INTAKE_STATUS[k].cls + (k === cur ? " on" : "");
-    b.innerHTML = '<span class="hiStName">' + esc(INTAKE_STATUS[k].label) + '</span>' +
-                  '<span class="hiStDesc">' + esc(INTAKE_STATUS[k].desc) + '</span>';
-    b.addEventListener("click", () => { ov.remove(); setIntakeStatus(rid, k); });
-    row.appendChild(b);
-  });
-  card.appendChild(row);
-  const cancel = document.createElement("button");
-  cancel.type = "button"; cancel.className = "ikLater"; cancel.textContent = "とじる";
-  cancel.addEventListener("click", () => ov.remove());
-  card.appendChild(cancel);
-  ov.appendChild(card);
-  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
-  document.body.appendChild(ov);
 }
 /* 車両に担当者を設定(名簿ポップアップ) */
 function pickStaff(rid) {
