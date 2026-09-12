@@ -3987,21 +3987,7 @@ function bindIntakeCal() {
   _icBound = true;
   // カレンダーは入庫ボードの子だと重なり順をボードと独立管理できないため、body直下へ移す。
   try { if (modal.parentElement !== document.body) document.body.appendChild(modal); } catch (e) {}
-  const card = modal.querySelector(".icModalCard");
-  try { makeResizable(card, 360, 320, "ss_calPos"); } catch (e) {}
-  try { enableRaise(card, modal); } catch (e) {}   // クリックで最前面へ(重なり順管理)
-  const isDesk = () => window.matchMedia("(min-width:1024px)").matches;
-  const show = () => {
-    try { renderIntakeCalendar(); } catch (e) {}
-    toggle("intakeCalModal", true);
-    // PC: 前回の配置を復元。無ければ初回は右寄せに配置。
-    if (card && isDesk() && !card.dataset.placed) {
-      if (!restoreFloatPos("ss_calPos", card)) {
-        card.style.left = Math.max(20, window.innerWidth - 640) + "px";
-        card.style.top = "84px"; card.style.margin = "0"; card.dataset.placed = "1";
-      }
-    }
-  };
+  const show = () => { try { renderIntakeCalendar(); } catch (e) {} toggle("intakeCalModal", true); };
   const hide = () => toggle("intakeCalModal", false);
   open.addEventListener("click", show);
   // 「現在の入庫状況」見出しの📅(管理者)。summary内なのでdetails開閉を止める。
@@ -4011,33 +3997,11 @@ function bindIntakeCal() {
   const openHdr = $("hdrCalBtn");
   if (openHdr) openHdr.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); show(); });
   if (close) close.addEventListener("click", hide);
-  // PC限定: 背景クリックでは閉じない(独立ウィンドウとして扱う)。モバイルは従来どおり背景タップで閉じる。
-  modal.addEventListener("click", e => { if (e.target === modal && !isDesk()) hide(); });
-  // ヘッダーを掴んでドラッグ移動(PC)。
-  const hd = modal.querySelector(".icModalHd");
-  if (hd && card) {
-    let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
-    hd.addEventListener("pointerdown", e => {
-      if (!isDesk() || e.target.closest(".icClose")) return;
-      dragging = true;
-      const r = card.getBoundingClientRect();
-      ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
-      card.style.left = ox + "px"; card.style.top = oy + "px"; card.style.margin = "0"; card.dataset.placed = "1";
-      modal.classList.add("dragging");
-      try { hd.setPointerCapture(e.pointerId); } catch (er) {}
-    });
-    hd.addEventListener("pointermove", e => {
-      if (!dragging) return;
-      let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
-      // 画面外に出過ぎないよう軽く制限(ヘッダーが常に掴める範囲に)
-      nx = Math.min(Math.max(nx, -card.offsetWidth + 120), window.innerWidth - 120);
-      ny = Math.min(Math.max(ny, 0), window.innerHeight - 60);
-      card.style.left = nx + "px"; card.style.top = ny + "px";
-    });
-    const endDrag = () => { if (dragging) { try { saveFloatPos("ss_calPos", card); } catch (e) {} } dragging = false; modal.classList.remove("dragging"); };
-    hd.addEventListener("pointerup", endDrag);
-    hd.addEventListener("pointercancel", endDrag);
-  }
+  // 中央モーダル化に伴い、PC/モバイルとも背景クリックとEscapeで閉じられるようにする。
+  modal.addEventListener("click", e => { if (e.target === modal) hide(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) hide();
+  });
 }
 /* ===== 月間カレンダー: その月の入庫(intakeAt)・出庫(intakeOut)を日別に集計して表示 ===== */
 let _icMonth = null;   // 表示中の月(その月1日のDate)
