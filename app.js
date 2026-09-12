@@ -4484,11 +4484,15 @@ function renderHomeIntake() {
     const unread = cmtHasUnread(h);
     const isShaken = h.intakeKind === "車検";
     const inspDone = isShaken && h.inspDone;
+    const st = statusOf(h);
+    const stInfo = INTAKE_STATUS[st];
     // 車検で完検済になったら、区分バッジ自体を「完検済」(緑)に変える
     const tagHtml = inspDone
       ? '<span class="hiTag done" title="完成検査 終了済み">完検済</span>'
       : '<span class="hiTag">' + esc(info.label) + '</span>';
+    // 進捗は「入庫」以外の時だけ短く色文字で出す(既定の入庫は余計な表示を出さない)。
     main.innerHTML = tagHtml + '<span class="hiTitle">' + esc(title) + '</span>' +
+      (st !== "入庫" ? '<span class="hiSt ' + stInfo.cls + '">' + esc(stInfo.label) + '</span>' : '') +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
     // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
     // noFocus: タップしただけでキーボードが立ち上がるのを防ぐ(入力欄タップで初めて出す)。
@@ -4498,8 +4502,18 @@ function renderHomeIntake() {
     staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
     staff.textContent = h.staff ? h.staff : (canEdit ? "＋ 担当" : "—");
     if (canEdit) staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
-    const st = statusOf(h);
     slide.appendChild(main); slide.appendChild(staff);
+    // 行の下端に4段階の進捗バー。幅を使わず、色と長さだけで現在地が一目で分かる。
+    const prog = document.createElement("div");
+    prog.className = "hiProg " + stInfo.cls;
+    prog.title = "進捗: " + stInfo.label + "（" + stInfo.desc + "）";
+    const sidx = STATUS_ORDER.indexOf(st);
+    STATUS_ORDER.forEach((k, i) => {
+      const seg = document.createElement("i");
+      if (i <= sidx) seg.className = "on";
+      prog.appendChild(seg);
+    });
+    slide.appendChild(prog);
     row.appendChild(slide);
     // 出庫は管理者のみ。メンバーはスワイプ出庫を出さない(閲覧のみ)。
     if (canEdit) {

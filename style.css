@@ -305,7 +305,7 @@ details.guide[open] summary::after{transform:rotate(180deg)}
 .guide-tools{font-size:13px;line-height:1.7;color:var(--cyan)}
 ol.guide-steps{margin:0;padding-left:0;list-style:none;counter-reset:gstep;display:flex;flex-direction:column;gap:8px}
 ol.guide-steps li{counter-increment:gstep;display:flex;gap:12px;padding:12px 14px;font-size:15px;line-height:1.75;background:var(--panel2);border:1px solid var(--line);border-radius:12px}
-ol.guide-steps li::before{content:counter(gstep);flex:none;width:28px;height:28px;border-radius:50%;background:var(--amber);color:#fff;font-family:'Chakra Petch';font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(37,99,235,.3)}
+ol.guide-steps li::before{content:"↓";flex:none;width:20px;height:auto;border-radius:0;background:none;color:var(--amber);font-weight:800;font-size:17px;line-height:1.5;display:flex;align-items:flex-start;justify-content:center;box-shadow:none}
 ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 /* 手順タップで参考図 */
 ol.ai-list li.hasFig>div{cursor:pointer}
@@ -731,7 +731,7 @@ details[open] > .secSummary::after{content:"▴"}
 /* 内側の手順リストは余白・バッジを軽くして本文の横幅を稼ぐ */
 .manualPane .guide-steps{margin-top:8px;gap:8px}
 .manualPane .guide-steps li{margin-bottom:0;padding:10px 12px;gap:10px;line-height:1.85;background:var(--panel2)}
-.manualPane .guide-steps li::before{width:22px;height:22px;font-size:13px}
+.manualPane .guide-steps li::before{width:18px;height:auto;font-size:15px}
 /* 点検手引書の手順は番号ではなく↓(流れ)で示す */
 .manualPane .guide-steps li::before,
 .imBody .guide-steps li::before{content:"↓"}
@@ -758,7 +758,7 @@ details[open] > .secSummary::after{content:"▴"}
 .imRow{display:flex;gap:9px;align-items:flex-start;padding:9px 2px;border-top:1px solid var(--line)}
 .imRow:first-child{border-top:0}
 .imMk{flex:none;color:var(--dim);font-weight:700;font-size:13px;line-height:1.7;min-width:14px;text-align:center}
-.imMk.num{background:var(--cyan);color:#fff;border-radius:50%;width:20px;height:20px;line-height:20px;font-size:12px;min-width:20px}
+.imMk.num{background:none;color:var(--cyan);border-radius:0;width:auto;height:auto;line-height:1.7;font-size:15px;font-weight:800;min-width:16px}
 .imTx{flex:1;min-width:0;font-size:14px;line-height:1.85;color:var(--txt)}
 .ai-cause.clk,.flat li.clk{cursor:pointer}
 .ai-cause.clk:active,.flat li.clk:active{opacity:.6}
@@ -1848,3 +1848,16 @@ body.gated{overflow:hidden}
 .hiStNext:active{transform:scale(.95)}
 /* 左側の操作エリアは幅をJS側で指定(完検の有無でボタン数が変わる)。中身は等間隔に並べる */
 .hiInspWrap{gap:6px}
+
+/* ===================================================================
+   現在の入庫状況 — 進捗の見える化
+   進捗ピル(列)は幅を食うため廃止。代わりに
+    ①「入庫」以外のときだけ短い色文字を車両名の後ろに出す
+    ② 行の下端に4段階の進捗バー(色=現在の進捗)を敷く
+   の2点で、横幅を増やさず現在地が一目で分かるようにする。
+   =================================================================== */
+.hiSlide{padding-bottom:12px}
+.hiSt{flex:none;font-size:10.5px;font-weight:800;color:var(--kbc,#64748B);white-space:nowrap;letter-spacing:.02em}
+.hiProg{position:absolute;left:10px;right:10px;bottom:5px;height:3px;display:flex;gap:3px;pointer-events:none}
+.hiProg i{flex:1;background:rgba(100,116,139,.22);border-radius:999px}
+.hiProg i.on{background:var(--kbc,#64748B)}
