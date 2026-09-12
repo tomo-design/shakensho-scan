@@ -3231,6 +3231,7 @@ function setIntakeStatus(rid, st) {
     else window.Cloud.pushRecord(t);
   }
   renderIntakeBoard();
+  try { renderHomeIntake(); } catch (e) {}   // ホームの「現在の入庫状況」にも即反映
 }
 /* 次の進捗へ1段進める(最終段では何もしない) */
 function advanceStatus(rid) {
@@ -4497,7 +4498,14 @@ function renderHomeIntake() {
     staff.className = "hiStaff" + (h.staff ? " on" : "") + (canEdit ? "" : " hiStaffRO");
     staff.textContent = h.staff ? h.staff : (canEdit ? "＋ 担当" : "—");
     if (canEdit) staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); });
-    slide.appendChild(main); slide.appendChild(staff);
+    // 進捗ピル: 入庫ボードへ行かなくてもここで 作業中/完了/引渡待 に動かせる(管理者のみ操作可)
+    const st = statusOf(h), stInfo = INTAKE_STATUS[st];
+    const stEl = document.createElement(canEdit ? "button" : "span");
+    stEl.className = "hiStatus " + stInfo.cls + (canEdit ? "" : " ro");
+    stEl.textContent = stInfo.label;
+    stEl.title = canEdit ? ("進捗: " + stInfo.desc + "（タップで変更）") : ("進捗: " + stInfo.desc);
+    if (canEdit) stEl.addEventListener("click", e => { e.stopPropagation(); openStatusPicker(h.rid); });
+    slide.appendChild(main); slide.appendChild(stEl); slide.appendChild(staff);
     row.appendChild(slide);
     // 出庫は管理者のみ。メンバーはスワイプ出庫を出さない(閲覧のみ)。
     if (canEdit) {
@@ -4534,6 +4542,34 @@ function setStaffRoster(arr) {
   const uniq = []; (arr || []).forEach(n => { n = String(n || "").trim(); if (n && !uniq.includes(n)) uniq.push(n); });
   localStorage.setItem(STAFF_ROSTER_LS, JSON.stringify(uniq));
   return uniq;
+}
+/* 進捗ピッカー(「現在の入庫状況」の進捗ピル / 入庫ボード以外からも進捗を変えられるように)。
+   入庫ボードまで行かずにホーム画面で 作業中/引渡待 などへ動かせる。 */
+function openStatusPicker(rid) {
+  const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
+  const cur = statusOf(t);
+  const title = [dispText(t.plate), dispText(t.name)].filter(Boolean).join(" ／ ") || dispText(t.type) || "この車両";
+  const ov = document.createElement("div"); ov.className = "ikModal";
+  const card = document.createElement("div"); card.className = "ikCard";
+  card.innerHTML = '<div class="ikTitle">進捗を変更</div><div class="ikVeh">' + esc(title) + '</div>';
+  const row = document.createElement("div"); row.className = "hiStRow";
+  STATUS_ORDER.forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "kbPickBtn " + INTAKE_STATUS[k].cls + (k === cur ? " on" : "");
+    b.innerHTML = '<span class="hiStName">' + esc(INTAKE_STATUS[k].label) + '</span>' +
+                  '<span class="hiStDesc">' + esc(INTAKE_STATUS[k].desc) + '</span>';
+    b.addEventListener("click", () => { ov.remove(); setIntakeStatus(rid, k); });
+    row.appendChild(b);
+  });
+  card.appendChild(row);
+  const cancel = document.createElement("button");
+  cancel.type = "button"; cancel.className = "ikLater"; cancel.textContent = "とじる";
+  cancel.addEventListener("click", () => ov.remove());
+  card.appendChild(cancel);
+  ov.appendChild(card);
+  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
 }
 /* 車両に担当者を設定(名簿ポップアップ) */
 function pickStaff(rid) {

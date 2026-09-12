@@ -1833,3 +1833,17 @@ body.gated{overflow:hidden}
   #intakeCalModal .icSumGrid{gap:6px}
   #intakeCalModal .icSumN{font-size:17px}
 }
+
+/* ===== 「現在の入庫状況」の進捗ピル ＋ 進捗ピッカー =====
+   入庫ボードまで行かなくても、ホームの行から進捗(入庫/作業中/完了/引渡待)を変えられる。 */
+.hiStatus{flex:none;border:0;border-radius:999px;font-size:11px;font-weight:800;color:#fff;
+  background:var(--kbc,#64748B);padding:5px 10px;min-height:30px;cursor:pointer;
+  white-space:nowrap;font-family:inherit;line-height:1.6;letter-spacing:.02em}
+.hiStatus:active{transform:scale(.95)}
+.hiStatus.ro{cursor:default}
+/* 進捗ピッカー(2列×2段。手袋でも押せる大きめのボタン) */
+.hiStRow{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.hiStRow .kbPickBtn{display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:11px 8px;min-height:56px;line-height:1.3}
+.hiStName{font-size:13px;font-weight:800}
+.hiStDesc{font-size:10px;font-weight:600;opacity:.75}
