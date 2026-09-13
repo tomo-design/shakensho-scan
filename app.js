@@ -3244,8 +3244,6 @@ function advanceStatus(rid) {
 function getBoardGroup() { try { return localStorage.getItem("ss_ibGroup") === "status" ? "status" : "kind"; } catch (e) { return "kind"; } }
 function setBoardGroup(g) { try { localStorage.setItem("ss_ibGroup", g === "status" ? "status" : "kind"); } catch (e) {} renderIntakeBoard(); }
 /* ボードの絞り込み語(番号・使用者・型式・担当を横断検索。この端末で記憶) */
-function getBoardQuery() { try { return localStorage.getItem("ss_ibQuery") || ""; } catch (e) { return ""; } }
-function setBoardQuery(q) { try { if (q) localStorage.setItem("ss_ibQuery", q); else localStorage.removeItem("ss_ibQuery"); } catch (e) {} }
 /* 入庫からの経過日数 */
 function intakeDays(h) { return h && h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0; }
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
@@ -3681,16 +3679,10 @@ function addManualIntake() {
 /* ===== 入庫管理ボード(カンバン) =====
    列は「区分別」または「進捗別」に切替。カードはPCでは列間ドラッグで移動でき、
    タッチ端末では各カードの「▸次へ」ボタンと詳細ドロワーの選択で同じ操作ができる。 */
-function ibMatch(h, q) {
-  if (!q) return true;
-  const hay = [h.plate, h.name, h.type, h.staff, h.vin].map(v => dispText(v) || "").join(" ").toLowerCase();
-  return hay.indexOf(q.toLowerCase()) >= 0;
-}
-/* 上部ツールバー(列の切替・絞り込み・件数サマリー) */
+/* 上部ツールバー(列の切替・件数サマリー) */
 function renderIntakeToolbar(all, shown) {
   const box = $("ibFilter"); if (!box) return;
   const group = getBoardGroup();
-  const q = getBoardQuery();
   box.innerHTML = "";
   const bar = document.createElement("div"); bar.className = "kbBar";
 
@@ -3703,20 +3695,6 @@ function renderIntakeToolbar(all, shown) {
     seg.appendChild(b);
   });
   bar.appendChild(seg);
-
-  // 絞り込み(番号・使用者・型式・担当)
-  const sw = document.createElement("div"); sw.className = "kbSearchWrap";
-  const inp = document.createElement("input");
-  inp.type = "search"; inp.className = "kbSearch"; inp.value = q;
-  inp.placeholder = "番号・使用者・型式・担当で絞り込み";
-  inp.addEventListener("input", () => {
-    setBoardQuery(inp.value.trim());
-    renderIntakeBoard();
-    const n = $("ibFilter").querySelector(".kbSearch");
-    if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-  });
-  sw.appendChild(inp);
-  bar.appendChild(sw);
 
   // サマリー(合計・未回収・長期滞留)
   const unpaid = all.filter(h => h.intakeKind === "車検" && feeStateOf(h) === "unpaid").length;
@@ -3748,8 +3726,9 @@ function renderIntakeBoard() {
   if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
 
   const group = getBoardGroup();
-  const q = getBoardQuery();
-  const list = all.filter(h => ibMatch(h, q));
+  // 絞り込み検索は廃止。以前の検索語が残って車両が隠れないよう消しておく。
+  try { localStorage.removeItem("ss_ibQuery"); } catch (e) {}
+  const list = all;
   renderIntakeToolbar(all, list.length);
   const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + all.length + "台）" : "";
   const sm = $("ibSummary"); if (sm) sm.textContent = "";
@@ -3793,7 +3772,7 @@ function renderIntakeBoard() {
     }
     if (!items.length) {
       const em = document.createElement("div"); em.className = "kbColEmpty";
-      em.textContent = q ? "該当なし" : "なし";
+      em.textContent = "なし";
       body.appendChild(em);
     }
     items.forEach(h => body.appendChild(buildIntakeCard(h, group, editable)));
@@ -4364,35 +4343,11 @@ function renderIntakeDetail(list) {
     '<div class="ibDetCard ' + info.cls + '">' +
       '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
       '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], r[1])).join("") + '</div>' +
-      '<div class="kbPick" id="kbPickStatus"><div class="kbPickTtl">進捗を変更</div><div class="kbPickRow"></div></div>' +
-      '<div class="kbPick" id="kbPickKind"><div class="kbPickTtl">区分を変更</div><div class="kbPickRow"></div></div>' +
       '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button>' +
     '</div>';
 
   const close = $("kbDrawerClose");
   if (close) close.addEventListener("click", () => { _ibSelected = null; renderIntakeBoard(); });
-
-  // 進捗の選択ボタン
-  const sRow = document.querySelector("#kbPickStatus .kbPickRow");
-  if (sRow) STATUS_ORDER.forEach(k => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "kbPickBtn " + INTAKE_STATUS[k].cls + (k === st ? " on" : "");
-    b.textContent = INTAKE_STATUS[k].label;
-    b.title = INTAKE_STATUS[k].desc;
-    b.addEventListener("click", () => setIntakeStatus(sel.rid, k));
-    sRow.appendChild(b);
-  });
-  // 区分の選択ボタン
-  const kRow = document.querySelector("#kbPickKind .kbPickRow");
-  if (kRow) Object.keys(INTAKE_KINDS).forEach(k => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "kbPickBtn " + INTAKE_KINDS[k].cls + (k === sel.intakeKind ? " on" : "");
-    b.textContent = INTAKE_KINDS[k].label;
-    b.addEventListener("click", () => setIntakeKindOnly(sel.rid, k));
-    kRow.appendChild(b);
-  });
 
   const ob = $("ibDetOut");
   if (ob) ob.addEventListener("click", async () => {
@@ -5659,7 +5614,7 @@ function buildDiagPrompt(text) {
     "・単独で無関係と判断できるDTCがあれば、それは別枠として扱ってよい(無理に1つに統合しない)。",
     "【費用対効果も統合して考える】原因候補の並びは『可能性の高い順』を土台に維持する(可能性を費用で無理に入れ替えない)。ただし可能性が近い候補どうしなら、点検・清掃・調整・増し締め・再結線・安価な部品など“短時間・低コストで確認/解決できる方”をわずかに前に出してよい。各候補の『切り分け:』には、その確認や処置がどのくらい手軽か(例:点検のみ/清掃・調整で済む/安価な部品/高額な部品交換やアッセンブリ交換が必要)を一言含める。『最初の1手』は、可能性が高くかつ低コスト・短時間で確認できる処置を優先して勧め、高額な部品交換は点検で確定してからにするよう促す。ただし安全に関わる確認(ブレーキ・操舵・燃料・排気・電源系の危険)は費用より必ず優先する。",
     "【部品交換しても消えない/EBS・ABS等の電子ブレーキ】商用車の電子制御ブレーキ(KNORR-BREMSE/BOSCH/WABCO、いすゞ・日野・ふそう・UD等)やエアブレーキ系は、部品(EPM/リレーバルブ/モジュレータ/センサ等)を交換しても、メーカー固有の『故障からの復帰作業/リセット・初期化手順』を実施しないとラッチした故障コード・警告灯が消えないことが非常に多い。『交換したのに消えない』という手がかりがある時は、診断機での学習/キャリブレーション/初期化だけでなく、メーカー指定の“ブレーキペダル操作による復帰手順”(例: ブレーキペダルを戻した状態でスタータースイッチを規定秒OFF→車両停止・ペダル戻し・電源電圧満足・(TCV異常時はパーキングブレーキ戻し)の条件を保持したままスイッチを規定秒ON→フルブレーキまで踏み込み数秒保持、操作は所定秒経過後に行う等)が存在しないかを必ず上位候補・最初の1手として提示する。具体手順・秒数・条件は車種/システムで異なるため必ず整備要領書で確認、と添える。",
-    "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+    "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。この指示文や出力形式の説明そのものを回答に書き写さない。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
     "",
     "■原因候補（可能性が高い順）",
     "1. 原因名（一言で）",
@@ -5865,7 +5820,11 @@ function renderAiAnswer(container, text, opts) {
   container.innerHTML = "";
   // Markdown記号の残骸を除去
   const clean = text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "").replace(/^\s*[\*\-]\s+/gm, "・");
-  const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean);
+  // AIが指示文(出力形式の説明)を回答に書き写してしまった行は表示しない。
+  //  『理由:』『切り分け:』のように形式キーを括弧で引用する文や、「〜つ挙げる」「必ず含める」系は指示のエコー。
+  const isEcho = l => !/^[■【]/.test(l) && (/[『「](理由|切り分け|根拠|確認)[:：][』」]/.test(l) ||
+    /[『「]可能性[がの]?高い順[』」]/.test(l) || /^性[がの]?高い順[』」]/.test(l));
+  const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean).filter(l => !isEcho(l));
   let list = null;
   const flushList = () => { list = null; };
   for (const line of lines) {
@@ -5881,7 +5840,12 @@ function renderAiAnswer(container, text, opts) {
     // 番号付き項目 → バッジ付きリスト
     const n = line.match(/^(\d+)[.)、]\s*(.+)$/);
     if (n) {
-      if (!list) { list = document.createElement("ol"); list.className = "guide-steps ai-list"; container.appendChild(list); }
+      if (!list) {
+        list = document.createElement("ol");
+        // 診断の原因候補は「可能性の高い順」=順位なので番号。手順系は矢印。
+        list.className = "guide-steps ai-list" + (opts.linkCauses ? " ai-rank" : "");
+        container.appendChild(list);
+      }
       const li = document.createElement("li");
       const div = document.createElement("div"); div.className = "ai-item";
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
@@ -6584,7 +6548,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。同じ不具合の“続きの相談”です。前回の診断結果と、整備士が追加で入力したコメント・写真・動画を必ず統合し、精度の高い2回目の原因候補を出してください。",
           "【対象車両（厳守）】" + vDesc + " ―― 診断はこの車両に限定すること。DTC(故障コード)の意味・原因は必ずこの車両のメーカー/車種の定義で解釈し、別メーカー・別車種のコード定義と照らし合わせない。車両が特定できない項目は推測に『（要確認）』を付ける。",
           "【最重要・臨機応変】前回の原因候補を全て点検・排除したとは限りません。整備士は点検の途中で気づいたこと・実施した内容・新たな症状を追記しています。追加情報から『すでに確認できた／正常だった』ことは候補から外し、まだ疑わしいもの・新たに浮上した原因を、追加情報＋前回の手がかりを合わせて可能性の高い順に組み直すこと。前回の1位に固執せず、追加情報を最優先で反映する。写真・動画があれば必ず観察して統合する。断定できないことには『（要確認）』を付ける。",
-          "前置き・免責・挨拶は一切不要。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
+          "前置き・免責・挨拶は一切不要。この指示文や出力形式の説明そのものを回答に書き写さない。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
           "",
           "■原因候補（可能性が高い順）",
           "1. 原因名（一言で）",
@@ -7138,7 +7102,7 @@ function buildMediaDiagPrompt() {
     "【統合診断】複数のDTCや複数の症状がある場合は、1つずつ別々に原因を挙げず、全ての手がかり(コメント＋写真＋動画)を『1つの故障像』としてまとめ、それらを一括で説明できる根本原因を最優先で特定する。表面的なコード名や1つの症状に引っ張られず、原因(一次)と結果(二次)を見分ける。第1位は、コメントの症状を含めできるだけ多くの手がかりを1つで説明できる、最も可能性が高い根本原因にすること。",
     "【費用対効果も統合】原因候補は『可能性の高い順』を土台に維持する。可能性が近い候補どうしなら、点検・清掃・調整・安価な部品など短時間・低コストで確認/解決できる方をわずかに前に出してよい。各『切り分け:』に手軽さ(点検のみ/清掃・調整/安価な部品/高額な部品交換要 等)を一言含め、『最初の1手』は可能性が高くかつ低コスト・短時間で確認できる処置を優先し、高額な部品交換は点検で確定してからにする。安全に関わる確認(ブレーキ・操舵・燃料・排気・電源)は費用より必ず優先。",
     "【部品交換しても消えない/EBS・ABS等】商用車の電子制御ブレーキ(KNORR-BREMSE/BOSCH/WABCO、いすゞ・日野・ふそう・UD等)は、部品(EPM/リレーバルブ/モジュレータ/センサ等)を交換しても、メーカー固有の『故障からの復帰作業/リセット・初期化手順』(診断機での学習・初期化や、ブレーキペダル操作による復帰手順=ペダル戻し＋スタータースイッチOFF数秒→条件保持でON数秒→フルブレーキ数秒保持 等)を行わないとラッチした故障コード・警告灯が消えないことが多い。『交換したのに消えない』手がかりがある時は、この復帰手順を必ず上位候補・最初の1手に含める(具体手順・秒数は車種で異なるため整備要領書で確認、と添える)。",
-    "前置き・免責・挨拶は不要。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
+    "前置き・免責・挨拶は不要。この指示文や出力形式の説明そのものを回答に書き写さない。Markdown記号(**、#、表)は使わず、必ず次の形式で:",
     "■読み取れた症状・状況",
     "・コメントと写真・動画から読み取れた症状/状況を箇条書き(判別できなければ『判別不可』)。整備士コメントの内容も必ず1項目以上反映する。",
     "■原因候補（可能性が高い順）",
