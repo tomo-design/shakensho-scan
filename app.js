@@ -4402,8 +4402,7 @@ function applyOfficeMode() {
     try { closeAllIntakeCards(); } catch (e) {}
     localStorage.removeItem("ss_office");
     applyOfficeMode();
-    try { switchView("settings"); } catch (e) {}
-    // ログイン画面へ戻す(ログアウト)
+    // ログアウト → ログイン選択画面(ゲート)へ戻る(画面遷移は onCloudLoggedOut が行う)
     try { if (window.Cloud && typeof window.Cloud.signOut === "function") window.Cloud.signOut(); else { const b = document.getElementById("btnCloudLogout"); if (b) b.click(); } } catch (e) {}
   });
 })();
@@ -8267,6 +8266,9 @@ function refreshAuthGate() {
     const acctEd = (window.Cloud && typeof window.Cloud.accountEdition === "function") ? window.Cloud.accountEdition() : "";
     if (loggedIn && acctEd) editionMismatch = (acctEd !== (personal ? "personal" : "works"));
   } catch (e) {}
+  // ログイン(版も一致)が確定したら、ログインフォーム用の一時退避(_gateBypass)は解除する。
+  //  残したままだと、設定画面でログアウトした時にゲートが隠れたままになり、ログイン選択画面へ戻らない。
+  if (loggedIn && !editionMismatch) window._gateBypass = false;
   let gated = _authResolved && !isDemo() && ((!loggedIn && !hadSession) || editionMismatch);
   // 一度ゲートが立ったら、ログイン/デモ完了まで必須を維持(モードを個人へ切替えても解除しない)
   if (gated) { try { sessionStorage.setItem("ss_needAuth", "1"); } catch (e) {} }
@@ -8279,6 +8281,17 @@ function refreshAuthGate() {
   try { updatePocketAccountBox(); } catch (e) {}
 }
 window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); };
+/* ログアウト直後に呼ばれる(cloud.js の renderAuthUI がログイン中→未ログインへの変化を検出)。
+   必ずログイン選択画面(Works/Pocketのゲート)へ戻す: 一時退避を解除し、ホームへ移してゲートを前面に出す。
+   ss_hadSession が残っている(=明示ログアウトではない認証の揺れ)場合は画面を動かさない。 */
+window.onCloudLoggedOut = function () {
+  let had = false; try { had = localStorage.getItem("ss_hadSession") === "1"; } catch (e) {}
+  if (had) return;
+  window._gateBypass = false;
+  try { switchView("scan"); } catch (e) {}
+  try { window.scrollTo(0, 0); } catch (e) {}
+  refreshAuthGate();
+};
 (function bindAuthGate() {
   const g = document.getElementById("authGate"); if (!g) return;
   const toSettings = (mode) => {

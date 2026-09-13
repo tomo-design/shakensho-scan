@@ -601,10 +601,15 @@
     }
   });
 
+  let _wasLoggedIn = false;   // 直前の描画時にログイン中だったか(ログアウトの瞬間を検出する)
   function renderAuthUI() {
     const inLogged = !!me;
     // 一度ログインした端末は記録。更新・再読込で認証復元が一瞬遅れてもログイン画面を出さない(再ログイン防止)
     try { if (inLogged) localStorage.setItem("ss_hadSession", "1"); } catch (e) {}
+    // ログイン中→未ログインに変わった瞬間(=ログアウト)に、アプリ側でログイン選択画面へ戻す
+    const justLoggedOut = _wasLoggedIn && !inLogged;
+    _wasLoggedIn = inLogged;
+    if (justLoggedOut && typeof window.onCloudLoggedOut === "function") { try { window.onCloudLoggedOut(); } catch (e) {} }
     if (typeof window.updateAuthGate === "function") window.updateAuthGate();   // 認証状態が確定したのでログインゲートを再評価
     if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
     // ログイン/ログアウト/店舗切替で入庫ボードを再描画 → 自店舗以外のレコードを画面から即座に外す
