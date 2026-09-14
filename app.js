@@ -1083,12 +1083,89 @@ function buildQrParsePrompt(rawList) {
     ...rawList.map((p, i) => (i + 1) + ": " + p),
   ].join("\n");
 }
-function extractJson(text) {
-  if (!text) return null;
-  let t = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const m = t.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch (e) { return null; }
+/* AI応答からJSONを取り出す。コードフェンス付き・文字列内の生の改行・末尾カンマ・途中で切れたJSONも救済する。
+   戻り値 { obj, partial }  partial=true は途中で切れたものを閉じて救済した(内容が欠けている可能性がある)。 */
+function extractJsonInfo(text) {
+  if (!text) return { obj: null, partial: false };
+  const t = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
+  const s = t.indexOf("{");
+  if (s < 0) return { obj: null, partial: false };
+  const e = t.lastIndexOf("}");
+  if (e > s) { try { return { obj: JSON.parse(t.slice(s, e + 1)), partial: false }; } catch (err) {} }
+  return repairJsonText(t.slice(s));
+}
+function extractJson(text) { return extractJsonInfo(text).obj; }
+/* 崩れた/途中で切れたJSON文字列を修復してパースする(文字列内の改行をエスケープ・末尾カンマ除去・開いた括弧を閉じる)。 */
+function repairJsonText(src) {
+  let out = "", inStr = false, esc = false;
+  const stack = [];
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (esc) { out += c; esc = false; }
+      else if (c === "\\") { out += c; esc = true; }
+      else if (c === '"') { out += c; inStr = false; }
+      else if (c === "\n") out += "\\n";
+      else if (c === "\t") out += "\\t";
+      else if (c !== "\r") out += c;
+      continue;
+    }
+    if (c === '"') { inStr = true; out += c; }
+    else if (c === "{" || c === "[") { stack.push(c === "{" ? "}" : "]"); out += c; }
+    else if (c === "}" || c === "]") {
+      out = out.replace(/,\s*$/, "");
+      stack.pop(); out += c;
+      if (!stack.length) {   // トップレベルが閉じた=完結(後ろの余計な文字は無視)
+        try { return { obj: JSON.parse(out), partial: false }; } catch (err) { return { obj: null, partial: false }; }
+      }
+    }
+    else out += c;
+  }
+  // ここに来た=途中で切れている。開いた文字列・括弧を閉じ、半端な末尾(キーだけ/カンマ/途中の値)を順に削って救済する。
+  let cur = out;
+  if (esc) cur = cur.slice(0, -1);
+  if (inStr) cur += '"';
+  const close = x => x + stack.slice().reverse().join("");
+  const trims = [
+    x => x,
+    x => x.replace(/\s+$/, "").replace(/,$/, ""),
+    x => x.replace(/\s+$/, "").replace(/(-?[\d.eE+]+|t(?:r(?:ue?)?)?|f(?:a(?:l(?:se?)?)?)?|n(?:u(?:ll?)?)?)$/, "").replace(/\s+$/, "").replace(/,$/, ""),
+    x => x.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, ""),
+    x => x.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*$/, ""),
+  ];
+  for (const f of trims) {
+    cur = f(cur);
+    try {
+      const o = JSON.parse(close(cur));
+      if (o && typeof o === "object") return { obj: o, partial: true };
+    } catch (err) {}
+  }
+  return { obj: null, partial: true };
+}
+/* 修理AIの応答 → 表示用オブジェクト */
+function looksLikeJsonText(str) { return /^\s*(```\s*json|\{\s*")/i.test(String(str || "")); }
+function parseRepairText(text) {
+  const info = extractJsonInfo(text);
+  let obj = cleanCiteDeep(info.obj), partial = info.partial;   // 検索グラウンディングの引用マーカーを全項目から除去
+  // 過去に生JSONのまま answer に保存された回答も、中身を展開して整形表示する
+  if (obj && !obj.isWork && typeof obj.answer === "string" && looksLikeJsonText(obj.answer)) {
+    const inner = extractJsonInfo(obj.answer);
+    if (inner.obj) { obj = cleanCiteDeep(inner.obj); partial = inner.partial; }
+  }
+  return { obj, partial };
+}
+/* 修理の結果を描画し、保存用オブジェクトを返す(描画できなかった時は null)。生のJSONは画面に出さない。 */
+function renderRepairResult(box, obj, text, q) {
+  const hasBody = o => o.location || (Array.isArray(o.order) && o.order.length) || (Array.isArray(o.steps) && o.steps.length);
+  if (obj && obj.isWork && hasBody(obj)) { renderRepairAnswer(box, obj, q); return obj; }
+  if (obj && obj.answer) { renderAiAnswer(box, String(obj.answer)); return obj; }
+  if (obj && obj.isWork) { renderRepairAnswer(box, obj, q); return obj; }
+  if (looksLikeJsonText(text)) {
+    box.innerHTML = '<div class="ai-p">⚠ メカ君の回答の形式が崩れて表示できませんでした。お手数ですが、もう一度聞き直してください。</div>';
+    return null;
+  }
+  renderAiAnswer(box, text);
+  return { answer: text };
 }
 function applyAiQr(o) {
   const d = {};
@@ -1671,26 +1748,32 @@ async function runVehAsk() {
   try {
     const qFull = q || "添付した写真の部位について教えてください。";
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());   // 有料ON店舗のみPro＋検索
-    let r;
+    let r, media = null;
     if (vehAttachments.length) {   // 写真/動画の添付あり: 一緒にメカ君へ送る(検索なし)。写真は自動圧縮。
-      const media = [];
+      media = [];
       for (const a of vehAttachments) media.push(await attachToMedia(a));
       const tot = media.reduce((s, m) => s + ((m.data && m.data.length) || 0), 0);
       if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
-      // 思考量に上限を設けて高速化(診断と同様)。JSON応答なので逐次表示はしない。
-      r = await geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null);
-    } else {
-      // 有料店舗: Pro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料: Flash・検索なし。思考上限で高速化。
-      r = await geminiAsk(buildRepairPrompt(qFull), accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
+    }
+    // 写真あり: 思考量に上限を設けて高速化(JSON応答なので逐次表示はしない)。
+    // 写真なし: 有料店舗はPro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料はFlash・検索なし。
+    const ask = retry => media
+      ? geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null)
+      : geminiAsk(buildRepairPrompt(qFull), Object.assign(accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false }, retry ? { noCache: true } : {}));
+    r = await ask(false);
+    let parsed = parseRepairText(r.text);
+    // JSONが崩れた/途中で切れた時は、利用者に押し直してもらわず1回だけ自動で聞き直す
+    if (!parsed.obj || parsed.partial) {
+      try {
+        const r2 = await ask(true);
+        const p2 = parseRepairText(r2.text);
+        if (p2.obj && (!p2.partial || !parsed.obj)) { r = r2; parsed = p2; }
+      } catch (e2) { if (e2 && e2.message === "__cancelled__") throw e2; }
     }
     stopTimer();
-    const obj = cleanCiteDeep(extractJson(r.text));   // 検索グラウンディングの引用マーカーを全項目から除去
     // isWork=true なら手順が無くても構造化表示(位置/時間/部品/トルク等)。生JSONは絶対に出さない。
-    let repairRec = null;
-    if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
-    else if (obj && obj.answer) { renderAiAnswer(box, obj.answer); repairRec = saveRepairRecord(qFull, obj); }
-    else if (obj && obj.isWork) { renderRepairAnswer(box, obj, qFull); repairRec = saveRepairRecord(qFull, obj); }
-    else { renderAiAnswer(box, r.text); repairRec = saveRepairRecord(qFull, { answer: r.text }); }
+    const shown = renderRepairResult(box, parsed.obj, r.text, qFull);
+    const repairRec = shown ? saveRepairRecord(qFull, shown) : null;
     if (repairRec) addRepairShareBar(box, repairRec);   // 初回の結果にも共有ボタン(過去の点検と同様に)
     appendAiFollowup(box, qFull, r.text, { kind: "repair" });   // 修理にも追加で質問できる欄
   } catch (e) {
@@ -2527,14 +2610,14 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   const parts0 = $("kParts").value.trim();
   const note0 = $("kNote").value.trim();
   if (!work0 && !parts0 && !note0) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
-  const sb = $("btnKarteSave"); setBtnLoading(sb, true);
+  const sb = $("btnKarteSave"); setBtnLoading(sb, true, "メカ君が整理中…");
   const st = $("kAiSortStatus");
   // 保存時に自動でAI仕分け(人それぞれの書き方を項目ごとに整理してから保存)。失敗時は入力そのままで保存。
-  if (st) st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が内容を整理しています…';
-  const sorted = await karteAiSortFields({
-    date: $("kDate").value.trim(), odo: $("kOdo").value.trim(),
-    work: work0, parts: parts0, cost: $("kCost").value.trim(), staff: $("kStaff").value.trim(), note: note0,
-  });
+  if (st) st.textContent = "";   // 整理中の表示は保存ボタン側の1つだけ(メカ君が二重に出ないように)
+  const fields = readKarteFields();
+  // 写真読み取りでメカ君が仕分けた内容を変更せずに保存する時は、もう一度AIに整理させない(待ち時間ゼロ)
+  const sorted = (karteOcrSnapshot && karteOcrSnapshot === JSON.stringify(fields)) ? Object.assign({}, fields) : await karteAiSortFields(fields);
+  karteOcrSnapshot = null;
   if (st) st.textContent = "";
   const entry = {
     id: karteEditId || ("k" + Date.now() + Math.floor(Math.random() * 1000)),
@@ -2571,7 +2654,7 @@ async function karteAiSortFields(cur) {
     "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
   ].join("\n");
   try {
-    const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 4096, noCache: true });
+    const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 4096, thinkingBudget: 256, noCache: true });   // 仕分けだけなので思考は最小限で速く
     const obj = extractJson(r.text);
     if (!obj) return Object.assign({}, cur);
     return {
@@ -2586,6 +2669,13 @@ async function karteAiSortFields(cur) {
   } catch (e) { return Object.assign({}, cur); }   // 失敗しても保存は止めない
 }
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
+/* カルテ入力欄の現在値(保存と「写真読み取り直後から変更なしか」の比較で同じ形を使う) */
+function readKarteFields() {
+  const v = id => ($(id) ? $(id).value.trim() : "");
+  return { date: v("kDate"), odo: v("kOdo"), work: v("kWork"), parts: v("kParts"), cost: v("kCost"), staff: v("kStaff"), note: v("kNote") };
+}
+let karteOcrSnapshot = null;   // 写真読み取り直後の各欄(変更なしで保存ならAI再整理を省く)
+let karteResetOnPick = false;  // 見出しの写真フォルダから選んだ時は新規スタート(選択キャンセル時は既存の写真を消さない)
 let kartePhotoMedia = [];   // カメラで撮った写真(圧縮済み {mimeType,data})を蓄積 → まとめてAI読み取り
 function renderKartePhotoStatus() {
   const st = $("kPhotoStatus"); if (!st) return;
@@ -2594,12 +2684,14 @@ function renderKartePhotoStatus() {
   const thumbs = kartePhotoMedia.map(m => '<img class="kThumb" src="data:' + m.mimeType + ';base64,' + m.data + '" alt="">').join("");
   st.innerHTML =
     '<div class="kThumbRow">' + thumbs +
-      '<button type="button" class="kThumbAdd" id="kPhotoMore" aria-label="写真を追加">＋</button></div>' +
+      '<button type="button" class="kThumbAdd" id="kPhotoMore" aria-label="カメラで写真を追加">＋</button>' +
+      '<button type="button" class="kThumbAdd kThumbPick" id="kPhotoMorePick" aria-label="写真フォルダから追加"><img src="img/ic-photo.png" alt=""></button></div>' +
     '<div class="kPhotoBtns">' +
       '<button type="button" class="btn btn-amber" id="kPhotoRun">読み取り（' + n + '枚）</button>' +
       '<button type="button" class="btn btn-ghost btn-sm kPhotoClear" id="kPhotoClear">クリア</button>' +
     '</div>';
   $("kPhotoMore").onclick = () => openKarteCamera();
+  $("kPhotoMorePick").onclick = () => { karteResetOnPick = false; $("kPhotoPick").click(); };   // 今の写真に追加
   $("kPhotoRun").onclick = runKartePhotoOCR;
   $("kPhotoClear").onclick = () => { kartePhotoMedia = []; toggle("kPhotoStatus", false); };
 }
@@ -2611,6 +2703,16 @@ $("btnKartePhoto") && $("btnKartePhoto").addEventListener("click", () => {
   }
   kartePhotoMedia = [];            // 新規スタート
   openKarteCamera();               // ライブカメラ(外カメラ)を起動
+});
+// 写真フォルダ(ギャラリー)から選んで読み取り。撮影済みの伝票・メモの写真を複数枚まとめて選べる。
+$("btnKartePick") && $("btnKartePick").addEventListener("click", () => {
+  if (!vehicleKey(current)) { uiAlert("車両を識別してから記録してください(車台番号や指定・類別が必要です)。"); return; }
+  if (!aiOK()) {
+    uiAlert("写真からの自動入力には無料のGemini APIキーの設定が必要です（設定タブ）。");
+    switchView("settings"); return;
+  }
+  karteResetOnPick = true;
+  $("kPhotoPick").click();
 });
 /* カルテ写真: ライブカメラ(getUserMedia facingMode=environment)で確実に外カメラ撮影。
    capture属性は端末により内カメラになるため、こちらを既定にする。非対応時はファイル入力へフォールバック。 */
@@ -2706,8 +2808,9 @@ function closeKarteCamera() {
   if (kcStream) { try { kcStream.getTracks().forEach(t => t.stop()); } catch (e) {} kcStream = null; }
   const ov = document.getElementById("kcOverlay"); if (ov) ov.style.display = "none";
 }
-$("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
+async function onKartePhotoFiles(e) {
   const files = Array.from(e.target.files || []); e.target.value = ""; if (!files.length) return;
+  if (karteResetOnPick) { kartePhotoMedia = []; karteResetOnPick = false; }   // 見出しから選んだ時は新規スタート
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
   st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> 写真を圧縮しています…';
   // 撮影ごとに圧縮して蓄積(何枚でも追加可)。撮り終えたら「AIで読み取り」を押す。
@@ -2716,12 +2819,14 @@ $("kPhotoIn") && $("kPhotoIn").addEventListener("change", async e => {
     if (data) kartePhotoMedia.push({ mimeType: "image/jpeg", data: data });
   }
   renderKartePhotoStatus();
-});
+}
+$("kPhotoIn") && $("kPhotoIn").addEventListener("change", onKartePhotoFiles);
+$("kPhotoPick") && $("kPhotoPick").addEventListener("change", onKartePhotoFiles);   // 写真フォルダから(複数選択可)
 async function runKartePhotoOCR() {
   if (!kartePhotoMedia.length) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
   const nPhotos = kartePhotoMedia.length;
-  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真' + (nPhotos > 1 ? nPhotos + "枚" : "") + 'を読み取っています…(数十秒かかる場合があります)';
+  st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> メカ君が写真' + (nPhotos > 1 ? nPhotos + "枚" : "") + 'を読み取っています…(少しお待ちください)';
   try {
     const prompt = [
       "次の画像は日本の自動車整備士が書いた『手書きの作業メモ』です(伝票やレシートの場合もあります)。字が崩れていたり略字・専門用語が多いので、整備の文脈で丁寧に判読してください。読み取った内容を整備カルテの各項目に整理してJSONで返します。",
@@ -2733,7 +2838,8 @@ async function runKartePhotoOCR() {
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
       "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
     ].join("\n");
-    const r = await geminiAskMedia(prompt, kartePhotoMedia);   // 蓄積した圧縮済み写真をまとめて送信
+    // 蓄積した圧縮済み写真をまとめて送信。思考は上限付きで速く(無制限だと数十秒かかっていた)。
+    const r = await geminiAskMedia(prompt, kartePhotoMedia, { thinkingBudget: mediaThinking({}) });
     const obj = extractJson(r.text) || {};
     openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
     if (obj.date) $("kDate").value = String(obj.date).trim();
@@ -2743,6 +2849,7 @@ async function runKartePhotoOCR() {
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
     if (obj.staff) $("kStaff").value = String(obj.staff).trim();
     if (obj.note) $("kNote").value = String(obj.note).trim();
+    karteOcrSnapshot = JSON.stringify(readKarteFields());   // 保存時にAIの再整理を省くための控え
     st.textContent = "✓ 写真" + (nPhotos > 1 ? nPhotos + "枚を統合して" : "を") + "読み取りました。内容を確認・修正して保存してください。";
     kartePhotoMedia = [];   // 読み取り完了 → 蓄積をクリア
   } catch (err) {
@@ -6395,7 +6502,11 @@ function viewRepairRecord(rec) {
   sh.addEventListener("click", () => shareRepairRecord(rec));
   metaRow.append(meta, close, sh); box.appendChild(metaRow);
   const ans = document.createElement("div"); box.appendChild(ans);
-  if (rec.repairObj) renderRepairAnswer(ans, rec.repairObj, rec.input);
+  if (rec.repairObj) {
+    let ro = rec.repairObj;
+    if (!ro.isWork && typeof ro.answer === "string" && looksLikeJsonText(ro.answer)) { const p = parseRepairText(ro.answer); if (p.obj) ro = p.obj; }
+    renderRepairAnswer(ans, ro, rec.input);
+  }
   else ans.textContent = "この履歴には表示できる内容がありません。";
   box.style.scrollMarginTop = "70px";
   box.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -6538,10 +6649,8 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           r = await geminiAsk(buildRepairPrompt(q), paidOn ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
         }
         stopFbTimer(); ans.classList.remove("streaming");
-        const obj = cleanCiteDeep(extractJson(r.text));
-        if (obj && obj.isWork && (obj.location || (Array.isArray(obj.order) && obj.order.length) || (Array.isArray(obj.steps) && obj.steps.length))) { renderRepairAnswer(ans, obj, tried || origText); }
-        else if (obj && obj.answer) renderAiAnswer(ans, obj.answer);
-        else renderAiAnswer(ans, r.text);
+        const parsed = parseRepairText(r.text);
+        renderRepairResult(ans, parsed.obj, r.text, tried || origText);
       } else {
         const prompt = [
           "あなたは日本の自動車整備士を支援するベテラン診断アドバイザー『メカ君』です。同じ不具合の“続きの相談”です。前回の診断結果と、整備士が追加で入力したコメント・写真・動画を必ず統合し、精度の高い2回目の原因候補を出してください。",
@@ -6970,7 +7079,8 @@ async function geminiAskMedia(prompt, media, opts) {
   if (contractAi()) {
     // paidScan: 車検証など個人情報(氏名・住所)が写り得る画像の読み取りは、プランに関わらず必ず有料キーで処理させる。
     // 有料枠はGoogleが学習に使わないため、車検証画像が無料キー(学習されうる)に乗るのを防ぐ。
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media, paidScan: !!opts.paidScan });
+    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media, paidScan: !!opts.paidScan,
+      thinkingBudget: (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : undefined });   // 指定時のみ思考上限(未指定は従来どおり)
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: (d && d.model) || "" };
     throw new Error("AIから回答が得られませんでした");
   }
@@ -6981,7 +7091,9 @@ async function geminiAskMedia(prompt, media, opts) {
     for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
       try {
         const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
-        if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
+        // 思考量: 指定があればその上限で速く仕上げる(出力枠を思考で使い切って途中で切れるのも防ぐ)。未指定は従来どおり。
+        if (typeof opts.thinkingBudget === "number" && (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0)) genCfg.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
+        else if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
         const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
         const res = await fetch(
           "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
@@ -7020,7 +7132,9 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   prompt = langDirective(prompt);
   if (typeof isDemo === "function" && isDemo()) return geminiAskMedia(prompt, media);
   // iOS + 自前キー直叩きは1チャンクで切れるため一括取得。契約店舗はXHRストリーミング対応済みでiOSでも逐次表示。
-  if (isMobile() && !contractAi()) return geminiAskMedia(prompt, media);
+  // 一括取得へ切り替える時も思考上限を引き継ぐ(無制限思考だと遅く、出力枠を使い切ってJSONが途中で切れる)
+  const fbOpts = Object.assign({}, opts, { thinkingBudget: (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (getAiMode() === "pro" ? 1024 : 256) });
+  if (isMobile() && !contractAi()) return geminiAskMedia(prompt, media, fbOpts);
   const key = localStorage.getItem(LS.gemini);
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAskMediaへ。
@@ -7031,7 +7145,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
           { prompt, mode: mediaModeByPlan(), media, thinkingBudget: mediaThinking(opts) }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
-    if (!key) return geminiAskMedia(prompt, media);
+    if (!key) return geminiAskMedia(prompt, media, Object.assign({}, opts, { thinkingBudget: mediaThinking(opts) }));
   }
   const mode = getAiMode();   // 自前キー(個人利用)はトグル準拠
   aiAbort = new AbortController();
@@ -8089,7 +8203,7 @@ const SUPPORT_KB = [
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
-  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。",
+  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(カード右上の丸を1タップでON/OFF・担当ごとの色。未選択カードは選択してから操作)を管理。手動で入庫追加も可。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫ボードだけのシンプル画面になりスキャン/AIは非表示。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",

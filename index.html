@@ -321,10 +321,12 @@
       <span class="kHeadIcons">
         <button class="karteAddImg" id="btnKarteAdd" aria-label="記録を追加"><img src="img/karte-add.png" alt="記録を追加"></button>
         <button class="karteAddImg" id="btnKartePhoto" aria-label="写真で入力"><img src="img/karte-cam.png" alt="写真で入力"></button>
+        <button class="karteAddImg" id="btnKartePick" aria-label="写真フォルダから入力"><img src="img/ic-photo.png" alt="写真フォルダから入力"></button>
       </span>
     </h2>
     <div class="sec-body">
       <input type="file" id="kPhotoIn" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="kPhotoPick" accept="image/*" multiple class="hidden">
       <div id="kPhotoStatus" class="hint hidden" style="margin-bottom:8px"></div>
       <div id="karteList"></div>
       <div id="karteForm" class="hidden karteForm">
