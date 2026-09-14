@@ -1917,3 +1917,126 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 /* カルテ写真: サムネ行の「写真フォルダから追加」ボタン(＋はカメラ) */
 .kThumbAdd.kThumbPick{display:inline-flex;align-items:center;justify-content:center;padding:0}
 .kThumbAdd.kThumbPick img{width:70%;height:70%;object-fit:contain;display:block}
+
+/* ===================================================================
+   PC・タブレット向けレイアウト(通常モード)
+   スマホ(〜767px)は従来のまま。入庫管理(事務モード)は専用レイアウトがあるため対象外。
+   ・768px〜 (タブレット縦): 画面を広げ、車両メニュー2×2・履歴/DB/設定を2列に
+   ・1024px〜(タブレット横・PC): 下タブ→左サイドバー、各画面を左右2カラムに
+   =================================================================== */
+@media (min-width:768px){
+  body:not(.officeMode){max-width:960px;padding-left:24px;padding-right:24px}
+  body:not(.officeMode) nav#tabs,
+  body:not(.officeMode) #assignBar{max-width:960px}
+
+  /* 車両のページ切替(車両/メンテ/診断/修理/カルテ) */
+  body:not(.officeMode) .pageNav{gap:8px}
+  body:not(.officeMode) .pageNav .navBtn{font-size:13px;min-height:44px}
+
+  /* カメラ・検索/手入力フォームは横に広がりすぎないよう中央寄せ */
+  body:not(.officeMode) #scanWrap,
+  body:not(.officeMode) #scanCtrls,
+  body:not(.officeMode) #btnStopRow,
+  body:not(.officeMode) #scanActions,
+  body:not(.officeMode) #scanProgress,
+  body:not(.officeMode) #plateArea,
+  body:not(.officeMode) #manualArea,
+  body:not(.officeMode) #ocrArea{max-width:680px;margin-left:auto;margin-right:auto}
+
+  /* 認識後の「この車両で何をしますか？」を2×2に */
+  body:not(.officeMode) #choicePanel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  body:not(.officeMode) #choicePanel .choice-q{grid-column:1 / -1}
+  body:not(.officeMode) #choicePanel .btnRow{margin-top:0 !important;height:100%}
+  body:not(.officeMode) #choicePanel .btn-big{height:100%}
+
+  /* 履歴・車種DBの一覧を2列に */
+  body:not(.officeMode) #histList,
+  body:not(.officeMode) #dbList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
+  body:not(.officeMode) #histList > .empty,
+  body:not(.officeMode) #dbList > .empty{grid-column:1 / -1}
+  body:not(.officeMode) #histList > .histItem,
+  body:not(.officeMode) #dbList > .dbItem{margin:0}
+
+  /* 設定: 折り畳みの各セクションを左右2列に(空いた所は後ろのセクションで詰める) */
+  body:not(.officeMode) #view-settings.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-auto-flow:row dense;column-gap:18px;align-items:start}
+  body:not(.officeMode) #view-settings.active > *{grid-column:1 / -1}
+  body:not(.officeMode) #view-settings.active > section{grid-column:auto;margin-top:14px !important}
+}
+
+@media (min-width:1024px){
+  body:not(.officeMode){--railW:104px;max-width:1360px;padding-left:calc(var(--railW) + 28px);padding-right:32px;padding-bottom:48px}
+  body.hasDemoBanner:not(.officeMode){padding-bottom:80px}
+
+  /* 下タブ → 左サイドバー */
+  body:not(.officeMode) nav#tabs{top:0;bottom:0;right:auto;left:max(0px, calc((100vw - 1360px) / 2));
+    width:var(--railW);max-width:none;margin:0;flex-direction:column;justify-content:flex-start;gap:6px;
+    padding:20px 10px calc(20px + env(safe-area-inset-bottom,0px));border-top:0;border-left:0;border-right:1px solid var(--line)}
+  body:not(.officeMode) nav#tabs button{flex:0 0 auto;min-height:74px;border-radius:12px;font-size:12px;padding:10px 4px;gap:5px}
+  body:not(.officeMode) nav#tabs button .ico{font-size:24px}
+  body:not(.officeMode) nav#tabs button:hover{background:var(--panel2);color:var(--txt)}
+  body:not(.officeMode) nav#tabs button.active{background:var(--panel2);color:var(--amber);box-shadow:inset 3px 0 0 var(--amber)}
+  body:not(.officeMode) #assignBar{bottom:0;max-width:none;margin:0;
+    left:calc(max(0px, (100vw - 1360px) / 2) + var(--railW));right:max(0px, (100vw - 1360px) / 2)}
+
+  /* ホーム: 左=メカ君(スキャン入口) / 右=前回の車両・現在の入庫状況 */
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)){
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:40px;align-items:start}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)) > *{grid-column:1 / -1}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)) > #mechaHero{grid-column:1;grid-row:1 / 4}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)) > #lastVehicle{grid-column:2;grid-row:1;margin-top:14px}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)) > #homeIntake{grid-column:2;grid-row:2}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):has(> #lastVehicle:not(.hidden), > #homeIntake:not(.hidden)) > #fallbackLinks{grid-column:2;grid-row:3}
+
+  /* 車両を読み込んだ後: 左=車両情報カード / 右=この車両で何をするか */
+  body:not(.officeMode) #result:not(.hidden){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-rows:auto auto auto auto 1fr;column-gap:28px;align-items:start}
+  body:not(.officeMode) #result:not(.hidden) > *{grid-column:1}
+  body:not(.officeMode) #result:not(.hidden) > #choicePanel{grid-column:2;grid-row:1 / -1;margin-top:18px}
+
+  /* メンテ: 左=諸元(大きく) / 右=定番故障・注意点・リコール */
+  body:not(.officeMode) #view-maint.active:has(> #secSpec:not(.hidden)){display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);
+    grid-template-rows:auto auto auto auto 1fr;column-gap:22px;align-items:start}
+  body:not(.officeMode) #view-maint.active:has(> #secSpec:not(.hidden)) > *{grid-column:2}
+  body:not(.officeMode) #view-maint.active:has(> #secSpec:not(.hidden)) > .pageNav{grid-column:1 / -1;grid-row:1}
+  body:not(.officeMode) #view-maint.active:has(> #secSpec:not(.hidden)) > #secSpec{grid-column:1;grid-row:2 / -1}
+
+  /* 診断: 左=入力(コード・症状・写真/動画) / 右=メカ君の診断結果 */
+  body:not(.officeMode) #view-diag.active{display:grid;grid-template-columns:minmax(360px,.9fr) minmax(0,1.1fr);
+    grid-template-rows:auto auto auto auto auto 1fr;column-gap:24px;align-items:start}
+  body:not(.officeMode) #view-diag.active > *{grid-column:1}
+  body:not(.officeMode) #view-diag.active > .pageNav{grid-column:1 / -1;grid-row:1}
+  body:not(.officeMode) #view-diag.active > #diagResults{grid-column:2;grid-row:2 / -1;min-width:0}
+  body:not(.officeMode) #view-diag.active > #diagResults > :first-child{margin-top:6px}
+  body:not(.officeMode) #view-diag.active > #diagResults:empty{margin-top:6px;min-height:300px;border:1.5px dashed var(--line);border-radius:12px;
+    display:flex;align-items:center;justify-content:center;padding:20px;text-align:center}
+  body:not(.officeMode) #view-diag.active > #diagResults:empty::before{content:"🩺 ここにメカ君の診断結果が表示されます";color:var(--dim);font-size:13.5px;font-weight:700}
+  html[lang="en"] body:not(.officeMode) #view-diag.active > #diagResults:empty::before{content:"🩺 Mecha-kun\2019s diagnosis will appear here"}
+
+  /* 修理: 左=質問入力 / 右=メカ君の回答(位置・部品・手順…) */
+  body:not(.officeMode) #view-parts.active > section > .sec-body{display:grid;grid-template-columns:minmax(340px,.9fr) minmax(0,1.1fr);
+    grid-template-rows:repeat(7,auto) 1fr;column-gap:24px;align-items:start}
+  body:not(.officeMode) #view-parts.active > section > .sec-body > *{grid-column:1}
+  body:not(.officeMode) #view-parts.active > section > .sec-body > #qVehResult{grid-column:2;grid-row:1 / -1;margin-top:0 !important;min-width:0}
+  body:not(.officeMode) #view-parts.active > section > .sec-body:has(> #qVehResult.hidden)::after{content:"🛠 ここにメカ君の回答が表示されます";
+    grid-column:2;grid-row:1 / -1;align-self:stretch;min-height:260px;border:1.5px dashed var(--line);border-radius:12px;
+    display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:var(--dim);font-size:13.5px;font-weight:700}
+  html[lang="en"] body:not(.officeMode) #view-parts.active > section > .sec-body:has(> #qVehResult.hidden)::after{content:"🛠 Mecha-kun\2019s answer will appear here"}
+
+  /* カルテ: 日付ごとの記録を2列に。記録を書いている間は 左=これまでの記録 / 右=入力フォーム */
+  body:not(.officeMode) #karteList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+  body:not(.officeMode) #karteList > .hint{grid-column:1 / -1}
+  body:not(.officeMode) #karteList > .kDayFold{margin:0}
+  body:not(.officeMode) #secKarte > .sec-body:has(> #karteForm:not(.hidden)){display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,.9fr);column-gap:24px;align-items:start}
+  body:not(.officeMode) #secKarte > .sec-body:has(> #karteForm:not(.hidden)) > *{grid-column:1}
+  body:not(.officeMode) #secKarte > .sec-body:has(> #karteForm:not(.hidden)) > #karteForm{grid-column:2;grid-row:1 / span 20;position:sticky;top:72px;margin-top:0}
+  body:not(.officeMode) #secKarte > .sec-body:has(> #karteForm:not(.hidden)) #karteList{grid-template-columns:minmax(0,1fr)}
+
+  /* 履歴・車種DB: 画面幅に合わせて3列以上 */
+  body:not(.officeMode) #histList,
+  body:not(.officeMode) #dbList{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
+}
+@media (min-width:1024px){
+  /* 初回の言語選択バー(上部固定)が出ている間は、サイドメニューをその下から始める */
+  body.langPicking:not(.officeMode) nav#tabs{top:47px}
+}
