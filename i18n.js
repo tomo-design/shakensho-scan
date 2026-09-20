@@ -173,8 +173,6 @@
     // ===== 追加: 静的UIの網羅(ヘッダー/スキャン/フッター) =====
     "メカノAI - 車両整備サポート": "MECHANO-AI – Vehicle Service Assistant",
     "← 戻る": "← Back", "QRでScan": "Scan by QR", "写真でScan": "Scan by photo",
-    "QRに寄らなくてOK": "No need to zoom in on the QR code",
-    "車検証は全体が入るように。コーションプレート・PC画面もそのまま読み取れます。": "Fit the whole document in the frame. Caution plates and PC screens can be read as they are.",
     "🔄 再スキャン": "🔄 Rescan", "QR解析": "Analyze QR", "ライト": "Light",
     "🔎 QR生データをコピー（不具合報告用）": "🔎 Copy raw QR data (for bug reports)",
     "※ データはこの端末に保存。": "※ Stored on this device.",
