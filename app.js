@@ -1280,6 +1280,12 @@ const _btnOcr = $("btnOcr"); if (_btnOcr) _btnOcr.addEventListener("click", () =
 ocrIn.addEventListener("change", async e => {
   const file = e.target.files[0]; if (!file) return;
   ocrIn.value = "";
+  await handleScanPhoto(file);
+});
+/* 写真1枚から車検証/コーションプレート等を読み取る。
+   アプリ内カメラ(openLiveCamera)と端末のカメラアプリ(ocrIn)のどちらからも呼ぶ。 */
+async function handleScanPhoto(file) {
+  if (!file) return;
   toggle("ocrBox", true);
   $("ocrPreview").src = URL.createObjectURL(file);
   // 既に車両を表示中に写真スキャンする場合、その車両を引き継いで“同じ車”として追記する
@@ -1321,7 +1327,7 @@ ocrIn.addEventListener("change", async e => {
   } catch (err) {
     $("ocrStatus").textContent = "OCRエラー: " + (err.message || err);
   }
-});
+}
 
 let tesseractReady = null;
 function loadTesseract() {
@@ -1418,10 +1424,19 @@ let current = { type: null, vin: null, plate: null, raw: [] };
 
 /* フォールバック手段の表示切替 (普段はリンクのみ) */
 function foldEntryAreas() { toggle("ocrArea", false); toggle("manualArea", false); toggle("plateArea", false); }
-$("lnkShowOcr").addEventListener("click", () => {
+$("lnkShowOcr").addEventListener("click", async () => {
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);   // QRモードを止める(起動したまま残らないように)
   toggle("scanProgress", false); toggle("scanActions", false);            // 未取得・やり直しを閉じる
-  foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true); ocrIn.click();
+  foldEntryAreas(); toggle("lastVehicle", false); toggle("ocrArea", true);
+  // アプリ内カメラで撮る。QRに寄って撮ろうとする誤解を防ぐため、カメラ画面に注意書きを出す。
+  //  (写真スキャンは車検証の全体・コーションプレート・PC画面など何でも読み取れる)
+  // カメラを開けない/許可されない端末は、従来どおり端末のカメラアプリへ。
+  const ok = await openLiveCamera(
+    async f => { closeLiveCamera(); await handleScanPhoto(f); },
+    null,
+    { single: true, maxDim: 2400, quality: 0.9, hintTitle: "QRに寄らなくてOK", hintBody: "車検証は全体が入るように。コーションプレート・PC画面もそのまま読み取れます。" }
+  );
+  if (!ok) ocrIn.click();
 });
 { const lm = $("lnkShowManual"); if (lm) lm.addEventListener("click", () => {
   if (!$("manualArea").classList.contains("hidden")) { toggle("manualArea", false); return; }   // 再タップで閉じる
@@ -7241,15 +7256,18 @@ function buildMediaDiagPrompt() {
 /* ===== 診断: 写真・動画の添付(4方式) + 自動圧縮 + メディアAI解析 ===== */
 /* 汎用ライブカメラ(外カメラ固定・複数枚撮影)。撮影ごとに onShot(File[jpeg]) を呼ぶ。完了/閉じるで onDone()。
    capture属性(内カメラになる端末あり)を避け、getUserMedia facingMode=environment を使う。非対応は false を返す。 */
-let lcStream = null, lcShot = null, lcDone = null, lcCount = 0, lcCamList = [], lcCamIdx = 0;
-async function openLiveCamera(onShot, onDone) {
+let lcStream = null, lcShot = null, lcDone = null, lcCount = 0, lcCamList = [], lcCamIdx = 0, lcMaxDim = 1600, lcQuality = 0.72;
+async function openLiveCamera(onShot, onDone, opts) {
+  opts = opts || {};
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
   lcShot = onShot; lcDone = onDone || null; lcCount = 0;
+  lcMaxDim = opts.maxDim || 1600; lcQuality = opts.quality || 0.72;   // 車検証など細かい文字は大きめ・高画質で撮る
   let ov = document.getElementById("lcOverlay");
   if (!ov) {
     ov = document.createElement("div"); ov.id = "lcOverlay"; ov.className = "kcOverlay";
     ov.innerHTML =
       '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
+      '<div class="lcHint hidden" id="lcHint"></div>' +
       '<button type="button" class="lcLens" id="lcLensBtn" hidden>⟳ レンズ切替</button>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
@@ -7263,6 +7281,18 @@ async function openLiveCamera(onShot, onDone) {
     document.getElementById("lcLensBtn").onclick = switchLiveLens;
   }
   document.getElementById("lcCount").textContent = "0";
+  // 画面上の注意書き(用途ごとに出し分け)。1枚で終わる用途は「完了」を隠して×だけにする。
+  const hintEl = document.getElementById("lcHint");
+  if (hintEl) {
+    const show = !!(opts.hintTitle || opts.hintBody);
+    hintEl.innerHTML = show
+      ? (opts.hintTitle ? '<b class="lcHintT">' + esc(opts.hintTitle) + '</b>' : "") +
+        (opts.hintBody ? '<span class="lcHintB">' + esc(opts.hintBody) + '</span>' : "")
+      : "";
+    hintEl.classList.toggle("hidden", !show);
+  }
+  const doneBtn = document.getElementById("lcDoneBtn");
+  if (doneBtn) doneBtn.classList.toggle("hidden", !!opts.single);
   ov.style.display = "flex";
   const ok = await startLiveStream(null);
   if (!ok) { closeLiveCamera(); return false; }
@@ -7328,7 +7358,7 @@ async function switchLiveLens() {
 }
 function shotLiveCamera() {
   const v = document.getElementById("lcVideo"); if (!v || !v.videoWidth) return;
-  const maxDim = 1600, scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
+  const maxDim = lcMaxDim || 1600, scale = Math.min(1, maxDim / Math.max(v.videoWidth, v.videoHeight));
   const w = Math.max(1, Math.round(v.videoWidth * scale)), h = Math.max(1, Math.round(v.videoHeight * scale));
   const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
   cv.getContext("2d").drawImage(v, 0, 0, w, h);
@@ -7337,7 +7367,7 @@ function shotLiveCamera() {
     const file = new File([blob], "photo_" + Date.now() + ".jpg", { type: "image/jpeg" });
     lcCount++; const c = document.getElementById("lcCount"); if (c) c.textContent = lcCount;
     if (lcShot) lcShot(file);
-  }, "image/jpeg", 0.72);
+  }, "image/jpeg", lcQuality || 0.72);
   const ov = document.getElementById("lcOverlay"); if (ov) { ov.classList.add("kcFlash"); setTimeout(() => ov.classList.remove("kcFlash"), 130); }
 }
 function closeLiveCamera() {
@@ -8200,6 +8230,7 @@ const SUPPORT_KB = [
   "【概要】整備士向けアプリ。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。個人向けの「MECHANO-AI Pocket」(Web版・ブラウザ)は7日無料→月額¥500。法人向けは「MECHANO-AI Works」。",
   "【画面】下タブ=スキャン/履歴/DB編集/設定。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
   "【車検証スキャン】QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。",
+  "【写真でScan】アプリ内のカメラが開き、1枚撮るとメカ君が読み取る。QRに寄る必要はなく、車検証の全体のほか、コーションプレート(車体の型式プレート)、電子車検証ビューアや他システムのPC・タブレット画面を撮っても読み取れる。カメラを開けない端末では端末のカメラアプリが開く。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
