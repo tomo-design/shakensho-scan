@@ -7257,6 +7257,7 @@ function buildMediaDiagPrompt() {
 /* 汎用ライブカメラ(外カメラ固定・複数枚撮影)。撮影ごとに onShot(File[jpeg]) を呼ぶ。完了/閉じるで onDone()。
    capture属性(内カメラになる端末あり)を避け、getUserMedia facingMode=environment を使う。非対応は false を返す。 */
 let lcStream = null, lcShot = null, lcDone = null, lcCount = 0, lcCamList = [], lcCamIdx = 0, lcMaxDim = 1600, lcQuality = 0.72;
+let lcHintTimer = null;   // 注意書きを自動で隠すタイマー(画面を広く使うため)
 async function openLiveCamera(onShot, onDone, opts) {
   opts = opts || {};
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
@@ -7268,6 +7269,7 @@ async function openLiveCamera(onShot, onDone, opts) {
     ov.innerHTML =
       '<video id="lcVideo" class="kcVideo" playsinline muted></video>' +
       '<div class="lcHint hidden" id="lcHint"></div>' +
+      '<button type="button" class="lcHintBtn hidden" id="lcHintBtn" aria-label="撮り方のヒント">?</button>' +
       '<button type="button" class="lcLens" id="lcLensBtn" hidden>⟳ レンズ切替</button>' +
       '<div class="kcBar">' +
         '<button type="button" class="kcClose" id="lcClose" aria-label="閉じる">×</button>' +
@@ -7279,17 +7281,21 @@ async function openLiveCamera(onShot, onDone, opts) {
     document.getElementById("lcShotBtn").onclick = shotLiveCamera;
     document.getElementById("lcDoneBtn").onclick = closeLiveCamera;
     document.getElementById("lcLensBtn").onclick = switchLiveLens;
+    document.getElementById("lcHint").onclick = hideLiveHint;          // タップで引っ込む
+    document.getElementById("lcHintBtn").onclick = showLiveHint;       // 「?」でもう一度出す
   }
   document.getElementById("lcCount").textContent = "0";
   // 画面上の注意書き(用途ごとに出し分け)。1枚で終わる用途は「完了」を隠して×だけにする。
+  //  横向きは画面が狭いので、数秒で自動的に引っ込める(右上の「?」でいつでも出せる)。
   const hintEl = document.getElementById("lcHint");
+  const hintBtn = document.getElementById("lcHintBtn");
   if (hintEl) {
     const show = !!(opts.hintTitle || opts.hintBody);
     hintEl.innerHTML = show
       ? (opts.hintTitle ? '<b class="lcHintT">' + esc(opts.hintTitle) + '</b>' : "") +
         (opts.hintBody ? '<span class="lcHintB">' + esc(opts.hintBody) + '</span>' : "")
       : "";
-    hintEl.classList.toggle("hidden", !show);
+    if (show) showLiveHint(); else { hintEl.classList.add("hidden"); if (hintBtn) hintBtn.classList.add("hidden"); }
   }
   const doneBtn = document.getElementById("lcDoneBtn");
   if (doneBtn) doneBtn.classList.toggle("hidden", !!opts.single);
@@ -7348,6 +7354,21 @@ async function startLiveStream(deviceId) {
   const lensBtn = document.getElementById("lcLensBtn"); if (lensBtn) lensBtn.hidden = !(lcCamList.length > 1);
   return true;
 }
+/* カメラ画面の注意書きを出す(約5秒で自動的に引っ込め、「?」ボタンに変わる)。タップでも引っ込む。 */
+function showLiveHint() {
+  const hintEl = document.getElementById("lcHint"), btn = document.getElementById("lcHintBtn");
+  if (!hintEl) return;
+  if (lcHintTimer) { clearTimeout(lcHintTimer); lcHintTimer = null; }
+  hintEl.classList.remove("hidden");
+  if (btn) btn.classList.add("hidden");
+  lcHintTimer = setTimeout(hideLiveHint, 5000);
+}
+function hideLiveHint() {
+  const hintEl = document.getElementById("lcHint"), btn = document.getElementById("lcHintBtn");
+  if (lcHintTimer) { clearTimeout(lcHintTimer); lcHintTimer = null; }
+  if (hintEl) hintEl.classList.add("hidden");
+  if (btn && hintEl && hintEl.innerHTML) btn.classList.remove("hidden");
+}
 /* レンズ切替(近接で合わない時)。選んだレンズはスキャンと共通のss_camLabelに記憶して次回も使う。 */
 async function switchLiveLens() {
   if (lcCamList.length < 2) return;
@@ -7371,6 +7392,7 @@ function shotLiveCamera() {
   const ov = document.getElementById("lcOverlay"); if (ov) { ov.classList.add("kcFlash"); setTimeout(() => ov.classList.remove("kcFlash"), 130); }
 }
 function closeLiveCamera() {
+  if (lcHintTimer) { clearTimeout(lcHintTimer); lcHintTimer = null; }
   if (lcStream) { try { lcStream.getTracks().forEach(t => t.stop()); } catch (e) {} lcStream = null; }
   const ov = document.getElementById("lcOverlay"); if (ov) ov.style.display = "none";
   const done = lcDone; lcShot = null; lcDone = null; if (done) done();
