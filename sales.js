@@ -777,13 +777,19 @@
   // ---------- SNS発信アシスト(投稿文生成→コピー→投稿画面を開く) ----------
   const SNS = {
     // Xのintent(事前入力)は短文のみ安定。長文はURLが巨大でXがエラーになるため、通常の投稿画面を開き貼り付け運用。
-    x: { name: "X（Premium）", limit: 25000, prefill: true,
+    x: { name: "X（Premium）", limit: 25000, prefill: true, prefillMax: 260,
       compose: (t) => (t && t.length <= 260) ? "https://x.com/intent/post?text=" + encodeURIComponent(t) : "https://x.com/compose/post",
       guide: "Premium契約なので長文OK（目安300〜1500字。読み手が飽きない範囲で）。冒頭1〜2行で引きを作り→本文→締め。ハッシュタグは2〜3個まで。過度な絵文字は避け、改行で読みやすく。短く刺したい時は260字前後でもよい。" },
     instagram: { name: "Instagram", limit: 2200, compose: () => "https://www.instagram.com/", prefill: false, guide: "写真に添えるキャプション。改行で読みやすく、共感→ひとこと訴求。ハッシュタグは末尾にまとめて5〜10個。" },
     facebook: { name: "Facebook", limit: 2000, compose: () => "https://www.facebook.com/", prefill: false, guide: "やや丁寧な語り口。段落で読みやすく。リンク誘導OK。" },
     line: { name: "LINE公式", limit: 500, compose: () => "https://manager.line.biz/", prefill: false, guide: "友だち向けのお知らせ調。短く親しみやすく、1メッセージで完結。" },
     note: { name: "note（記事）", limit: 6000, compose: () => "https://note.com/notes/new", prefill: false, guide: "note記事の体裁で書く。構成: 【1行目に記事タイトル(30字前後・思わず開きたくなる)】→空行→リード文(2〜3行で共感と『この記事で分かること』)→本文は見出し(『## 』記法)で3〜5セクションに分け、各セクションは具体例やエピソードを交えて読みやすく→まとめ→最後にやわらかいCTA(体験デモや無料お試し)。読者が最後まで読める語り口で、宣伝は最後だけ。1500〜3000字目安。" },
+    tiktok: { name: "TikTok（縦型ショート動画）", limit: 2200, compose: () => "https://www.tiktok.com/upload", prefill: false,
+      guide: "縦型ショート動画(15〜40秒)の【台本】として書く。構成: ①最初の2秒で必ず止める強いフック(セリフor大きめのテロップ)→②シーンを『◆シーン1／◆シーン2…』のように区切り、各シーンに【映像】(何を映すか)＋【テロップ】(画面に出す短い字幕・1行)＋【ナレ/セリフ】を書く→③オチ・気づき→④さいごに軽くCTA。テンポ命で1シーン2〜4秒。最後に別欄として『---』の下に『キャプション:』(共感1〜2行)と『ハッシュタグ:』(#整備士 #車のある生活 等3〜5個)を付ける。整備あるある・現場のリアルで、宣伝くささを消す。" },
+    // Threads: 公式Web Intent(/intent/post?text=)で本文を事前入力できる。1投稿500字上限(全アカウント共通)。
+    threads: { name: "Threads", limit: 500, prefill: true, prefillMax: 500,
+      compose: (t) => (t && t.length <= 500) ? "https://www.threads.com/intent/post?text=" + encodeURIComponent(t) : "https://www.threads.com/",
+      guide: "Threads向けの1投稿。【文量設定に関わらず500字以内を厳守】（目安150〜400字）。Xより柔らかく会話的で、ポジティブ寄りの空気感が伸びやすい。1〜2行目で引き→共感や本音→ゆるい締め。問いかけで終えると返信が付きやすい。ハッシュタグ（トピックタグ）は1投稿につき1個だけ、または無し。絵文字は0〜2個。宣伝感はX以上に嫌われるので、導線は入れても最後に一言だけ。" },
   };
   const snsCfg = () => SNS[($("snsPlatform") && $("snsPlatform").value) || "x"] || SNS.x;
   function updateSnsCount() {
@@ -793,9 +799,9 @@
     if ($("snsHint")) {
       if (!body) { $("snsHint").textContent = ""; }
       else if (g.prefill) {
-        $("snsHint").textContent = (n <= 260)
-          ? "「投稿画面を開く」で本文入力済みのX投稿画面が開きます。画像添付・最終送信はご自身で。"
-          : "長文のため事前入力できません（Xがエラーになるため）。開くと本文は自動コピーされるので、通常の投稿画面に貼り付けて投稿してください。";
+        $("snsHint").textContent = (n <= (g.prefillMax || 260))
+          ? "「投稿画面を開く」で本文入力済みの" + g.name + "投稿画面が開きます。画像添付・最終送信はご自身で。"
+          : "長文のため事前入力できません。開くと本文は自動コピーされるので、" + g.name + "の投稿画面に貼り付けて投稿してください。";
       } else {
         $("snsHint").textContent = g.name + "は本文の事前入力に非対応です。「コピー」→「投稿画面を開く」→貼り付けで投稿してください（開くと自動コピー）。";
       }
@@ -807,12 +813,25 @@
     tips: "スタイル: 整備士に役立つ豆知識・小ネタを1つ提供し、最後に『メカノAIならこれが一発で出る』等で自然に導線。",
     casual: "スタイル: 今風でカジュアルなユーザー体験レビュー風。『このアプリ、マジで便利…』のような素の一言から入り、実際に使って助かった具体シーン(例:診断で迷わなくなった/交換手順がすぐ出た/締付トルクを探さなくてよくなった 等)を1〜2個、テンションよくテンポよく語る。友達に『これ良かったよ』と勧める口調。硬い宣伝文句・かしこまった敬語は使わない。絵文字は使っても1〜3個まで。ステマにならないよう、あくまで感想ベースで自然に。最後に軽く『7日間無料だから試してみて』程度で締める。",
     campaign: "スタイル: 7日間無料・月¥500(Pocket)などの告知を主軸に、簡潔に魅力とCTAを伝える。",
-    drama: "スタイル: 会話劇・寸劇形式(整備あるある)。構成は【①整備士と客の短いセリフの応酬でリアルな会話劇→②よくある誤解やすれ違い(例:『車検に通る』と『次の車検まで整備不要』は別、等)が浮かび上がる→③『半年後』のようにその後どうなったかのオチ→④数行のやさしい解説(なぜそうなるか)→⑤読者への具体的な行動アドバイスを箇条書きで(例:車検後に確認すべき=今回交換した部品/見送った部品/次に注意する場所/いつ頃交換が必要か)→⑥最後に、その『整備内容・見送り部品・次の交換時期を記録して伝える/共有する』ことこそメカノAIが助けになる、と自然につなげる】。テンポよく改行を効かせ、長めの文量が合う。誠実に。過度な不安煽り・特定業者の批判はしない。会話は自然な口語で。冒頭に短い状況説明(例:『車検にて』)を置いてよい。",
+    gag: "スタイル: Xで鉄板の『空想の聞いた話』ネタ(明らかにフィクションと分かるギャグ)。構成は【『さっき◯◯(日常の場所)で△△(場違いな人物=女子高生/近所のおばあちゃん/幼稚園児/コンビニ店員/居酒屋のサラリーマン 等)が「(整備・車のやたら専門的で核心を突いた一言)」って言ってた。』の1〜3行だけ】。笑いの核は『そんな人が言うわけない専門発言』のギャップ。誰が読んでも作り話のジョークと分かる振り切った設定にする(実在の人物・店・具体的数値の捏造はしない、あくまでネタ)。オチはセリフ自体のシュールさで完結させ、説明・解説・宣伝は基本つけない。どうしても入れるなら最後に(小声)や※みたいに一言だけボソッと自虐的に添える程度。整備士が『いや誰やねん』『それ本業やろw』とツッコみたくなる温度。絵文字ほぼ無し、ハッシュタグ0〜1個。短く。",
+    drama: "スタイル: 会話劇・寸劇形式(整備あるある)。構成は【①整備士(女性)と客の短いセリフの応酬でリアルな会話劇→②よくある誤解やすれ違い(例:『車検に通る』と『次の車検まで整備不要』は別、等)が浮かび上がる→③『半年後』のようにその後どうなったかのオチ→④数行のやさしい解説(なぜそうなるか)→⑤読者への具体的な行動アドバイスを箇条書きで(例:車検後に確認すべき=今回交換した部品/見送った部品/次に注意する場所/いつ頃交換が必要か)→⑥最後に、その『整備内容・見送り部品・次の交換時期を記録して伝える/共有する』ことこそメカノAIが助けになる、と自然につなげる】。テンポよく改行を効かせ、長めの文量が合う。誠実に。過度な不安煽り・特定業者の批判はしない。会話は自然な口語で。冒頭に短い状況説明(例:『車検にて』)を置いてよい。",
     buzz: "スタイル: バズ(拡散)狙い。最初の1行で必ずスクロールを止める強いフックを作る。共感・意外性・笑い・『え、そんなことできるの?』のいずれかを核に、思わずいいね/RT/保存したくなる要素を1つ仕込む。読み終えたら『面白そう、これは試したい/契約したい』と感じさせる。ただし誇張・嘘・過度な煽り・不快な釣りはNG。社会的証明を使う場合も具体的な数字・店名・実績は捏造せず『おかげさまで導入が増えています』程度に留める。",
+    ask: "スタイル: 見てる人に問いかけて『リプ・引用・投票したくなる』エンゲージメント誘発型。整備士あるあるや現場の一場面を1〜3行でサッと出したあと、答えやすい具体的な質問で締める(例:『みんなはどう診てる?』『これ、あなたの工場ならどうする?』『最初に疑うのどこ?』『交換派? まだ乗れる派?』)。質問は1つだけに絞る。ぼんやりした『どう思いますか?』ではなく、経験を語りたくなる具体度にする。二択・あるある募集・体験談募集などリプのハードルを下げる形が有効。宣伝は入れない回が基本(入れても最後にボソッと一言)。押し付けない自然な口語で。絵文字0〜1個、ハッシュタグ0〜2個。短め。",
   };
   // 毎回変える"切り口"の素。ランダムに選んで指示に混ぜることで、同じ設定でも無限にパターンが変わる。
-  const SNS_HOOKS = ["意外な事実・ギャップから入る", "強烈な共感あるあるから入る", "『こんな経験ない?』と問いかける", "失敗談→救われた話の起伏", "たとえ話・比喩で刺す", "一言ボケ/ユーモアから", "ビフォーアフターの対比", "3選/ランキング形式", "実況中継風のライブ感", "ベテラン整備士キャラのなりきり語り", "新人整備士の目線・成長物語", "逆張り・あえての本音", "へぇと言わせる豆知識トリビア", "現場の名言・格言風", "数字や比較でインパクト(作り話の数字は使わない)", "『昔は〇〇→今は〇〇』の時代の変化", "ちょっと笑える極端なあるある", "感情の急上昇(困った→解決してスカッと)"];
+  const SNS_HOOKS = ["意外な事実・ギャップから入る", "強烈な共感あるあるから入る", "『こんな経験ない?』と問いかける", "失敗談→救われた話の起伏", "たとえ話・比喩で刺す", "一言ボケ/ユーモアから", "ビフォーアフターの対比", "3選/ランキング形式", "実況中継風のライブ感", "ベテラン女性整備士キャラのなりきり語り", "新人女性整備士の目線・成長物語", "逆張り・あえての本音", "へぇと言わせる豆知識トリビア", "現場の名言・格言風", "数字や比較でインパクト(作り話の数字は使わない)", "『昔は〇〇→今は〇〇』の時代の変化", "ちょっと笑える極端なあるある", "感情の急上昇(困った→解決してスカッと)"];
   const SNS_FORMATS = ["短い問いかけ＋オチ", "改行を活かしたテンポ重視", "会話・セリフ調", "ミニストーリー仕立て", "キャッチ1行＋ひとこと補足", "リスト風だが1点だけ強調"];
+  // 題材(ネタ)の幅を強制的に広げるプール。故障コード(P0300等)に偏らせないため、毎回ここから1つ引いてヒントにする。
+  const SNS_TOPICS = [
+    "ブレーキ/パッド・ローターの摩耗と交換タイミング", "オイル交換・スラッジ・粘度選び", "タイヤの偏摩耗・空気圧・季節交換(スタッドレス)",
+    "バッテリー上がり・アイドリングストップ車の劣化", "CVT/ATの変速不調・フルード", "エアコンの効き・ガス・エバポ臭",
+    "異音・振動の原因切り分け(ハブベアリング/足回り/ブッシュ)", "オイル漏れ・にじみの見極め", "冷却水漏れ・オーバーヒート・サーモスタット",
+    "警告灯が点いたけど原因が地味だった話", "タイミングベルト/チェーン交換の見送りリスク", "DPF/ディーゼルの煤・再生", "電装トラブル(暗電流・オルタ・配線)",
+    "ハイブリッド/EVの整備現場での戸惑い", "見積りの伝え方・『車検通る』と『あと2年安心』は別問題", "代車が足りない・繁忙期のあるある",
+    "部品の欠品・納期待ちの苦労", "若手が続かない・技術の継承", "出張/ロードサービスでの応急対応", "整備記録・カルテの引き継ぎで助かった/困った話",
+    "リコール・サービスキャンペーンの対応", "旧車/過走行車の維持相談", "初めて診断機を使った時の衝撃", "客への説明が伝わらないもどかしさ",
+    "夏/冬など季節ならではの入庫トラブル", "工具・リフト・設備投資の悩み", "点検で見つけた『あぶなかった』一件", "ネットの自己診断を鵜呑みにした客の話"
+  ];
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const SNS_LEN = {
     short: "短め・ひと言で刺す(目安120〜200字)",
@@ -821,12 +840,14 @@
   };
   // AIっぽさを徹底的に消すための最重要ルール(SNS専用)。書き手＝実在の整備士本人の"つぶやき"。
   const SNS_HUMAN = `【最重要・AIっぽさを消す（これを外すとスルーされる）】書き手は"宣伝担当"ではなく、実在の整備士本人がスマホでポツッとつぶやいた体で書く。営業・PR感を絶対に出さない。
+・【主人公は女性】メインの主人公(書き手・語り手の整備士本人、会話劇やなりきりの中心人物)は女性として書く。主人公の一人称に『俺』は使わない(『私』『うち』か省略)。『〜だわよ』のような作った女性言葉や女性らしさの誇張はせず、現場のプロの自然な口語で。主人公以外の登場人物(先輩・後輩・工場長・同僚・お客さん等)は男性でも女性でもよい。
 ・使用禁止の言い回し: 「〜しませんか？」「ぜひ」「いかがでしたか」「〜な方も多いのではないでしょうか」「皆さん/みなさん」「私たち」「〜と言えるでしょう」「まとめると」「結論から言うと」「〜な時代です」、【】の見出し記法、絵文字の多用(使うなら0〜1個)、ハッシュタグの乱用(0〜2個まで)、きれいに整いすぎた起承転結、教科書みたいな説明口調、優等生の完璧な締め、抽象的な一般論。
 ・むしろOK: 口語・体言止め・言いさし・ぼやき・ツッコミ・独り言・自虐。文が短くて不揃いでいい。少し崩す。「で、結局〜」「いや〜」みたいな生っぽい入り。
-・具体を1つ必ず入れる: 実際の部品名や現場の一場面(例: パッド残1mm、リフト満車、P0300、締付トルク◯◯、オイル量○L、代車が無い、ベテランが辞めた 等)。抽象論だけにしない。
+・具体を1つ必ず入れる: 実際の部品名や現場の一場面(下記はあくまで例。毎回違う題材を使い、同じネタを繰り返さない): パッド残1mm、リフト満車、締付トルク◯◯、オイル量○L、スタッドレス山積み、代車が無い、ベテランが辞めた、部品欠品で納期待ち、暗電流でバッテリー上がり 等。
+・【重要】故障コード(P0300や失火など特定のDTC)ばかりに偏らない。むしろ故障コードを出さない回のほうが多くていい。題材は毎回まったく別のものにする。
 ・感情や本音を先に出し、説明は最小限。読み手(整備士)が「わかる」「それなw」と反応する具体性と温度。
 ・宣伝は入れても最後に一言ボソッと。入れない回もあってよい。毎回リズム・語尾・入り方を変える。
-・お手本の温度感(コピペ禁止・雰囲気だけ): 『パッド残1mm。"車検通るならいい"って言われたけど、たぶん半年でキーキー鳴って戻ってくるやつ。知ってる。』 / 『P0300、昔なら整備書とにらめっこで小一時間コース。今はスマホに症状打ち込んで当たりだけつけて確認。楽になったわ正直。』`;
+・お手本の温度感(コピペ禁止・雰囲気だけ・題材は真似しない): 『パッド残1mm。"車検通るならいい"って言われたけど、たぶん半年でキーキー鳴って戻ってくるやつ。知ってる。』 / 『暗電流でバッテリー上がり、昔はテスター当てて配線たどって半日コース。今はだいぶ当たりが早くつくようになった。楽になったわ正直。』`;
   async function snsGen() {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const g = snsCfg();
@@ -836,7 +857,8 @@
     const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
     const lenTxt = isNote ? "note記事として1500〜3000字程度（読み応えのある本文に）" : (SNS_LEN[len] || SNS_LEN.medium);
     const instruct = ($("snsInstruct") && $("snsInstruct").value || "").trim();
-    const seed = "今回の切り口(毎回変える・過去と被らせない): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」。この切り口で新鮮な入りにする。";
+    const topicHint = theme ? "" : "／今回の題材=「" + pick(SNS_TOPICS) + "」(この題材を軸にする。前回までと必ず変える)";
+    const seed = "今回の切り口(毎回変える・過去と被らせない): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」" + topicHint + "。この切り口で新鮮な入りにする。";
     const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
 ${instruct ? "・【最優先の指示（他のスタイル設定より優先）】" + instruct + "\n" : ""}・${SNS_STYLE[style] || SNS_STYLE.balanced}
 ・${seed}
@@ -864,6 +886,8 @@ ${SNS_HUMAN}`;
   { const s = $("snsPlatform"); if (s) s.onchange = updateSnsCount; }
 
   // 画像スタイルの素。毎回ランダムに選び、ありきたりを防ぎバズりやすい多彩なビジュアルに。
+  // 画像・動画のメイン主人公は女性にする(ブランド方針)。脇役・背景の人物は男性でもよい。全プロンプト共通で差し込む。
+  const PEOPLE_RULE = "PEOPLE (MANDATORY): The MAIN character — the protagonist / the most prominent central person in the frame — must be FEMALE (a woman or a girl). If only one person appears, she is a woman. Other supporting or background people (customers, colleagues, bosses, bystanders) may be men or women as fits the scene; keep them as the post describes. A woman mechanic should look like a real, capable professional in work clothes (no sexualized depiction).";
   const IMG_STYLES = [
     "cinematic dramatic lighting, shallow depth of field, film-like",
     "bold pop-art comic style with halftone, punchy colors",
@@ -878,6 +902,15 @@ ${SNS_HUMAN}`;
     "hyper-real close-up macro of hands and tools, gritty detail",
     "split before/after style composition, clear contrast",
   ];
+  // 記事内の全見出し画像で共有する配色・雰囲気(1記事につき1つだけ選び、テイストを揃える)
+  const IMG_PALETTES = [
+    "warm amber & deep charcoal, cozy garage tones",
+    "cool teal & slate blue, calm and modern",
+    "bold red & off-white, high-energy poster feel",
+    "muted earthy khaki & orange, retro Showa mood",
+    "clean navy & bright cyan accent, trustworthy tech feel",
+    "soft cream & sage green, gentle and friendly",
+  ];
   // 媒体ごとの推奨アスペクト比(画像生成の指示に使う)
   const IMG_ASPECT = {
     x: "16:9 horizontal (landscape, about 1200x675px)",
@@ -885,23 +918,28 @@ ${SNS_HUMAN}`;
     facebook: "1.91:1 horizontal (landscape, about 1200x630px)",
     line: "1:1 square (1080x1080px)",
     note: "16:9 horizontal header banner (about 1280x670px)",
+    tiktok: "9:16 vertical (portrait, 1080x1920px)",
+    threads: "4:5 vertical portrait (1080x1350px, fills the Threads feed)",
   };
-  function buildImgPrompt() {
+  function buildImgPrompt(scene) {
     const post = ($("snsBody").value || "").trim();
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
     const aspect = IMG_ASPECT[platform] || IMG_ASPECT.x;
     const style = pick(IMG_STYLES);
-    return `Create a scroll-stopping, share-worthy social-media image for an automotive-repair AI smartphone app "MECHANO-AI" (${product === "pocket" ? "for individual car mechanics" : "for auto repair shops / teams"}).
+    const subject = scene
+      ? `DRAW EXACTLY THIS SCENE (this is the required subject — do not substitute a different one):\n${scene}`
+      : `MOST IMPORTANT: Depict the actual scene / subject described in this Japanese post. Read it and illustrate what it is literally about (the specific part, tool, car system, or situation mentioned):\n"""${post.slice(0, 1200)}"""\nDraw THAT concrete subject — e.g. if it's about brake pads, show worn brake pads/rotor; if tires, show tires; if a battery, show a battery; if a garage moment, show that moment. Pick the subject from the post, not a default.`;
+    return `Create a scroll-stopping, share-worthy social-media image for a Japanese automotive-repair audience (${product === "pocket" ? "individual car mechanics" : "auto repair shops / teams"}).
 Aspect ratio / size (IMPORTANT — compose for this exact shape): ${aspect}. Fill the whole frame edge to edge in this ratio.
-Match the mood of this Japanese post:
-"""${post.slice(0, 1200)}"""
-Visual style (use this): ${style}. Make it striking, original and eye-catching — NOT a generic stock photo. Strong composition, bold focal point, emotion or humor if it fits the post.
-Subject ideas: a car mechanic / auto garage / hands working on a car / a smartphone showing a diagnostic AI, chosen to fit the post.
+${subject}
+Visual style (use this): ${style}. Make it striking, original and eye-catching — NOT a generic stock photo. Strong composition, bold focal point, emotion or humor if it fits.
+Do NOT default to showing a smartphone or a phone screen — include a phone ONLY if the scene above is specifically about using a phone/app, otherwise leave it out entirely.
+${PEOPLE_RULE}
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text looks broken). Image only.`;
   }
   // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、毎回違う映えるビジュアルに。
-  const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9" };
+  const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9", tiktok: "9:16", threads: "4:5" };
   const imgRatio = () => IMG_RATIO[($("snsPlatform") && $("snsPlatform").value) || "x"] || "16:9";
   let snsImgBase = "";   // 文字を載せる前の元画像(data URL)。文字だけ載せ直すのに使う。
   function roundRect(ctx, x, y, w, h, r) {
@@ -975,7 +1013,6 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   async function snsGenImage() {
     const post = ($("snsBody").value || "").trim();
     if (!post) { toast("先に投稿文を作成してください"); return; }
-    const prompt = buildImgPrompt();
     const aspect = imgRatio();
     // noteでサムネ文字が空なら、投稿1行目(タイトル)を短く自動提案
     if (($("snsPlatform") && $("snsPlatform").value) === "note" && $("snsImgText") && !$("snsImgText").value.trim()) {
@@ -983,9 +1020,12 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       if (firstLine) $("snsImgText").value = firstLine.slice(0, 24);
     }
     show("snsImgWrap", true); show("snsImgEl", false); show("snsImgActs", false);
-    $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
+    $("snsImgStat").textContent = "投稿内容を解析中…";
     if ($("snsImg")) $("snsImg").disabled = true; if ($("snsImgRegen")) $("snsImgRegen").disabled = true;
     try {
+      let scene = ""; try { scene = await postToScene(post); } catch (e) {}
+      const prompt = buildImgPrompt(scene);
+      $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
       const j = await api("image", { prompt, aspect });
       if (j.image) {
         await snsShowImg(j.image);
@@ -1023,14 +1063,29 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
       snsSectStop = false; b.disabled = true;
       $("snsSectWrap").innerHTML = "";
+      // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
+      const style = pick(IMG_STYLES);
+      const palette = pick(IMG_PALETTES);
+      const artDirection = `ART DIRECTION (keep IDENTICAL across every section image of this article, so they read as one consistent set):
+- Visual style: ${style}.
+- Color palette / mood: ${palette}.
+- Same rendering technique, same lighting mood, same level of detail and finish for all images. They must look like one coherent series by the same illustrator, NOT a random mix of styles.`;
       for (let i = 0; i < secs.length; i++) {
         if (snsSectStop) break;
         $("snsSectStat").textContent = "見出し画像を生成中… " + (i + 1) + "/" + secs.length + "（" + secs[i].head + "）";
-        const style = pick(IMG_STYLES);
+        // 見出しに合った具体シーンを抽出(精度アップ)。失敗時は見出し＋本文にフォールバック。
+        let scene = "";
+        try { scene = await sectionToScene(secs[i].head, secs[i].body); } catch (e) {}
+        const subject = scene
+          ? `DEPICT EXACTLY THIS SCENE (it matches the heading — do not substitute):\n${scene}`
+          : `Depict the concrete subject this section is about (the specific part, tool, car system or situation named in the heading "${secs[i].head}"), not a generic scene.`;
         const prompt = `Create a clean, editorial section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${product === "pocket" ? "for individual mechanics" : "for repair shops"}).
-This image illustrates the section titled: "${secs[i].head}". Section context: "${(secs[i].body || "").slice(0, 400)}".
-Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame.
-Visual style: ${style}. Tasteful, magazine-like, relevant to the section. A garage / mechanic / car / smartphone diagnostic scene as fits.
+This image illustrates the section titled: "${secs[i].head}".
+${subject}
+Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame. Tasteful, magazine-like.
+${artDirection}
+Do NOT default to a smartphone/phone screen — include one only if the section is specifically about using a phone/app.
+${PEOPLE_RULE}
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image only.`;
         const card = document.createElement("div");
         card.className = "secImgCard";
@@ -1050,14 +1105,78 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
       b.disabled = false;
     };
   }
-  // Grok Imagine(X Premium)で画像/動画を作る: 最適プロンプトをコピーして grok.com/imagine を開く
-  { const b = $("snsGrok"); if (b) b.onclick = () => {
+  // 動画生成用プロンプトを組み立てる。日本語本文は動画AIが読めないため、英語の具体的な映像指示(scene)を受け取って使う。
+  function buildVideoPrompt(scene) {
+    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
+    const vertical = (platform === "tiktok" || platform === "instagram" || platform === "threads");
+    const ratio = vertical ? "9:16 vertical (portrait, 1080x1920)" : (platform === "line" ? "1:1 square" : "16:9 horizontal");
+    const dur = vertical ? "8-12 seconds (short-form vertical for TikTok/Reels)" : "6-10 seconds";
+    return `Create a short, scroll-stopping ${vertical ? "VERTICAL " : ""}video clip for a Japanese automotive-repair audience (${product === "pocket" ? "individual car mechanics" : "auto repair shops / teams"}).
+Aspect ratio: ${ratio}. Duration: ${dur}. Loop-friendly.
+FILM EXACTLY THIS SCENE (this is the required content — do not invent something unrelated):
+${scene}
+Realistic garage / workshop atmosphere, authentic lighting. Add tasteful camera motion (slow push-in, orbit, or a tool/hand in action). Strong hook in the first 1 second.
+Do NOT default to showing a smartphone/phone screen — include one only if the scene above specifically mentions a phone/app.
+Do NOT render any on-screen text, captions, letters, logos or watermarks (add captions later in the editor).
+${PEOPLE_RULE}
+AUDIO — VERY IMPORTANT: NO spoken narration, NO voice-over, NO AI-generated speech, NO talking, NO lip-sync of any language (AI Japanese speech sounds broken and unclear). Audio must be ONLY subtle ambient garage/workshop sounds (tools, air impact wrench, engine) and/or light background music. Keep it clean and quiet. Narration and Japanese captions will be added afterward by the creator.`;
+  }
+  // 投稿文 → 画像/動画AIが理解できる英語の具体的な映像指示に変換(これで内容と映像がズレなくなる)
+  // note見出し → その節の内容に合う「具体的な英語シーン」に変換。見出しと画像がズレないようにする。
+  async function sectionToScene(head, body) {
+    const task = `You turn ONE section of a Japanese note.com article (about automotive repair / the app MECHANO-AI) into ONE concrete VISUAL scene for an AI image generator.
+The section heading is: "${head}"
+The section text is: """${(body || "").slice(0, 600)}"""
+Rules:
+- The scene MUST clearly illustrate what THIS heading is literally about (the specific car part, tool, system, symptom, person or situation named). This is the top priority — the image must match the heading at a glance.
+- If the heading names a concrete object (e.g. brake pads, tire, battery, timing belt, warning light), show THAT object as the clear focal point.
+- Do NOT show a smartphone, phone screen or app UI unless the heading/section is literally about using the app.
+- Describe ONLY what the camera SEES, in ENGLISH: physical subject, setting, action, framing. 2-4 short sentences. No on-screen text, no metaphors, no marketing copy.
+- The MAIN person (if any) must be described as FEMALE; supporting people may be male or female.
+Output: the English scene description only.`;
+    const j = await api("generate", { role: "marke", task });
+    return String(j.text || "").trim();
+  }
+  async function postToScene(post) {
+    const task = `You turn a Japanese social-media post (or short-video script) into ONE concrete VISUAL scene description for an AI image/video generator.
+Rules:
+- Pick the SINGLE most eye-catching, representative moment of the post. If it is a joke/gag, pick the FUNNY hook moment (the unexpected visual), NOT a product shot.
+- If the post is a multi-scene script (has 「◆シーン」「映像:」etc.), choose the hook/opening scene, not the last CTA/product scene.
+- Do NOT show a smartphone, phone screen, or app UI unless the whole post is literally a demo of using the app. Avoid a generic 'dirty mechanic bent over an engine' cliché unless that is truly the point.
+- Describe ONLY what the camera SEES in ENGLISH: physical subject, setting, action, framing, camera movement. 3-5 short sentences. No dialogue, no on-screen text, no metaphors, no marketing.
+- The MAIN person (protagonist / central figure) must be described as FEMALE (a woman / a girl); if only one person appears, she is a woman. Other supporting people may be male or female as in the post.
+Japanese post:
+"""${post.slice(0, 1500)}"""
+Output: the English scene description only.`;
+    const j = await api("generate", { role: "marke", task });
+    return String(j.text || "").trim();
+  }
+  { const b = $("snsVideo"); if (b) b.onclick = async () => {
       const post = ($("snsBody").value || "").trim();
       if (!post) { toast("先に投稿文を作成してください"); return; }
-      const p = buildImgPrompt() + "\n\n(For a short video: add subtle motion — e.g. slow push-in, tool in action, phone screen lighting up. Keep it 3-6 seconds, loop-friendly, no text.)";
-      copy(p);
-      window.open("https://grok.com/imagine", "_blank", "noopener");
-      toast("プロンプトをコピー。Grokに貼り付けて生成してください");
+      b.disabled = true; const old = b.textContent; b.textContent = "🎬 映像を解析中…";
+      try {
+        const scene = await postToScene(post);
+        copy(buildVideoPrompt(scene));
+        window.open("https://grok.com/imagine", "_blank", "noopener");
+        toast("動画プロンプトをコピー。Grok Imagineに貼り付けて『動画』で生成してください");
+      } catch (e) { toast("⚠ " + (e.message || e)); }
+      finally { b.disabled = false; b.textContent = old; }
+    };
+  }
+  // Grok Imagine(X Premium)で画像/動画を作る: 最適プロンプトをコピーして grok.com/imagine を開く
+  { const b = $("snsGrok"); if (b) b.onclick = async () => {
+      const post = ($("snsBody").value || "").trim();
+      if (!post) { toast("先に投稿文を作成してください"); return; }
+      b.disabled = true; const old = b.textContent; b.textContent = "✨ 解析中…";
+      try {
+        let scene = ""; try { scene = await postToScene(post); } catch (e) {}
+        const p = buildImgPrompt(scene) + "\n\n(For a short video: add subtle motion — e.g. slow push-in, tool in action. Keep it 3-6 seconds, loop-friendly, no text. AUDIO: NO spoken narration / NO AI voice / NO talking — ambient garage sounds or light BGM only. Add narration later.)";
+        copy(p);
+        window.open("https://grok.com/imagine", "_blank", "noopener");
+        toast("プロンプトをコピー。Grokに貼り付けて生成してください");
+      } finally { b.disabled = false; b.textContent = old; }
     };
   }
 
@@ -1068,7 +1187,8 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
       const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
       const g = snsCfg();
       const theme = ($("snsTheme").value || "").trim();
-      const styles = ["honne", "casual", "tips", "drama", "buzz", "balanced", "honne"];   // 7本ぶん・多様に
+      const styles = ["honne", "casual", "tips", "drama", "buzz", "balanced", "gag"];   // 7本ぶん・多様に
+      const weekTopics = [...SNS_TOPICS].sort(() => Math.random() - 0.5);   // 題材をシャッフルし各曜日で別ネタに
       snsWeekStop = false;
       show("btnSnsWeekStop", true); $("btnSnsWeek").disabled = true; $("btnSns").disabled = true;
       $("snsWeek").innerHTML = ""; $("snsStat").textContent = "1週間分を生成中… 0/7";
@@ -1077,7 +1197,8 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         const style = styles[i];
         const len = (style === "drama") ? "long" : (Math.random() < 0.5 ? "short" : "medium");
         const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
-        const seed = "今回の切り口(毎回変える): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」。";
+        const topicHint = theme ? "" : "／今回の題材=「" + (weekTopics[i] || pick(SNS_TOPICS)) + "」(この題材を軸に。他の曜日と必ず別ネタ)";
+        const seed = "今回の切り口(毎回変える): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」" + topicHint + "。";
         const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
 ・${SNS_STYLE[style] || SNS_STYLE.balanced}
 ・${seed}
@@ -1220,8 +1341,30 @@ ${SNS_HUMAN}`;
       if ($("dripEnabled")) $("dripEnabled").checked = !!c.dripEnabled;
       if ($("dripPerDay")) $("dripPerDay").value = c.dripPerDay || 3;
       if ($("dripStat")) $("dripStat").textContent = j.sgReady ? "" : "⚠ メール送信(SendGrid)が未設定です。設定するまで実際の送信は行われません。";
+      if ($("faxEnabled")) $("faxEnabled").checked = !!c.faxEnabled;
+      if ($("faxPerDay")) $("faxPerDay").value = c.faxPerDay || 3;
+      if ($("faxToAddr")) $("faxToAddr").value = c.faxToAddr || "";
+      if ($("faxStat")) {
+        $("faxStat").textContent = !c.faxToAddr
+          ? "⚠ 送信用アドレス未設定のため送信されません（業者の管理画面で発行して入力）"
+          : (c.faxLastRun ? "前回: " + fmtDate(c.faxLastRun) + " / " + (c.faxLastSent || 0) + "件送信" : "");
+      }
     } catch (e) { if ($("dripStat")) $("dripStat").textContent = e.message; }
   }
+  const _sf = $("btnSaveFax");
+  if (_sf) _sf.onclick = async () => {
+    _sf.disabled = true;
+    try {
+      await api("setConfig", { config: {
+        faxEnabled: $("faxEnabled").checked,
+        faxPerDay: parseInt($("faxPerDay").value, 10) || 3,
+        faxToAddr: ($("faxToAddr").value || "").trim(),
+      } });
+      toast("FAX自動送信の設定を保存しました");
+      loadDripConfig();
+    } catch (e) { toast(e.message); }
+    finally { _sf.disabled = false; }
+  };
   const _sd = $("btnSaveDrip");
   if (_sd) _sd.onclick = async () => {
     _sd.disabled = true;
