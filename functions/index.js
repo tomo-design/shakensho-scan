@@ -2330,6 +2330,67 @@ async function genImage(promptText, aspectRatio, preferredModel) {
   throw new Error("画像生成に失敗しました(" + lastErr + ")。お使いのGeminiキーが画像生成に対応していない可能性があります。");
 }
 
+// YouTube Shorts等向けの短編動画をGemini Omni Flash(音声ネイティブ・複数カットの物語生成)で作る。
+// 1呼び出し=1ビート。previousId(前回のinteraction id)を渡すと、同じキャラ/場面を保ったまま延長(Extend)する。
+// 実費が発生する有料APIのため、必ずcfg().geminiPaid(有料キー)のみを使う(無料キーは動画生成に非対応)。
+async function genOmniVideo({ prompt, previousId, aspectRatio, resolution }) {
+  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  if (!paidKey) throw new Error("有料のGeminiキーが未設定です。動画生成(Gemini Omni Flash)には有料キーが必須です。");
+  const body = {
+    model: "gemini-omni-1.1-flash",
+    input: prompt,
+    generation_config: {
+      aspect_ratio: aspectRatio || "9:16",
+      response_format: { type: "video", resolution: resolution || "720p", delivery: "uri" },
+    },
+    store: true,
+    background: false,
+  };
+  if (previousId) body.previous_interaction_id = previousId;
+  let r;
+  try {
+    r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions?key=" + encodeURIComponent(paidKey), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+  } catch (e) { throw new Error("動画生成サーバーに接続できませんでした。"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("動画生成に失敗しました(" + r.status + "): " + ((j.error && j.error.message) || JSON.stringify(j).slice(0, 200)));
+  // 便宜フィールド(SDK用)にあれば使う。無ければ steps 配列の model_output から動画パートを探す。
+  let uri = j.output_video && j.output_video.uri;
+  let inlineData = j.output_video && j.output_video.data;
+  if (!uri && !inlineData) {
+    for (const st of (j.steps || [])) {
+      if (st.type !== "model_output") continue;
+      for (const c of (st.content || [])) {
+        if (c.type === "video") { uri = uri || c.uri; inlineData = inlineData || c.data; }
+      }
+    }
+  }
+  if (!uri && !inlineData) throw new Error("動画データを取得できませんでした(安全フィルタ等で生成がブロックされた可能性があります)。");
+  let base64;
+  if (inlineData) {
+    base64 = inlineData;
+  } else {
+    // uriは "files/xxxx" 形式。ACTIVEになるまでポーリングしてからダウンロード(最大5分)。
+    const fileId = String(uri).split("/").pop();
+    let state = "";
+    for (let i = 0; i < 60; i++) {
+      const sr = await fetch("https://generativelanguage.googleapis.com/v1beta/files/" + fileId + "?key=" + encodeURIComponent(paidKey));
+      const sj = await sr.json().catch(() => ({}));
+      state = sj.state || "";
+      if (state === "ACTIVE") break;
+      if (state === "FAILED") throw new Error("動画の処理に失敗しました。");
+      await new Promise((res2) => setTimeout(res2, 5000));
+    }
+    if (state !== "ACTIVE") throw new Error("動画の処理がタイムアウトしました。時間を置いて試してください。");
+    const dr = await fetch("https://generativelanguage.googleapis.com/v1beta/files/" + fileId + ":download?alt=media&key=" + encodeURIComponent(paidKey));
+    if (!dr.ok) throw new Error("動画のダウンロードに失敗しました(" + dr.status + ")。");
+    const buf = Buffer.from(await dr.arrayBuffer());
+    base64 = buf.toString("base64");
+  }
+  return { dataUrl: "data:video/mp4;base64," + base64, interactionId: j.id || "" };
+}
+
 // 店舗リサーチの中核(公開情報のみ・検索グラウンディング)。手動アクションと自動スケジュールで共用。
 // 返り値: {company,area,kind,phone,fax,email,formUrl,source,note} の配列(店名と出典URL必須・捏造は除外)。
 async function researchCandidates(area, kind, count, excludeNames) {
@@ -2387,7 +2448,7 @@ ${excludeBlock}
   })).filter((x) => x.company && x.source && !exSet.has(rnorm(x.company))).slice(0, count);
 }
 
-exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).region(REGION).https.onRequest(async (req, res) => {
+exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).region(REGION).https.onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   const uid = await uidFromReq(req);
@@ -2539,6 +2600,19 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     const preferredModel = /^gemini-[a-z0-9.-]+$/.test(String(data.model || "")) ? data.model : "";
     try { const g = await genImage(p, aspect, preferredModel); return res.json({ image: g.url, model: g.model }); }
     catch (e) { return res.status(503).json({ error: e.message || "画像生成に失敗しました。" }); }
+  }
+
+  // ---- YouTube Shorts等の短編動画(音声付き・ストーリー)を1ビート分生成 ----
+  if (action === "shortsClip") {
+    const p = String(data.prompt || "").trim().slice(0, 3000);
+    if (!p) return res.status(400).json({ error: "動画の指示が空です。" });
+    const aspectRatio = /^(16:9|9:16|1:1)$/.test(String(data.aspectRatio || "")) ? data.aspectRatio : "9:16";
+    const resolution = /^(360p|720p|1080p|4k)$/.test(String(data.resolution || "")) ? data.resolution : "720p";
+    const previousId = /^[A-Za-z0-9_-]{1,100}$/.test(String(data.previousId || "")) ? data.previousId : "";
+    try {
+      const g = await genOmniVideo({ prompt: p, previousId, aspectRatio, resolution });
+      return res.json({ video: g.dataUrl, interactionId: g.interactionId });
+    } catch (e) { return res.status(503).json({ error: e.message || "動画生成に失敗しました。" }); }
   }
 
   // ---- 店舗リサーチ(公開情報のみ・検索グラウンディング) ----

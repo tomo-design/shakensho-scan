@@ -1450,6 +1450,79 @@ Japanese post:
     };
   }
 
+  // ===== YouTube Shorts動画(β): Gemini Omni Flashで音声付き・ストーリー動画を作る =====
+  // 実費が発生する(概算¥450/30秒・720p)。1本=最初のビート+Extend2回=計3回のサーバー呼び出し。
+  // previous_interaction_idで同じ女性整備士・同じ場面を保ったまま延長するので、クリップ結合が不要。
+  const SHORTS_AUDIO = "AUDIO: generate a fitting native audio track — ambient workshop/garage sound matched to the action, plus mood music that follows the emotional arc. A short natural Japanese line of dialogue is OK ONLY if it fits naturally and briefly (one short sentence, lips synced) — otherwise no dialogue, just sound and music. No on-screen captions/text.";
+  // 投稿文からOmni Flash向けの3ビート日本語シナリオ(セリフ可・音声指示つき)を作る。
+  async function postToOmniBeats(post) {
+    const task = `You are directing a 30-second Japanese vertical short film (YouTube Shorts) for an automotive-repair audience, promoting the message of the post below AS A STORY, not an ad.
+Write a THREE-BEAT arc with a clear before→after change:
+- BEAT1 (~0-10s, opening): establish a striking hook/problem/tension. Multiple short shots are fine (the video model likes to cut between shots on its own).
+- BEAT2 (~10-20s, turn): the struggle/decision/turning point — something visibly changes.
+- BEAT3 (~20-30s, payoff): a satisfying emotional release/result — the viewer must feel the change.
+Rules:
+- ONE consistent protagonist: a FEMALE mechanic (real, capable, work clothes, not sexualized). Same location and lighting across all 3 beats.
+- Ground it in the post's real topic (the specific part/tool/situation). No fantasy, no exaggeration.
+- Do NOT show a smartphone/app screen unless the post is literally about using the app.
+- A brief natural Japanese line of dialogue is allowed in at most ONE beat if it truly fits (write the exact Japanese line); otherwise no dialogue.
+- Describe camera shot/movement + what happens + emotion, in ENGLISH (except an actual Japanese dialogue line, quoted as-is).
+- Output format EXACTLY:
+BEAT1: <...>
+BEAT2: <...>
+BEAT3: <...>
+Japanese post:
+"""${post.slice(0, 1500)}"""`;
+    const j = await api("generate", { role: "marke", task, creative: true });
+    const t = String(j.text || "").trim();
+    const g = (n) => { const m = t.match(new RegExp("BEAT" + n + ":\\s*([\\s\\S]*?)(?:BEAT" + (n + 1) + ":|$)")); return m ? m[1].trim() : ""; };
+    return { b1: g(1), b2: g(2), b3: g(3) };
+  }
+  function shortsCostNote(resolution, seconds) {
+    const perSec = resolution === "1080p" ? 0.10 : 0.10; // Omni Flash 標準は720p/1080pともに実勢約$0.10/秒
+    const usd = (perSec * seconds).toFixed(2);
+    return "実費 約$" + usd + "（¥" + Math.round(usd * 155) + "前後・有料Geminiキーに課金）";
+  }
+  { const b = $("snsShorts"); if (b) b.onclick = async () => {
+      const post = ($("snsBody").value || "").trim();
+      if (!post) { toast("先に投稿文を作成してください"); return; }
+      if (!confirm("YouTube Shorts動画(約30秒・音声付き)をGemini Omni Flashで生成します。\n" + shortsCostNote("720p", 30) + "\n生成には数分かかります。実行しますか？")) return;
+      b.disabled = true; const old = b.textContent;
+      const stat = $("snsShortsStat"); const wrap = $("snsShortsWrap"); wrap.innerHTML = "";
+      const addClip = (label, videoUrl, note) => {
+        const card = document.createElement("div"); card.className = "secImgCard";
+        card.innerHTML = `<div class="secImgHead">${esc(label)}</div>`;
+        const body = document.createElement("div"); body.className = "secImgBody";
+        const v = document.createElement("video"); v.className = "snsImg"; v.src = videoUrl; v.controls = true; v.playsInline = true;
+        const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = videoUrl; a.download = "mechanoai-shorts-" + label.replace(/\s/g, "") + ".mp4";
+        body.appendChild(v); body.appendChild(a);
+        if (note) { const n = document.createElement("div"); n.className = "muted"; n.style.fontSize = "12px"; n.textContent = note; body.appendChild(n); }
+        card.appendChild(body); wrap.appendChild(card);
+      };
+      try {
+        stat.textContent = "🎬 3ビートのシナリオを構成中…";
+        const beats = await postToOmniBeats(post);
+        let previousId = "";
+        const runs = [
+          { label: "パート1(導入)", build: () => `Vertical short film opening shot (about 8-10 seconds). ${beats.b1 || "A female mechanic faces a striking problem in her workshop."}\n${PEOPLE_RULE}\n${SHORTS_AUDIO}` },
+          { label: "パート2(転換)", build: () => `Extend this video. Continue the SAME woman, SAME location, continuous lighting. ${beats.b2 || "The situation visibly turns/changes."}\n${SHORTS_AUDIO}` },
+          { label: "パート3(結末)", build: () => `Extend this video. Continue the SAME woman, SAME location, continuous lighting. This is the FINAL payoff beat — bring the story to a satisfying, resolved conclusion. ${beats.b3 || "A satisfying emotional payoff/result."}\n${SHORTS_AUDIO}` },
+        ];
+        let lastVideo = "";
+        for (let i = 0; i < runs.length; i++) {
+          stat.textContent = "🎬 " + runs[i].label + "を生成中…（1〜3分ほどかかります）";
+          const prompt = runs[i].build();
+          const j = await api("shortsClip", { prompt, previousId, aspectRatio: "9:16", resolution: "720p" });
+          if (!j.video) throw new Error("動画を取得できませんでした");
+          lastVideo = j.video; previousId = j.interactionId || previousId;
+          addClip(runs[i].label, j.video, i === runs.length - 1 ? "★合計約30秒まで積み重ねた結果のはずです。再生して繋がりを確認してください。" : "");
+        }
+        stat.textContent = "✓ 生成完了。各パートを再生して確認し、最後のパートが最終版になっているはずです（前パートも保険として残しています）。" + shortsCostNote("720p", 30);
+      } catch (e) { stat.textContent = "⚠ " + (e.message || e) + "（途中まで生成できた分は上に残っています）"; }
+      finally { b.disabled = false; b.textContent = old; }
+    };
+  }
+
   // 1週間分(7本)を一括生成。毎回スタイル/切り口を変えて、日替わり投稿ネタをまとめて用意。
   let snsWeekStop = false;
   { const b = $("btnSnsWeekStop"); if (b) b.onclick = () => { snsWeekStop = true; toast("中止しました"); }; }
