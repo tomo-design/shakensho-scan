@@ -3476,7 +3476,11 @@ function openIntakePopup(d) {
    検索で開いた車両(スキャン以外)でも、ここからボードに追加・区分変更できる。 */
 function updateVidIntakeBtn(d) {
   const btn = $("btnVidIntake"); if (!btn) return;
-  const on = (typeof isManager === "function" && isManager()) && (typeof getAppMode !== "function" || getAppMode() !== "personal");
+  // 区分の設定・変更は会社メンバー全員OK(スキャン直後の区分ポップアップと同じ)。
+  //  出庫・担当者の変更は従来どおり管理者のみ(このポップアップの担当者欄は管理者にだけ出る)。
+  const business = (typeof getAppMode !== "function" || getAppMode() !== "personal");
+  const member = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
+  const on = business && ((typeof isManager === "function" && isManager()) || member || (typeof officeMode === "function" && officeMode()));
   toggle("btnVidIntake", !!on);
   if (!on) return;
   const e = d ? findHistEntry(getHistory(), d) : null;
@@ -4736,6 +4740,7 @@ function applyRoleUI() {
   const dm = $("secDataMgmt"); if (dm) dm.classList.toggle("hidden", !mgr);
   if (typeof renderHistory === "function") renderHistory();
   if (typeof renderDBList === "function") renderDBList();
+  try { if (typeof updateVidIntakeBtn === "function") updateVidIntakeBtn(current); } catch (e) {}   // ログイン/権限の確定後に車両カードの「区分」ボタンも更新
 }
 window.applyRoleUI = applyRoleUI;
 
