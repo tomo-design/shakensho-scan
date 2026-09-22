@@ -2296,7 +2296,8 @@ async function genImage(promptText, aspectRatio, preferredModel) {
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
   const keys = (paidKey ? [paidKey] : []).concat(freeKeys);
   if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
-  let models = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
+  // gemini-2.0-flash-preview-image-generationは廃止済み(404の原因になるため除外)。gemini-2.5-flash-imageも2026-10-02に終了予定。
+  let models = ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"];
   // モデルが違うとタッチ(画風)がまるで変わるため、指定があればそれを最優先で試す(揃えるため)
   if (preferredModel && models.includes(preferredModel)) {
     models = [preferredModel].concat(models.filter((m) => m !== preferredModel));

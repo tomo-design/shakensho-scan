@@ -5223,7 +5223,8 @@ const GEMINI_MODELS = {
   pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
 };
 /* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
-const GEMINI_IMAGE_MODELS = ["gemini-2.5-flash-image", "gemini-2.5-flash-image-preview", "gemini-2.0-flash-preview-image-generation"];
+// gemini-2.0-flash-preview-image-generationは廃止済み(404の原因になるため除外)。gemini-2.5-flash-imageも2026-10-02に終了予定。
+const GEMINI_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"];
 /* AI結果キャッシュ: 同じ問い合わせは再消費しない(無料枠節約) */
 function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
 function aiCacheGet(k) { try { return (JSON.parse(localStorage.getItem("ss_aicache") || "{}"))[k] || null; } catch (e) { return null; } }
