@@ -1819,8 +1819,13 @@ exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, m
     const db = admin.firestore();
     const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
     if (!conf.arEnabled) { console.log("autoResearch: 無効のためスキップ"); return null; }
-    const areas = String(conf.arAreas || "").split(/[\n,、]/).map((s) => s.trim()).filter(Boolean).slice(0, 3);
-    if (!areas.length) { console.log("autoResearch: 地域未設定のためスキップ"); return null; }
+    const allAreas = String(conf.arAreas || "").split(/[\n,、]/).map((s) => s.trim()).filter(Boolean);
+    if (!allAreas.length) { console.log("autoResearch: 地域未設定のためスキップ"); return null; }
+    // 毎日リストの先頭3件だけを見ると掘り尽くして0件になるため、日ごとに次の3件へローテーションする
+    const cursor = Math.max(parseInt(conf.arCursor, 10) || 0, 0) % allAreas.length;
+    const areas = [];
+    for (let i = 0; i < Math.min(3, allAreas.length); i++) areas.push(allAreas[(cursor + i) % allAreas.length]);
+    const nextCursor = (cursor + areas.length) % allAreas.length;
     const kind = String(conf.arKind || "整備工場");
     const perRun = Math.min(Math.max(parseInt(conf.arPerRun, 10) || 10, 1), 20);
     const norm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
@@ -1850,8 +1855,8 @@ exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, m
         added++;
       }
     }
-    await db.collection("salesConfig").doc("main").set({ arLastRun: Date.now(), arLastAdded: added }, { merge: true });
-    console.log("autoResearch: 追加 " + added + " 件 (areas=" + areas.join("/") + ")");
+    await db.collection("salesConfig").doc("main").set({ arLastRun: Date.now(), arLastAdded: added, arCursor: nextCursor }, { merge: true });
+    console.log("autoResearch: 追加 " + added + " 件 (areas=" + areas.join("/") + " / next=" + nextCursor + ")");
     return null;
   });
 
@@ -1904,6 +1909,87 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
       }
     }
     console.log("drip: 送信 " + sent + " 件");
+    return null;
+  });
+
+/* ②-B メールが無い先へのFAX自動送信(毎朝10:00)。
+   秒速FAX等の「メールFAX送信」を使うため専用APIは不要。仕様は下記(公式準拠):
+     ・宛先(To) = 業者が発行する固定の送信用アドレス(faxToAddr)
+     ・件名(Subject) = 相手先FAX番号(市外局番から・半角数字・ハイフンなし)
+     ・本文 = テキスト形式のみ(HTML不可)。自動折り返しが無いため40字で改行しておく。
+   ※送信元アドレス(SendGridのfrom)を業者の管理画面で事前登録しておく必要がある。
+   salesConfig/main: faxEnabled / faxPerDay / faxToAddr
+   ※法令: 特商法のFAX広告オプトイン規制は対個人(to C)向け。事業者間(法人・工場宛=Works)は
+     同法26条1項で適用除外のため事前承諾は不要。ただし送信元明記と停止受付は必須運用とする。
+     個人向けPocketのFAX送信はしない(対個人はオプトインが必要なため)。 */
+const faxDigits = (s) => String(s || "").replace(/[^0-9]/g, "").replace(/^81/, "0");
+// メールFAXは自動折り返しされないため、1行40字で改行しておく(超過分が紙から切れるのを防ぐ)
+function wrapFax(text, width) {
+  const w = width || 40;
+  const out = [];
+  for (const line of String(text || "").split("\n")) {
+    if (line.length <= w) { out.push(line); continue; }
+    for (let i = 0; i < line.length; i += w) out.push(line.slice(i, i + w));
+  }
+  return out.join("\n");
+}
+function leadFax(l) {
+  if (l.fax) return faxDigits(l.fax);
+  const m = String(l.note || "").match(/FAX[:：]\s*([0-9\-()（）\s]+)/i);
+  return m ? faxDigits(m[1]) : "";
+}
+exports.faxSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "512MB" })
+  .pubsub.schedule("every day 10:00").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    if (!conf.faxEnabled) { console.log("fax: 無効のためスキップ"); return null; }
+    const toAddr = String(conf.faxToAddr || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toAddr)) { console.log("fax: faxToAddr未設定のためスキップ"); return null; }
+    if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("fax: SendGrid未設定のためスキップ"); return null; }
+    const perDay = Math.min(Math.max(parseInt(conf.faxPerDay, 10) || 3, 1), 20);
+    const freeKeys = cfg().geminiFree || [];
+    if (!freeKeys.length) { console.log("fax: Geminiキー未設定"); return null; }
+    const latest = await latestModels(freeKeys[0]);
+    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+    const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 6).get();
+    let sent = 0;
+    for (const doc of snap.docs) {
+      if (sent >= perDay) break;
+      const l = doc.data();
+      if (String(l.email || "").trim()) continue;          // メールがある先はドリップ側に任せる
+      const fax = leadFax(l);
+      if (!fax || fax.length < 9) continue;
+      const sup = await db.collection("faxSuppress").doc(fax).get();
+      if (sup.exists) { await doc.ref.set({ status: "送信停止", updatedAt: Date.now() }, { merge: true }); continue; }
+      const prompt = SALES_STAFF.writer.sys + "\n\n" + PRODUCT_KB + "\n\n" +
+        "整備工場へFAXで送る1枚もののご案内の【本文のみ】を書いてください（宛名行・署名・停止案内はこちらで付けます）。\n" +
+        "・宛先: " + (l.company || "") + "（業種:" + (l.kind || "整備工場") + "）\n" +
+        "・メモ: " + (l.note || "（特記なし）") + "\n" +
+        "・FAXは紙に印刷される前提。1枚に収まる分量（600字以内）で、罫線や記号の装飾は使わず、短い段落と行頭『・』の箇条書きで読みやすく。\n" +
+        "・自動折り返しが効かないため、1行は40字以内に収め、自分で改行を入れること。URLは行の先頭に単独で置く。\n" +
+        "・訴求は『整備士不足・若手の即戦力化』『診断や調べ物の時間短縮』を主軸に、工場向けWorksの話に絞る。\n" +
+        "・個人向けPocketの話は書かない。押し売り・誇張・数字の捏造はしない。\n" +
+        "・最後は『まずは無料デモをご覧ください』程度の一言で締める。";
+      let body = "";
+      try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
+      catch (e) { console.error("fax生成エラー", e); }
+      if (!body) continue;
+      const head = (l.company || "") + " 御中\n\n";
+      const stop = "――――――――――――\n" +
+        "本FAXは、貴社が公開されている連絡先へ整備業向けツールのご案内としてお送りしています。\n" +
+        "今後の送付が不要な場合は、お手数ですが下記までご一報ください。以後お送りいたしません。\n" +
+        "停止のご連絡：TEL 080-3692-0101 ／ Mail cablueie.123@gmail.com";
+      // 件名＝相手先FAX番号。本文はテキストのみ・40字で改行してから渡す。
+      const text = wrapFax(head + body + "\n\n" + stop + "\n\n" + MAIL_SIGN, 40);
+      const ok = await sendMail(toAddr, fax, text, replyAddr());
+      if (ok) {
+        await doc.ref.set({ status: "アプローチ中", approachedAt: Date.now(), approachCh: "fax", updatedAt: Date.now() }, { merge: true });
+        await db.collection("salesOutbound").add({ leadId: doc.id, company: l.company || "", fax: fax, channel: "fax", subject: "FAX " + fax, body: text, ts: Date.now() });
+        sent++;
+      }
+    }
+    await db.collection("salesConfig").doc("main").set({ faxLastRun: Date.now(), faxLastSent: sent }, { merge: true });
+    console.log("fax: 送信 " + sent + " 件");
     return null;
   });
 
@@ -2202,22 +2288,28 @@ async function isSuper(uid) {
   } catch (e) { return false; }
 }
 
-// SNS投稿に添える画像をGeminiの画像生成モデルで作る。data URL(base64)を返す。
+// SNS投稿に添える画像をGeminiの画像生成モデルで作る。{url, model}を返す。
 // ※キーが画像生成に対応していない場合は失敗する(呼び出し側でメッセージ表示)。
-async function genImage(promptText, aspectRatio) {
+// preferredModel: 同じ記事内の見出し画像等、複数枚のタッチを揃えたい時に「前回使えたモデル」を渡して固定する。
+async function genImage(promptText, aspectRatio, preferredModel) {
   const freeKeys = cfg().geminiFree || [];
   const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
   const keys = (paidKey ? [paidKey] : []).concat(freeKeys);
   if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
-  const models = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
+  let models = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
+  // モデルが違うとタッチ(画風)がまるで変わるため、指定があればそれを最優先で試す(揃えるため)
+  if (preferredModel && models.includes(preferredModel)) {
+    models = [preferredModel].concat(models.filter((m) => m !== preferredModel));
+  }
   const base = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], temperature: 1.0 } };
   // アスペクト比指定つきを先に試し、未対応(400)なら指定なしにフォールバック
   const bodies = [];
   if (aspectRatio) { const b = JSON.parse(JSON.stringify(base)); b.generationConfig.imageConfig = { aspectRatio: aspectRatio }; bodies.push(b); }
   bodies.push(base);
   let lastErr = "";
-  for (const key of keys) {
-    for (const model of models) {
+  // まず全キーで「優先モデル」を試し切る→ダメな時だけ他モデルへ(1記事内で複数枚生成してもモデルが揃うように)
+  for (const model of models) {
+    for (const key of keys) {
       for (const body of bodies) {
         let r;
         try {
@@ -2225,12 +2317,12 @@ async function genImage(promptText, aspectRatio) {
             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
           });
         } catch (e) { lastErr = "network"; continue; }
-        if (r.status === 429) { lastErr = "quota"; break; }   // 枠切れは次キーへ
-        if (!r.ok) { lastErr = "http " + r.status; continue; }  // 400等(imageConfig非対応など)は次のbody/モデルへ
+        if (r.status === 429) { lastErr = "quota"; continue; }   // 枠切れは次キーへ(同モデルを維持)
+        if (!r.ok) { lastErr = "http " + r.status; continue; }  // 400等(imageConfig非対応など)は次のbody/キーへ
         const j = await r.json();
         const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
         const img = parts.find((p) => p.inlineData && p.inlineData.data);
-        if (img) return "data:" + (img.inlineData.mimeType || "image/png") + ";base64," + img.inlineData.data;
+        if (img) return { url: "data:" + (img.inlineData.mimeType || "image/png") + ";base64," + img.inlineData.data, model };
         lastErr = "no-image";
       }
     }
@@ -2340,6 +2432,8 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
         dripEnabled: !!c.dripEnabled, dripPerDay: c.dripPerDay || 3,
         arEnabled: !!c.arEnabled, arAreas: c.arAreas || "", arKind: c.arKind || "整備工場", arPerRun: c.arPerRun || 10,
         arLastRun: c.arLastRun || 0, arLastAdded: typeof c.arLastAdded === "number" ? c.arLastAdded : null,
+        faxEnabled: !!c.faxEnabled, faxPerDay: c.faxPerDay || 3, faxToAddr: c.faxToAddr || "",
+        faxLastRun: c.faxLastRun || 0, faxLastSent: typeof c.faxLastSent === "number" ? c.faxLastSent : null,
       },
       sgReady: sgReady,
     });
@@ -2353,6 +2447,9 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     if ("arAreas" in c) patch.arAreas = String(c.arAreas || "").slice(0, 1000);
     if ("arKind" in c) patch.arKind = String(c.arKind || "整備工場").slice(0, 40);
     if ("arPerRun" in c) patch.arPerRun = Math.min(Math.max(parseInt(c.arPerRun, 10) || 10, 1), 20);
+    if ("faxEnabled" in c) patch.faxEnabled = !!c.faxEnabled;
+    if ("faxPerDay" in c) patch.faxPerDay = Math.min(Math.max(parseInt(c.faxPerDay, 10) || 3, 1), 20);
+    if ("faxToAddr" in c) patch.faxToAddr = String(c.faxToAddr || "").trim().slice(0, 120);
     await db.collection("salesConfig").doc("main").set(patch, { merge: true });
     return res.json({ ok: true });
   }
@@ -2439,7 +2536,8 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).
     const p = String(data.prompt || "").trim().slice(0, 2500);
     if (!p) return res.status(400).json({ error: "画像の指示が空です。" });
     const aspect = /^(1:1|16:9|9:16|4:3|3:4|3:2|2:3|4:5|5:4|21:9)$/.test(String(data.aspect || "")) ? data.aspect : "";
-    try { const url = await genImage(p, aspect); return res.json({ image: url }); }
+    const preferredModel = /^gemini-[a-z0-9.-]+$/.test(String(data.model || "")) ? data.model : "";
+    try { const g = await genImage(p, aspect, preferredModel); return res.json({ image: g.url, model: g.model }); }
     catch (e) { return res.status(503).json({ error: e.message || "画像生成に失敗しました。" }); }
   }
 

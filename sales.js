@@ -1029,7 +1029,10 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       $("snsImgStat").textContent = "画像を生成中…（20〜40秒ほどかかることがあります）";
       const j = await api("image", { prompt, aspect });
       if (j.image) {
-        await snsShowImg(j.image);
+        const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
+        const [pw, ph] = IMG_PXSIZE[platform] || IMG_PXSIZE.x;
+        const fixed = await coverToSize(j.image, pw, ph);
+        await snsShowImg(fixed);
         $("snsImgStat").textContent = "画像を生成しました（文字は上の欄で変更→「文字を反映」。保存して投稿に添付）";
       } else { $("snsImgStat").textContent = "画像を取得できませんでした。"; }
     } catch (e) { $("snsImgStat").textContent = "⚠ " + (e.message || e); }
@@ -1037,6 +1040,28 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   }
   { const b = $("snsImg"); if (b) b.onclick = snsGenImage; }
   { const b = $("snsImgRegen"); if (b) b.onclick = snsGenImage; }
+
+  // モデルが返す画像はアスペクト比指定が効かない事があり、そのままだとサイズ/比率がバラつく。
+  // 必ず指定ピクセルへ「cover」で合わせ込み、見た目のサイズ・比率を完全に統一する。
+  function coverToSize(dataUrl, w, h) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+          const ctx = cv.getContext("2d");
+          const ar = img.naturalWidth / img.naturalHeight, tr = w / h;
+          let dw = w, dh = h, dx = 0, dy = 0;
+          if (ar > tr) { dh = h; dw = h * ar; dx = (w - dw) / 2; } else { dw = w; dh = w / ar; dy = (h - dh) / 2; }
+          ctx.drawImage(img, dx, dy, dw, dh);
+          resolve(cv.toDataURL("image/png"));
+        } catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  const IMG_PXSIZE = { x: [1200, 675], instagram: [1080, 1080], facebook: [1200, 630], line: [1080, 1080], note: [1280, 670], tiktok: [1080, 1920], threads: [1080, 1350] };
 
   // note記事の「## 見出し」ごとに、その節の内容に合う差し込み画像を生成
   function parseSections() {
@@ -1068,6 +1093,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
       const style = pick(IMG_STYLES);
       const palette = pick(IMG_PALETTES);
+      let sectionModel = "";   // 最初に成功したモデルをこの記事の全見出しで固定(モデル違いによるタッチの不一致を防ぐ)
       const artDirection = `ART DIRECTION (keep IDENTICAL across every section image of this article, so they read as one consistent set):
 - Visual style: ${style}.
 - Color palette / mood: ${palette}.
@@ -1094,11 +1120,13 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         card.innerHTML = `<div class="secImgHead">${esc(secs[i].head)}</div><div class="secImgBody muted">生成中…</div>`;
         $("snsSectWrap").appendChild(card);
         try {
-          const j = await api("image", { prompt, aspect: "16:9" });
+          const j = await api("image", { prompt, aspect: "16:9", model: sectionModel });
           if (j.image) {
+            if (!sectionModel && j.model) sectionModel = j.model;   // 以降の見出しも同じモデルに固定→タッチが揃う
+            const fixed = await coverToSize(j.image, 1280, 670);     // サイズ/比率を必ず統一
             card.querySelector(".secImgBody").innerHTML = "";
-            const im = document.createElement("img"); im.className = "snsImg"; im.src = j.image;
-            const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = j.image; a.download = "mechanoai-note-" + (i + 1) + ".png";
+            const im = document.createElement("img"); im.className = "snsImg"; im.src = fixed;
+            const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = fixed; a.download = "mechanoai-note-" + (i + 1) + ".png";
             card.querySelector(".secImgBody").appendChild(im); card.querySelector(".secImgBody").appendChild(a);
           } else { card.querySelector(".secImgBody").textContent = "取得できませんでした"; }
         } catch (e) { card.querySelector(".secImgBody").textContent = "⚠ " + (e.message || e); }
