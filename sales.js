@@ -1053,6 +1053,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   function updateSectBtn() {
     const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
     show("snsSectImg", isNote && parseSections().length > 0);
+    show("snsThumb", isNote && ($("snsBody").value || "").trim().length > 0);
   }
   { const s = $("snsPlatform"); if (s) s.addEventListener("change", updateSectBtn); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSectBtn); }
@@ -1105,6 +1106,215 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
       b.disabled = false;
     };
   }
+  // ===== note用サムネ生成 =====
+  // 背景はAI生成(文字なし)、タイトル文字はcanvasで崩れず合成。毎回レイアウト/配色を変えて飽きさせない。
+  // 色テーマ(キーワード色/締め色)を巡回。[0]=キーワード, [1]=強調(2つ目), [2]=締めバッジ
+  const THUMB_THEMES = [
+    { kw: "#ff9500", hit: "#ff453a", badge: "#ff9500", ink: "#1a1204" }, // 橙×赤
+    { kw: "#00d0ff", hit: "#ffffff", badge: "#00b4d8", ink: "#04222b" }, // シアン×白
+    { kw: "#ffd60a", hit: "#ff9f0a", badge: "#ffd60a", ink: "#2a2100" }, // 黄×橙
+    { kw: "#34e07a", hit: "#a0f0c0", badge: "#34e07a", ink: "#052014" }, // 緑
+    { kw: "#ff5db1", hit: "#ffd0e8", badge: "#ff5db1", ink: "#2a0a1c" }, // マゼンタ
+    { kw: "#7aa2ff", hit: "#ffffff", badge: "#5b8cff", ink: "#0a1330" }, // ブルー
+  ];
+  const THUMB_TONES = ["dark", "steel", "rust", "navy", "teal", "green", "plum", "slate"];
+  const THUMB_ALIGN = ["left", "right", "center"];
+  const THUMB_ANCHOR = ["top", "middle", "bottom"];
+  const THUMB_SCRIM = ["bottom", "right", "left", "diag", "full"];
+  const THUMB_ACCENT = ["none", "bar", "underline"];
+  const THUMB_FOOT = ["badge", "solid"];
+  const THUMB_BRAND = ["TL", "TR", "BL"];
+  const TFONT = "'Hiragino Kaku Gothic ProN','Noto Sans JP','Yu Gothic UI',sans-serif";
+
+  // AI(生成)に、note記事から「サムネ用の文字構成」を作らせる。JSONで受け取る。
+  async function titleToThumbParts(post) {
+    const task = `You design the TEXT for a Japanese note.com article thumbnail. From the article below, produce ONE punchy thumbnail copy set.
+Return STRICT JSON only (no code fence), with this shape:
+{"eyebrow": "<短い前フリ or 空文字>", "line1": "<見出し1行目>", "line2": "<見出し2行目 or 空文字>", "keyword": "<line1かline2の中の最も強調したい連続した部分文字列>", "hit": "<2つ目に強調したい連続部分文字列 or 空文字>", "footer": "<締めの一言(10〜14字) or 空文字>"}
+Rules:
+- 見出し(line1/line2)は記事タイトルを土台に、サムネ映えする短く力強い日本語に。1行は最大11〜12文字を目安、全体で2行以内。
+- keyword/hit は line1/line2 の中に「そのままの連続文字列で必ず含まれる」こと(色を変える箇所として使う)。含まれない語は禁止。
+- eyebrow は引用や煽りの前フリ(なければ空)。footer は記事の主張を一言で。
+- 誇張しすぎず、記事の趣旨に忠実に。日本語のみ。
+Article:
+"""${post.slice(0, 1400)}"""`;
+    const j = await api("generate", { role: "marke", task });
+    let raw = String(j.text || "").trim().replace(/^```json\s*|\s*```$/g, "");
+    let o; try { o = JSON.parse(raw); } catch (e) {
+      const m = raw.match(/\{[\s\S]*\}/); o = m ? JSON.parse(m[0]) : {};
+    }
+    return o || {};
+  }
+  // 見出し文字列を、keyword/hitで色分けしたセグメント配列に分解
+  function splitSeg(line, keyword, hit, theme) {
+    if (!line) return null;
+    let segs = [{ t: line, c: "#ffffff" }];
+    const applyMark = (color, mark) => {
+      if (!mark) return;
+      const next = [];
+      for (const s of segs) {
+        if (s.c !== "#ffffff") { next.push(s); continue; }
+        let idx = s.t.indexOf(mark);
+        if (idx < 0) { next.push(s); continue; }
+        if (idx > 0) next.push({ t: s.t.slice(0, idx), c: "#ffffff" });
+        next.push({ t: mark, c: color });
+        const rest = s.t.slice(idx + mark.length);
+        if (rest) next.push({ t: rest, c: "#ffffff" });
+      }
+      segs = next;
+    };
+    applyMark(theme.kw, keyword);
+    applyMark(theme.hit, hit);
+    return segs;
+  }
+  // AI画像(背景)用プロンプト(文字は描かせない)
+  async function thumbBgPrompt(post) {
+    let scene = ""; try { scene = await postToScene(post); } catch (e) {}
+    const style = pick(IMG_STYLES);
+    const subject = scene
+      ? `DEPICT EXACTLY THIS SCENE (main subject of the article):\n${scene}`
+      : `Depict the concrete subject this Japanese article is about:\n"""${post.slice(0, 800)}"""`;
+    return `Create a striking 16:9 background image (about 1280x670px, fill the frame) for a Japanese note.com article thumbnail about automotive repair / the app MECHANO-AI.
+${subject}
+Visual style: ${style}. Cinematic, bold focal point, strong mood. Leave some visually calmer area (darker or less busy) on one side so large title text can be overlaid there later.
+Do NOT default to a smartphone/phone screen unless the article is literally about using a phone/app.
+${PEOPLE_RULE}
+CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks anywhere. Image only (text is added afterward).`;
+  }
+  function tRoundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function tLineW(ctx, line, fs) { ctx.font = "900 " + fs + "px " + TFONT; let w = 0; for (const s of line) w += ctx.measureText(s.t).width; return w; }
+  function tFit(ctx, line, fs, maxW) { while (fs > 30 && tLineW(ctx, line, fs) > maxW) fs -= 2; return fs; }
+  function tDrawLine(ctx, line, fs, cx, y, align) {
+    ctx.font = "900 " + fs + "px " + TFONT; ctx.textBaseline = "alphabetic";
+    const total = tLineW(ctx, line, fs);
+    let x = align === "left" ? cx : align === "right" ? cx - total : cx - total / 2;
+    for (const s of line) {
+      ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = fs / 8; ctx.shadowOffsetY = 3;
+      ctx.fillStyle = s.c; ctx.fillText(s.t, x, y); x += ctx.measureText(s.t).width;
+    }
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    return total;
+  }
+  function tScrim(ctx, W, H, type) {
+    let g;
+    if (type === "bottom") { g = ctx.createLinearGradient(0, H * 0.3, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.72)"); }
+    else if (type === "right") { g = ctx.createLinearGradient(W * 0.35, 0, W, 0); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.7)"); }
+    else if (type === "left") { g = ctx.createLinearGradient(0, 0, W * 0.65, 0); g.addColorStop(0, "rgba(0,0,0,0.72)"); g.addColorStop(1, "rgba(0,0,0,0)"); }
+    else if (type === "diag") { g = ctx.createLinearGradient(W, 0, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.7)"); }
+    else { ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(0, 0, W, H); }
+    if (g) { ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    ctx.save(); ctx.globalCompositeOperation = "multiply";
+    const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.9);
+    v.addColorStop(0, "rgba(255,255,255,1)"); v.addColorStop(1, "rgba(0,0,0,0.5)");
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+  // 背景画像＋文字を1枚のcanvasに合成してdataURLを返す
+  function composeThumb(bgImg, parts) {
+    const W = 1280, H = 670;
+    const theme = pick(THUMB_THEMES);
+    const cfg = {
+      align: pick(THUMB_ALIGN), anchor: pick(THUMB_ANCHOR), scrim: pick(THUMB_SCRIM),
+      accent: pick(THUMB_ACCENT), foot: pick(THUMB_FOOT), brand: pick(THUMB_BRAND),
+    };
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    // 背景(cover)
+    const ar = bgImg.width / bgImg.height, tr = W / H;
+    let dw = W, dh = H, dx = 0, dy = 0;
+    if (ar > tr) { dh = H; dw = H * ar; dx = (W - dw) / 2; } else { dw = W; dh = W / ar; dy = (H - dh) / 2; }
+    ctx.drawImage(bgImg, dx, dy, dw, dh);
+    tScrim(ctx, W, H, cfg.scrim);
+    const pad = 64, maxW = W - pad * 2;
+    const align = cfg.align, cx = align === "left" ? pad : align === "right" ? W - pad : W / 2;
+    const lines = [];
+    const s1 = splitSeg(parts.line1, parts.keyword, parts.hit, theme); if (s1) lines.push(s1);
+    const s2 = splitSeg(parts.line2, parts.keyword, parts.hit, theme); if (s2) lines.push(s2);
+    if (!lines.length) lines.push([{ t: (parts.line1 || "MECHANO-AI"), c: "#fff" }]);
+    const bigBase = lines.length > 1 ? 104 : 112, smallBase = 74;
+    const fss = lines.map((ln, i) => tFit(ctx, ln, (i === lines.length - 1 ? bigBase : smallBase), maxW));
+    const gap = bigBase * 0.14;
+    const eyeFs = 32, eyeH = parts.eyebrow ? eyeFs * 1.6 : 0, footH = parts.footer ? 64 : 0;
+    let blockH = 0; fss.forEach((f, i) => { blockH += f + (i ? gap : 0); });
+    const totalH = eyeH + blockH + footH;
+    let top = cfg.anchor === "top" ? pad + 40 : cfg.anchor === "bottom" ? H - pad - totalH + 10 : (H - totalH) / 2 + 10;
+    let y = top;
+    if (parts.eyebrow) {
+      ctx.font = "700 " + eyeFs + "px " + TFONT; ctx.fillStyle = "#dbe4ee";
+      ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+      const tw = ctx.measureText(parts.eyebrow).width;
+      let ex = align === "left" ? cx : align === "right" ? cx - tw : cx - tw / 2;
+      ctx.fillText(parts.eyebrow, ex, y + eyeFs);
+      ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; y += eyeH;
+    }
+    if (cfg.accent === "bar") {
+      ctx.fillStyle = theme.kw; const barY = y + fss[0] * 0.15;
+      const bx = align === "left" ? cx : align === "right" ? cx - 90 : cx - 45;
+      ctx.fillRect(bx, barY, 90, 10); y += 26;
+    }
+    let ly = y;
+    fss.forEach((f, i) => {
+      ly += f; tDrawLine(ctx, lines[i], f, cx, ly, align);
+      if (cfg.accent === "underline" && i === 0) {
+        const w = tLineW(ctx, lines[i], f);
+        let ux = align === "left" ? cx : align === "right" ? cx - w : cx - w / 2;
+        ctx.fillStyle = theme.kw; ctx.fillRect(ux, ly + 10, w, 8);
+      }
+      ly += gap;
+    });
+    y = ly + 8;
+    if (parts.footer) {
+      ctx.font = "800 26px " + TFONT; const fw = ctx.measureText(parts.footer).width;
+      const bw = fw + 34, bh = 48; let fx = align === "left" ? cx : align === "right" ? cx - bw : cx - bw / 2;
+      if (cfg.foot === "badge") {
+        ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.strokeStyle = theme.badge; ctx.lineWidth = 2;
+        tRoundRect(ctx, fx, y, bw, bh, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.fillText(parts.footer, fx + 17, y + 32);
+      } else {
+        ctx.fillStyle = theme.badge; tRoundRect(ctx, fx, y, bw, bh, 8); ctx.fill();
+        ctx.fillStyle = theme.ink; ctx.fillText(parts.footer, fx + 17, y + 32);
+      }
+    }
+    // ブランド
+    ctx.font = "900 22px " + TFONT; ctx.globalAlpha = 0.88;
+    const full = ctx.measureText("MECHANOAI").width;
+    const bx = cfg.brand.includes("R") ? W - 40 - full : 40, by = cfg.brand.includes("B") ? H - 34 : 52;
+    ctx.fillStyle = "#fff"; ctx.fillText("MECHANO", bx, by);
+    const mw = ctx.measureText("MECHANO").width; ctx.fillStyle = theme.kw; ctx.fillText("AI", bx + mw, by);
+    ctx.globalAlpha = 1;
+    return cv.toDataURL("image/png");
+  }
+  function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+  async function genOneThumb() {
+    const post = ($("snsBody").value || "").trim();
+    if (!post) { toast("先にnote記事を作成してください"); return; }
+    const stat = $("snsThumbStat");
+    stat.textContent = "サムネの文字を設計中…";
+    let parts;
+    try { parts = await titleToThumbParts(post); }
+    catch (e) { const first = (post.split("\n")[0] || "").replace(/^#+\s*/, "").trim(); parts = { line1: first.slice(0, 12), line2: first.slice(12, 24), keyword: "", hit: "", eyebrow: "", footer: "" }; }
+    stat.textContent = "背景画像を生成中…（20〜40秒ほど）";
+    let bgImg;
+    try {
+      const prompt = await thumbBgPrompt(post);
+      const j = await api("image", { prompt, aspect: "16:9" });
+      if (!j.image) throw new Error("背景画像を取得できませんでした");
+      bgImg = await loadImg(j.image);
+    } catch (e) { stat.textContent = "⚠ " + (e.message || e); return; }
+    stat.textContent = "文字を合成中…";
+    let url; try { url = composeThumb(bgImg, parts); } catch (e) { stat.textContent = "⚠ 合成エラー: " + (e.message || e); return; }
+    const card = document.createElement("div"); card.className = "secImgCard";
+    const im = document.createElement("img"); im.className = "snsImg"; im.src = url;
+    const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = url; a.download = "mechanoai-note-thumb.png";
+    const re = document.createElement("button"); re.className = "btn btn-ghost btn-sm"; re.textContent = "↻ 別パターン(文字はそのまま)";
+    re.onclick = () => { try { im.src = composeThumb(bgImg, parts); } catch (e) {} };
+    const body = document.createElement("div"); body.className = "secImgBody";
+    body.appendChild(im); body.appendChild(a); body.appendChild(re);
+    card.appendChild(body);
+    $("snsThumbWrap").insertBefore(card, $("snsThumbWrap").firstChild);
+    stat.textContent = "✓ サムネを作りました（別パターンは同じ背景で文字レイアウトだけ変えられます／作り直すと背景も再生成）";
+  }
+  { const b = $("snsThumb"); if (b) b.onclick = async () => { b.disabled = true; try { await genOneThumb(); } finally { b.disabled = false; } }; }
+
   // 動画生成用プロンプトを組み立てる。日本語本文は動画AIが読めないため、英語の具体的な映像指示(scene)を受け取って使う。
   function buildVideoPrompt(scene) {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";

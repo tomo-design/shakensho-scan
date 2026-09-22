@@ -291,6 +291,8 @@
             <option value="facebook">Facebook</option>
             <option value="line">LINE公式</option>
             <option value="note">note（記事）</option>
+            <option value="tiktok">TikTok（縦型動画の台本）</option>
+            <option value="threads">Threads（スレッズ）</option>
           </select></div>
           <div class="field"><label>投稿スタイル</label><select id="snsStyle">
             <option value="balanced">おすすめ（バランス）</option>
@@ -299,6 +301,8 @@
             <option value="casual">今風・カジュアル（「マジ便利」ユーザー体験レビュー風）</option>
             <option value="buzz">バズ狙い（スクロールを止める・思わず契約したくなる）</option>
             <option value="drama">会話劇・寸劇（整備あるある → 教訓 → 行動アドバイス）</option>
+            <option value="gag">ネタ・ギャグ（「さっき◯◯が言ってた」系のバズ狙い）</option>
+            <option value="ask">問いかけ（見てる人に質問 → リプ・投票を誘う）</option>
             <option value="campaign">告知（7日間無料 など）</option>
           </select></div>
           <div class="field"><label>文量</label><select id="snsLen">
@@ -322,8 +326,10 @@
           <button id="snsCopy" class="btn btn-dark btn-sm">📋 コピー</button>
           <a id="snsOpen" class="btn btn-accent btn-sm" href="#" target="_blank" rel="noopener">🌐 投稿画面を開く</a>
           <button id="snsImg" class="btn btn-ghost btn-sm">🖼 画像を生成（アプリ内）</button>
+          <button id="snsVideo" class="btn btn-ghost btn-sm">🎬 動画プロンプトを作る</button>
           <button id="snsGrok" class="btn btn-ghost btn-sm">✨ Grokで画像/動画を作る</button>
           <button id="snsSectImg" class="btn btn-ghost btn-sm hidden">🧩 見出しごとの画像を作る（note）</button>
+          <button id="snsThumb" class="btn btn-ghost btn-sm hidden">🎨 note用サムネを作る</button>
           <button id="snsRegen" class="btn btn-ghost btn-sm">↻ 作り直す</button>
         </div>
         <p class="vsub" id="snsHint" style="margin:8px 0 0;font-size:12px"></p>
@@ -338,6 +344,9 @@
           </div>
         </div>
       </div>
+
+      <div id="snsThumbStat" class="muted" style="margin:2px 0"></div>
+      <div id="snsThumbWrap" class="secImgs"></div>
 
       <div id="snsSectStat" class="muted" style="margin:2px 0"></div>
       <div id="snsSectWrap" class="secImgs"></div>
@@ -413,6 +422,28 @@
         <div class="panel-actions">
           <button id="btnSaveDrip" class="btn btn-accent btn-sm">保存</button>
           <span id="dripStat" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="panel" id="faxPanel">
+        <div class="field" style="margin:0 0 6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="faxEnabled" style="width:auto"> <b>📠 FAX自動送信を有効にする（毎朝10:00）</b>
+          </label>
+        </div>
+        <p class="vsub" style="margin:0 0 10px">
+          <b>メールが無く、FAX番号がある</b>見込み客へ、AI作成の1枚ものFAX案内を毎朝自動送信します。秒速FAX等の「メールFAX送信」を使うので専用APIは不要です。<br>
+          秒速FAXの管理画面（<b>秒速FAX送信 → 送受信アドレス設定</b>）で発行される<b>送信用アドレス</b>をそのまま貼り付けてください。件名に相手先FAX番号を自動でセットして送信します。送信元・停止先を明記し、停止依頼のあった番号へは二度と送りません。<br>
+          <b>⚠ 先に同じ画面で、送信元として <code>info@mechanoai-cablueie.com</code> を登録してください。</b>未登録だと業者側で弾かれます。<br>
+          <b>※法人・工場宛（Works）のみ送信します。</b>個人向けPocketのFAX送信は行いません（対個人のFAX広告は事前承諾が必要なため）。
+        </p>
+        <div class="form-grid">
+          <div class="field"><label>送信用アドレス（業者発行）</label><input id="faxToAddr" placeholder="例：send-xxxxxx@fax.toones.jp"></div>
+          <div class="field"><label>1日の送信件数（最大20）</label><input type="number" id="faxPerDay" min="1" max="20" value="3"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnSaveFax" class="btn btn-accent btn-sm">保存</button>
+          <span id="faxStat" class="muted"></span>
         </div>
       </div>
 
