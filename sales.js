@@ -786,6 +786,8 @@
     note: { name: "note（記事）", limit: 6000, compose: () => "https://note.com/notes/new", prefill: false, guide: "note記事の体裁で書く。構成: 【1行目に記事タイトル(30字前後・思わず開きたくなる)】→空行→リード文(2〜3行で共感と『この記事で分かること』)→本文は見出し(『## 』記法)で3〜5セクションに分け、各セクションは具体例やエピソードを交えて読みやすく→まとめ→最後にやわらかいCTA(体験デモや無料お試し)。読者が最後まで読める語り口で、宣伝は最後だけ。1500〜3000字目安。" },
     tiktok: { name: "TikTok（縦型ショート動画）", limit: 2200, compose: () => "https://www.tiktok.com/upload", prefill: false,
       guide: "縦型ショート動画(15〜40秒)の【台本】として書く。構成: ①最初の2秒で必ず止める強いフック(セリフor大きめのテロップ)→②シーンを『◆シーン1／◆シーン2…』のように区切り、各シーンに【映像】(何を映すか)＋【テロップ】(画面に出す短い字幕・1行)＋【ナレ/セリフ】を書く→③オチ・気づき→④さいごに軽くCTA。テンポ命で1シーン2〜4秒。最後に別欄として『---』の下に『キャプション:』(共感1〜2行)と『ハッシュタグ:』(#整備士 #車のある生活 等3〜5個)を付ける。整備あるある・現場のリアルで、宣伝くささを消す。" },
+    youtube: { name: "YouTube（Shorts台本）", limit: 3000, compose: () => "https://studio.youtube.com/channel/UC/videos/upload", prefill: false,
+      guide: "縦型ショート動画(YouTube Shorts・目安25〜30秒)の【台本+メタ情報】として書く。構成: 【1行目にタイトル案】(40字以内・検索されやすく思わずタップしたくなる言葉)→空行→②シーンを『◆導入(0-10秒)／◆転換(10-20秒)／◆結末(20-30秒)』の3ブロックで区切り、各ブロックに【映像】(何を映すか・現場のリアルな一場面)＋【セリフ/ナレ】(短く自然な日本語・無ければ省略可)を書く→③最後に別欄として『---』の下に『説明欄:』(2〜3行の紹介文＋7日間無料などの導線を1行だけ)と『タグ:』(#整備士 #カーライフ #shorts 等4〜6個)を付ける。この本文はそのまま『📺 YouTube Shorts動画を作る』ボタンの元ネタになるので、3ブロックの起承転結がはっきり分かるように書く。宣伝くささは消し、現場のリアルとスカッと感を優先。" },
     // Threads: 公式Web Intent(/intent/post?text=)で本文を事前入力できる。1投稿500字上限(全アカウント共通)。
     threads: { name: "Threads", limit: 500, prefill: true, prefillMax: 500,
       compose: (t) => (t && t.length <= 500) ? "https://www.threads.com/intent/post?text=" + encodeURIComponent(t) : "https://www.threads.com/",
@@ -921,6 +923,7 @@ ${SNS_HUMAN}`;
     note: "16:9 horizontal header banner (about 1280x670px)",
     tiktok: "9:16 vertical (portrait, 1080x1920px)",
     threads: "4:5 vertical portrait (1080x1350px, fills the Threads feed)",
+    youtube: "9:16 vertical (portrait, 1080x1920px, YouTube Shorts)",
   };
   function buildImgPrompt(scene) {
     const post = ($("snsBody").value || "").trim();
@@ -940,7 +943,7 @@ ${PEOPLE_RULE}
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text looks broken). Image only.`;
   }
   // 投稿文に見合う画像を生成(Gemini画像モデル)。文字は入れず、毎回違う映えるビジュアルに。
-  const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9", tiktok: "9:16", threads: "4:5" };
+  const IMG_RATIO = { x: "16:9", instagram: "1:1", facebook: "16:9", line: "1:1", note: "16:9", tiktok: "9:16", threads: "4:5", youtube: "9:16" };
   const imgRatio = () => IMG_RATIO[($("snsPlatform") && $("snsPlatform").value) || "x"] || "16:9";
   let snsImgBase = "";   // 文字を載せる前の元画像(data URL)。文字だけ載せ直すのに使う。
   function roundRect(ctx, x, y, w, h, r) {
@@ -1061,7 +1064,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       img.src = dataUrl;
     });
   }
-  const IMG_PXSIZE = { x: [1200, 675], instagram: [1080, 1080], facebook: [1200, 630], line: [1080, 1080], note: [1280, 670], tiktok: [1080, 1920], threads: [1080, 1350] };
+  const IMG_PXSIZE = { x: [1200, 675], instagram: [1080, 1080], facebook: [1200, 630], line: [1080, 1080], note: [1280, 670], tiktok: [1080, 1920], threads: [1080, 1350], youtube: [1080, 1920] };
 
   // note記事の「## 見出し」ごとに、その節の内容に合う差し込み画像を生成
   function parseSections() {
@@ -1348,7 +1351,7 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
   function buildVideoPrompt(story) {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
-    const vertical = (platform === "tiktok" || platform === "instagram" || platform === "threads");
+    const vertical = (platform === "tiktok" || platform === "instagram" || platform === "threads" || platform === "youtube");
     const ratio = vertical ? "9:16 vertical (portrait, 1080x1920)" : (platform === "line" ? "1:1 square" : "16:9 horizontal");
     const dur = vertical ? "10-15 seconds (short-form vertical for TikTok/Reels)" : "8-12 seconds";
     return `Create a short, cinematic, STORY-DRIVEN ${vertical ? "VERTICAL " : ""}video for a Japanese automotive-repair audience (${product === "pocket" ? "individual car mechanics" : "auto repair shops / teams"}).
