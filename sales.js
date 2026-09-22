@@ -1316,21 +1316,29 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
   { const b = $("snsThumb"); if (b) b.onclick = async () => { b.disabled = true; try { await genOneThumb(); } finally { b.disabled = false; } }; }
 
   // 動画生成用プロンプトを組み立てる。日本語本文は動画AIが読めないため、英語の具体的な映像指示(scene)を受け取って使う。
-  function buildVideoPrompt(scene) {
+  function buildVideoPrompt(story) {
     const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
     const platform = ($("snsPlatform") && $("snsPlatform").value) || "x";
     const vertical = (platform === "tiktok" || platform === "instagram" || platform === "threads");
     const ratio = vertical ? "9:16 vertical (portrait, 1080x1920)" : (platform === "line" ? "1:1 square" : "16:9 horizontal");
-    const dur = vertical ? "8-12 seconds (short-form vertical for TikTok/Reels)" : "6-10 seconds";
-    return `Create a short, scroll-stopping ${vertical ? "VERTICAL " : ""}video clip for a Japanese automotive-repair audience (${product === "pocket" ? "individual car mechanics" : "auto repair shops / teams"}).
-Aspect ratio: ${ratio}. Duration: ${dur}. Loop-friendly.
-FILM EXACTLY THIS SCENE (this is the required content — do not invent something unrelated):
-${scene}
-Realistic garage / workshop atmosphere, authentic lighting. Add tasteful camera motion (slow push-in, orbit, or a tool/hand in action). Strong hook in the first 1 second.
-Do NOT default to showing a smartphone/phone screen — include one only if the scene above specifically mentions a phone/app.
-Do NOT render any on-screen text, captions, letters, logos or watermarks (add captions later in the editor).
+    const dur = vertical ? "10-15 seconds (short-form vertical for TikTok/Reels)" : "8-12 seconds";
+    return `Create a short, cinematic, STORY-DRIVEN ${vertical ? "VERTICAL " : ""}video for a Japanese automotive-repair audience (${product === "pocket" ? "individual car mechanics" : "auto repair shops / teams"}).
+Aspect ratio: ${ratio}. Duration: ${dur}.
+This must feel like a tiny FILM with a clear arc — NOT a single static shot with a slow zoom. Tell the story below through distinct beats that build and pay off.
+
+STORYBOARD (film these beats in order, as one continuous, smoothly edited sequence — keep the SAME character, place and lighting continuity across beats):
+${story}
+
+DIRECTION:
+- Beat 1 = a strong HOOK in the first 1 second (a striking visual or a problem/tension the viewer instantly feels).
+- Middle = rising tension / the struggle or turning point — show change, not repetition.
+- Final beat = a satisfying PAYOFF or emotional release (relief, a small triumph, a knowing smile, a resolved result). The viewer should FEEL the before→after change.
+- Vary the shots across beats (e.g. wide establishing → tight detail of hands/tool → reaction close-up on her face → resolving wide). Use motivated camera movement (push-in, whip/handheld follow, rack focus, match-cut on an action). Realistic garage/workshop atmosphere and authentic lighting throughout.
+- Keep it grounded and believable — real mechanic actions, no exaggeration or fantasy.
+Do NOT default to showing a smartphone/phone screen — include one only if the storyboard specifically calls for it.
+Do NOT render any on-screen text, captions, letters, logos or watermarks (captions are added later in the editor).
 ${PEOPLE_RULE}
-AUDIO — VERY IMPORTANT: NO spoken narration, NO voice-over, NO AI-generated speech, NO talking, NO lip-sync of any language (AI Japanese speech sounds broken and unclear). Audio must be ONLY subtle ambient garage/workshop sounds (tools, air impact wrench, engine) and/or light background music. Keep it clean and quiet. Narration and Japanese captions will be added afterward by the creator.`;
+AUDIO — VERY IMPORTANT: NO spoken narration, NO voice-over, NO AI-generated speech, NO talking, NO lip-sync of any language (AI Japanese speech sounds broken and unclear). Audio must be ONLY subtle ambient garage/workshop sounds (tools, air impact wrench, engine) and/or light background music that follows the emotional arc (calmer at tension, lifting at the payoff). Narration and Japanese captions will be added afterward by the creator.`;
   }
   // 投稿文 → 画像/動画AIが理解できる英語の具体的な映像指示に変換(これで内容と映像がズレなくなる)
   // note見出し → その節の内容に合う「具体的な英語シーン」に変換。見出しと画像がズレないようにする。
@@ -1362,13 +1370,36 @@ Output: the English scene description only.`;
     const j = await api("generate", { role: "marke", task });
     return String(j.text || "").trim();
   }
+  // 投稿文 → ストーリー性のある短編映像の絵コンテ(英語・複数ビート)に変換。単調な1カットを避ける。
+  async function postToStoryboard(post) {
+    const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
+    const task = `You are a short-film director. Turn the Japanese post below into a compact but EMOTIONALLY COMPELLING storyboard for an 8-12 second AI-generated video (text-to-video).
+Audience: Japanese automotive repair (${product === "pocket" ? "individual mechanics" : "repair shops / teams"}). The video promotes the message of the post, but must work as a tiny STORY, not an ad.
+Write a THREE-BEAT arc that has a clear before → after change:
+- BEAT 1 (Hook, ~0-2s): a striking opening image or an instantly-felt problem/tension that stops the scroll.
+- BEAT 2 (Turn, ~2-6s): the struggle, decision, or turning point — something visibly CHANGES (an action, a discovery, a shift in her expression).
+- BEAT 3 (Payoff, ~6-10s): a satisfying emotional release or result — relief, a small win, a confident/knowing smile, a resolved outcome. The viewer must feel the change.
+Rules:
+- Keep ONE consistent protagonist (FEMALE — a woman mechanic, real and capable, work clothes, not sexualized), one location, continuous lighting.
+- Ground it in real mechanic reality that matches the post's topic (the specific part/tool/situation). No fantasy, no exaggeration.
+- Do NOT show a smartphone/phone/app screen unless the post is literally about using the app.
+- For EACH beat give: what the camera SEES + the shot type & camera movement + her emotion. English only. No dialogue, no on-screen text, no metaphors, no marketing copy.
+- Output format EXACTLY:
+BEAT 1: <...>
+BEAT 2: <...>
+BEAT 3: <...>
+Japanese post:
+"""${post.slice(0, 1500)}"""`;
+    const j = await api("generate", { role: "marke", task, creative: true });
+    return String(j.text || "").trim();
+  }
   { const b = $("snsVideo"); if (b) b.onclick = async () => {
       const post = ($("snsBody").value || "").trim();
       if (!post) { toast("先に投稿文を作成してください"); return; }
-      b.disabled = true; const old = b.textContent; b.textContent = "🎬 映像を解析中…";
+      b.disabled = true; const old = b.textContent; b.textContent = "🎬 ストーリー構成中…";
       try {
-        const scene = await postToScene(post);
-        copy(buildVideoPrompt(scene));
+        const story = await postToStoryboard(post);
+        copy(buildVideoPrompt(story));
         window.open("https://grok.com/imagine", "_blank", "noopener");
         toast("動画プロンプトをコピー。Grok Imagineに貼り付けて『動画』で生成してください");
       } catch (e) { toast("⚠ " + (e.message || e)); }
@@ -1379,14 +1410,14 @@ Output: the English scene description only.`;
   { const b = $("snsGrok"); if (b) b.onclick = async () => {
       const post = ($("snsBody").value || "").trim();
       if (!post) { toast("先に投稿文を作成してください"); return; }
-      b.disabled = true; const old = b.textContent; b.textContent = "✨ 解析中…";
+      b.disabled = true; const old = b.textContent; b.textContent = "✨ ストーリー構成中…";
       try {
-        let scene = ""; try { scene = await postToScene(post); } catch (e) {}
-        const p = buildImgPrompt(scene) + "\n\n(For a short video: add subtle motion — e.g. slow push-in, tool in action. Keep it 3-6 seconds, loop-friendly, no text. AUDIO: NO spoken narration / NO AI voice / NO talking — ambient garage sounds or light BGM only. Add narration later.)";
-        copy(p);
+        const story = await postToStoryboard(post);
+        copy(buildVideoPrompt(story));
         window.open("https://grok.com/imagine", "_blank", "noopener");
-        toast("プロンプトをコピー。Grokに貼り付けて生成してください");
-      } finally { b.disabled = false; b.textContent = old; }
+        toast("ストーリー動画プロンプトをコピー。Grokに貼り付けて『動画』で生成してください（静止画が欲しい時は『🖼 画像を生成』を使用）");
+      } catch (e) { toast("⚠ " + (e.message || e)); }
+      finally { b.disabled = false; b.textContent = old; }
     };
   }
 
