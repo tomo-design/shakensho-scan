@@ -8399,8 +8399,8 @@ window.updateAuthGate = function () { _authResolved = true; refreshAuthGate(); }
    必ずログイン選択画面(Works/Pocketのゲート)へ戻す: 一時退避を解除し、ホームへ移してゲートを前面に出す。
    ss_hadSession が残っている(=明示ログアウトではない認証の揺れ)場合は画面を動かさない。 */
 window.onCloudLoggedOut = function () {
-  let had = false; try { had = localStorage.getItem("ss_hadSession") === "1"; } catch (e) {}
-  if (had) return;
+  // cloud.js がログアウト確定時にだけ呼ぶ(ログイン記録は呼び出し前に消去済み)。ここでは迷わず選択画面へ。
+  try { localStorage.removeItem("ss_hadSession"); } catch (e) {}
   window._gateBypass = false;
   try { switchView("scan"); } catch (e) {}
   try { window.scrollTo(0, 0); } catch (e) {}

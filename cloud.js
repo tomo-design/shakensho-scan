@@ -382,7 +382,18 @@
       catch (e) { $("cloudAuthStat").textContent = "⚠ " + authErr(e); }
     } else { signup(cloudMode === "new"); }
   });
-  $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", () => { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} auth.signOut(); });
+  /* ログアウト: ログイン記録を消してサインアウトし、完了後にページを読み直す。
+     読み直すことで、画面の状態(設定画面・一時退避など)やメモリ上の前アカウントのデータが残らず、
+     必ずログイン選択画面(ゲート)から始まる。※ページを開きっぱなしで古い処理が残っていても確実に戻る。 */
+  function logoutAndRestart() {
+    try { localStorage.removeItem("ss_hadSession"); } catch (e) {}
+    try { sessionStorage.removeItem("ss_demo"); } catch (e) {}
+    Promise.resolve()
+      .then(() => auth.signOut())
+      .catch(() => {})
+      .then(() => { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} location.replace(location.pathname); });
+  }
+  $("btnCloudLogout") && $("btnCloudLogout").addEventListener("click", logoutAndRestart);
   /* パスワード変更(ログイン中の本人が任意のパスワードへ) */
   $("btnCloudChangePw") && $("btnCloudChangePw").addEventListener("click", async () => {
     const user = auth.currentUser;
@@ -606,10 +617,16 @@
     const inLogged = !!me;
     // 一度ログインした端末は記録。更新・再読込で認証復元が一瞬遅れてもログイン画面を出さない(再ログイン防止)
     try { if (inLogged) localStorage.setItem("ss_hadSession", "1"); } catch (e) {}
-    // ログイン中→未ログインに変わった瞬間(=ログアウト)に、アプリ側でログイン選択画面へ戻す
+    // ログイン中→未ログインに変わった瞬間(=ログアウト確定)に、アプリ側でログイン選択画面へ戻す。
+    //  ★ログイン記録(ss_hadSession)はここで必ず消す。ログアウトボタンで消しても、Firebaseがログアウトを確定する
+    //    までの間に同期の再描画などで(まだログイン中の状態のまま)記録が書き戻されることがあり、
+    //    その場合ゲートが出ずに設定画面に取り残されていた。Firebaseがnullを返すのは本当にログアウトした時だけ。
     const justLoggedOut = _wasLoggedIn && !inLogged;
     _wasLoggedIn = inLogged;
-    if (justLoggedOut && typeof window.onCloudLoggedOut === "function") { try { window.onCloudLoggedOut(); } catch (e) {} }
+    if (justLoggedOut) {
+      try { localStorage.removeItem("ss_hadSession"); } catch (e) {}
+      if (typeof window.onCloudLoggedOut === "function") { try { window.onCloudLoggedOut(); } catch (e) {} }
+    }
     if (typeof window.updateAuthGate === "function") window.updateAuthGate();   // 認証状態が確定したのでログインゲートを再評価
     if (typeof window.applyRoleUI === "function") window.applyRoleUI();   // 権限に応じたUI(データ管理/削除ボタン)を更新
     // ログイン/ログアウト/店舗切替で入庫ボードを再描画 → 自店舗以外のレコードを画面から即座に外す
@@ -1168,7 +1185,7 @@
       if (!this.active || !id) return;
       db.collection("tenants").doc(profile.tenantId).collection("intakePlans").doc(String(id)).set({ deleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     },
-    signOut() { try { localStorage.removeItem("ss_hadSession"); } catch (e) {} try { auth.signOut(); } catch (e) {} },
+    signOut() { logoutAndRestart(); },   // 入庫管理の「ログアウト」等からも同じ流れ(読み直してゲートへ)
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {
       const IAB = "この画面はアプリ内ブラウザで開かれています。通知を使うには、右上メニューから「Chrome / Safari で開く」か、ホーム画面に追加したアプリ（メカノAI）で開いてください。";
