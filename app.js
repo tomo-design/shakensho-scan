@@ -1675,51 +1675,6 @@ $("btnPartsClear") && $("btnPartsClear").addEventListener("click", () => {
   $("partsLoc").innerHTML = ""; toggle("partsLoc", false);
 });
 
-/* 部品の取り付け位置: この車両でどこにあるかを文章＋図＋Web画像リンクで表示 */
-let partsLocBusy = false;
-$("btnPartsLoc") && $("btnPartsLoc").addEventListener("click", async () => {
-  stopFieldMic();
-  const part = $("partName").value.trim();
-  if (!part) { $("partName").focus(); return; }
-  const carName = figureVehicleDesc();
-  const q = ((currentVehicleFacts().model || current.type || "") + " " + part + " 取り付け位置").trim();
-  const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
-    + encodeURIComponent(q) + '&tbm=isch">🔍 実物の取り付け位置をWebの画像で探す<span class="arr">↗</span></a>';
-  const box = $("partsLoc"); toggle("partsLoc", true);
-  if (!aiOK()) {
-    box.innerHTML = '<div class="hint">AIの解説には無料Geminiキー設定が必要です（設定タブ）。Web画像リンクはそのまま使えます。</div>' + linkHtml;
-    return;
-  }
-  if (partsLocBusy) return; partsLocBusy = true;
-  box.innerHTML = '<div class="stepFigLoad">🔧 メカ君が「' + esc(part) + '」の取り付け位置を調べています…(十数秒〜30秒ほど)</div>';
-  setBtnLoading($("btnPartsLoc"), true, "位置を調べ中…");
-  try {
-    // ①場所の文章解説
-    const locPrompt = [
-      "あなたは自動車整備士向けのアドバイザーです。次の車両で、指定部品が『どこに付いているか』を現場目線で簡潔に説明してください。",
-      "含める: どの区画か(エンジンルーム/車両下部/室内/トランク等)、周囲の目印になる部品との位置関係、アクセス方法(上から/下から/カバーを外す等)、左右・前後。前置き不要。Markdown記号は使わず3〜5行で。確信が持てない点は「（要確認）」。",
-      "■対象車両: " + vehicleDesc(),
-      "■部品: " + part,
-    ].join("\n");
-    const r = await geminiAsk(locPrompt);
-    // ②取り付け位置の図(実物に忠実な図→イラスト化の二段。失敗はスキップ)
-    let imgHtml = "";
-    try {
-      let refDesc = ""; try { refDesc = await geminiStepVisualRef(part + " の取り付け位置", carName); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      let refInline = null;
-      try { const p = await geminiGenImage(buildPartLocationPhotoPrompt(part, carName, refDesc)); if (p) refInline = dataUrlToInline(p); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      const dataUrl = await geminiGenImage(buildPartLocationImagePrompt(part, carName, refDesc, !!refInline), refInline ? { refImages: [refInline] } : undefined);
-      if (dataUrl) imgHtml = '<div class="stepFigSvg"><img alt="取り付け位置" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた取り付け位置の参考図（イメージ）</div>';
-    } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-    const textHtml = '<div class="ai-answer">' + esc(r.text).replace(/\n/g, "<br>") + '</div>';
-    box.innerHTML = textHtml + imgHtml + linkHtml;
-  } catch (e) {
-    box.innerHTML = (e && e.message === "__cancelled__" ? "" : '<div class="hint">⚠ ' + esc(e.message || "取得に失敗しました") + '</div>') + linkHtml;
-  } finally {
-    partsLocBusy = false; setBtnLoading($("btnPartsLoc"), false);
-  }
-});
-
 /* この車両について質問(AI Q&A) */
 let vehAskBusy = false;
 $("btnVehClear").addEventListener("click", () => {
@@ -5222,9 +5177,6 @@ const GEMINI_MODELS = {
   flash: ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"],
   pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
 };
-/* 画像生成モデル(通称Nano Banana=Gemini 2.5 Flash Image。同じキーで実画像を返す) */
-// gemini-2.0-flash-preview-image-generationは廃止済み(404の原因になるため除外)。gemini-2.5-flash-imageも2026-10-02に終了予定。
-const GEMINI_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"];
 /* AI結果キャッシュ: 同じ問い合わせは再消費しない(無料枠節約) */
 function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
 function aiCacheGet(k) { try { return (JSON.parse(localStorage.getItem("ss_aicache") || "{}"))[k] || null; } catch (e) { return null; } }
@@ -5591,77 +5543,6 @@ async function geminiAskStream(prompt, opts, onChunk) {
   try { return await geminiAsk(prompt, opts); } catch (e) { throw lastErr || e; }
 }
 
-/* 画像生成: Geminiの画像モデルで実画像(PNG)を生成し data URL を返す。失敗時は "" */
-const imgMemCache = new Map();   // セッション内キャッシュ(無料枠の節約)
-function imgCacheGet(k) {
-  if (imgMemCache.has(k)) return imgMemCache.get(k);
-  try { const c = JSON.parse(localStorage.getItem("ss_imgcache") || "{}"); if (c[k]) { imgMemCache.set(k, c[k]); return c[k]; } } catch (e) {}
-  return null;
-}
-function imgCacheSet(k, dataUrl) {
-  imgMemCache.set(k, dataUrl);
-  // localStorageは容量が小さいので最新数件のみ保持(超過時は古いものから捨てる)
-  try {
-    const c = JSON.parse(localStorage.getItem("ss_imgcache") || "{}");
-    c[k] = dataUrl;
-    let ks = Object.keys(c);
-    while (ks.length > 8) delete c[ks.shift()];
-    while (ks.length) {
-      try { localStorage.setItem("ss_imgcache", JSON.stringify(c)); break; }
-      catch (e) { delete c[ks.shift()]; }   // 容量超過なら古い順に減らして再試行
-    }
-  } catch (e) {}
-}
-/* dataURL("data:image/png;base64,...") → {mimeType,data} (参照画像として渡す用) */
-function dataUrlToInline(dataUrl) {
-  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || "");
-  return m ? { mimeType: m[1], data: m[2] } : null;
-}
-async function geminiGenImage(prompt, opts) {
-  opts = opts || {};
-  const key = localStorage.getItem(LS.gemini);
-  if (!key) throw new Error("APIキー未設定");
-  const refs = (opts.refImages || []).filter(Boolean);
-  // 参照画像がある時はキャッシュキーにも反映(内容が変わるため)
-  const ck = "img:" + hashStr(prompt + "|" + refs.map(r => (r.data || "").slice(0, 32)).join(","));
-  if (!opts.noCache) { const c = imgCacheGet(ck); if (c) return c; }
-  aiAbort = new AbortController();
-  let lastErr = null;
-  for (const model of GEMINI_IMAGE_MODELS) {
-    try {
-      const parts = [{ text: prompt }];
-      refs.forEach(r => parts.push({ inlineData: { mimeType: r.mimeType || "image/png", data: r.data } }));
-      const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: aiAbort.signal,
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
-          })
-        });
-      if (res.status === 404) { lastErr = new Error(model + " 利用不可"); continue; }
-      if (res.status === 429) { lastErr = new Error("無料枠の上限"); continue; }
-      if (res.status === 400 || res.status === 403) { lastErr = new Error("画像モデル非対応/キー権限不足"); continue; }
-      if (!res.ok) { lastErr = new Error("画像生成エラー(" + res.status + ")"); continue; }
-      const j = await res.json();
-      const respParts = j.candidates?.[0]?.content?.parts || [];
-      const img = respParts.find(p => p.inlineData && p.inlineData.data);
-      if (!img) { lastErr = new Error("画像が返りませんでした"); continue; }
-      const mime = img.inlineData.mimeType || "image/png";
-      const dataUrl = "data:" + mime + ";base64," + img.inlineData.data;
-      imgCacheSet(ck, dataUrl);
-      return dataUrl;
-    } catch (e) {
-      if (e && e.name === "AbortError") throw new Error("__cancelled__");
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error("画像生成に失敗しました");
-}
-
 /* 出力言語の指示(UIが英語のときは英語で回答させる)。■等の見出し記号はそのまま維持させる */
 function aiLangDirective() {
   return (window.APP_LANG === "en")
@@ -5962,7 +5843,6 @@ function renderAiAnswer(container, text, opts) {
       const div = document.createElement("div"); div.className = "ai-item";
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
       div.appendChild(t);
-      if (opts.illustrate) attachStepFigure(li, div, n[2]);   // タップで参考図を表示
       if (opts.linkCauses) attachInspectManual(div, n[2]);    // 診断の各原因候補に「点検手引書」を生成できるボタン
       li.appendChild(div);
       list.appendChild(li);
@@ -6042,172 +5922,6 @@ function attachPartPicture(nameEl, pane, partName) {
       pane.innerHTML = '<div class="partPicNote" style="white-space:pre-line">' + esc((e && e.userMsg) || "画像を取得できませんでした。") + '</div>' + fix + raw + linkHtml;
     }
   });
-}
-
-/* 手順の li をタップ可能にして、参考図(メカ君の図解＋画像検索)を下に開く */
-function attachStepFigure(li, div, stepText) {
-  li.classList.add("hasFig");
-  const fig = document.createElement("div"); fig.className = "stepFig hidden";
-  div.appendChild(fig);
-  const hint = document.createElement("div"); hint.className = "stepFigHint"; hint.textContent = "参考図";
-  div.appendChild(hint);
-  let loaded = false;
-  div.addEventListener("click", async () => {
-    const open = fig.classList.toggle("hidden") === false;
-    hint.textContent = open ? "参考図を隠す" : "参考図";
-    if (!open || loaded) return;
-    loaded = true;
-    fig.innerHTML = '<div class="stepFigLoad">🔧 メカ君が実物を確認して図を描いています…(十数秒〜30秒ほど)</div>';
-    // 画像検索リンク(AIキーが無くても使える保険)
-    const carName = figureVehicleDesc();
-    const q = ((currentVehicleFacts().model || current.type || "") + " " + stepText).trim();
-    const linkHtml = '<a class="linkbtn" target="_blank" rel="noopener" href="https://www.google.com/search?q='
-      + encodeURIComponent(q) + '&tbm=isch">🔍 実物の参考画像をWebで探す<span class="arr">↗</span></a>';
-    if (!aiOK()) { fig.innerHTML = linkHtml; return; }
-    try {
-      // ①「実物の特徴」を文章で正確に洗い出す(実写知識で図の精度を上げる。失敗しても続行)
-      let refDesc = "";
-      try { refDesc = await geminiStepVisualRef(stepText, carName); } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      // ②実物に忠実な写実リファレンス画像を生成(部品形状・取付位置の再現性の土台)
-      let refInline = null;
-      try {
-        const photo = await geminiGenImage(buildPartPhotoPrompt(stepText, carName, refDesc));
-        if (photo) refInline = dataUrlToInline(photo);
-      } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      // ③リファレンスの構造(形状・取付位置・工具の当たり)を保持したまま、今のイラストタッチで描き直す
-      let body = "";
-      try {
-        const dataUrl = await geminiGenImage(
-          buildStepImagePrompt(stepText, carName, refDesc, !!refInline),
-          refInline ? { refImages: [refInline] } : undefined
-        );
-        if (dataUrl) body = '<div class="stepFigSvg"><img alt="参考図" src="' + dataUrl + '"></div><div class="stepFigCap">メカ君が描いた参考イラスト（イメージ）</div>';
-      } catch (e) { if (e && e.message === "__cancelled__") throw e; }
-      if (!body) {
-        const svg = await geminiStepFigure(stepText);
-        if (svg) body = '<div class="stepFigSvg">' + svg + '</div><div class="stepFigCap">メカ君のイメージ図（参考）</div>';
-      }
-      fig.innerHTML = body + linkHtml;
-    } catch (e) {
-      fig.innerHTML = (e && e.message === "__cancelled__" ? "" : '<div class="hint">図を描けませんでした。</div>') + linkHtml;
-      loaded = false;
-    }
-  });
-}
-/* 図解用の車両記述(読み取った車両データを作画へ反映) */
-function figureVehicleDesc() {
-  const f = currentVehicleFacts();
-  const makerJa = { isuzu: "いすゞ", hino: "日野", fuso: "三菱ふそう", ud: "UD", nissan: "日産", toyota: "トヨタ", honda: "ホンダ", mazda: "マツダ", suzuki: "スズキ", daihatsu: "ダイハツ", subaru: "スバル" };
-  const code = current.type && current.type.includes("-") ? current.type.split("-")[1] : current.type;
-  const hit = code ? findVehicle(code) : null;
-  const mk = hit && makerJa[hit.maker] ? makerJa[hit.maker] : null;
-  const parts = [];
-  if (f.model) parts.push(f.model); else if (mk) parts.push(mk);
-  if (current.type) parts.push("型式 " + current.type);
-  if (current.engine) parts.push("原動機 " + current.engine);
-  return parts.length ? parts.join(" / ") : "一般的な自動車";
-}
-/* 写実リファレンス画像用プロンプト(構造再現の土台。イラスト化はしない) */
-/* 取り付け位置の写実リファレンス(区画全体＋対象部品が文脈で分かる) */
-function buildPartLocationPhotoPrompt(part, carName, refDesc) {
-  const lines = [
-    "自動車整備の資料用に、指定部品の『取り付け位置』が分かる実物に忠実なクローズアップ画像を1枚生成してください。",
-    "目的: その部品が車両のどの区画(エンジンルーム/車両下部/室内/トランク等)の、どこに・どんな向きで付いているかを、周囲の部品との位置関係が分かる引き〜中距離で正確に示す。",
-    "対象車両: " + (carName || "一般的な自動車") + "。この車種・車格に実在する該当部品と周辺レイアウトの正しい形にする。別車種にしない。",
-    "写実・正確第一。文字/数字/ロゴ/透かしは入れない。イラスト化・誇張はしない(資料写真)。",
-  ];
-  if (refDesc) { lines.push("【実物の特徴メモ(反映)】"); lines.push(refDesc); }
-  lines.push("対象部品: " + part);
-  return lines.join("\n");
-}
-/* 取り付け位置のイラスト(区画を示し、対象部品を丸/矢印で強調) */
-function buildPartLocationImagePrompt(part, carName, refDesc, hasRef) {
-  const lines = [
-    "自動車整備マニュアル用の『部品の取り付け位置イラスト』を1枚生成してください。",
-    "目的: 指定部品が車両のどこに付いているかが一目で分かる図。該当区画(エンジンルーム/下部/室内等)を示し、対象部品を控えめな丸囲みまたは矢印で1か所だけ強調する。周囲の目印部品も描いて位置関係が分かるように。",
-    "対象車両(実物に合わせる): " + (carName || "一般的な自動車") + "。車格・レイアウトをこの車種に合わせ、別車格の部品を描かない。",
-  ];
-  if (hasRef) lines.push("【最重要】添付の参照画像に厳密に従い、部品の形状・位置・周囲との関係を正確に再現(構造は保持)。画風だけ下記イラストに変える。");
-  if (refDesc && !hasRef) { lines.push("【実物の特徴(反映)】"); lines.push(refDesc); }
-  lines.push(
-    "スタイル(厳守): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。1コマのみ。写真そのものにはしない。",
-    "禁止: 文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張。強調の丸/矢印以外の余計な装飾は避ける。",
-    "強調する対象部品: " + part
-  );
-  return lines.join("\n");
-}
-function buildPartPhotoPrompt(stepText, carName, refDesc) {
-  const lines = [
-    "自動車整備の資料用に、実物に忠実な写実的クローズアップ画像を1枚生成してください。",
-    "目的: 部品の実際の形状・取り付け位置・向き・締結部(ボルト/クリップ)・周囲の部品との位置関係を、現車と同等の再現性で正確に示すこと。",
-    "対象車両: " + (carName || "一般的な自動車") + "。この車種・車格に実在する該当部品の正しい形状とレイアウトにすること。別車種・別車格の部品にしない。",
-    "構図: 作業対象の部品を画面中央に大きく、実際の取り付け状態(車体上の位置関係が分かる範囲)で。整備士の手や工具は入れても入れなくてもよいが、部品の形状を隠さない。",
-    "写実・正確第一。文字/数字/ロゴ/寸法線/透かしは入れない。誇張やイラスト化はしない(これは資料写真)。",
-  ];
-  if (refDesc) { lines.push("【実物の特徴メモ(反映する)】"); lines.push(refDesc); }
-  lines.push("作業/対象: " + stepText);
-  return lines.join("\n");
-}
-/* 画像生成モデル向けプロンプト(整備イラスト)。carName=車両 / refDesc=特徴資料 / hasRef=参照画像あり */
-function buildStepImagePrompt(stepText, carName, refDesc, hasRef) {
-  const lines = [
-    "自動車整備マニュアルの『作業手順イラスト』を1枚生成してください。",
-    "最重要: 車の外観カタログ写真ではなく、その作業を“今まさに行っている動作”が一目で分かる図にすること。",
-    "対象車両(この車の実物に合わせて描く): " + (carName || "一般的な自動車") + "。この車種の車格・ボディタイプ(軽/乗用/ミニバン/トラック等)や、該当部品の実際の形状・レイアウトに合わせること。別の車格の部品を描かない。",
-  ];
-  if (hasRef) {
-    lines.push("【最重要・添付の参照画像に厳密に従う】添付画像は実物に忠実な資料です。部品の形状・比率・取り付け位置・向き・締結部・周囲部品との位置関係を、参照画像どおりに正確に再現(トレースするつもりで構造を保持)すること。位置や形を勝手に変えない。");
-    lines.push("変えるのは画風だけ: 参照画像の構造はそのまま、下記のイラストタッチに描き直す。");
-  }
-  lines.push(
-    "視点・構図: 作業対象の部品を画面中央に大きく配置(寄りのクローズアップ)。整備士の手と工具が、その部品のどこに・どの向きで当たり、どう動かすかが明確に分かる角度で描く。",
-    "動作の明示: 工具の回転方向や部品の着脱方向を、控えめな矢印で1〜2本だけ示す。手は作業に必要な分だけ(1〜2本)描き、部品を隠さない。",
-    "正確さ: 工具の種類(レンチ/ラチェット/ドライバー/ジャッキ等)と部品の形状・取り付け位置を、その作業として技術的に正しく描く。ボルト本数や向きなど分かる範囲で実機に忠実に。誤った構造は描かない。"
-  );
-  if (refDesc && !hasRef) { lines.push("【実物の特徴(忠実に反映)】"); lines.push(refDesc); }
-  lines.push(
-    "スタイル(厳守・変更禁止): 清潔感のある半写実イラスト(整備教本の挿絵風)。やわらかい陰影と分かりやすい色分け。背景は薄いガレージ床/単色でごく簡素にし、作業部位を最も目立たせる。1コマのみ(複数コマ・分割なし)。写真そのものにはしない。",
-    "禁止: 車全体の外観・テールランプ・エンブレム等“車種が分かるだけ”の絵、文字/数字/ロゴ/寸法線/透かし、人物の顔や全身、過度な誇張やマンガ的効果。",
-    "作業内容(これを描く): " + stepText
-  );
-  return lines.join("\n");
-}
-/* 実物の見た目を文章で正確に洗い出す(実写知識ベースの資料。イラスト精度向上用。キャッシュあり) */
-async function geminiStepVisualRef(stepText, carName) {
-  const prompt = [
-    "あなたは自動車整備の資料担当です。次の作業を図解するための『実物の見た目メモ』を作ってください。",
-    "実際の写真を思い出すつもりで、事実に基づいて具体的に。箇条書きで4〜6行、各行短く。",
-    "含める観点: 作業対象の部品の形状・色・素材感 / 使う工具の種類と当て方 / 手の位置と動かす方向 / 周囲にある目印になる部品 / 一番分かりやすいカメラ視点。",
-    "推測が混じる場合はその旨は書かず、最も一般的で確からしい実物の特徴を書く。前置き・説明・見出しは不要、メモ本文だけ。",
-    "対象車両: " + (carName || "一般的な自動車"),
-    "作業: " + stepText,
-  ].join("\n");
-  const r = await geminiAsk(prompt, { mode: "flash" });
-  return String(r.text || "").trim().slice(0, 700);
-}
-/* 手順テキストから、シンプルな線画SVGをGeminiに描かせる(キャッシュあり) */
-async function geminiStepFigure(stepText) {
-  const prompt = [
-    "あなたは整備マニュアル用の図を描くイラストレーターです。",
-    "次の自動車整備の手順を理解しやすくする、シンプルな線画の説明イラストを SVG で1枚描いてください。",
-    "条件: 出力は <svg> ～ </svg> のみ(前後の文章・コードフェンス・説明は一切不要)。",
-    "viewBox=\"0 0 400 300\" を指定し、width/heightは付けない。背景は描かない(透明)。",
-    "線は stroke=\"#1f2a44\" stroke-width=\"3\" fill=\"none\" を基本に、必要な部分だけ薄い塗り(fill=\"#dbe4f3\")。",
-    "要点を矢印で示し、日本語の短いラベルを <text fill=\"#1f2a44\" font-size=\"15\"> で2〜4個まで添える。",
-    "写実的でなくてよい。記号的・模式的に、工具や部品の位置関係が伝わることを最優先。",
-    "<script> や外部参照(href, image)は使わないこと。",
-    "■対象車両: " + ((current && (current.model || current.type)) || "一般車両"),
-    "■描く手順: " + stepText,
-  ].join("\n");
-  const r = await geminiAsk(prompt, { mode: "flash" });
-  let s = String(r.text || "").trim();
-  const i = s.indexOf("<svg"); const j = s.lastIndexOf("</svg>");
-  if (i < 0 || j < 0) return "";
-  s = s.slice(i, j + 6);
-  // 安全化: scriptや外部参照を除去
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+="[^"]*"/gi, "")
-       .replace(/(href|xlink:href|src)\s*=\s*"[^"]*"/gi, "");
-  return /<svg[\s\S]*<\/svg>/i.test(s) ? s : "";
 }
 
 /* 「解析する」から自動実行されるAI診断 (キー未設定なら案内カードのみ) */
