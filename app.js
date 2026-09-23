@@ -1309,9 +1309,13 @@ ocrIn.addEventListener("change", async e => {
     if (!aiOK()) $("ocrStatus").innerHTML = "OCR を準備中…(初回はモデル取得に少し時間がかかります)";
     const text = await ocrTesseract(file);
     const d = extractFromOcrText(text);
-    mergeAcc({ type: d.type, vin: d.vin, raw: d.rawCandidates });
-    if (acc.type || acc.vin) {
-      $("ocrStatus").innerHTML = "✓ OCR完了。<b>" + (acc.type || "型式未検出") + "</b> / " + (acc.vin || "車台番号未検出") + " — 誤りがあればRAWチップから修正してください。";
+    // 型式・車台番号だけでなく、Visionが読めた項目はすべて取り込む(既に入っている正しい値は上書きしない)
+    mergeAcc({ type: d.type, vin: d.vin, engine: d.engine, plate: d.plate, kataShitei: d.kataShitei, expiry: d.expiry, firstReg: d.firstReg, raw: d.rawCandidates });
+    if (d.name) { try { saveUserName(d.name); setText("rUser", d.name); } catch (_) {} }
+    if (acc.type || acc.vin || acc.plate) {
+      const got = [acc.type && "型式", acc.vin && "車台番号", acc.engine && "原動機", acc.plate && "登録番号",
+        acc.kataShitei && "指定類別", acc.expiry && "有効期限", acc.firstReg && "初度登録"].filter(Boolean).join("・");
+      $("ocrStatus").innerHTML = "✓ OCR完了（" + (got || "各項目") + "）。<b>" + (acc.type || "型式未検出") + "</b> / " + (acc.vin || "車台番号未検出") + " — 誤りがあればRAWチップから修正してください。";
       scanComplete = true;
       showResult(accResult(), { fromScan: true });
     } else {
@@ -1388,9 +1392,32 @@ async function ocrTesseract(file, statusId = "ocrStatus") {
   await worker.terminate();
   return data.text || "";
 }
+/* 「令和8年3月15日」等の和暦(西暦混在も可)を {y,m,d} に。日が無ければ d=0。読めなければ null。
+   車検証の日付は和暦で印字されるが、Cloud VisionはそのままJSTの文字列として起こすためここで西暦に直す。 */
+function warekiYmd(s) {
+  if (!s) return null;
+  const m = String(s).replace(/\s+/g, "").match(/(令和|平成|昭和|R|H|S)?([0-9]{1,4})年([0-9]{1,2})月(?:([0-9]{1,2})日)?/);
+  if (!m) return null;
+  const era = m[1] || "", n = +m[2], mo = +m[3], d = m[4] ? +m[4] : 0;
+  let y = n;
+  if (era === "令和" || era === "R") y = 2018 + n;
+  else if (era === "平成" || era === "H") y = 1988 + n;
+  else if (era === "昭和" || era === "S") y = 1925 + n;
+  else if (n < 1900) y = 2018 + n;                       // 元号が欠けて数字だけ拾えた時は現行(令和)とみなす
+  if (y < 1950 || y > 2100 || mo < 1 || mo > 12) return null;
+  if (d && (d < 1 || d > 31)) return null;
+  return { y: y, m: mo, d: d };
+}
+/* OCRテキスト(Cloud Vision / Tesseract)から車検証の各項目を抜き出す。
+   Visionは車検証の全文をほぼ正確に文字起こしできるので、型式・車台番号だけでなく
+   原動機型式・登録番号・指定類別・有効期限・初度登録・使用者まで拾う。
+   → AI読み取り(メカ君)が使えない時でも、この経路だけで車両を特定できる。 */
 function extractFromOcrText(text) {
   const norm = zen2han(text).toUpperCase();
   const lines = norm.split(/\n+/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const flat = lines.join(" ");                                        // ラベルと値が改行で分かれていても拾えるよう1本につなぐ
+  const code = flat.replace(/[‐−－ー]/g, "-");       // 型式・車台番号のハイフン類は半角に寄せる(氏名の長音は壊さないよう別文字列で保持)
+  const pick = (src, re) => { const m = src.match(re); return m ? m[1].trim() : null; };
   let type = null, vin = null;
   const rawCandidates = [];
   // ラベル付き行を最優先 (「型式 2PG-FW74HZ」「車台番号 FW74HZ-510123」)
@@ -1399,6 +1426,31 @@ function extractFromOcrText(text) {
     if (!vin && (m = l.match(/車台番号\s*[:：]?\s*([A-Z0-9\-\[\]]{5,23})/))) vin = m[1];
     if (!type && (m = l.match(/(?<!原動機の?)型式\s*[:：]?\s*([0-9A-Z]{2,4}-[A-Z][A-Z0-9]{2,8}|[A-Z]{1,4}[0-9]{1,3}[A-Z0-9]{0,4})/))) type = m[1];
   }
+  // 行で取れなければ、改行をまたいだ並び(ラベルと値が別行)でも拾う
+  if (!vin) vin = pick(code, /車台番号\s*[:：]?\s*([A-Z0-9][A-Z0-9\-\[\]]{4,22})/);
+  if (!type) type = pick(code, /(?<!原動機の)(?<!原動機)型式(?!指定)\s*[:：]?\s*([0-9A-Z]{2,4}-[A-Z][A-Z0-9]{2,8})/);
+  // 原動機の型式 (例 L15B / N04C / 2NR-FKE)
+  const engine = pick(code, /原動機の?型式\s*[:：]?\s*([A-Z0-9][A-Z0-9\-]{1,11})/);
+  // 登録番号 (例 品川 500 あ 12-34)。地名を含まないものはmergeAcc側でも弾かれる
+  const plate = pick(code, /(?:自動車登録番号又は車両番号|自動車登録番号|登録番号|車両番号)\s*[:：]?\s*([一-龥]{1,5}\s*[0-9]{1,3}\s*[ぁ-んァ-ヶ]\s*[0-9]{1,4}(?:-[0-9]{1,4})?)/);
+  // 型式指定番号(最大5桁)＋類別区分番号(最大4桁)の連結。ラベルが並記の車検証にも対応
+  let kataShitei = pick(code, /型式指定番号\s*[・･\/]?\s*類別区分番号\s*[:：]?\s*([0-9]{1,5}\s+[0-9]{1,4})/);
+  if (kataShitei) kataShitei = kataShitei.replace(/\s+/g, "");
+  if (!kataShitei) {
+    const a = pick(code, /型式指定番号\s*[:：]?\s*([0-9]{1,5})/), b = pick(code, /類別区分番号\s*[:：]?\s*([0-9]{1,4})/);
+    if (a && b) kataShitei = a + b;
+  }
+  // 有効期間の満了する日 → Date
+  let expiry = null;
+  const exd = warekiYmd(pick(flat, /有効期間の?満了する日\s*[:：]?\s*((?:令和|平成|昭和|R|H|S)?\s*[0-9]{1,4}\s*年\s*[0-9]{1,2}\s*月\s*[0-9]{1,2}\s*日)/));
+  if (exd && exd.d) expiry = new Date(exd.y, exd.m - 1, exd.d);
+  // 初度登録年月 → {year, month}
+  let firstReg = null;
+  const frd = warekiYmd(pick(flat, /初度登録年月\s*[:：]?\s*((?:令和|平成|昭和|R|H|S)?\s*[0-9]{1,4}\s*年\s*[0-9]{1,2}\s*月)/));
+  if (frd && frd.y > 1980) firstReg = { year: frd.y, month: frd.m };
+  // 使用者の氏名又は名称(次のラベルの手前まで)。日本語を含まない拾い方はノイズとして捨てる
+  let name = pick(flat, /使用者の氏名又は名称\s*[:：]?\s*(.{1,40}?)\s*(?:使用者の住所|使用の本拠|所有者|車名|型式|初度登録|車台番号|$)/);
+  if (name && !/[぀-ヿ㐀-鿿]/.test(name)) name = null;
   // パターン抽出 (フォールバック + RAW候補)
   const tokens = norm.match(/[A-Z0-9\-\[\]]{4,23}/g) || [];
   for (const t of [...new Set(tokens)]) {
@@ -1406,9 +1458,10 @@ function extractFromOcrText(text) {
     else if (/^[0-9A-Z]{2,4}-[A-Z][A-Z0-9]{2,8}$/.test(t) && !/^[0-9]+$/.test(t.split("-")[1])) { if (!type) type = t; rawCandidates.push(t); }
     else if (/^[A-Z]{2,4}[0-9]{2,3}[A-Z0-9]{0,4}$/.test(t) && t.length <= 9) rawCandidates.push(t);
   }
+  if (engine) rawCandidates.unshift(engine);
   if (type) rawCandidates.unshift(type);
   if (vin) rawCandidates.unshift(vin);
-  return { type, vin, plate: null, rawCandidates: [...new Set(rawCandidates)].slice(0, 24) };
+  return { type, vin, engine, plate, kataShitei, expiry, firstReg, name, rawCandidates: [...new Set(rawCandidates)].slice(0, 24) };
 }
 
 /* =========================================================
