@@ -2057,7 +2057,6 @@ exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, me
 
     // AIで「分類＋返信文」を生成(CS担当 円)
     const freeKeys = cfg().geminiFree || [];
-    const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
     if (!freeKeys.length) { console.error("inbound: Geminiキー未設定"); return res.status(200).send("ok"); }
     const latest = await latestModels(freeKeys[0]);
     const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
@@ -2099,9 +2098,10 @@ ${pwBlock}
 3行目以降: そのまま送れる返信本文の完成形(宛名から書き出す)。末尾に下記の署名をそのまま入れる:
 ${SIGNATURE}`;
 
+    // 営業まわりは無料キーのみを使う。有料キー(GEMINI_KEY_PAID)は車検証の全体スキャンとターボ/ツインターボ専用。
+    //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
     let out = { failed: true };
-    if (paidKey) out = await callGeminiModels(paidKey, models, [{ text: prompt }], "flash", false, 4096);
-    if (out.failed) {
+    {
       const start = Math.floor(Math.random() * freeKeys.length);
       for (let i = 0; i < freeKeys.length; i++) {
         out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: prompt }], "flash", false, 4096);
@@ -2293,8 +2293,9 @@ async function isSuper(uid) {
 // preferredModel: 同じ記事内の見出し画像等、複数枚のタッチを揃えたい時に「前回使えたモデル」を渡して固定する。
 async function genImage(promptText, aspectRatio, preferredModel) {
   const freeKeys = cfg().geminiFree || [];
-  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
-  const keys = (paidKey ? [paidKey] : []).concat(freeKeys);
+  // 営業まわりは無料キーのみを使う。有料キー(GEMINI_KEY_PAID)は車検証の全体スキャンとターボ/ツインターボ専用。
+  //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
+  const keys = freeKeys.slice();
   if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
   // gemini-2.0-flash-preview-image-generationは廃止済み(404の原因になるため除外)。gemini-2.5-flash-imageも2026-10-02に終了予定。
   let models = ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"];
@@ -2399,7 +2400,8 @@ async function researchCandidates(area, kind, count, excludeNames) {
   kind = String(kind || "整備工場").trim().slice(0, 40);
   count = Math.min(Math.max(parseInt(count, 10) || 10, 1), 20);
   const freeKeys = cfg().geminiFree || [];
-  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  // 営業まわりは無料キーのみを使う。有料キー(GEMINI_KEY_PAID)は車検証の全体スキャンとターボ/ツインターボ専用。
+  //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
   if (!freeKeys.length) throw new Error("サーバーのGeminiキーが未設定です。");
   const latest = await latestModels(freeKeys[0]);
   const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
@@ -2424,8 +2426,7 @@ ${excludeBlock}
 [{"company":"店名","area":"市区町村","address":"郵送できる正確な住所(都道府県から)","kind":"${kind}","phone":"","fax":"","email":"","formUrl":"","source":"確認した公開ページのURL","note":"規模・特徴など公開情報で分かる範囲(なければ空)"}]`;
   const rparts = [{ text: rprompt }];
   let rout = { failed: true };
-  if (paidKey) rout = await callGeminiModels(paidKey, models, rparts, "flash", true, 8192);   // search=true=検索グラウンディング
-  if (rout.failed) {
+  {   // search=true=検索グラウンディング(無料キーで実行)
     const start = Math.floor(Math.random() * freeKeys.length);
     for (let i = 0; i < freeKeys.length; i++) { rout = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, rparts, "flash", true, 8192); if (!rout.failed) break; }
   }
@@ -2588,7 +2589,8 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
   // ---- AI社員による生成 ----
   const staff = SALES_STAFF[data.role] || SALES_STAFF.bucho;
   const freeKeys = cfg().geminiFree || [];
-  const paidKey = cfg().geminiPaid && cfg().geminiPaid.key;
+  // 営業まわりは無料キーのみを使う。有料キー(GEMINI_KEY_PAID)は車検証の全体スキャンとターボ/ツインターボ専用。
+  //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
   if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const latest = await latestModels(freeKeys[0]);
   const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
@@ -2674,10 +2676,9 @@ ${mixRule}`;
   const parts = [{ text: prompt }];
   // creative指定(SNS等)は温度を上げて毎回違う文章に。通常(メール等)は既定の低温で安定。
   const temp = data.creative ? 1.1 : undefined;
-  // まず有料キー(あれば)→ ダメなら無料キーを順に試す
+  // 無料キーを順に試す(枠切れなら次のキーへ)
   let out = { failed: true };
-  if (paidKey) out = await callGeminiModels(paidKey, models, parts, "flash", false, 8192, undefined, temp);
-  if (out.failed) {
+  {
     const start = Math.floor(Math.random() * freeKeys.length);
     for (let i = 0; i < freeKeys.length; i++) {
       out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, parts, "flash", false, 8192, undefined, temp);
