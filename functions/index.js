@@ -232,6 +232,8 @@ const cfg = () => ({
   // 無料キーのプール: GEMINI_KEY, GEMINI_KEY_2..8 を順番に使い、枠切れ(429)なら次のキーへ。実質 無料枠×本数。
   geminiFree: [process.env.GEMINI_KEY, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3, process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5, process.env.GEMINI_KEY_6, process.env.GEMINI_KEY_7, process.env.GEMINI_KEY_8].filter(Boolean),
   geminiPaid: { key: process.env.GEMINI_KEY_PAID },     // 有料キー(全無料キーが枠切れした時の受け皿。任意)
+  // Cloudflare Workers AI(営業まわりの画像生成)。無料枠=1日10,000 Neurons。Geminiの画像生成は無料枠が無いためこちらを使う。
+  cfAi: { account: process.env.CF_ACCOUNT_ID, token: process.env.CF_AI_TOKEN },
   vision: { key: process.env.VISION_KEY },
   cse: { key: process.env.CSE_KEY, cx: process.env.CSE_CX },
   stripe: {
@@ -2288,48 +2290,78 @@ async function isSuper(uid) {
   } catch (e) { return false; }
 }
 
-// SNS投稿に添える画像をGeminiの画像生成モデルで作る。{url, model}を返す。
-// ※キーが画像生成に対応していない場合は失敗する(呼び出し側でメッセージ表示)。
-// preferredModel: 同じ記事内の見出し画像等、複数枚のタッチを揃えたい時に「前回使えたモデル」を渡して固定する。
-async function genImage(promptText, aspectRatio, preferredModel) {
+const CF_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+/* 画像生成用の指示文を、FLUXが解釈できる英語1文に圧縮する(無料Geminiキーを使用)。
+   ・FLUXは日本語をほぼ理解できない。投稿本文(日本語)を読ませる指示のままでは絵にならない。
+   ・FLUXのpromptは最大2048文字。今の指示文はそれを超えるため要約が必須。
+   失敗しても止めず、元の指示文を切り詰めて渡す(生成そのものは続行する)。 */
+async function toFluxPrompt(promptText, aspectRatio) {
   const freeKeys = cfg().geminiFree || [];
-  // 営業まわりは無料キーのみを使う。有料キー(GEMINI_KEY_PAID)は車検証の全体スキャンとターボ/ツインターボ専用。
-  //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
-  const keys = freeKeys.slice();
-  if (!keys.length) throw new Error("サーバーのGeminiキーが未設定です。");
-  // gemini-2.0-flash-preview-image-generationは廃止済み(404の原因になるため除外)。gemini-2.5-flash-imageも2026-10-02に終了予定。
-  let models = ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"];
-  // モデルが違うとタッチ(画風)がまるで変わるため、指定があればそれを最優先で試す(揃えるため)
-  if (preferredModel && models.includes(preferredModel)) {
-    models = [preferredModel].concat(models.filter((m) => m !== preferredModel));
+  const fallback = String(promptText || "").slice(0, 1800);
+  if (!freeKeys.length) return fallback;
+  const ask = [
+    "次の画像生成の指示を、画像モデル(FLUX)向けの英語プロンプト1つに書き直してください。",
+    "・英語のみ。150語以内。1段落。前置き・説明・引用符は不要で、プロンプト本文だけを出力する。",
+    "・日本語の本文が含まれる場合は、その内容を読み取って『何を描くか』を具体的な英語の情景に翻訳する。",
+    "・画質と画風の指定(照明・構図・色調)は残す。文字やロゴは描かせない指示も残す。",
+    aspectRatio ? "・構図は " + aspectRatio + " で、主役を中央寄りに置き周囲に余白を作る(後で切り抜くため)。" : "",
+    "",
+    "【元の指示】",
+    String(promptText || "").slice(0, 4000),
+  ].filter(Boolean).join("\n");
+  const latest = await latestModels(freeKeys[0]);
+  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const start = Math.floor(Math.random() * freeKeys.length);
+  for (let i = 0; i < freeKeys.length; i++) {
+    // 思考量は既定(512)のまま。0や128を指定すると3系モデルが400や空応答を返すことがあるため触らない
+    const out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: ask }], "flash", false, 2048);
+    if (!out.failed && out.text) return String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, "").slice(0, 2000);
   }
-  const base = { contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], temperature: 1.0 } };
-  // アスペクト比指定つきを先に試し、未対応(400)なら指定なしにフォールバック
-  const bodies = [];
-  if (aspectRatio) { const b = JSON.parse(JSON.stringify(base)); b.generationConfig.imageConfig = { aspectRatio: aspectRatio }; bodies.push(b); }
-  bodies.push(base);
+  return fallback;
+}
+/* SNS投稿に添える画像を Cloudflare Workers AI (FLUX.1 schnell) で作る。{url, model}を返す。
+   ★Geminiの画像生成モデルはGoogleの無料枠では提供されておらず(有料のみ)、有料キーは車検証スキャン
+     とターボ/ツインターボ専用にしたため、営業まわりの画像は無料枠のあるCloudflareで生成する。
+     無料枠は1日10,000 Neurons(FLUX schnellなら1日数百枚)。設定は functions/.env の
+     CF_ACCOUNT_ID / CF_AI_TOKEN。
+   aspectRatio: FLUX schnellは縦横比を指定できない(正方形で返る)。比率は指示文に入れて構図を寄せ、
+     最終的な比率合わせは呼び出し側(sales.jsのcoverToSize)が行う。
+   preferredModel: 以前はモデル違いで画風がぶれるため揃えていたが、現在はモデルが1つなので自動的に揃う。 */
+async function genImage(promptText, aspectRatio, preferredModel) {   // eslint-disable-line no-unused-vars
+  const cf = cfg().cfAi || {};
+  if (!cf.account || !cf.token) {
+    throw new Error("画像生成の設定が未完了です(CF_ACCOUNT_ID / CF_AI_TOKEN)。Cloudflare Workers AI のアカウントIDとAPIトークンを functions/.env に設定してください。");
+  }
+  const prompt = await toFluxPrompt(promptText, aspectRatio);
   let lastErr = "";
-  // まず全キーで「優先モデル」を試し切る→ダメな時だけ他モデルへ(1記事内で複数枚生成してもモデルが揃うように)
-  for (const model of models) {
-    for (const key of keys) {
-      for (const body of bodies) {
-        let r;
-        try {
-          r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-          });
-        } catch (e) { lastErr = "network"; continue; }
-        if (r.status === 429) { lastErr = "quota"; continue; }   // 枠切れは次キーへ(同モデルを維持)
-        if (!r.ok) { lastErr = "http " + r.status; continue; }  // 400等(imageConfig非対応など)は次のbody/キーへ
-        const j = await r.json();
-        const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-        const img = parts.find((p) => p.inlineData && p.inlineData.data);
-        if (img) return { url: "data:" + (img.inlineData.mimeType || "image/png") + ";base64," + img.inlineData.data, model };
-        lastErr = "no-image";
-      }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let r;
+    try {
+      r = await fetch("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cf.account) + "/ai/run/" + CF_IMAGE_MODEL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + cf.token },
+        body: JSON.stringify({ prompt: prompt, steps: 4 }),   // schnellは4ステップ想定(速い・無料枠に優しい)
+      });
+    } catch (e) { lastErr = "network"; continue; }
+    if (r.status === 429) {   // 1日の無料枠(Neurons)切れ。翌日リセットまで待つしかないので即座に伝える
+      throw new Error("画像生成の1日の無料枠に達しました(Cloudflare)。日付が変わるとリセットされます。");
     }
+    if (r.status === 401 || r.status === 403) {
+      throw new Error("画像生成の認証に失敗しました(" + r.status + ")。CF_AI_TOKEN の権限(Workers AI の実行)をご確認ください。");
+    }
+    if (r.status >= 500) { lastErr = "http " + r.status; await new Promise((rs) => setTimeout(rs, 600 * (attempt + 1))); continue; }
+    if (!r.ok) {
+      let detail = ""; try { const j = await r.json(); detail = (j.errors && j.errors[0] && j.errors[0].message) || ""; } catch (e) {}
+      throw new Error("画像生成に失敗しました(" + r.status + (detail ? ": " + detail : "") + ")。");
+    }
+    let j; try { j = await r.json(); } catch (e) { lastErr = "bad-json"; continue; }
+    const b64 = j && j.result && j.result.image;
+    if (!b64) { lastErr = "no-image"; continue; }
+    // 返るbase64の先頭からJPEG/PNGを判別してdata URLにする(拡張子を誤ると表示できないため)
+    const mime = b64.indexOf("/9j/") === 0 ? "image/jpeg" : "image/png";
+    return { url: "data:" + mime + ";base64," + b64, model: CF_IMAGE_MODEL };
   }
-  throw new Error("画像生成に失敗しました(" + lastErr + ")。お使いのGeminiキーが画像生成に対応していない可能性があります。");
+  throw new Error("画像生成に失敗しました(" + lastErr + ")。時間をおいて再度お試しください。");
 }
 
 // YouTube Shorts等向けの短編動画をGemini Omni Flash(音声ネイティブ・複数カットの物語生成)で作る。
