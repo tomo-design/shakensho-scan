@@ -2295,15 +2295,33 @@ const CF_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
    ・FLUXは日本語をほぼ理解できない。投稿本文(日本語)を読ませる指示のままでは絵にならない。
    ・FLUXのpromptは最大2048文字。今の指示文はそれを超えるため要約が必須。
    失敗しても止めず、元の指示文を切り詰めて渡す(生成そのものは続行する)。 */
+/* 要約で落ちてはいけない条件を、要約後のプロンプトに必ず書き戻す。
+   要約は無料Geminiに任せるため、主役の性別や「文字を入れない」が消えることがある(実際に消えた)。
+   ※人物が出ない絵(部品だけ等)もあるので、性別は「人が写る場合は」という条件付きで足す。 */
+function keepHardRules(fluxPrompt, original) {
+  let p = String(fluxPrompt || "").trim();
+  const orig = String(original || "");
+  if (/must be FEMALE|PEOPLE \(MANDATORY\)/i.test(orig) && !/\b(woman|women|female|she|her)\b/i.test(p)) {
+    p += " If any person appears, the main character must be a woman: a real, capable female mechanic in work clothes, never sexualized.";
+  }
+  if (/Do NOT render any text|no text/i.test(orig) && !/no text|without text/i.test(p)) {
+    p += " No text, letters, words, logos or watermarks anywhere in the image.";
+  }
+  return p.slice(0, 2000);
+}
 async function toFluxPrompt(promptText, aspectRatio) {
   const freeKeys = cfg().geminiFree || [];
-  const fallback = String(promptText || "").slice(0, 1800);
+  const fallback = keepHardRules(String(promptText || "").slice(0, 1800), promptText);
   if (!freeKeys.length) return fallback;
   const ask = [
     "次の画像生成の指示を、画像モデル(FLUX)向けの英語プロンプト1つに書き直してください。",
-    "・英語のみ。150語以内。1段落。前置き・説明・引用符は不要で、プロンプト本文だけを出力する。",
+    "・英語のみ。60〜80語。1段落。前置き・説明・引用符は不要で、プロンプト本文だけを出力する。",
+    "  (長いと主役がぼやけて脇役や背景が主役になってしまうため、短く要点だけにする)",
+    "・★1文目に主役を書く。主役は原則1人(または1つの物)にし、脇役は必要な時だけ最後に一言だけ添える。",
     "・日本語の本文が含まれる場合は、その内容を読み取って『何を描くか』を具体的な英語の情景に翻訳する。",
     "・画質と画風の指定(照明・構図・色調)は残す。文字やロゴは描かせない指示も残す。",
+    "・★人物の指定(性別・人数・役割)は絶対に省略しない。主役を女性と指定されていれば、必ず英語プロンプトにもそう書く。",
+    "・主役が人物なら『顔まで入る』構図にする(体だけ写って顔が切れた絵にならないように)。",
     aspectRatio ? "・構図は " + aspectRatio + " で、主役を中央寄りに置き周囲に余白を作る(後で切り抜くため)。" : "",
     "",
     "【元の指示】",
@@ -2315,7 +2333,7 @@ async function toFluxPrompt(promptText, aspectRatio) {
   for (let i = 0; i < freeKeys.length; i++) {
     // 思考量は既定(512)のまま。0や128を指定すると3系モデルが400や空応答を返すことがあるため触らない
     const out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: ask }], "flash", false, 2048);
-    if (!out.failed && out.text) return String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, "").slice(0, 2000);
+    if (!out.failed && out.text) return keepHardRules(String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, ""), promptText);
   }
   return fallback;
 }
@@ -2340,7 +2358,9 @@ async function genImage(promptText, aspectRatio, preferredModel) {   // eslint-d
       r = await fetch("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cf.account) + "/ai/run/" + CF_IMAGE_MODEL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cf.token },
-        body: JSON.stringify({ prompt: prompt, steps: 4 }),   // schnellは4ステップ想定(速い・無料枠に優しい)
+        // steps=8(上限)。4だと人物が首から下だけになる等の破綻が出たため、品質側に振る。
+        // 消費は1枚あたり最大でも約77 Neurons=1日130枚ほど生成できる計算で、無料枠(1日10,000)に十分収まる。
+        body: JSON.stringify({ prompt: prompt, steps: 8 }),
       });
     } catch (e) { lastErr = "network"; continue; }
     if (r.status === 429) {   // 1日の無料枠(Neurons)切れ。翌日リセットまで待つしかないので即座に伝える
