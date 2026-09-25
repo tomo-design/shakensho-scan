@@ -2307,6 +2307,12 @@ function keepHardRules(fluxPrompt, original) {
   if (/Do NOT render any text|no text/i.test(orig) && !/no text|without text/i.test(p)) {
     p += " No text, letters, words, logos or watermarks anywhere in the image.";
   }
+  // 人物が写る絵は、記念写真のようなカメラ目線ではなく「仕事中の自然な一瞬」にする。
+  //  ※拡散モデルは否定形(not looking at the camera)をほぼ無視するので、
+  //    「視線がどこを向いているか」を肯定形で書く。横顔・斜め後ろの画角指定も併用する。
+  if (/\b(woman|women|female|man|men|male|mechanic|person|people|customer|staff)\b/i.test(p) && !/gaze|profile view/i.test(p)) {
+    p += " Her gaze is locked on the part she is working on, eyes down at her hands. Candid side profile, three-quarter view from behind her shoulder, absorbed in the task.";
+  }
   return p.slice(0, 2000);
 }
 async function toFluxPrompt(promptText, aspectRatio) {
@@ -2322,6 +2328,8 @@ async function toFluxPrompt(promptText, aspectRatio) {
     "・画質と画風の指定(照明・構図・色調)は残す。文字やロゴは描かせない指示も残す。",
     "・★人物の指定(性別・人数・役割)は絶対に省略しない。主役を女性と指定されていれば、必ず英語プロンプトにもそう書く。",
     "・主役が人物なら『顔まで入る』構図にする(体だけ写って顔が切れた絵にならないように)。",
+    "・視線は『どこを見ているか』を肯定形で書く(例: 手元の部品を見つめる／相手の顔を見て話す)。",
+    "  画像モデルは『カメラを見ない』のような否定形を無視するため、横顔・斜め後ろからの画角も添えて自然な作業風景にする。",
     aspectRatio ? "・構図は " + aspectRatio + " で、主役を中央寄りに置き周囲に余白を作る(後で切り抜くため)。" : "",
     "",
     "【元の指示】",
