@@ -1046,6 +1046,17 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
 
   // モデルが返す画像はアスペクト比指定が効かない事があり、そのままだとサイズ/比率がバラつく。
   // 必ず指定ピクセルへ「cover」で合わせ込み、見た目のサイズ・比率を完全に統一する。
+  /* cover配置(枠いっぱいに敷く)の描画矩形を計算する。
+     ★縦を削る場合は中央ではなく“上寄り”で切る。生成画像は人物の頭が上の方に来るため、
+       中央(0.5)で切ると頭が落ちる。0.28だと上の余白だけが削れて顔が残る。
+     ※サムネ合成(composeThumb)と画像の比率合わせ(coverToSize)の両方で使う。
+       以前は同じ計算が2か所にあり、片方だけ直して頭切れが残った。 */
+  function coverRect(sw, sh, w, h) {
+    const ar = sw / sh, tr = w / h;
+    if (ar > tr) { const dh = h, dw = h * ar; return { dx: (w - dw) / 2, dy: 0, dw: dw, dh: dh }; }
+    const dw = w, dh = w / ar;
+    return { dx: 0, dy: (h - dh) * 0.28, dw: dw, dh: dh };
+  }
   function coverToSize(dataUrl, w, h) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -1053,17 +1064,8 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
         try {
           const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
           const ctx = cv.getContext("2d");
-          const ar = img.naturalWidth / img.naturalHeight, tr = w / h;
-          let dw = w, dh = h, dx = 0, dy = 0;
-          if (ar > tr) {
-            dh = h; dw = h * ar; dx = (w - dw) / 2;
-          } else {
-            // 縦を削る場合は中央ではなく“上寄り”で切る。
-            //  生成画像は人物の頭が上の方に来るため、中央(0.5)で切ると頭が落ちる。
-            //  0.28にすると上の余白だけを削り、顔が残る。
-            dw = w; dh = w / ar; dy = (h - dh) * 0.28;
-          }
-          ctx.drawImage(img, dx, dy, dw, dh);
+          const r = coverRect(img.naturalWidth, img.naturalHeight, w, h);
+          ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
           resolve(cv.toDataURL("image/png"));
         } catch (e) { resolve(dataUrl); }
       };
@@ -1257,11 +1259,9 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
     };
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d");
-    // 背景(cover)
-    const ar = bgImg.width / bgImg.height, tr = W / H;
-    let dw = W, dh = H, dx = 0, dy = 0;
-    if (ar > tr) { dh = H; dw = H * ar; dx = (W - dw) / 2; } else { dw = W; dh = W / ar; dy = (H - dh) / 2; }
-    ctx.drawImage(bgImg, dx, dy, dw, dh);
+    // 背景(cover)。切り抜きの基準はcoverRectに集約(頭切れ防止のため上寄りで切る)
+    const bg = coverRect(bgImg.width, bgImg.height, W, H);
+    ctx.drawImage(bgImg, bg.dx, bg.dy, bg.dw, bg.dh);
     tScrim(ctx, W, H, cfg.scrim);
     const pad = 64, maxW = W - pad * 2;
     const align = cfg.align, cx = align === "left" ? pad : align === "right" ? W - pad : W / 2;
