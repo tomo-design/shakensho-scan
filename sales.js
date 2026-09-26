@@ -1055,7 +1055,14 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
           const ctx = cv.getContext("2d");
           const ar = img.naturalWidth / img.naturalHeight, tr = w / h;
           let dw = w, dh = h, dx = 0, dy = 0;
-          if (ar > tr) { dh = h; dw = h * ar; dx = (w - dw) / 2; } else { dw = w; dh = w / ar; dy = (h - dh) / 2; }
+          if (ar > tr) {
+            dh = h; dw = h * ar; dx = (w - dw) / 2;
+          } else {
+            // 縦を削る場合は中央ではなく“上寄り”で切る。
+            //  生成画像は人物の頭が上の方に来るため、中央(0.5)で切ると頭が落ちる。
+            //  0.28にすると上の余白だけを削り、顔が残る。
+            dw = w; dh = w / ar; dy = (h - dh) * 0.28;
+          }
           ctx.drawImage(img, dx, dy, dw, dh);
           resolve(cv.toDataURL("image/png"));
         } catch (e) { resolve(dataUrl); }

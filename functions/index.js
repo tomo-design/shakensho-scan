@@ -2298,7 +2298,29 @@ const CF_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 /* 要約で落ちてはいけない条件を、要約後のプロンプトに必ず書き戻す。
    要約は無料Geminiに任せるため、主役の性別や「文字を入れない」が消えることがある(実際に消えた)。
    ※人物が出ない絵(部品だけ等)もあるので、性別は「人が写る場合は」という条件付きで足す。 */
-function keepHardRules(fluxPrompt, original) {
+/* カメラ位置・画角のバリエーション。毎回ランダムに1つ選ぶ。
+   ★以前は固定の一文(「斜め後ろから・手元を見つめる」)を必ず足していたため、
+     どの記事でも同じ『紺のツナギの女性のバストショット』ばかりになっていた。
+   ★どれも顔を画面の上端ぎりぎりに置かない画角にしてある(16:9へ切り抜く時の頭切れ防止)。 */
+const SHOT_VARIANTS = [
+  "Wide establishing shot of the whole workshop bay; the mechanic is small in the frame and the machinery and space dominate.",
+  "Over-the-shoulder view from behind her, looking past her shoulder at the part in her hands.",
+  "Low angle from below, looking up at her as she works on the underside of a car on the lift.",
+  "Extreme close-up of her hands and the tool; her face is out of frame entirely.",
+  "Full-body side view as she carries a heavy part across the workshop floor.",
+  "From directly behind: only her back and the glow of the inspection lamp in front of her.",
+  "High angle looking straight down onto the workbench at her hands and the scattered tools.",
+  "Her face reflected in a wing mirror or a polished body panel while she works.",
+  "Wide side-on shot, her silhouette against the bright open shutter, deep shadows in the foreground.",
+  "Two mechanics seen from across the pit, both absorbed in the same job, plenty of headroom above them.",
+  "Waist-up shot from a low three-quarter angle, the open engine bay filling the foreground.",
+  "Over the roof of the car, looking across at her on the far side of the vehicle.",
+];
+const pickShot = () => SHOT_VARIANTS[Math.floor(Math.random() * SHOT_VARIANTS.length)];
+/* 要約で落ちてはいけない条件を、要約後のプロンプトに必ず書き戻す。
+   要約は無料Geminiに任せるため、主役の性別や「文字を入れない」が消えることがある(実際に消えた)。
+   ※人物が出ない絵(部品だけ等)もあるので、性別は「人が写る場合は」という条件付きで足す。 */
+function keepHardRules(fluxPrompt, original, shot) {
   let p = String(fluxPrompt || "").trim();
   const orig = String(original || "");
   if (/must be FEMALE|PEOPLE \(MANDATORY\)/i.test(orig) && !/\b(woman|women|female|she|her)\b/i.test(p)) {
@@ -2309,28 +2331,34 @@ function keepHardRules(fluxPrompt, original) {
   }
   // 人物が写る絵は、記念写真のようなカメラ目線ではなく「仕事中の自然な一瞬」にする。
   //  ※拡散モデルは否定形(not looking at the camera)をほぼ無視するので、
-  //    「視線がどこを向いているか」を肯定形で書く。横顔・斜め後ろの画角指定も併用する。
-  if (/\b(woman|women|female|man|men|male|mechanic|person|people|customer|staff)\b/i.test(p) && !/gaze|profile view/i.test(p)) {
-    p += " Her gaze is locked on the part she is working on, eyes down at her hands. Candid side profile, three-quarter view from behind her shoulder, absorbed in the task.";
+  //    視線の行き先を肯定形で書く。画角は毎回違うものを選んで構図のマンネリを防ぐ。
+  if (/\b(woman|women|female|man|men|male|mechanic|person|people|customer|staff)\b/i.test(p)) {
+    if (!/over-the-shoulder|from behind|high angle|low angle|close-up|silhouette|reflected|establishing/i.test(p)) {
+      p += " " + (shot || pickShot());
+    }
+    if (!/gaze|eyes (?:stay|are|down)/i.test(p)) p += " Her eyes stay on the work in front of her.";
+    p += " Keep plenty of headroom: her head sits well inside the frame, never touching the top edge.";
   }
   return p.slice(0, 2000);
 }
 async function toFluxPrompt(promptText, aspectRatio) {
   const freeKeys = cfg().geminiFree || [];
-  const fallback = keepHardRules(String(promptText || "").slice(0, 1800), promptText);
+  const shot = pickShot();   // 今回の画角(毎回変える)。要約にも渡し、失敗時の書き戻しにも使う
+  const fallback = keepHardRules(String(promptText || "").slice(0, 1800), promptText, shot);
   if (!freeKeys.length) return fallback;
   const ask = [
     "次の画像生成の指示を、画像モデル(FLUX)向けの英語プロンプト1つに書き直してください。",
     "・英語のみ。60〜80語。1段落。前置き・説明・引用符は不要で、プロンプト本文だけを出力する。",
     "  (長いと主役がぼやけて脇役や背景が主役になってしまうため、短く要点だけにする)",
-    "・★1文目に主役を書く。主役は原則1人(または1つの物)にし、脇役は必要な時だけ最後に一言だけ添える。",
-    "・日本語の本文が含まれる場合は、その内容を読み取って『何を描くか』を具体的な英語の情景に翻訳する。",
+    "・1文目に『何の場面か』を書く。日本語の本文が含まれる場合は読み取って具体的な英語の情景に翻訳する。",
     "・画質と画風の指定(照明・構図・色調)は残す。文字やロゴは描かせない指示も残す。",
     "・★人物の指定(性別・人数・役割)は絶対に省略しない。主役を女性と指定されていれば、必ず英語プロンプトにもそう書く。",
-    "・主役が人物なら『顔まで入る』構図にする(体だけ写って顔が切れた絵にならないように)。",
     "・視線は『どこを見ているか』を肯定形で書く(例: 手元の部品を見つめる／相手の顔を見て話す)。",
-    "  画像モデルは『カメラを見ない』のような否定形を無視するため、横顔・斜め後ろからの画角も添えて自然な作業風景にする。",
-    aspectRatio ? "・構図は " + aspectRatio + " で、主役を中央寄りに置き周囲に余白を作る(後で切り抜くため)。" : "",
+    "  画像モデルは『カメラを見ない』のような否定形を無視するため、肯定形で書くこと。",
+    "・★カメラ位置と画角は次の指定に必ず従う(毎回違う絵にするため、勝手にバストショットに寄せない):",
+    "    " + shot,
+    "・人物の頭は画面の上端から十分に離す(上下を切り抜いて使うため、頭が切れる)。",
+    aspectRatio ? "・最終的な用途は " + aspectRatio + "。左右に広がりのある画面を想定して構図を作る。" : "",
     "",
     "【元の指示】",
     String(promptText || "").slice(0, 4000),
@@ -2341,7 +2369,7 @@ async function toFluxPrompt(promptText, aspectRatio) {
   for (let i = 0; i < freeKeys.length; i++) {
     // 思考量は既定(512)のまま。0や128を指定すると3系モデルが400や空応答を返すことがあるため触らない
     const out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: ask }], "flash", false, 2048);
-    if (!out.failed && out.text) return keepHardRules(String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, ""), promptText);
+    if (!out.failed && out.text) return keepHardRules(String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, ""), promptText, shot);
   }
   return fallback;
 }
