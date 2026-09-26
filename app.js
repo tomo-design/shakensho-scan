@@ -3440,7 +3440,8 @@ function setIntake(rid, kind, staff) {
 function setIntakeKindOnly(rid, kind, staff) {
   if (!INTAKE_KINDS[kind]) return;
   const hist = getHistory(); const t = hist.find(h => h.rid === rid); if (!t) return;
-  t.intakeKind = kind; if (t.intakeOut) { t.intakeOut = null; if (!t.intakeAt) t.intakeAt = Date.now(); }
+  // 出庫済みから区分変更で入庫に戻す=新しい入庫セッション。入庫日時を今に更新(古い端末の巻き戻しと区別するため)
+  t.intakeKind = kind; if (t.intakeOut) { t.intakeOut = null; t.intakeAt = Date.now(); }
   if (staff !== undefined) t.staff = staff || null;
   t.updatedAt = Date.now();
   localStorage.setItem(LS.hist, JSON.stringify(hist));

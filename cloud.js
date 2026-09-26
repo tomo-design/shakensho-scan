@@ -711,6 +711,48 @@
     if (r.statusAt != null) sub.statusAt = r.statusAt;
     return sub;
   }
+  /* ===== 古い端末による「出庫の巻き戻し」防止 =====
+     レコードは端末の全体コピーを丸ごと書く(last-write-wins)ため、出庫を知らない端末(バックグラウンド復帰直後など)が
+     車両を開く/スキャンする(addHistory)と、古い「入庫中」のコピーがクラウドの出庫を上書きし、
+     ①入庫に戻る ②削除済みコメントが復活 ③新規入庫/新コメントのプッシュ通知が誤送信される。
+     書く直前にクラウド現状と突き合わせ、入庫セッションが古い側なら入庫系の項目は送らず、コメントは削除優先でunionする。 */
+  const INTAKE_SESSION_KEYS = ["intakeKind", "intakeAt", "intakeOut", "intakeStatus", "statusAt", "inspDone", "inspAt", "confirms", "officeMemo"];
+  function intakeStaleVsCloud(local, cloud) {
+    if (!local || !cloud || cloud.deleted === true) return false;
+    // ①クラウドは出庫済み。ローカルは、その出庫より前に始まった入庫がまだ続いている扱い(=出庫を知らない古いコピー)
+    if (cloud.intakeOut && local.intakeKind && !local.intakeOut && (local.intakeAt || 0) <= cloud.intakeOut) return true;
+    // ②クラウドは(ローカルの出庫より後に始まった)新しい入庫中。ローカルは古い入庫を出庫にしようとしている
+    if (cloud.intakeKind && !cloud.intakeOut && local.intakeOut && (cloud.intakeAt || 0) > local.intakeOut) return true;
+    // ③ローカルは入庫情報を持たない(未取得/新規作成)のにクラウドには入庫情報がある → nullで潰さない(入庫区分は消せない仕様)
+    if (!local.intakeKind && cloud.intakeKind) return true;
+    return false;
+  }
+  function reconcileWithCloud(body, cloud) {
+    if (!cloud || cloud.deleted === true) return body;
+    const out = Object.assign({}, body);
+    if (intakeStaleVsCloud(body, cloud)) INTAKE_SESSION_KEYS.forEach(k => { delete out[k]; });
+    // 進捗だけのパッチ(updateRecordFields)でも、出庫済みの車両に古い進捗を書き戻さない
+    if (cloud.intakeOut && out.statusAt != null && out.statusAt <= cloud.intakeOut) { delete out.intakeStatus; delete out.statusAt; }
+    // コメントは追記のみ・削除(del)優先のunion。古い配列で「削除済みコメント」が復活しないようにする
+    if (Array.isArray(out.comments) && typeof mergeComments === "function") {
+      out.comments = mergeComments(cloud.comments, out.comments);
+      const live = out.comments.filter(c => c && !c.del);
+      out.officeMemo = live.length ? live[live.length - 1].text : null;
+    }
+    return out;
+  }
+  /* records への書き込みは必ずここを通す(transactionでクラウド現状を読んでから書く) */
+  async function writeRecordSafe(ref, body) {
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        tx.set(ref, reconcileWithCloud(body, snap.exists ? snap.data() : null), { merge: true });
+      });
+    } catch (e) {
+      // 通信断などでtransactionが使えない時だけ、入庫系の項目を外した安全な内容で書く(出庫の巻き戻しを起こさない)
+      try { const safe = Object.assign({}, body); INTAKE_SESSION_KEYS.forEach(k => { delete safe[k]; }); delete safe.comments; await ref.set(safe, { merge: true }); } catch (e2) {}
+    }
+  }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
   async function uploadLocal(tid) {
@@ -733,7 +775,7 @@
         // クラウドが同等以上に新しい(出庫・削除など後の操作を含む)なら、古いローカルで上書きしない。
         // 新規/ローカルが新しい場合のみ送信。カルテ等の統合は購読側(onSnapshot)が担う。
         if (c && (c.updatedAt || 0) >= (h.updatedAt || 0)) continue;
-        try { await db.collection("tenants").doc(tid).collection("records").doc(docKey(h)).set(recordSubset(h), { merge: true }); rUp++; }
+        try { await writeRecordSafe(db.collection("tenants").doc(tid).collection("records").doc(docKey(h)), recordSubset(h)); rUp++; }
         catch (e) { errMsg = (e && e.code) || e.message || String(e); }
       }
     } catch (e) { errMsg = (e && e.code) || e.message || String(e); }
@@ -778,7 +820,7 @@
           if (r.deleted) {
             if (e && (e.updatedAt || 0) > (r.updatedAt || 0)) {
               // ローカルで削除後に再作成/編集された → ローカルを正としてクラウドへ復活送信
-              try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+              try { writeRecordSafe(db.collection("tenants").doc(tid).collection("records").doc(docKey(e)), recordSubset(e)); } catch (er) {}
             } else if (ei >= 0) { hist.splice(ei, 1); }
             return;
           }
@@ -791,9 +833,12 @@
           if (typeof mergeComments === "function") e.comments = mergeComments(e.comments, r.comments);
           // ★確認レ点はunionしない: unionすると片方で外しても相手の古い打刻と合算され復活してしまう。
           //   レコードの更新時刻(updatedAt)で新しい方の状態を採用し、外した状態も確実に反映する。
+          // ★出庫を知らない古い端末: 入庫セッションはクラウドが新しい → 入庫系の項目はクラウド側を採用(updatedAtの大小に関係なく)。
+          //   これをしないと、この端末が車両を開いた拍子(addHistoryでupdatedAt更新)に、古い「入庫中」をクラウドへ書き戻して出庫を巻き戻す。
+          if (intakeStaleVsCloud(e, r)) INTAKE_SESSION_KEYS.forEach(k => { if (r[k] !== undefined) e[k] = (k === "confirms" && r[k] === null) ? [] : r[k]; });
           if ((e.updatedAt || 0) > (r.updatedAt || 0)) {
-            // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き
-            try { db.collection("tenants").doc(tid).collection("records").doc(docKey(e)).set(recordSubset(e), { merge: true }); } catch (er) {}
+            // ローカルの方が新しい(編集/クリア) → クラウドへ送り返して上書き(書く直前にクラウド現状と再照合される)
+            try { writeRecordSafe(db.collection("tenants").doc(tid).collection("records").doc(docKey(e)), recordSubset(e)); } catch (er) {}
           } else {
             // クラウドの方が新しい → 反映(名前=使用者はクラウド値をそのまま採用しクリアも反映)
             Object.assign(e, { type: r.type || e.type, vin: r.vin || e.vin, plate: r.plate || e.plate, name: clean(r.name), model: r.model || e.model, engine: r.engine || e.engine, kataShitei: r.kataShitei || e.kataShitei, firstReg: r.firstReg || e.firstReg, expiry: r.expiry || e.expiry, specs: r.specs || e.specs, faults: r.faults || e.faults, recalls: r.recalls || e.recalls, intakeKind: (r.intakeKind !== undefined ? r.intakeKind : e.intakeKind), intakeAt: (r.intakeAt !== undefined ? r.intakeAt : e.intakeAt), intakeOut: (r.intakeOut !== undefined ? r.intakeOut : e.intakeOut), intakeStatus: (r.intakeStatus !== undefined ? r.intakeStatus : e.intakeStatus), statusAt: (r.statusAt !== undefined ? r.statusAt : e.statusAt), inspDone: (r.inspDone !== undefined ? r.inspDone : e.inspDone), inspAt: (r.inspAt !== undefined ? r.inspAt : e.inspAt), feePaid: (r.feePaid !== undefined ? r.feePaid : e.feePaid), feeStatus: (r.feeStatus !== undefined ? r.feeStatus : e.feeStatus), officeMemo: (r.officeMemo !== undefined ? r.officeMemo : e.officeMemo), staff: (r.staff !== undefined ? r.staff : e.staff), confirms: (Array.isArray(r.confirms) ? r.confirms : (r.confirms === null ? [] : e.confirms)), at: e.at || r.at || new Date().toISOString(), updatedAt: r.updatedAt || e.updatedAt || 0 });
@@ -1134,14 +1179,14 @@
     },
     pushRecord(r) {
       if (!this.active || !r || !(r.vin || r.rid)) return;
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)).set(recordSubset(r), { merge: true }).catch(() => {});
+      writeRecordSafe(db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)), recordSubset(r));
     },
     /* レ点・費用など“小さな更新”を軽量に反映(specs/karte等の重いフィールドを送らず高速化・低コスト)。
        patch のフィールドだけをmerge。全端末への反映が速くなる。 */
     updateRecordFields(r, patch) {
       if (!this.active || !r || !(r.vin || r.rid) || !patch) return;
       const body = Object.assign({ vin: r.vin || null, rid: r.rid || null, deleted: false, updatedAt: r.updatedAt || Date.now() }, patch);
-      db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)).set(body, { merge: true }).catch(() => {});
+      writeRecordSafe(db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)), body);
     },
     deleteRecord(r) {
       if (!this.active || !r) return;
