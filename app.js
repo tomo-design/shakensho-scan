@@ -2380,7 +2380,11 @@ function saveSpecItemInline(oldKey, newKey, newVal, remove) {
   if (remove) { if (idx >= 0) specs.splice(idx, 1); }
   else {
     if (!newKey) { uiAlert("項目名を入力してください。"); return; }
-    const item = { k: newKey, v: newVal, manual: true };   // 手動修正としてマーク(AI更新でも保持)
+    // 手動修正としてマーク(AI更新でも保持)。手入力した時刻(at)を刻む=これより古いカルテ記載には勝つ。
+    // 何も変えずに保存しただけなら元の時刻を保つ(開いて保存しただけでカルテより新しくならない)。
+    const prev = idx >= 0 ? specs[idx] : null;
+    const unchanged = prev && prev.manual && prev.k === newKey && prev.v === newVal;
+    const item = unchanged ? prev : manualSpec(newKey, newVal, Date.now());
     if (idx >= 0) specs[idx] = item; else specs.push(item);
   }
   setLearned(vehicleKey(current), { specs });
@@ -2921,6 +2925,11 @@ const FLUID_GROUPS = [
 const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
 function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
 function parseLiters(v) { const m = han(String(v || "")).match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
+/* 手動(緑)の諸元項目。at=手入力した時刻(またはカルテ反映の基準時刻, ms)。
+   「カルテ優先だが、そのあとに手入力した値は手入力を優先」の新旧判定に使う(undefinedはFirestoreで弾かれるので無い時は付けない)。 */
+function manualSpec(k, v, at) { const o = { k, v, manual: true }; if (at) o.at = at; return o; }
+/* カルテ1件の記録時刻(ms)。編集・保存のたびに更新される at を使う */
+function karteTs(e) { return (e && (Date.parse(e.at) || Date.parse(e.date))) || 0; }
 /* カルテ1件の部品欄から、油脂類の実績量を抜き出す → [{g, liters, qtyStr}](同一グループは最後の値) */
 function fluidsFromKarteEntry(entry) {
   if (!entry || entry.deleted || !entry.parts) return [];
@@ -2940,7 +2949,7 @@ function fluidsFromKarteEntry(entry) {
     // ② 単位が無くても、油脂行に現れる妥当な数量(0.1〜50L想定)を量として拾う
     if (liters == null) { const m2 = cleaned.match(/(?:^|[^0-9.])(\d+(?:\.\d+)?)(?![0-9.])/); if (m2) { const n = parseFloat(m2[1]); if (n > 0 && n <= 50) liters = n; } }
     if (liters == null) return;
-    found.push({ g, liters, qtyStr: liters + "L" });
+    found.push({ g, liters, qtyStr: liters + "L", at: karteTs(entry) });
   });
   // 同一グループが複数行あれば最後の値を採用(重複排除)
   const map = new Map(); found.forEach(f => map.set(f.g.canon, f));
@@ -2956,8 +2965,8 @@ function latestKarteFluids() {
   return latest;
 }
 /* 諸元の油脂量が、カルテの最新の実績量と食い違う時だけカルテの数値へ差し替える(緑=確定として固定)。
-   緑の手動値は再読込で守られるが、カルテと相違がある場合に限りカルテを優先する。一致・カルテ記載なしの項目は触らない。
-   量(〇L)を持つ項目だけが対象(粘度・交換サイクル等は対象外)。同じ油脂の量項目が複数あれば最初の1つだけ。 */
+   基本はカルテ優先。ただしカルテの記録より「後に」手入力で直した値(at が新しい)は、手入力を優先して残す。
+   一致・カルテ記載なしの項目は触らない。量(〇L)を持つ項目だけが対象(粘度・交換サイクル等は対象外)。同じ油脂の量項目が複数あれば最初の1つだけ。 */
 function applyKarteFluids(specs) {
   if (!Array.isArray(specs) || !specs.length || !current) return specs;
   let latest; try { latest = latestKarteFluids(); } catch (e) { return specs; }
@@ -2969,31 +2978,37 @@ function applyKarteFluids(specs) {
     const cur = parseLiters(s.v); if (cur == null) return s;
     done.add(g.canon);
     if (Math.abs(cur - f.liters) < 0.001) return s;
-    return { k: s.k, v: f.qtyStr, manual: true };
+    if (s.manual && (s.at || 0) > (f.at || 0)) return s;   // カルテより後の手入力 → 手入力を優先
+    return manualSpec(s.k, f.qtyStr, f.at);                // カルテの記録時刻を持たせる(以後の手入力がこれに勝つ)
   });
 }
 /* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
 function reconcileFluidsFromKarte(entry) {
   if (!entry || entry.deleted || !entry.parts || !current) return;
-  const found = fluidsFromKarteEntry(entry);
+  // 今回のカルテに載った油脂グループについて、全カルテのうち最新(日付順)の実績量を採用(過去日付で入力しても開き直し時の表示と食い違わない)
+  const latest = latestKarteFluids();
+  const found = [...new Set(fluidsFromKarteEntry(entry).map(f => f.g.canon))].map(c => latest.get(c)).filter(Boolean);
   if (!found.length) return;
   const he = findHistEntry(getHistory(), current) || {};
   const learned = getLearned(vehicleKey(current)) || {};
-  let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
+  let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? manualSpec(s.k, s.v, s.at) : { k: s.k, v: s.v });
   const changes = [];
   found.forEach(f => {
-    // 同じ油脂グループの諸元項目を探す
-    const i = specs.findIndex(s => { const g = fluidGroupOf(s.k); return g && g.canon === f.g.canon; });
+    // 同じ油脂グループの諸元項目を探す。量(〇L)を持つ項目を優先し、無ければ値が読めない「〜量」項目(粘度などは対象にしない)
+    const inGroup = s => { const g = fluidGroupOf(s.k); return g && g.canon === f.g.canon; };
+    let i = specs.findIndex(s => inGroup(s) && parseLiters(s.v) != null);
+    if (i < 0) i = specs.findIndex(s => inGroup(s) && /量/.test(s.k));
     if (i < 0) {
       // 諸元に該当項目が無ければ、カルテ実績から新規追加(緑=手動確定)
-      specs.push({ k: f.g.canon + "量", v: f.qtyStr, manual: true });
+      specs.push(manualSpec(f.g.canon + "量", f.qtyStr, f.at || Date.now()));
       changes.push({ k: f.g.canon + "量", oldV: "", newV: f.qtyStr });
       return;
     }
     const cur = parseLiters(specs[i].v);
     if (cur != null && Math.abs(cur - f.liters) < 0.001) return;   // 一致していれば変更なし
+    if (specs[i].manual && (specs[i].at || 0) > (f.at || 0)) return;   // カルテより後の手入力は手入力を優先
     changes.push({ k: specs[i].k, oldV: specs[i].v, newV: f.qtyStr });
-    specs[i] = { k: specs[i].k, v: f.qtyStr, manual: true };   // 実績確定値として緑で固定(AI再読込でも上書きされない)
+    specs[i] = manualSpec(specs[i].k, f.qtyStr, f.at || Date.now());   // 実績確定値として緑で固定(AI再読込でも上書きされない)
   });
   if (!changes.length) return;
   saveVehicleAiData(specs);                          // 履歴(DB)＋社内共有へ
@@ -3036,8 +3051,8 @@ function normalizeSpecs(specs) {
   (specs || []).forEach(s => {
     // 値に複数の「ラベル:」が含まれる＝固まったデータ → 分解
     const merged = splitSpecText(s.k + ": " + s.v);
-    if (merged.length > 1) out.push(...merged.map(m => s.manual ? { ...m, manual: true } : m));
-    else out.push(s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
+    if (merged.length > 1) out.push(...merged.map(m => s.manual ? manualSpec(m.k, m.v, s.at) : m));
+    else out.push(s.manual ? manualSpec(s.k, s.v, s.at) : { k: s.k, v: s.v });
   });
   // 値が空 or「（要確認）」だけの項目は非表示(見苦しいため)。ただし手入力項目は残す
   const isEmptyish = v => { const t = String(v || "").replace(/[（）()\s]/g, ""); return t === "" || t === "要確認"; };
@@ -3069,14 +3084,15 @@ function addSpecRow(k, v) {
 }
 function collectSpecRows() {
   // 直前の表示値と比較し、変更した項目(と新規項目)だけ「手動修正」フラグを付ける
-  const prior = {}; (shownSpecs || []).forEach(s => { prior[s.k] = { v: s.v, manual: !!s.manual }; });
+  const prior = {}; (shownSpecs || []).forEach(s => { prior[s.k] = { v: s.v, manual: !!s.manual, at: s.at || 0 }; });
   const out = [];
   $("specEditRows").querySelectorAll(".specEditRow").forEach(r => {
     const k = r.querySelector(".seK").value.trim(), v = r.querySelector(".seV").value.trim();
     if (!k) return;
     const p = prior[k];
     const manual = p ? (p.v !== v ? true : p.manual) : true;   // 値が変わった/新規 → 手動
-    out.push(manual ? { k, v, manual: true } : { k, v });
+    // 変えた/新規の項目は今の時刻を刻む。変えていない手動項目は元の時刻を保つ
+    out.push(manual ? manualSpec(k, v, (p && p.v === v && p.manual) ? p.at : Date.now()) : { k, v });
   });
   return out;
 }
@@ -3086,10 +3102,10 @@ function mergeKeepManual(aiSpecs, curSpecs) {
   const manual = {}; (curSpecs || []).forEach(s => { if (s.manual) manual[s.k] = s; });
   const used = new Set();
   const out = (aiSpecs || []).map(s => {
-    if (manual[s.k]) { used.add(s.k); return { k: s.k, v: manual[s.k].v, manual: true }; }
+    if (manual[s.k]) { used.add(s.k); return manualSpec(s.k, manual[s.k].v, manual[s.k].at); }
     return s;
   });
-  Object.keys(manual).forEach(k => { if (!used.has(k)) out.push({ k, v: manual[k].v, manual: true }); });
+  Object.keys(manual).forEach(k => { if (!used.has(k)) out.push(manualSpec(k, manual[k].v, manual[k].at)); });
   return applyKarteFluids(out);
 }
 $("btnSpecEdit").addEventListener("click", () => addSpecItemInline());
