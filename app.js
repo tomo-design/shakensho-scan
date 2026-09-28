@@ -311,6 +311,20 @@ const cleanCite = s => String(s == null ? "" : s)
   .replace(/\s+([、。,.，])/g, "$1")
   .replace(/[\s、,，]+$/g, "")
   .trim();
+/* AI返答の1要素を表示用の文字列にする。文字列以外(オブジェクト・配列)が来ても「[object Object]」と出さない。
+   {症状:…,原因:…} のように日本語キーがあれば「キー:値」で、英語キー等なら値だけを並べる。 */
+function aiText(x) {
+  if (x == null) return "";
+  if (typeof x === "string") return x;
+  if (typeof x === "number" || typeof x === "boolean") return String(x);
+  if (Array.isArray(x)) return x.map(aiText).filter(Boolean).join("、");
+  if (typeof x === "object") {
+    return Object.keys(x).map(k => { const v = aiText(x[k]); return v ? (/[ぁ-んァ-ヶ一-龠]/.test(k) ? k + ":" + v : v) : ""; }).filter(Boolean).join(" ／ ");
+  }
+  return String(x);
+}
+/* 過去に「[object Object]」のまま保存されてしまった項目を表示・再利用しないための判定 */
+const isJunkAiText = t => /^\s*\[object \w+\]\s*$/.test(String(t == null ? "" : t));
 /* 検索グラウンディング有効時に混入する引用マーカーを、オブジェクト内の全文字列から再帰的に除去 */
 function cleanCiteDeep(v) {
   if (typeof v === "string") return cleanCite(v);
@@ -2197,7 +2211,8 @@ function showResult(d, opt = {}) {
     m.textContent = "";   // 「未登録」表記は出さない(代わりに修正/保存ボタンを設置)
     toggle("secNotes", false);
   }
-  renderFaultList(allFaults); toggle("secFault", allFaults.length > 0);
+  const faultsShown = dedupFaults(allFaults);   // 「[object Object]」等の壊れた保存値を除いた表示用
+  renderFaultList(faultsShown); toggle("secFault", faultsShown.length > 0);
   // 諸元: 「最も新しく更新されたデータ」を表示する(端末間で別IDのDB重複があっても、訂正の取りこぼしを防ぐ)。
   // 候補: DBレコード(hit) / 車両レコード(履歴) / 学習。updatedAtが最大で諸元を持つものを採用。
   const learnedAt = learned && learned.at ? Date.parse(learned.at) || 0 : 0;
@@ -3203,6 +3218,7 @@ function dedupFaults(list) {
   const sim = (a, b) => { if (!a.size || !b.size) return 0; let inter = 0; for (const x of a) if (b.has(x)) inter++; return inter / (a.size + b.size - inter); };
   const out = [], keys = [];
   (list || []).forEach(item => {
+    if (isJunkAiText(item)) return;   // 過去に「[object Object]」で保存された項目は捨てる
     const n = norm(item); if (!n) return;
     const bg = bigrams(n);
     for (let i = 0; i < keys.length; i++) {
@@ -3226,7 +3242,7 @@ function renderFaultList(faults) {
 }
 /* AIが調べたリコール・改善対策の一覧を描画(参考情報の注記付き) */
 function renderRecalls(recalls) {
-  recalls = recalls || [];
+  recalls = (recalls || []).filter(t => !isJunkAiText(t));
   fillList("recallList", recalls, false);
   toggle("recallList", recalls.length > 0);
   toggle("recallNote", recalls.length > 0);
@@ -6788,7 +6804,7 @@ function buildSpecPrompt(known, missOnly) {
     "【重複禁止】faultsは1つの症状につき1件だけ。同じ内容を言い換えただけ・表現違いの重複は絶対に入れない(例『オイル漏れ』と『オイルにじみ』を別々に出さず1件に統合)。",
     "あわせて、推定できる車種名(メーカー名+車種名、例『日野 プロフィア』)と、メーカーを次のローマ字キーのいずれかで答えること: isuzu,hino,fuso,ud,nissan,toyota,honda,mazda,suzuki,daihatsu,subaru,other。判別できなければmodelは空文字、makerは\"other\"。",
     "【表記ルール】各値は日本語＋数値のみで簡潔に。引用・出典マーカー([cite:...]、[17]、(from previous search)等)や英語の注釈は絶対に本文へ入れない。検索は内部で行い、結果の数値だけを書く。",
-    "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。形式:",
+    "出力は厳密なJSONのみ(前後に文章やコードフェンス不要)。faults と recalls の各要素は必ず1本の日本語の文字列にすること(オブジェクト・配列・入れ子にしない)。形式:",
     '{"model":"日野 プロフィア","maker":"hino","specs":[{"k":"エンジンオイル量","v":"12.0L（オイルのみ）／13.0L（エレメント同時交換）"},{"k":"推奨オイル粘度","v":"…"},{"k":"クーラント量","v":"…"},{"k":"ホイールナット締付トルク","v":"600±50 N·m"},{"k":"リアアクスルシャフト（フランジ）締付トルク","v":"…±… N·m"},{"k":"フロントハブベアリングナット締付トルク","v":"…±… N·m"},{"k":"リアハブベアリングナット締付トルク","v":"…±… N·m"},{"k":"ATF/CVT/ミッションオイル","v":"…"},{"k":"デフオイル（デファレンシャルオイル）","v":"…(粘度・油量・該当する場合は前後/LSD有無も)"},{"k":"車台番号の打刻位置","v":"…(例: 助手席足元のフロア、右フロントシート下など)"},{"k":"エンジン型式の打刻位置","v":"…(例: シリンダーブロック前面など)"}],"faults":["定番故障・持病を1件1文で複数"],"recalls":["主なリコール/改善対策を1件1文(年式・対象部位が分かれば併記)"]}',
     "【OBD検査の対象判定】この車両がOBD検査(OBD確認検査)の対象車かを、型式・初度登録年月・燃料種別・車種区分から判定する。対象と判断できる場合のみ、specsに {\"k\":\"OBD検査\",\"v\":\"対象車（◯年◯月〜適用）\"} を含める。対象でない・判定できない場合はこの項目を一切出さない(記載しない)。判定の要点: 令和3年(2021年)10月1日以降に型式指定を受けた新型車が対象。継続生産車はガソリン等が令和4年(2022年)10月〜・ディーゼルが令和5年(2023年)10月〜、輸入車はさらに後(令和6年10月〜)。二輪・大型特殊・被牽引車・一部の特種用途車は対象外。初度登録年月が令和3年10月より前の車両は基本的に対象外。確証が持てない場合は対象にしない(項目を出さない)。",
     "【必須項目】次の項目は、その車両に存在する限り必ず調べて具体値で含めること: ①エンジンオイル量 ②ミッションオイル量(MT/AT/CVTのいずれか該当するもの) ③デフオイル量 ④ホイールナット締付トルク ⑤リアアクスルシャフト（フランジ）締付トルク＝アクスルシャフトを固定するフランジ(ドライブフランジ)のボルト/ナットの締付値 ⑥フロントハブベアリングナット締付トルク ⑦リアハブベアリングナット締付トルク ⑧車台番号の打刻位置 ⑨エンジン型式の打刻位置。これらは検索して実値を探し出すこと。『（要確認）』で逃げない。",
@@ -6853,7 +6869,7 @@ async function runSpecAI(srcBtn) {
   if (!force && known.length && (!missReq.length || attemptedBefore)) {
     const specs = mergeKeepManual(withHeavyTorque(withHksOil(known.slice()), current, cached.maker || (hit && hit.maker)), shownSpecs);
     const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
-    const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
+    const rc = ((Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || [])).filter(t => !isJunkAiText(t));
     toggle("specAiBox", false);
     renderSpecs(specs, "learned");
     if (cf.length) { renderFaultList(cf); toggle("secFault", true); }
@@ -6882,9 +6898,9 @@ async function runSpecAI(srcBtn) {
     const obj = extractJson(r.text);
     let specs = [], faults = [], recalls = [], model = "", maker = "";
     if (obj) {
-      specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(String(s.k)), v: cleanCite(String(s.v || "")) })).filter(s => s.k && s.v) : [];
-      faults = dedupFaults(Array.isArray(obj.faults) ? obj.faults.map(x => cleanCite(String(x))).filter(Boolean) : []);   // 言い換え重複を除去して保存
-      recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => cleanCite(String(x))).filter(Boolean) : [];
+      specs = Array.isArray(obj.specs) ? obj.specs.filter(s => s && s.k).map(s => ({ k: cleanCite(aiText(s.k)), v: cleanCite(aiText(s.v)) })).filter(s => s.k && s.v) : [];
+      faults = dedupFaults(Array.isArray(obj.faults) ? obj.faults.map(x => cleanCite(aiText(x))).filter(Boolean) : []);   // 言い換え重複を除去して保存
+      recalls = Array.isArray(obj.recalls) ? obj.recalls.map(x => cleanCite(aiText(x))).filter(Boolean) : [];
       model = obj.model ? String(obj.model).trim() : "";
       maker = obj.maker ? String(obj.maker).trim().toLowerCase() : "";
     }
@@ -6919,7 +6935,7 @@ async function runSpecAI(srcBtn) {
       toggle("specAiBox", false);
       renderSpecs(specs, "learned");
       const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
-      const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
+      const rc = ((Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || [])).filter(t => !isJunkAiText(t));
       if (cf.length) { renderFaultList(cf); toggle("secFault", true); }
       renderRecalls(rc);
       showToast("更新できませんでした。既存の記憶データを表示しています。");
