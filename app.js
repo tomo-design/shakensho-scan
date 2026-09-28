@@ -2209,8 +2209,11 @@ function showResult(d, opt = {}) {
   let bestSpec = null;
   for (const c of specCands) if (c.list && c.list.length && (!bestSpec || c.t >= bestSpec.t)) bestSpec = c;
   // 車両を開き直した時も、油脂量はカルテの実績量と食い違えばカルテの数値を表示(緑の手動値より優先)
-  if (bestSpec && bestSpec.list.length) renderSpecs(applyKarteFluids(bestSpec.list), bestSpec.src);
-  else renderSpecs([], "");
+  // 大型車は、ホイールナット締付トルクを全ト協の基準表の値で表示(保存済みのAI値より優先。手動確定の緑は尊重)。
+  // 諸元が未取得でも、基準表に該当すればAIなしでこの1項目だけは即表示できる。
+  const heavyHint = (hit && hit.maker) || (histEntry2 && histEntry2.maker) || (learned && learned.maker) || "";
+  if (bestSpec && bestSpec.list.length) renderSpecs(withHeavyTorque(applyKarteFluids(bestSpec.list), d, heavyHint), bestSpec.src);
+  else { const hv = withHeavyTorque([], d, heavyHint); renderSpecs(hv, hv.length ? "db" : ""); }
 
   // リコール: 同様に最新を優先
   const recallCands = [
@@ -2327,10 +2330,12 @@ function renderSpecs(specs, source) {
   // 訂正ボタンは車両を識別できれば常に出す(保存先キーになる)
   const vk = vehicleKey(current);
   toggle("btnSpecEdit", !!vk);
+  // 大型車で基準表(ホイールナットトルク)の1項目だけが出ている時は、AI未取得と同じ扱い(AIで調べるを出す)
+  const tableOnly = shownSpecs.length === 1 && source === "db" && !shownSpecs[0].manual && canonSpecKey(shownSpecs[0].k) === "ホイールナット締付トルク";
   // AIで調べるボタンは「保存済み or 内蔵データが無い」時だけ表示
-  toggle("btnSpecAI", shownSpecs.length === 0 && !!vk);
+  toggle("btnSpecAI", (shownSpecs.length === 0 || tableOnly) && !!vk);
   // 最新に更新ボタンは、諸元が既にある時に表示(再取得して都度DB更新)
-  toggle("btnSpecReload", shownSpecs.length > 0 && !!vk);
+  toggle("btnSpecReload", shownSpecs.length > 0 && !tableOnly && !!vk);
   // 内蔵データが無くても車両を識別できればセクションは出す
   toggle("secSpec", shownSpecs.length > 0 || !!vk);
 }
@@ -5003,12 +5008,14 @@ let GUIDE_DB = [];
 
 let OIL_DB = null;   // HKS車種別オイル適合表(db/oil.json): 標準粘度・純正オイル量
 let SPECS_DB = null; // メーカー公式の定期点検整備基準(db/specs.json): 型式別の正式値
+let WHEEL_DB = null; // 大型車ホイールナット締付トルク(db/wheel_torque.json): 全日本トラック協会の基準表(数値のみ)
 async function loadDiagDB() {
   try { DTC_DB = await (await fetch("db/dtc.json")).json(); } catch (e) {}
   try { SYMPTOM_DB = (await (await fetch("db/symptoms.json")).json()).symptoms || []; } catch (e) {}
   try { GUIDE_DB = (await (await fetch("db/guides.json")).json()).guides || []; } catch (e) {}
   try { OIL_DB = await (await fetch("db/oil.json")).json(); } catch (e) {}
   try { SPECS_DB = (await (await fetch("db/specs.json")).json()).specs || []; } catch (e) {}
+  try { WHEEL_DB = await (await fetch("db/wheel_torque.json")).json(); } catch (e) {}
 }
 /* 公式整備基準(specs.json)から、この車両の型式に一致する正式値を返す。型式は "2KG-CVR60C" のように
    排出ガス記号が前置される場合があるので、コアコード(CVR60C)を含むかで一致させる。 */
@@ -5133,6 +5140,61 @@ function withHksOil(specs, d) {
     if (i >= 0) { if (!out[i].manual) out[i] = { k: out[i].k, v: h.v, hks: true }; }
     else out.push({ k: h.k, v: h.v, hks: true });
   });
+  return out;
+}
+
+/* ===== 大型車のホイールナット締付トルク(全日本トラック協会の基準表 db/wheel_torque.json) =====
+   表は「メーカー × 車型記号(型式の先頭)」で規定されるので、メーカーと型式で照合する。
+   同じ車型記号にJIS/ISOなど複数のホイール種類が載っている場合は、種類ごとに〔〕見出しで併記する(穴数は現物で判別できる)。 */
+/* 大型4社のメーカー(isuzu/hino/fuso/ud)を判定。渡されたヒント > 履歴/学習のメーカー > 車種名 の順 */
+function heavyMaker(d, hint) {
+  d = d || current || {};
+  const norm = m => { m = String(m || "").toLowerCase(); return TRUCK_MAKERS.has(m) ? m : ""; };
+  let mk = norm(hint) || norm(d.maker);
+  if (!mk) { const he = findHistEntry(getHistory(), d) || {}, ln = getLearned(vehicleKey(d)) || {}; mk = norm(he.maker) || norm(ln.maker); }
+  if (!mk) {
+    let nm = String(d.model || ""); try { nm += " " + (currentVehicleFacts().model || ""); } catch (e) {}
+    if (/いすゞ|isuzu|フォワード|ギガ/i.test(nm)) mk = "isuzu";
+    else if (/日野|hino|レンジャー|プロフィア|スカニア/i.test(nm)) mk = "hino";
+    else if (/ふそう|fuso|ファイター|スーパーグレート/i.test(nm)) mk = "fuso";
+    else if (/UDトラックス|UD\s?Trucks|日産ディーゼル|コンドル|クオン|ビッグサム/i.test(nm)) mk = "ud";
+  }
+  // メーカーが確定できない時は何も出さない(FS*/FR*などの車型記号は各社で重複し、乗用車の型式とも被るため、推測で当てない)
+  return mk;
+}
+/* この車両に当てはまる基準表の行を、ホイール種類ごとの {wheel, nm} で返す(無ければ空) */
+function heavyWheelTorqueRows(d, hint) {
+  d = d || current; if (!WHEEL_DB || !Array.isArray(WHEEL_DB.rows) || !d) return [];
+  const mk = heavyMaker(d, hint); if (!mk) return [];
+  // 型式は排出ガス記号を除いた部分(例 2RG-FRR90S2 → FRR90S2)。無ければ車台番号の先頭で照合
+  const t = String(d.type || "").toUpperCase().replace(/[^0-9A-Z-]/g, "");
+  const core = t ? t.slice(t.lastIndexOf("-") + 1) : "";
+  const vp = (typeof vinPrefix === "function") ? String(vinPrefix(d.vin)).toUpperCase().replace(/[^0-9A-Z]/g, "") : "";
+  for (const tk of [core, vp]) {
+    if (!tk) continue;
+    const hit = WHEEL_DB.rows.filter(r => r.maker === mk && r.prefix.some(p => tk.startsWith(p)));
+    if (hit.length) {
+      const seen = new Set();
+      return hit.filter(r => { const k = r.wheel + "|" + r.nm; if (seen.has(k)) return false; seen.add(k); return true; }).map(r => ({ wheel: r.wheel, nm: r.nm }));
+    }
+  }
+  return [];
+}
+function heavyWheelTorqueSpec(d, hint) {
+  const rows = heavyWheelTorqueRows(d, hint); if (!rows.length) return null;
+  const v = rows.length === 1
+    ? rows[0].nm + " N·m（" + rows[0].wheel + "）"
+    : rows.map(r => "〔" + r.wheel + "〕" + r.nm + " N·m").join(" ／ ");
+  return { k: "ホイールナット締付トルク", v };
+}
+/* 諸元にホイールナット締付トルクの基準表の値を反映(手動確定=緑の値は尊重して上書きしない。項目が無ければ追加) */
+function withHeavyTorque(specs, d, hint) {
+  const h = heavyWheelTorqueSpec(d, hint); if (!h) return specs;
+  const out = (specs || []).slice();
+  const c = canonSpecKey(h.k);
+  const i = out.findIndex(s => canonSpecKey(s.k) === c);
+  if (i >= 0) { if (!out[i].manual) out[i] = h; }
+  else out.push(h);
   return out;
 }
 
@@ -6719,7 +6781,7 @@ function buildSpecPrompt(known, missOnly) {
     "次の車両について、(A)整備に必要なメンテナンス諸元、(B)この車種の定番故障・持病、(C)過去に届出された主なリコール・改善対策・サービスキャンペーンの有無 を答えてください。",
     "型式が不明な場合は、型式指定番号・類別区分番号や車台番号・原動機型式から車種を推定して構いません。",
     "【必ず調べてから答える】記憶や勘で数値を出さない。付与されたGoogle検索ツールを使い、メーカー公式諸元・整備解説・信頼できる情報源で、この車種・型式・原動機・年式に固有の実際の値を確認してから答えること。オイル量・冷却水量・各種容量・締付トルクは車種差が大きいので必ず裏取りする。",
-    "【値は具体的に出す・安易な要確認は禁止】検索して得られた実値を、できる限り具体的な数値で書くこと。少し調べれば分かる値を『（要確認）』で済ませない。値が交換条件で変わるなら『値＋条件』(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。締付トルクは『規定値±公差』(例: ホイールナット『600±50 N·m』)。範囲だけ(550〜650)や創作値は不可。",
+    "【値は具体的に出す・安易な要確認は禁止】検索して得られた実値を、できる限り具体的な数値で書くこと。少し調べれば分かる値を『（要確認）』で済ませない。値が交換条件で変わるなら『値＋条件』(例: エンジンオイル量『9.0L（オイルのみ）／10.0L（エレメント同時交換）』)。締付トルクは『規定値±公差』(例: ホイールナット『600±50 N·m』)。範囲だけ(550〜650)や創作値は不可(ただし大型トラック/バスのホイールナットは全日本トラック協会の基準表が範囲表記なので範囲のままでよい)。",
     "【要確認は最終手段】十分に検索しても確かな一次情報が得られなかった値に限り『（要確認）』とする(逃げの要確認は不可)。ただし誤った数値を書くのは最悪なので、本当に不明なら創作せず要確認にする。",
     "【リコールも必ず検索して調べる】記憶や心当たりで書かない。Google検索で『国土交通省 リコール届出情報』やメーカー公式のリコール・改善対策・サービスキャンペーン情報を、この型式・車種・年式で実際に調べること。見つかった届出は『年月・対象部位・不具合内容・対策』が分かる形で1件1文にまとめる(最大5件、新しい順)。検索しても該当が確認できなければrecallsは空配列にし、憶測で埋めない。",
     "【定番故障も検索して裏取り】faultsも記憶頼みにせず、この車種・型式の整備事例・故障事例・不具合報告を検索し、実際に多発が確認できた症状のみを書く。症状だけでなく『原因部位』と『出やすい時期(走行距離・年式)』が分かれば併記する。創作・一般論(どの車にも言える話)は不可。確認できなければ空配列でよい。",
@@ -6742,7 +6804,7 @@ function buildSpecPrompt(known, missOnly) {
     "【ホイールナット締付トルクの基準】メーカー整備書の指定を最優先しつつ、判明しない場合は次の一般基準を目安にする(数値は目安・車両区分に合わせる):",
     "・普通乗用車: おおむね 103〜120 N·m(例 トヨタ約103、ホンダ/日産/マツダ/スバル約108、三菱約108)。ハブボルトは M12×1.25 または M12×1.5 が主流。",
     "・軽自動車: おおむね 85〜100 N·m。",
-    "・大型トラック/バス(全日本トラック協会の締付トルク基準): ISO方式(M22×1.5・球面座・片側10穴等)は約 570〜630 N·m(概ね600±)。JIS方式(複輪の内外ナット)は方式・サイズにより約 400〜590 N·m。車両が採用する方式(ISO/JIS)とナットサイズに合わせて示す。",
+    "・大型トラック/バス(全日本トラック協会の締付トルク基準表。車両総重量8t以上): JIS方式6穴は 370〜490 N·m(いすゞ フォワード440〜490 / 日産ディーゼル・UD コンドル370〜420 / 日野 レンジャー390〜470 / ふそう ファイター370〜410)、JIS方式8穴は 540〜590 N·m、ISO方式(M22×1.5・10穴)は 490〜660 N·m(いすゞ ギガ・日野 プロフィア490〜540 / UD クオン・ビッグサム590〜640 / ふそう スーパーグレート560〜660 / 日野スカニア約600)、総輪駆動車(いすゞSF*・SZ*/日野HF*・HZ*)の前輪ISO 10穴は 590〜640 N·m。この基準表は範囲(例 540〜590)で規定されているので、大型のホイールナットは範囲のまま書いてよい(『±公差』に直さない)。車両が採用する方式(JIS/ISO・穴数)とメーカー・車型に合わせて示し、複数の方式があり得る時は方式ごとに書き分ける。表にない車型・ねじサイズは整備要領書の値を優先。",
     "・リアアクスルシャフト（フランジ）締付トルク＝アクスルシャフトを固定するフランジ(ドライブフランジ)のボルト/ナット。ハブベアリングナット(ハブナット)＝ホイールハブのベアリングを予圧調整・固定するナットで、両者は別部位・別規定値。ハブベアリングナットは前後で値が異なることが多いのでフロント・リアを分けて示す。いずれもメーカー整備書の規定値に従い、判明しない場合は（要確認）とする。",
     "【オイル粘度・油量の基準】メーカー純正指定を最優先。新しい省燃費指定(例 0W-16/0W-20)がある車はそれを優先し、旧型は 5W-30/10W-30 等。ディーゼル大型はメーカー指定のディーゼル用粘度と規格(例 10W-30/15W-40、DL-1/DH-2 等)を示す。油量は『オイルのみ／エレメント同時交換』を併記する。",
     SPEC_VARIANT_RULE,
@@ -6789,7 +6851,7 @@ async function runSpecAI(srcBtn) {
   // 取得済みフラグ: 一度きちんと取得した型式は、必須が一部埋まらなくても再検索しない(課金の歯止め)。
   const attemptedBefore = !!(cached.specDone || (hit && hit.specDone));
   if (!force && known.length && (!missReq.length || attemptedBefore)) {
-    const specs = mergeKeepManual(withHksOil(known.slice()), shownSpecs);
+    const specs = mergeKeepManual(withHeavyTorque(withHksOil(known.slice()), current, cached.maker || (hit && hit.maker)), shownSpecs);
     const cf = dedupFaults([...(Array.isArray(cached.faults) ? cached.faults : []), ...((hit && hit.faults) || [])]);
     const rc = (Array.isArray(cached.recalls) && cached.recalls.length) ? cached.recalls : ((hit && hit.recalls) || []);
     toggle("specAiBox", false);
@@ -6831,7 +6893,7 @@ async function runSpecAI(srcBtn) {
     if (!specs.length && !faults.length && !recalls.length) { renderAiAnswer(box, r.text); return; }
     // 既知(端末学習＋社内DB)とも統合 → HKS適合表の油量/粘度を上書き → 手動修正を尊重
     specs = mergeSpecLists(specs, known);
-    specs = withHksOil(specs);
+    specs = withHeavyTorque(withHksOil(specs), current, maker || cached.maker || (hit && hit.maker));   // 大型車はホイールナットトルクを全ト協の基準表で
     if (specs.length) specs = mergeKeepManual(specs, shownSpecs);
     // ※以前ここで「不足項目の追い取得(Pro+検索を追加でもう1回)」をしていたが、無料枠の1日消費を倍増させ枠切れを
     //   早めていたため廃止。諸元取得は1回のみに戻す(不足項目は各項目右上の🔄で個別に補完できる)。
@@ -6885,7 +6947,7 @@ async function refreshSpecItem(key, btn) {
       "次の車両の整備諸元のうち、指定された1項目だけを答えてください。",
       "【要確認の書き方】確信が持てない場合のみ『（要確認）』とだけ書く。長い但し書きは不要。",
       "【曖昧禁止】『オイルパンの仕様により異なる』等の逃げは禁止。車台番号・原動機型式から特定して確定値を出すこと。交換条件で変わる場合のみ『値＋条件』を簡潔に。",
-      "【締付トルク】範囲ではなく『規定値±公差』の形(例 600±50 N·m)。",
+      "【締付トルク】範囲ではなく『規定値±公差』の形(例 600±50 N·m)。ただし大型トラック/バスのホイールナットは全日本トラック協会の基準表が範囲表記(JIS 8穴 540〜590、ISO 10穴 490〜660 など)なので範囲のままでよい。",
       /オイル(量|粘度)|油量/.test(key) ? SPEC_VARIANT_RULE + "この場合も v の文字列の中にその書式で入れてよい。" : "",
       "出力は厳密なJSONのみ。形式: {\"v\":\"値\"}",
       "",
@@ -8091,7 +8153,7 @@ const SUPPORT_KB = [
   "【概要】整備士向けアプリ。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。個人向けの「MECHANO-AI Pocket」(Web版・ブラウザ)は7日無料→月額¥500。法人向けは「MECHANO-AI Works」。",
   "【画面】下タブ=スキャン/履歴/DB編集/設定。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
   "【車検証スキャン】QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。",
-  "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持。",
+  "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。",

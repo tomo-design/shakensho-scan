@@ -1,0 +1,25 @@
+{
+  "src": "全日本トラック協会「大型車(トラック)のホイールナット締付けトルク一覧」(日本自動車工業会・いすゞ/日産ディーゼル/日野/三菱ふそう) https://jta.or.jp/member/anzen/wheel_torque.html",
+  "note": "車両総重量8t以上の大型車の主要車型。prefix は型式(排出ガス記号を除いた部分)の先頭記号。表にない車型・ねじサイズが異なる車両は取扱説明書・整備要領書の値に従う。ホイール種類がJIS/6穴の車両には8t未満を含む。値は規定範囲のN·m(kgf·m)。数値のみ抽出して保存(表の再配布はしない)。",
+  "version": 1,
+  "rows": [
+    { "wheel": "JIS 6穴", "maker": "isuzu", "names": "フォワード", "prefix": ["FR", "FS", "GS"], "thread": "前輪M24×1.5・後輪M20またはM30×1.5", "nm": "440〜490", "kgf": "45〜50" },
+    { "wheel": "JIS 6穴", "maker": "ud", "names": "コンドル・ビッグサム", "prefix": ["MK", "LK", "PW", "CW", "CX", "CG"], "thread": "前輪M20×1.5・後輪M20またはM30×1.5", "nm": "370〜420", "kgf": "38〜43" },
+    { "wheel": "JIS 6穴", "maker": "hino", "names": "レンジャー", "prefix": ["FC", "FD", "GC", "GD"], "thread": "前輪M20×1.5またはM24×1.5・後輪M20またはM30×1.5", "nm": "390〜470", "kgf": "40〜48" },
+    { "wheel": "JIS 6穴", "maker": "fuso", "names": "ファイター", "prefix": ["FH", "FK", "FL", "FN"], "thread": "前輪M20×1.5またはM24×1.5・後輪M20またはM30×1.5", "nm": "370〜410", "kgf": "38〜42" },
+
+    { "wheel": "JIS 8穴", "maker": "isuzu", "names": "フォワード・ギガ", "prefix": ["FS", "FT", "FV", "CV", "CX", "CY", "EX"], "thread": "前輪M24×1.5・後輪M20またはM30×1.5", "nm": "540〜590", "kgf": "55〜60" },
+    { "wheel": "JIS 8穴", "maker": "ud", "names": "コンドル・ビッグサム・クオン", "prefix": ["LK", "PK", "PW", "CK", "CV", "CD", "CW", "CX", "CG", "GK", "GW", "CF", "CZ"], "thread": "前輪M24×1.5・後輪M20またはM30×1.5", "nm": "540〜590", "kgf": "55〜60" },
+    { "wheel": "JIS 8穴", "maker": "hino", "names": "レンジャー・プロフィア", "prefix": ["FE", "FG", "GK", "FR", "FS", "FN", "FW", "SH", "SS"], "thread": "前輪M24×1.5・後輪M20またはM30×1.5", "nm": "540〜590", "kgf": "55〜60" },
+    { "wheel": "JIS 8穴", "maker": "fuso", "names": "ファイター・スーパーグレート", "prefix": ["FK", "FL", "FQ", "FM", "FP", "FU", "FV", "FT", "FS", "FY"], "thread": "前輪M20×1.5またはM24×1.5・後輪M20またはM30×1.5", "nm": "540〜590", "kgf": "55〜60" },
+
+    { "wheel": "ISO 10穴", "maker": "isuzu", "names": "ギガ", "prefix": ["EX"], "thread": "前後輪M22×1.5", "nm": "490〜540", "kgf": "50〜55" },
+    { "wheel": "ISO 10穴", "maker": "ud", "names": "ビッグサム・クオン", "prefix": ["CF", "CZ"], "thread": "前後輪M22×1.5", "nm": "590〜640", "kgf": "60〜65" },
+    { "wheel": "ISO 10穴", "maker": "hino", "names": "日野スカニア", "prefix": ["SHD"], "thread": "前後輪M22×1.5", "nm": "600", "kgf": "61" },
+    { "wheel": "ISO 10穴", "maker": "hino", "names": "プロフィア", "prefix": ["FR", "FS"], "thread": "前後輪M22×1.5", "nm": "490〜540", "kgf": "50〜55" },
+    { "wheel": "ISO 10穴", "maker": "fuso", "names": "スーパーグレート", "prefix": ["FP", "FU", "FV", "FT"], "thread": "前後輪M22×1.5", "nm": "560〜660", "kgf": "57〜67" },
+
+    { "wheel": "ISO 10穴 総輪駆動の前輪", "maker": "isuzu", "names": "総輪駆動車", "prefix": ["SF", "SZ"], "thread": "前輪M22×1.5", "nm": "590〜640", "kgf": "60〜65" },
+    { "wheel": "ISO 10穴 総輪駆動の前輪", "maker": "hino", "names": "総輪駆動車", "prefix": ["HF", "HZ"], "thread": "前輪M22×1.5", "nm": "590〜640", "kgf": "60〜65" }
+  ]
+}
