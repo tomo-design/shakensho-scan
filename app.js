@@ -2310,7 +2310,9 @@ function renderSpecs(specs, source) {
     const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
     const v = document.createElement("div"); v.className = "specV";
     // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
-    v.innerHTML = esc(keepUnit(cleanCite(han(s.v)))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>");
+    // 〔ターボ KF-VET〕のような変種見出し(HKSのNA/ターボ・年式違い)は、キー名と同じ小さな青文字の見出し行にする。
+    // 「／」→改行の置換の後に差し込む(閉じタグの / を改行に変えないため)
+    v.innerHTML = esc(keepUnit(cleanCite(han(s.v)))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>").replace(/〔([^〕]*)〕/g, '<span class="specVar">$1</span>');
     const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
     up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
     const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
@@ -2924,7 +2926,7 @@ const FLUID_GROUPS = [
 ];
 const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
 function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
-function parseLiters(v) { const m = han(String(v || "")).match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
+function parseLiters(v) { const m = han(String(v || "")).replace(/〔[^〕]*〕/g, " ").match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
 /* 手動(緑)の諸元項目。at=手入力した時刻(またはカルテ反映の基準時刻, ms)。
    「カルテ優先だが、そのあとに手入力した値は手入力を優先」の新旧判定に使う(undefinedはFirestoreで弾かれるので無い時は付けない)。 */
 function manualSpec(k, v, at) { const o = { k, v, manual: true }; if (at) o.at = at; return o; }
@@ -3059,7 +3061,8 @@ function normalizeSpecs(specs) {
   // 「該当なし/非該当/装備なし/存在しない」等＝その車両に存在しない項目は表示しない
   const isNotApplicable = v => {
     const t = String(v || "").normalize("NFKC").replace(/[（）()\[\]【】\s　]/g, "").toLowerCase();
-    return /^(該当なし|該当無し|該当せず|非該当|なし|無し|装備なし|設定なし|該当項目なし|存在しない|n\/?a|none)/.test(t)
+    // n/a・none は単独か日本語の注記付きだけ対象(「NA KF-VE 3.0L」のようなNA/ターボ見出し付きの値を巻き込まない)
+    return /^(該当なし|該当無し|該当せず|非該当|なし|無し|装備なし|設定なし|該当項目なし|存在しない)/.test(t) || /^(n\/?a|none)(?![a-z0-9])/.test(t)
       || /(該当なし|非該当|存在しない|装備されていない|設定されていない|該当する.*ない)/.test(t);
   };
   // 同名項目は先勝ちで重複排除。表示名は既知の正式名称に正規化(AI出力の表記ゆれ・文字化け対策)
@@ -5030,38 +5033,94 @@ function officialSpecsText() {
     ...lines
   ].join("\n");
 }
-/* HKSオイル適合表から、この車両(原動機型式 or 車両型式)の {visc,oil,oilFilter,name,engine} を探す */
-function hksOilLookup(d) {
-  d = d || current; if (!OIL_DB || !d) return null;
-  const rows = OIL_DB.rows, be = OIL_DB.byEngine || {}, bm = OIL_DB.byModel || {};
-  const normE = s => String(s || "").toUpperCase().replace(/[（(].*$/, "").replace(/[^0-9A-Z-]/g, "");
-  let idx = null;
-  const eng = normE(d.engine);
-  if (eng) {
-    if (be[eng]) idx = be[eng][0];
-    else for (const k in be) { const a = k.replace(/-/g, ""), b = eng.replace(/-/g, ""); if (a === b || a.startsWith(b) || b.startsWith(a)) { idx = be[k][0]; break; } }
-  }
-  if (idx == null) {
-    const toks = [];
-    const t = d.type && d.type.includes("-") ? d.type.split("-")[1] : d.type;
-    if (t) toks.push(String(t).toUpperCase().replace(/[^0-9A-Z]/g, ""));
-    const vp = (typeof vinPrefix === "function") ? vinPrefix(d.vin) : ""; if (vp) toks.push(String(vp).toUpperCase());
-    for (const tk of toks) { if (tk.length >= 3 && bm[tk]) { idx = bm[tk][0]; break; } }
-  }
-  if (idx == null) return null;
-  const r = rows[idx];
-  return { name: r[1], model: r[2], engine: r[3], visc: r[5], oil: r[6], oilFilter: r[7] };
+/* HKSオイル適合表(db/oil.json)は「車種×エンジン×年式」ごとに行が分かれ、ターボ/NA・年式・ハイブリッドで
+   オイル量や粘度が変わる。車検証の原動機型式は短い(例: KF)ためエンジンだけでは1行に絞れないので、
+   ①車両型式(コア)・車台番号先頭で同じ車種の行を集め → ②原動機型式で絞り → ③初度登録年月で絞った「全候補」を返す。 */
+let OIL_TOKEN_IDX = null;
+function oilTokenIndex() {
+  if (OIL_TOKEN_IDX || !OIL_DB) return OIL_TOKEN_IDX;
+  const idx = new Map();
+  OIL_DB.rows.forEach((r, i) => {
+    if (/Viscosity|粘度/.test(String(r[5] || ""))) return;   // 見出し行
+    // 型式は「S321G,S331G」「LA650S.LA660S」「CBA-L275S」など。区切って各コード(排出ガス記号を除いた形も)で引けるようにする
+    String(r[2] || "").toUpperCase().split(/[,.､、，\s/／()（）]+/).forEach(t => {
+      t = t.replace(/[^0-9A-Z-]/g, ""); if (!t) return;
+      new Set([t.replace(/-/g, ""), t.slice(t.lastIndexOf("-") + 1)]).forEach(k => {
+        if (k.length < 3) return;
+        if (!idx.has(k)) idx.set(k, new Set());
+        idx.get(k).add(i);
+      });
+    });
+  });
+  OIL_TOKEN_IDX = idx;
+  return idx;
 }
-/* HKSの値を諸元行に変換(エンジンオイル量・推奨オイル粘度) */
-function hksOilSpecs(d) {
-  const h = hksOilLookup(d); if (!h) return [];
-  const out = [];
-  if (h.oil || h.oilFilter) {
-    let v = h.oil ? h.oil + "L（オイルのみ）" : "";
-    if (h.oilFilter) v += (v ? " ／ " : "") + h.oilFilter + "L（エレメント交換時）";
-    out.push({ k: "エンジンオイル量", v: v });
+/* 年式欄「07/9～10/12」「19/7～」「26/03-」→ [開始yyyymm, 終了yyyymm(空=継続中)]。読めなければ null */
+function oilYearRange(y) {
+  const m = String(y || "").match(/^\s*(\d{2})\/(\d{1,2})\s*[～~\-－]\s*(?:(\d{2})\/(\d{1,2}))?\s*$/); if (!m) return null;
+  const Y = n => (n > 50 ? 1900 : 2000) + n;
+  return [Y(+m[1]) * 100 + +m[2], m[3] ? Y(+m[3]) * 100 + +m[4] : 999999];
+}
+function hksOilCandidates(d) {
+  d = d || current; if (!OIL_DB || !d) return [];
+  const rows = OIL_DB.rows;
+  const normE = s => String(s || "").toUpperCase().replace(/[（(].*$/, "").replace(/[^0-9A-Z-]/g, "");
+  const eng = normE(d.engine).replace(/-/g, "");
+  const engOK = i => { if (!eng) return true; const a = normE(rows[i][3]).replace(/-/g, ""); return !!a && (a === eng || a.startsWith(eng) || eng.startsWith(a)); };
+  const toks = new Set();
+  const t = String(d.type || "").toUpperCase();
+  if (t) { toks.add(t.replace(/[^0-9A-Z]/g, "")); t.split("-").slice(1).forEach(s => toks.add(s.replace(/[^0-9A-Z]/g, ""))); }
+  const vp = (typeof vinPrefix === "function") ? vinPrefix(d.vin) : ""; if (vp) toks.add(String(vp).toUpperCase().replace(/[^0-9A-Z]/g, ""));
+  const idx = oilTokenIndex(), hit = new Set();
+  toks.forEach(k => { if (k && idx.has(k)) idx.get(k).forEach(i => hit.add(i)); });
+  let cand = [...hit];
+  if (cand.length) {
+    const byEng = cand.filter(engOK); if (byEng.length) cand = byEng;   // 原動機型式が合う行があればそれに絞る(無ければ車種の全行)
+    const fr = d.firstReg, ym = fr && fr.year && fr.month ? fr.year * 100 + fr.month : 0;
+    if (ym) { const byYear = cand.filter(i => { const r = oilYearRange(rows[i][4]); return !r || (ym >= r[0] && ym <= r[1]); }); if (byYear.length) cand = byYear; }
+  } else if (eng) {
+    // 車種を特定できない時は従来どおり原動機型式だけで1行(別車種の行が混ざるので絞り込まない)
+    const be = OIL_DB.byEngine || {}; let i0 = null;
+    const key = normE(d.engine);
+    if (be[key]) i0 = be[key][0];
+    else for (const k in be) { const a = k.replace(/-/g, ""); if (a === eng || a.startsWith(eng) || eng.startsWith(a)) { i0 = be[k][0]; break; } }
+    if (i0 != null) cand = [i0];
   }
-  if (h.visc) out.push({ k: "推奨オイル粘度", v: h.visc });
+  return cand.map(i => { const r = rows[i]; return { name: r[1], model: r[2], engine: r[3], year: r[4], visc: r[5], oil: r[6], oilFilter: r[7] }; });
+}
+/* 変種の見出し(ターボ/NA/HV/SC + 原動機型式)。同じ見出しが並ぶ時は年式→型式表記の順に足して区別する。
+   それでも区別できなければ null(見出し無しで併記) */
+function hksVariantLabels(groups, all) {
+  const code = r => String(r.engine || "").replace(/[（(].*$/, "").trim();
+  const codes = new Set(all.map(code));
+  // 表に(TURBO)の記載が無くても、同じ車種に「KF-VE」と「KF-VET」があれば末尾Tの方をターボとみなす
+  const tag = r => /TURBO|TUBBO|ターボ/i.test(r.engine) || (/T$/i.test(code(r)) && codes.has(code(r).slice(0, -1))) ? "ターボ" : /SUPERCHARGER/i.test(r.engine) ? "SC" : /HYBRID/i.test(r.engine) ? "HV" : "";
+  const turboAny = all.some(r => tag(r) === "ターボ");
+  const one = r => [tag(r) || (turboAny ? "NA" : ""), code(r)].filter(Boolean).join(" ");
+  const yr = s => String(s || "").replace(/(\d{2})\/(\d{1,2})/g, "$1年$2月").replace(/[~\-－]/g, "～");
+  const uniq = a => [...new Set(a.filter(Boolean))];
+  const dup = a => new Set(a).size < a.length;
+  const addIf = (lbl, f) => { const ex = groups.map(f); return new Set(ex).size > 1 ? lbl.map((l, i) => [l, ex[i]].filter(Boolean).join(" ")) : lbl; };
+  const clean = s => String(s || "").replace(/[/／:：〔〕]/g, "・");   // 表示の区切り(／ → 改行)や見出し記号と衝突させない
+  let lbl = groups.map(g => uniq(g.map(one)).map(clean).join("・"));
+  if (dup(lbl)) lbl = addIf(lbl, g => uniq(g.map(r => yr(r.year))).join("・"));
+  if (dup(lbl)) lbl = addIf(lbl, g => uniq(g.map(r => clean(r.model))).join("・"));
+  return dup(lbl) ? null : lbl;
+}
+/* HKSの値を諸元行に変換(エンジンオイル量・推奨オイル粘度)。
+   変種が無ければ従来どおり1行。ターボ/NA・年式などで量や粘度が違う時だけ、同じ諸元セル内に変種ごとの行を足す
+   (レイアウトは変えず、値の行数が増えるだけ。「／」が表示上の改行になる)。 */
+function hksOilSpecs(d) {
+  const cand = hksOilCandidates(d); if (!cand.length) return [];
+  const group = (list, keyOf) => { const m = new Map(); list.forEach(r => { const k = keyOf(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()].slice(0, 4); };   // 多すぎる時は4変種まで
+  const out = [];
+  const qty = r => [r.oil ? r.oil + "L（オイルのみ）" : "", r.oilFilter ? r.oilFilter + "L（エレメント交換時）" : ""].filter(Boolean);
+  const qg = group(cand.filter(r => r.oil || r.oilFilter), r => r.oil + "|" + r.oilFilter);
+  if (qg.length === 1) out.push({ k: "エンジンオイル量", v: qty(qg[0][0]).join(" ／ ") });
+  else if (qg.length > 1) { const lb = hksVariantLabels(qg, cand); out.push({ k: "エンジンオイル量", v: qg.map((g, i) => (lb ? "〔" + lb[i] + "〕" : "") + qty(g[0]).join(" ／ ")).join(lb ? " ／ " : " ／ または ／ ") }); }
+  const vg = group(cand.filter(r => r.visc), r => r.visc);
+  if (vg.length === 1) out.push({ k: "推奨オイル粘度", v: vg[0][0].visc });
+  else if (vg.length > 1) { const lb = hksVariantLabels(vg, cand); out.push({ k: "推奨オイル粘度", v: lb ? vg.map((g, i) => "〔" + lb[i] + "〕" + g[0].visc).join(" ／ ") : vg.map(g => g[0].visc).join(" または ") }); }
   return out;
 }
 /* AI/学習の諸元に、HKSの油量・粘度を上書き反映(ユーザー手動確定は尊重して上書きしない) */

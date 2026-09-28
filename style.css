@@ -334,6 +334,8 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .specEditInline{display:flex;gap:6px}
 .specEditInline .btn{flex:1}
 .specItem .specV{font-size:16px;line-height:1.55;font-weight:600;color:var(--txt);word-break:break-word;padding-right:30px}
+.specItem .specV .specVar{display:block;font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--amber);margin-top:6px}
+.specItem .specV .specVar:first-child{margin-top:0}
 
 /* 諸元の操作ボタン(中央・小さめ) */
 .specBtns{display:flex;justify-content:center;gap:8px;margin-top:12px}
