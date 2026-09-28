@@ -2208,7 +2208,8 @@ function showResult(d, opt = {}) {
   ];
   let bestSpec = null;
   for (const c of specCands) if (c.list && c.list.length && (!bestSpec || c.t >= bestSpec.t)) bestSpec = c;
-  if (bestSpec && bestSpec.list.length) renderSpecs(bestSpec.list, bestSpec.src);
+  // 車両を開き直した時も、油脂量はカルテの実績量と食い違えばカルテの数値を表示(緑の手動値より優先)
+  if (bestSpec && bestSpec.list.length) renderSpecs(applyKarteFluids(bestSpec.list), bestSpec.src);
   else renderSpecs([], "");
 
   // リコール: 同様に最新を優先
@@ -2919,14 +2920,16 @@ const FLUID_GROUPS = [
 ];
 const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
 function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
-function parseLiters(v) { const m = String(v || "").match(/([\d]+(?:\.\d+)?)\s*[lLｌＬ]/); return m ? parseFloat(m[1]) : null; }
-/* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
-function reconcileFluidsFromKarte(entry) {
-  if (!entry || entry.deleted || !entry.parts || !current) return;
+function parseLiters(v) { const m = han(String(v || "")).match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
+/* カルテ1件の部品欄から、油脂類の実績量を抜き出す → [{g, liters, qtyStr}](同一グループは最後の値) */
+function fluidsFromKarteEntry(entry) {
+  if (!entry || entry.deleted || !entry.parts) return [];
   // 行・区切りごとに分解(改行/、/,/・/スペース)。1件ずつ油脂グループと量(L)を判定。
   const segs = String(entry.parts).split(/[\r\n、,，・]+/).map(s => han(s).trim()).filter(Boolean);
   const found = [];
   segs.forEach(seg => {
+    if (/補充|追加|足し|増し|トップアップ/.test(seg)) return;                      // 継ぎ足しの量は総量ではないので除外
+    if (/フィルタ|エレメント|ストレーナ|ガスケット|パッキン|ドレン|ワッシャ|シール|リング|キャップ|ボルト|ホース|ポンプ|センサ|添加剤|洗浄/.test(seg)) return;   // 油脂そのものでない部品(個数を量と誤認しない)
     const g = fluidGroupOf(seg); if (!g) return;                                  // 油脂類のみ
     // 粘度表記(例 5W-30 / 0w20)の数字を量と誤認しないよう先に除去
     const cleaned = seg.replace(/\d+\s*w[\s-]*\d+/gi, " ");
@@ -2939,9 +2942,41 @@ function reconcileFluidsFromKarte(entry) {
     if (liters == null) return;
     found.push({ g, liters, qtyStr: liters + "L" });
   });
-  if (!found.length) return;
   // 同一グループが複数行あれば最後の値を採用(重複排除)
-  { const map = new Map(); found.forEach(f => map.set(f.g.canon, f)); found.length = 0; map.forEach(v => found.push(v)); }
+  const map = new Map(); found.forEach(f => map.set(f.g.canon, f));
+  return [...map.values()];
+}
+/* この車両のカルテ(新しい順)から、油脂グループごとの「最新の実績量」を求める。AI自動記録のカルテは対象外。 */
+function latestKarteFluids() {
+  const latest = new Map();
+  getKarteList().forEach(k => {
+    if (k.auto) return;
+    fluidsFromKarteEntry(k).forEach(f => { if (!latest.has(f.g.canon)) latest.set(f.g.canon, f); });
+  });
+  return latest;
+}
+/* 諸元の油脂量が、カルテの最新の実績量と食い違う時だけカルテの数値へ差し替える(緑=確定として固定)。
+   緑の手動値は再読込で守られるが、カルテと相違がある場合に限りカルテを優先する。一致・カルテ記載なしの項目は触らない。
+   量(〇L)を持つ項目だけが対象(粘度・交換サイクル等は対象外)。同じ油脂の量項目が複数あれば最初の1つだけ。 */
+function applyKarteFluids(specs) {
+  if (!Array.isArray(specs) || !specs.length || !current) return specs;
+  let latest; try { latest = latestKarteFluids(); } catch (e) { return specs; }
+  if (!latest.size) return specs;
+  const done = new Set();
+  return specs.map(s => {
+    const g = s && fluidGroupOf(s.k); if (!g || done.has(g.canon)) return s;
+    const f = latest.get(g.canon); if (!f) return s;
+    const cur = parseLiters(s.v); if (cur == null) return s;
+    done.add(g.canon);
+    if (Math.abs(cur - f.liters) < 0.001) return s;
+    return { k: s.k, v: f.qtyStr, manual: true };
+  });
+}
+/* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
+function reconcileFluidsFromKarte(entry) {
+  if (!entry || entry.deleted || !entry.parts || !current) return;
+  const found = fluidsFromKarteEntry(entry);
+  if (!found.length) return;
   const he = findHistEntry(getHistory(), current) || {};
   const learned = getLearned(vehicleKey(current)) || {};
   let specs = ((he.specs && he.specs.length ? he.specs : learned.specs) || []).map(s => s.manual ? { k: s.k, v: s.v, manual: true } : { k: s.k, v: s.v });
@@ -3045,7 +3080,8 @@ function collectSpecRows() {
   });
   return out;
 }
-/* AI諸元に、手動修正済み項目を上書き保持してマージ(『最新に更新』で手入力が消えないように) */
+/* AI諸元に、手動修正済み(緑)項目を上書き保持してマージ(『最新に更新』で手入力が消えないように)。
+   ただし油脂量がカルテの最新の実績量と食い違う項目だけは、カルテの数値を優先する。 */
 function mergeKeepManual(aiSpecs, curSpecs) {
   const manual = {}; (curSpecs || []).forEach(s => { if (s.manual) manual[s.k] = s; });
   const used = new Set();
@@ -3054,7 +3090,7 @@ function mergeKeepManual(aiSpecs, curSpecs) {
     return s;
   });
   Object.keys(manual).forEach(k => { if (!used.has(k)) out.push({ k, v: manual[k].v, manual: true }); });
-  return out;
+  return applyKarteFluids(out);
 }
 $("btnSpecEdit").addEventListener("click", () => addSpecItemInline());
 $("btnSpecAddRow").addEventListener("click", () => addSpecRow("", ""));
@@ -6781,7 +6817,7 @@ async function refreshSpecItem(key, btn) {
     if (!nv) return;
     const idx = shownSpecs.findIndex(s => s.k === key);
     if (idx >= 0) shownSpecs[idx] = { k: key, v: nv }; else shownSpecs.push({ k: key, v: nv });
-    const specs = shownSpecs.slice();
+    const specs = applyKarteFluids(shownSpecs.slice());   // 油脂量はカルテの実績量と食い違えばカルテ優先
     setLearned(vehicleKey(current), { specs });
     saveVehicleAiData(specs);
     registerVehicleToDB({ silent: true });

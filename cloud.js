@@ -727,10 +727,12 @@
     if (!local.intakeKind && cloud.intakeKind) return true;
     return false;
   }
-  function reconcileWithCloud(body, cloud) {
+  /* base: 端末側の完全なレコード。軽量パッチ(進捗・レ点等)は入庫キーを持たないため、パッチ自体ではなく
+     端末の全体コピーで古さを判定する(パッチを「入庫情報なし」と誤判定して進捗が書かれず巻き戻るのを防ぐ)。 */
+  function reconcileWithCloud(body, cloud, base) {
     if (!cloud || cloud.deleted === true) return body;
     const out = Object.assign({}, body);
-    if (intakeStaleVsCloud(body, cloud)) INTAKE_SESSION_KEYS.forEach(k => { delete out[k]; });
+    if (intakeStaleVsCloud(base || body, cloud)) INTAKE_SESSION_KEYS.forEach(k => { delete out[k]; });
     // 進捗だけのパッチ(updateRecordFields)でも、出庫済みの車両に古い進捗を書き戻さない
     if (cloud.intakeOut && out.statusAt != null && out.statusAt <= cloud.intakeOut) { delete out.intakeStatus; delete out.statusAt; }
     // コメントは追記のみ・削除(del)優先のunion。古い配列で「削除済みコメント」が復活しないようにする
@@ -742,15 +744,17 @@
     return out;
   }
   /* records への書き込みは必ずここを通す(transactionでクラウド現状を読んでから書く) */
-  async function writeRecordSafe(ref, body) {
+  async function writeRecordSafe(ref, body, base) {
     try {
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-        tx.set(ref, reconcileWithCloud(body, snap.exists ? snap.data() : null), { merge: true });
+        tx.set(ref, reconcileWithCloud(body, snap.exists ? snap.data() : null, base), { merge: true });
       });
     } catch (e) {
       // 通信断などでtransactionが使えない時だけ、入庫系の項目を外した安全な内容で書く(出庫の巻き戻しを起こさない)
-      try { const safe = Object.assign({}, body); INTAKE_SESSION_KEYS.forEach(k => { delete safe[k]; }); delete safe.comments; await ref.set(safe, { merge: true }); } catch (e2) {}
+      // updatedAtも進めない: 入庫系を落とした内容でクラウドの時計だけ進むと、後で受信側が「クラウドが新しい」と判断して
+      //   端末の進捗・レ点を消してしまう。進めなければ、通信回復後に端末の新しい方が受信側から安全な経路で再送される。
+      try { const safe = Object.assign({}, body); INTAKE_SESSION_KEYS.forEach(k => { delete safe[k]; }); delete safe.comments; delete safe.updatedAt; await ref.set(safe, { merge: true }); } catch (e2) {}
     }
   }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
@@ -1186,7 +1190,7 @@
     updateRecordFields(r, patch) {
       if (!this.active || !r || !(r.vin || r.rid) || !patch) return;
       const body = Object.assign({ vin: r.vin || null, rid: r.rid || null, deleted: false, updatedAt: r.updatedAt || Date.now() }, patch);
-      writeRecordSafe(db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)), body);
+      writeRecordSafe(db.collection("tenants").doc(profile.tenantId).collection("records").doc(docKey(r)), body, r);
     },
     deleteRecord(r) {
       if (!this.active || !r) return;
