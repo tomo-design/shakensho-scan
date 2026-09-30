@@ -281,6 +281,16 @@ label.fld:first-child{margin-top:0}
 .stepBody{font-weight:400;font-size:14.5px;line-height:1.7;margin-top:4px}
 .ai-check{margin:5px 0 0 -13px;font-size:13px;line-height:1.7;color:var(--txt);background:var(--panel2);border-left:3px solid var(--cyan);padding:7px 10px;border-radius:0}
 .ai-check-label{color:var(--cyan);font-weight:700;font-size:11px;letter-spacing:.1em;margin-right:4px}
+/* 候補の「改善の見込み」: 実データの統計ではなく一般的な傾向の目安。高い=緑/中程度=アンバー/要フォロー=グレーで軽く色分け */
+.ai-cure{margin:5px 0 0 -13px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px;font-size:12px;line-height:1.6;background:var(--panel2);border-left:3px solid var(--line);padding:6px 10px;border-radius:0}
+.ai-cure-lv{font-weight:700}
+.ai-cure-note{color:var(--dim)}
+.ai-cure-high{border-left-color:var(--ok)}
+.ai-cure-high .ai-cure-lv{color:var(--ok)}
+.ai-cure-mid{border-left-color:var(--amber)}
+.ai-cure-mid .ai-cure-lv{color:var(--amber)}
+.ai-cure-low{border-left-color:var(--dim)}
+.ai-cure-low .ai-cure-lv{color:var(--dim)}
 /* 候補の「理由」: 折り畳み(タップで開閉・1つだけ開く) */
 .ai-reason{margin-top:4px}
 .ai-reason-toggle{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;cursor:pointer;letter-spacing:.06em}
