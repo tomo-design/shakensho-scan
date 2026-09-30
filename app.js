@@ -6033,14 +6033,26 @@ function renderInspectManual(container, text) {
       row.append(mk, tx); body.appendChild(row);
     });
     head.addEventListener("click", () => {
+      // 押した見出しの「今の画面上の位置」を先に控えておく(閉じる他セクションの高さ変化で
+      // 見出し自体がジャンプしないよう、変化した分だけスクロール位置を補正する→常に先頭へ飛ばさない)
+      const beforeY = head.getBoundingClientRect().top;
       const willOpen = body.classList.contains("hidden");
       container.querySelectorAll(".imBody").forEach(b => b.classList.add("hidden"));
       container.querySelectorAll(".imHead").forEach(h => h.classList.remove("open"));
+      if (willOpen) { body.classList.remove("hidden"); head.classList.add("open"); }
+      // クラス変更後はレイアウトが確定済み(getBoundingClientRectは強制的に最新値を返す)なので、次フレームを待たず読める
+      const afterY = head.getBoundingClientRect().top;
+      if (afterY !== beforeY) window.scrollBy(0, afterY - beforeY);   // 押した場所から見出しを動かさない(瞬時・アニメ無し)
       if (willOpen) {
-        body.classList.remove("hidden"); head.classList.add("open");
-        // 高さ変化でスクロールがズレて飛ぶのを防ぐ: 押した見出しを見える位置へ(固定ナビに隠れないよう余白)
-        head.style.scrollMarginTop = "70px";
-        setTimeout(() => head.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+        // 開いた内容が画面の下(固定ナビの下)に隠れる分だけ、隠れない範囲でそっと下にスクロールする
+        const NAV_H = 60;   // 下部固定タブナビの高さ分は避ける
+        const hr = head.getBoundingClientRect(), br = body.getBoundingClientRect();
+        const overflow = br.bottom - (window.innerHeight - NAV_H);
+        if (overflow > 0) {
+          const room = Math.max(0, hr.top - 70);   // 見出し自体が画面上端(固定ヘッダー分)より上に出ない範囲まで
+          const dy = Math.min(overflow, room);
+          if (dy > 0) window.scrollBy({ top: dy, behavior: "smooth" });
+        }
       }
     });
     item.append(head, body); container.appendChild(item);
