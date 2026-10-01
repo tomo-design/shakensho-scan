@@ -6094,11 +6094,17 @@ function renderAiAnswer(container, text, opts) {
   const lines = clean.split(/\n/).map(l => l.trim()).filter(Boolean).filter(l => !isEcho(l));
   let list = null;
   const flushList = () => { list = null; };
+  // linkCausesを呼び元が要求した回答だけ、「■原因候補」の中にいる間だけ番号項目を原因候補
+  // (点検手引書ボタン・理由/切り分け/改善の見込み付き)として扱う。それ以外の見出し(■最初の1手 等)の下や、
+  // そもそもlinkCausesを要求していない通常回答では、ただの番号付きリストとして表示する(ボタンを付けない)。
+  const wantCauses = !!opts.linkCauses;
+  let inCauses = wantCauses;   // 見出しが来る前(先頭)は原因候補扱い。要求が無い回答は常にfalseのまま。
   for (const line of lines) {
     // 見出し (■〜 / 【〜】)
     const h = line.match(/^[■【]\s*(.+?)[】]?$/);
     if (h) {
       flushList();
+      if (wantCauses) inCauses = /原因候補/.test(h[1]);
       const el = document.createElement("div");
       el.className = "ai-h"; el.textContent = h[1];
       container.appendChild(el);
@@ -6110,21 +6116,21 @@ function renderAiAnswer(container, text, opts) {
       if (!list) {
         list = document.createElement("ol");
         // 診断の原因候補は「可能性の高い順」=順位なので番号。手順系は矢印。
-        list.className = "guide-steps ai-list" + (opts.linkCauses ? " ai-rank" : "");
+        list.className = "guide-steps ai-list" + (inCauses ? " ai-rank" : "");
         container.appendChild(list);
       }
       const li = document.createElement("li");
       const div = document.createElement("div"); div.className = "ai-item";
       const t = document.createElement("div"); t.className = "ai-cause"; t.textContent = n[2];
       div.appendChild(t);
-      if (opts.linkCauses) attachInspectManual(div, n[2]);    // 診断の各原因候補に「点検手引書」を生成できるボタン
+      if (inCauses) attachInspectManual(div, n[2]);    // 診断の各原因候補にだけ「点検手引書」を生成できるボタン
       li.appendChild(div);
       list.appendChild(li);
       continue;
     }
     // 「理由:」行 → 折り畳み(タップで開閉。他を開くと現在の理由は畳む=アコーディオン)
     const rz = line.match(/^[・]?\s*(理由|根拠)\s*[:：]\s*(.+)$/);
-    if (rz && list && list.lastElementChild) {
+    if (inCauses && rz && list && list.lastElementChild) {
       const wrap = document.createElement("div"); wrap.className = "ai-reason";
       const tog = document.createElement("button"); tog.type = "button"; tog.className = "ai-reason-toggle"; tog.textContent = "理由";
       const body = document.createElement("div"); body.className = "ai-reason-body"; body.textContent = rz[2];
@@ -6139,7 +6145,7 @@ function renderAiAnswer(container, text, opts) {
     }
     // 「切り分け:」行 → 直前の項目にぶら下げ(ラベル文字は表示しない)
     const k = line.match(/^[・]?\s*(切り分け|確認|点検方法)\s*[:：]\s*(.+)$/);
-    if (k && list && list.lastElementChild) {
+    if (inCauses && k && list && list.lastElementChild) {
       const d = document.createElement("div");
       d.className = "ai-check";
       d.textContent = k[2];   // 「切り分け」ラベルは付けず内容のみ
@@ -6151,7 +6157,7 @@ function renderAiAnswer(container, text, opts) {
     // 「改善の見込み:」行 → 直前の項目に色分けバッジで表示(高い=緑/中程度=黄/要フォロー=グレー)。
     // 実データの統計ではなく一般的な傾向の目安なので、そう明記した見出し語をそのまま出す。
     const cu = line.match(/^[・]?\s*改善の見込み\s*[:：]\s*(.+)$/);
-    if (cu && list && list.lastElementChild) {
+    if (inCauses && cu && list && list.lastElementChild) {
       const raw = cu[1].trim();
       const m2 = raw.match(/^([^（(]+)[（(]?\s*([^）)]*)[）)]?$/);
       const level = (m2 ? m2[1] : raw).trim();
