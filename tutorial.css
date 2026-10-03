@@ -10,27 +10,43 @@
 @keyframes tourPulse{0%,100%{outline-color:#e8912d}50%{outline-color:#ffd39a}}
 
 #tourTip{position:absolute;max-width:300px;width:calc(100vw - 32px);background:#fff;color:#15181e;border-radius:14px;padding:15px 16px 14px;box-shadow:0 18px 50px rgba(0,0,0,.4);pointer-events:auto;z-index:9001}
+/* 進み具合のバー(同じSTEPの中でも1画面ごとに伸びる) */
+#tourTip .tt-prog{height:4px;border-radius:2px;background:rgba(127,127,127,.25);margin:0 0 10px;overflow:hidden}
+#tourTip .tt-prog i{display:block;height:100%;background:#e8912d;border-radius:2px;transition:width .2s ease}
 #tourTip .tt-step{font-size:11px;font-weight:800;letter-spacing:.08em;color:#cf7c1c}
+#tourTip .tt-sub{letter-spacing:0;font-weight:700;opacity:.8}
 #tourTip h4{margin:5px 0 6px;font-size:16px;font-weight:800;line-height:1.4}
 #tourTip p{margin:0;font-size:13.5px;line-height:1.65;color:#3a414c}
 #tourTip .tt-btns{display:flex;align-items:center;gap:8px;margin-top:14px}
 #tourTip .tt-spacer{flex:1}
-#tourTip button{font:inherit;font-weight:700;cursor:pointer;border-radius:9px;padding:9px 16px;border:1px solid transparent;font-size:14px}
-#tourTip .tt-next{background:#e8912d;color:#241403}
+/* ボタンはグローブでも押せる高さ(48px)にする。最後の「詳細・申込」はリンク(a)なので同じ見た目を当てる */
+#tourTip button,#tourTip a.tt-next{font:inherit;font-weight:700;cursor:pointer;border-radius:10px;padding:0 20px;border:1px solid transparent;font-size:15px;
+  min-height:48px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}
+#tourTip .tt-next{background:#e8912d;color:#241403;min-width:96px}
 #tourTip .tt-next:active{background:#cf7c1c}
-#tourTip .tt-skip{background:transparent;color:#6b7280;border-color:transparent;padding:9px 8px;font-weight:600;font-size:13px}
+#tourTip .tt-skip{background:transparent;color:#6b7280;border-color:transparent;padding:0 10px;font-weight:600;font-size:14px}
 #tourTip .tt-arrow{position:absolute;width:14px;height:14px;background:#fff;transform:rotate(45deg)}
 #tourTip.center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;max-width:340px}
 #tourTip.center .tt-btns{justify-content:center}
 #tourTip.center .tt-arrow{display:none}
 /* 結果表示中はツールチップを画面下に固定(結果を隠さない) */
-#tourTip.pin{position:fixed;left:50%;top:auto;bottom:calc(78px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:340px}
+#tourTip.pin{position:fixed;left:50%;top:auto;bottom:calc(78px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:340px;padding:11px 14px 10px}
 #tourTip.pin .tt-arrow{display:none}
+#tourTip.pin p{font-size:12.5px;line-height:1.55}
+#tourTip.pin h4{font-size:15px;margin:3px 0 4px}
+#tourTip.pin .tt-prog{margin-bottom:7px}
+#tourTip.pin .tt-btns{margin-top:8px}
+/* デモの帯が出ている間は、帯と下タブの上に置く(--demoH は帯の実際の高さ。app.js が設定) */
+body.hasDemoBanner #tourTip.pin{bottom:calc(var(--demoH,64px) + 74px + env(safe-area-inset-bottom,0px))}
 #tourTip .tt-hint{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;color:#cf7c1c;font-weight:700}
 
 /* 体験を再生する小ボタン(デモ中に表示) */
 #tourReplay{position:fixed;right:14px;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:8000;background:#181b22;color:#fff;border:1px solid #2c313b;border-radius:999px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.3)}
-body.hasDemoBanner #tourReplay{bottom:calc(108px + env(safe-area-inset-bottom,0px))}
+body.hasDemoBanner #tourReplay{bottom:calc(var(--demoH,64px) + 74px + env(safe-area-inset-bottom,0px))}
+@media (min-width:1024px){
+  /* 広い画面では下タブが左のサイドメニューになるので、その分の余白は要らない */
+  body.hasDemoBanner #tourReplay,body.hasDemoBanner #tourTip.pin{bottom:calc(var(--demoH,64px) + 14px)}
+}
 
 @media(prefers-color-scheme:dark){
   #tourTip{background:#1e242d;color:#e7e9ee}

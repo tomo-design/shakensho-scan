@@ -184,6 +184,7 @@ button{font-family:inherit;border:0;cursor:pointer}
   background:radial-gradient(circle at 35% 35%,#fff,#A8B4C4 70%);top:9px}
 .plate::before{left:9px}.plate::after{right:9px}
 .plate .ttl{font-size:10px;letter-spacing:.3em;color:#7C8BA0;font-family:'Chakra Petch';margin-bottom:10px;text-align:center}
+.plate .vidName{font-size:18px;font-weight:900;line-height:1.35;text-align:center;color:#1B2530;margin:0 0 10px;word-break:break-word}
 .plate dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;align-items:baseline}
 .plate dt{font-size:11px;color:#5E6B7C;letter-spacing:.1em;white-space:nowrap}
 .plate dd{font-family:'Chakra Petch';font-weight:700;font-size:17px;letter-spacing:.08em;color:#1B2530; text-shadow:0 1px 0 rgba(255,255,255,.8);word-break:break-all}
@@ -224,7 +225,7 @@ a.linkbtn small{display:block;color:var(--dim);font-size:11px;font-weight:400;ma
 
 /* inputs */
 .inputRow{display:flex;gap:8px}
-input[type=text],input[type=password],input[type=email],input[type=tel],input[type=number],textarea{flex:1;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--txt);
+input[type=text],input[type=password],input[type=email],input[type=tel],input[type=number],input[type=date],textarea{flex:1;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--txt);
   font-family:'Chakra Petch','Noto Sans JP',monospace;font-size:16px;padding:13px 12px;letter-spacing:.04em;box-sizing:border-box}
 input.uc{text-transform:uppercase}
 input:focus,textarea:focus{outline:none;border-color:var(--amber)}
@@ -514,7 +515,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kDate{flex:1 1 auto;font-weight:700;font-size:13px;color:var(--cyan);line-height:1.45}
 .karteItem .kDate .kSep{color:var(--line);font-style:normal;margin:0 2px}
 .karteItem .kBtns{flex:0 0 auto;display:flex;gap:6px}
-.karteItem .kEdit,.karteItem .kDel{background:none;border:1px solid var(--line);border-radius:8px;font-size:12px;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.karteItem .kEdit,.karteItem .kDel{background:none;border:1px solid var(--line);border-radius:10px;font-size:13px;padding:0 14px;min-height:40px;cursor:pointer;white-space:nowrap}
 .karteItem .kEdit{color:var(--cyan)}
 .karteItem .kDel{color:var(--dim)}
 .karteItem .kBody{padding:10px 12px;font-size:14px}
@@ -901,18 +902,31 @@ details[open] > .secSummary::after{content:"▴"}
 
 /* 法人デモ: 上部固定バナー + ログイン/契約系を隠す */
 #demoBanner{position:fixed;left:0;right:0;bottom:0;z-index:400;background:#0f2a5a;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 -2px 10px rgba(0,0,0,.25)}
-#demoBanner .demoTxt{flex:1 1 auto;min-width:180px}
+#demoBanner .demoTxt{flex:1 1 auto;min-width:0}
 #demoBanner .demoBtns{display:flex;gap:8px;flex:none}
 #demoBanner .demoCta{background:#ffb100;color:#0f2a5a;font-weight:800;text-decoration:none;padding:7px 14px;border-radius:8px;white-space:nowrap}
 #demoBanner .demoExit{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);padding:7px 12px;border-radius:8px;font-weight:700;white-space:nowrap}
-body.hasDemoBanner{padding-bottom:64px}
+/* スマホ幅では帯を1行に収める(長い説明文は広い画面だけ)。折り返すと帯が高くなり画面を圧迫する */
+#demoBanner .demoShort{display:none}
+@media (max-width:640px){
+  #demoBanner{flex-wrap:nowrap;gap:8px;padding:7px 10px}
+  #demoBanner .demoLong{display:none}
+  #demoBanner .demoShort{display:inline}
+  #demoBanner .demoCta,#demoBanner .demoExit{padding:8px 10px}
+}
+/* 帯は画面最下部に固定。下タブ・トースト・本文の余白は帯の高さ(--demoH。app.js が実測して設定)だけ上げる。
+   以前は帯が下タブの上に重なり、デモ中はスキャン/履歴/DB編集/設定が押せなかった。 */
+body.hasDemoBanner{padding-bottom:calc(var(--demoH,64px) + 130px + env(safe-area-inset-bottom,0px))}
+body.hasDemoBanner nav#tabs{bottom:var(--demoH,64px)}
+body.hasDemoBanner #appToast{bottom:calc(var(--demoH,64px) + 84px)}
 body.demoMode #secCloudSync,body.demoMode #cloudPlan,body.demoMode #cloudDevices,body.demoMode #tabAdmin,body.demoMode #personalKeyBanner{display:none!important}
 
 /* カルテ: 見出し右の手書きイラスト(記録追加)ボタン + 写真カメラ画像ボタン */
 .kHead2{display:flex;align-items:center;gap:8px}
 .kHeadIcons{margin-left:auto;display:flex;align-items:center;gap:2px;flex:none}
-.karteAddImg{background:none;border:0;padding:0;width:34px;height:34px;flex:none;cursor:pointer}   /* 修理・診断の見出しアイコンと同サイズ */
-.karteAddImg img{width:34px;height:34px;object-fit:contain;display:block}
+/* グローブでも押せるよう押せる範囲は44px(絵は36px)。修理・診断の見出しアイコンは数が多く1行に収めるため34pxのまま */
+.karteAddImg{background:none;border:0;padding:0;width:44px;height:44px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.karteAddImg img{width:36px;height:36px;object-fit:contain;display:block}
 .karteAddImg:active{transform:scale(.92)}
 
 /* 修理見出しを1行に */
@@ -1131,7 +1145,7 @@ body.pwLocked{ overflow:hidden }
 .icPlanCols{display:flex;gap:8px}
 .icPlanCols>.icDetSec{flex:1;min-width:0}
 .icPlanCols .icDetHd{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px}
-.icPlanCols .icPlanAdd{margin-left:auto;min-width:24px;padding:2px 0;text-align:center}
+.icPlanCols .icPlanAdd{margin-left:auto;min-width:44px;min-height:40px;padding:0;font-size:18px;text-align:center}
 /* 出庫予定(カレンダー) */
 .icBadge.icOutPlanB{background:#0E7490}
 .icTot.icOutPlanT{background:rgba(14,116,144,.12);color:#0E7490}
@@ -1142,7 +1156,7 @@ body.pwLocked{ overflow:hidden }
 .icDetHd.icPayT{color:#B45309}
 .icPlanAdd{margin-left:6px;border:1px solid #C4B5FD;background:#F5F3FF;color:#6D28D9;border-radius:8px;font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer}
 .icDetHd.icOutPlanT .icPlanAdd{border-color:#67E8F9;background:#ECFEFF;color:#0E7490}
-.icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#c0392b;font-size:13px;cursor:pointer;padding:0 4px}
+.icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#c0392b;font-size:16px;cursor:pointer;padding:0;min-width:40px;min-height:40px;flex:none}
 .icDetNote{color:var(--dim,#9aa4b2);font-size:11.5px}
 .icDetRow{position:relative}
 /* 予定追加フォーム */
@@ -1198,7 +1212,7 @@ body.pwLocked{ overflow:hidden }
 .ikBtn[data-kind="事故"]{background:#e78a8a}
 .ikBtn:active{filter:brightness(.92)}
 .ikLater{display:block;width:100%;margin-top:14px;background:none;border:0;color:var(--dim);
-  font-size:13px;font-weight:600;padding:6px;cursor:pointer;text-decoration:underline}
+  font-size:14px;font-weight:600;padding:6px;min-height:44px;cursor:pointer;text-decoration:underline}
 
 /* ===== 注意ポップアップ(参加申請・新規入庫) ===== */
 .notifyPop{position:fixed;left:0;right:0;top:0;z-index:500;display:flex;justify-content:center;padding:12px;
@@ -1748,7 +1762,7 @@ body.gated{overflow:hidden}
   padding:14px 16px;border-bottom:1px solid var(--line);cursor:default}
 #intakeCalModal .icModalTitle{font-size:15px;font-weight:800;color:var(--txt)}
 #intakeCalModal .icModalTitle::before{content:none}
-#intakeCalModal .icClose{margin-left:auto;width:36px;height:36px;border-radius:50%;
+#intakeCalModal .icClose{margin-left:auto;width:44px;height:44px;border-radius:50%;
   border:1px solid var(--line);background:var(--panel2);color:var(--dim);
   font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
 #intakeCalModal .icClose:active{background:var(--line)}
@@ -1756,13 +1770,13 @@ body.gated{overflow:hidden}
 
 /* 月移動ツール */
 #intakeCalModal .icTools{display:flex;align-items:center;justify-content:center;gap:10px;padding:0 0 12px}
-#intakeCalModal .icNav{width:36px;height:36px;border:1px solid var(--line);background:var(--panel);
+#intakeCalModal .icNav{width:44px;height:44px;border:1px solid var(--line);background:var(--panel);
   color:var(--txt);border-radius:10px;font-size:18px;line-height:1;cursor:pointer;flex:none}
 #intakeCalModal .icNav:active{background:var(--panel2)}
 #intakeCalModal .icTitle{font-weight:800;font-size:16px;min-width:140px;text-align:center;color:var(--txt)}
 #intakeCalModal .icTodayBtn{border:1px solid var(--line);background:var(--panel);color:var(--dim);
   border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;
-  white-space:nowrap;flex:none;min-height:36px}
+  white-space:nowrap;flex:none;min-height:44px}
 #intakeCalModal .icTodayBtn:active{background:var(--panel2)}
 
 /* 曜日行とセル */

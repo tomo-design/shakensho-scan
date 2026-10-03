@@ -2156,13 +2156,14 @@ function showResult(d, opt = {}) {
   setText("rUser", noEmail(histEntry && histEntry.name) || "—");   // メール混入は表示しない
   // QR生データがあり、未取得項目があればAI解析(自動実行・タップ不要)
   current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
-  // 限定表示項目: 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
+  // 表示項目: 車名(分かる時だけ) / 型式 / 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
   const missing = !d.engine || !d.plate || !d.kataShitei;
   toggle("aiQrParse", current.qrRaw.length > 0 && missing);
   toggle("aiQrStatus", false);
   aiQrDone = false;
   // スキャン由来で未取得項目がある時は、メカ君のQR解析を自動で開始(ワンタップ不要)
   if (opt && opt.fromScan && !opt.noAutoAi && current.qrRaw.length > 0 && missing) setTimeout(() => { if (!aiQrDone) runAiQrParse(true); }, 60);
+  setText("rType", han(d.type) || "—");
   setText("rEngine", han(d.engine) || "—");
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
@@ -2203,6 +2204,7 @@ function showResult(d, opt = {}) {
     if (te && te.model !== hit.name) { te.model = hit.name; te.updatedAt = Date.now(); localStorage.setItem(LS.hist, JSON.stringify(hh)); if (window.Cloud) window.Cloud.pushRecord(te); }
     if (!learned || learned.model !== hit.name) setLearned(vehicleKey(d), { model: hit.name });
   }
+  renderVidModel(d, hit);
   const m = $("rMatch");
   if (hit) {
     m.textContent = "⚙ 車種DB一致: " + hit.name;
@@ -2912,6 +2914,17 @@ function setLearned(key, patch) {
     c[key] = Object.assign({}, c[key], patch, { key, at: new Date().toISOString() });
     localStorage.setItem("ss_learnedspecs", JSON.stringify(c));
   } catch (e) {}
+  // AIが車名を特定した時は、表示中の車両カードの車名にもすぐ反映する
+  try { if (patch && patch.model && current && vehicleKey(current) === key) renderVidModel(current); } catch (e) {}
+}
+/* 車両カード上部の車名。車種DB一致 > 履歴に保存済み > AIが特定して覚えた名前 の順。分からない間は出さない。 */
+function renderVidModel(d, hit) {
+  const el = $("rModel"); if (!el || !d) return;
+  let name = (hit && hit.name) || "";
+  if (!name) { const h = findHistEntry(getHistory(), d); name = (h && h.model) || ""; }
+  if (!name) { const l = getLearned(vehicleKey(d)); name = (l && l.model) || ""; }
+  el.textContent = dispText(name) || "";
+  toggle("rModel", !!name);
 }
 function getLearnedSpecs(d) { const e = getLearned(vehicleKey(d)); return (e && e.specs) || null; }
 /* AIで取得した諸元・故障を車両レコード(履歴=DB)へ自動保存(車台番号で同一車両を特定) */
@@ -3551,6 +3564,8 @@ function toggleInspDone(rid) {
 }
 /* スキャン確定時の入庫区分ポップアップ。既に入庫中なら出さない */
 function openIntakePopup(d) {
+  // 入庫区分は法人版(Works)だけの機能。個人版(Pocket)ではスキャンしても聞かない。
+  if (typeof getAppMode === "function" && getAppMode() === "personal") return;
   const rid = d && d.rid;
   if (!rid) return;
   const cur = getHistory().find(h => h.rid === rid);
@@ -4617,7 +4632,9 @@ function renderHomeIntake() {
   const isWorksMember = loggedIn && !officeMode() && !isDemoNow && getAppMode() !== "personal";
   try { bindIntakeCal(); } catch (e) {}   // 見出しの📅を有効化
   toggle("hdrCalBtn", false);   // ヘッダーの📅は廃止(カレンダーは「現在の入庫状況」見出しに集約)
-  const baseShow = onHome && !searchOpen && isWorksMember;
+  // デモ(法人版の体験)でも、ホームの入庫状況とカレンダーを見せる。デモは未ログインなので
+  // activeIntakes() が返すのはこの端末内のサンプル(startDemoが入れた1台)だけ。閲覧のみ(canEdit=false)。
+  const baseShow = onHome && !searchOpen && (isWorksMember || (isDemoNow && getAppMode() !== "personal"));
   if (!baseShow) { toggle("homeIntake", false); box.innerHTML = ""; return; }
   const canEdit = loggedInMgr;   // 出庫・担当の操作は管理者のみ
   const list = activeIntakes();
@@ -8375,7 +8392,7 @@ const DEMO_FAULTS = [
 const DEMO_RECALLS = [];
 const DEMO_REPAIR = {
   isWork: true,
-  location: "フロント左右のブレーキキャリパー。タイヤを外し、ディスクローターを挟むキャリパー内にパッドがあります（軽トラは作業スペースが狭いので注意）。",
+  location: "フロント左右のブレーキキャリパー。タイヤを外し、ディスクローターを挟むキャリパー内にパッドがあります（軽バンは作業スペースが狭いので注意）。",
   time: "約0.5〜0.8時間（左右）",
   order: [
     { name: "フロントブレーキパッド", qty: "1", kind: "本体", step: 3 },
@@ -8634,21 +8651,50 @@ function demoAnswer(prompt) {
     text = JSON.stringify(DEMO_REPAIR);
   } else if (/"specs"|メンテナンス諸元|諸元/.test(p)) {
     text = JSON.stringify({ model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS });
+  } else if (/■原因候補/.test(p) && /P0401/i.test(p) && window.APP_LANG !== "en") {
+    // 体験ガイドの例(P0401)には、本番と同じ形式の回答例を返す。「案内文だけ」だと一番の売りが伝わらない。
+    // 内容は内蔵の db/dtc.json(P0401) と db/guides.json(EGR系統点検の手引き) に書いてある範囲でまとめたもの。
+    text = DEMO_DIAG_P0401;
   } else {
     text = (window.APP_LANG === "en")
       ? "(Demo sample answer) Thanks for your question. In the full version, Mecha AI tailors specific maintenance advice, cause isolation, required tools and tightening torque to the scanned vehicle's model, engine and year. Let's check the inspection points one by one."
-      : "（デモ用サンプル回答）ご質問ありがとうございます。本契約版では、読み込んだ車両の型式・原動機・年式に合わせて、メカ君AIが具体的な整備アドバイス・原因の切り分け・必要な工具や締付トルクまで回答します。まずは点検箇所を順に確認していきましょう。";
+      : "（デモ用サンプル回答）デモで回答例を用意しているのは、診断の「P0401」と修理の「ブレーキパッド交換」です。本契約版では、どんな症状・コード・作業名でも、読み込んだ車両の型式・原動機・年式に合わせてメカ君AIが原因の切り分け・必要な工具・締付トルクまで回答します。";
   }
   return Promise.resolve({ text, truncated: false, model: "demo" });
 }
+const DEMO_DIAG_P0401 = [
+  "（デモ用のサンプル回答です）",
+  "",
+  "■原因候補（可能性が高い順）",
+  "1. EGRバルブ・通路のカーボン詰まり",
+  "理由: P0401はEGR流量不足。煤が堆積して通路が狭くなり、指示どおりの量が流れないのが一番多いパターンです。",
+  "切り分け: EGRバルブを取り外し、バルブ・ポート・EGRクーラー入口のカーボン堆積を目視で確認。堆積していれば清掃する。",
+  "改善の見込み: 高い（清掃で解消することが多い）",
+  "2. EGRバルブの作動不良（固着・追従不良）",
+  "理由: バルブが張り付いて開かないと、通路がきれいでも流量が出ません。",
+  "切り分け: 診断機で目標開度と実開度を比較し、アクティブテストで全閉⇔全開に動かして作動音と開度の追従を確認。全閉時に実開度0%へ戻るかも見る。",
+  "改善の見込み: 高い（固着が酷ければバルブ交換で解消することが多い）",
+  "3. EGRクーラーの詰まり",
+  "理由: クーラー内部に煤が詰まると、バルブが正常に開いても流量が不足します。",
+  "切り分け: クーラーの入口と出口の温度差を確認する。差が小さければ詰まりを疑う。",
+  "改善の見込み: 中程度（清掃や交換の後も、煤の出やすい使い方が続くと再発することがある）",
+  "",
+  "■最初の1手",
+  "診断機でEGRバルブの目標開度と実開度を比べるところから。ズレや張り付きがあればバルブ側、追従していれば通路・クーラーの詰まりへ進みます。組付け後は学習値をリセットし、暖機して再発を確認してください。"
+].join("\n");
 function showDemoBanner() {
   if (document.getElementById("demoBanner")) return;
   const b = document.createElement("div"); b.id = "demoBanner";
-  b.innerHTML = '<span class="demoTxt">🎬 これは<b>無料デモ</b>です（ログイン不要・サンプルデータ）。本契約で全機能・自社データが使えます。</span>' +
+  // スマホ幅では短い文(demoShort)だけ出して帯を1行に収める(style.css)。
+  b.innerHTML = '<span class="demoTxt"><span class="demoLong">🎬 これは<b>無料デモ</b>です（ログイン不要・サンプルデータ）。本契約で全機能・自社データが使えます。</span>' +
+    '<span class="demoShort">🎬 <b>無料デモ</b>（サンプル）</span></span>' +
     '<span class="demoBtns"><a class="demoCta" href="mailto:ai@reply.mechanoai-cablueie.com?subject=' + encodeURIComponent("MECHANO-AI Works の申込・相談") + '">申込・相談</a>' +
     '<button type="button" id="demoExit" class="demoExit">デモ終了</button></span>';
   document.body.appendChild(b);
   document.body.classList.add("hasDemoBanner");
+  // 帯の実際の高さを --demoH に入れ、下タブ・トースト・ガイドをその分だけ上げる(帯が下タブを覆わないように)
+  const syncH = () => { try { document.documentElement.style.setProperty("--demoH", b.offsetHeight + "px"); } catch (e) {} };
+  syncH(); window.addEventListener("resize", syncH); setTimeout(syncH, 400);
   const ex = document.getElementById("demoExit");
   if (ex) ex.addEventListener("click", () => { try { sessionStorage.removeItem("ss_demo"); } catch (e) {} location.href = location.pathname; });
 }
@@ -8659,6 +8705,14 @@ function startDemo() {
   // サンプル車両の諸元・故障を端末に記憶させ、AIを呼ばずにメンテ/診断へ表示
   try { setLearned(vehicleKey(DEMO_VEHICLE), { model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS, specDone: true }); } catch (e) {}
   try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
+  // サンプル車両を「車検で入庫中」にしておく(ホームの入庫状況・カレンダーに1台出して、法人版の入庫管理を体験できるように)
+  try {
+    if (getAppMode() !== "personal" && !activeIntakes().length) {
+      if (!findHistEntry(getHistory(), current)) addHistory(current);   // 区分は履歴レコードに持つので、先に履歴へ入れる
+      setIntake(null, "車検"); updateVidIntakeBtn(current);
+    }
+  } catch (e) {}
+  try { renderHomeIntake(); } catch (e) {}   // 車両を表示中はホームの入庫状況を畳む(ホームに戻った時だけ出す)
   // ★URL(?demo=1)経由でもログインゲートを確実に解除(でないとゲートが前面に残り体験ガイドが操作できない)
   try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
   // ★デモUIが整ってから体験ガイドを確実に開始。デモを開いたら毎回自動で走らせる(force=true)。

@@ -22,23 +22,37 @@
 
   // 種別: center=中央説明 / (既定)=説明のみ / nav=タップで画面遷移(自動で次へ) /
   //       action=タップでその場に結果表示(次へで進む) / fill=例文を入れて誘導
+  //       ch=章番号(同じ章が続く間は「(2/3)」と小番号を自動で付ける)
+  //       after=action実行後に吹き出しを差し替える文言
   var STEPS = [
-    { center: true, step: "体験モード", title: "メカノAIを触ってみましょう", body: "実際の画面で操作感を体験できます（サンプルの軽トラを読み込み済み・AIはサンプル応答）。光っている場所をタップして進めてください。", cta: "はじめる" },
-    { sel: "#result", step: "STEP 1 / 6", title: "車検証を読むと車両情報が出ます", body: "本番では車検証のQR・写真を撮るだけ。今回はサンプル車両（ダイハツ ハイゼットカーゴ）を読み込んでいます。" },
-    { sel: "#btnGoMaint", nav: true, step: "STEP 2 / 6", title: "メンテナンス諸元を見る", body: "オイル量・締付トルクなどをすぐ確認できます。この光っているボタンをタップ。" },
-    { sel: "#specList", also: "#btnSpecAI", step: "STEP 3 / 6", title: "諸元が即表示", body: "調べ物の時間を短縮。分からないことは「メカ君に聞く」でAIにも質問できます。若手や外国人スタッフでもすぐ戦力に。" },
-    { sel: "diag-nav", nav: true, step: "STEP 4 / 6", title: "故障診断を開く", body: "下のメニューの「🩺 診断」をタップ。" },
-    { sel: "#diagText", fill: "P0401", step: "STEP 4 / 6", title: "症状やコードを入力", body: "例として「P0401」を入力しました。実際はダイアグコードや「エンストする」等の症状でOK。次に下の〔メカ君に聞く〕を押します。" },
-    { sel: "#btnDiagRun", action: true, result: "#diagResults", step: "STEP 4 / 6", title: "AIに診断させる", body: "「メカ君に聞く」を押すと、考えられる原因・確認手順・対処が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
-    { sel: "parts-nav", nav: true, step: "STEP 5 / 6", title: "修理（部品・注文）を開く", body: "続いて「🛠 修理」をタップ。必要部品の洗い出しや注文リスト作成ができます。" },
-    { sel: "#qVehText", fill: "ブレーキパッド交換", step: "STEP 5 / 6", title: "作業名を入れるだけでOK", body: "例として「ブレーキパッド交換」を入力しました。次に〔メカ君に聞く〕を押します。" },
-    { sel: "#btnVehAsk", action: true, result: "#qVehResult", step: "STEP 5 / 6", title: "必要部品・手順を出す", body: "押すと、必要な部品や作業手順の目安が表示されます（デモはサンプル）。押して結果を見てみましょう。" },
-    { sel: "karte-nav", nav: true, step: "STEP 6 / 6", title: "整備カルテを開く", body: "最後に「📋 カルテ」をタップ。作業内容を記録して社内で共有できます。" },
-    { sel: "#btnKarteAdd", also: "#karteList", step: "STEP 6 / 6", title: "作業記録を残して共有", body: "「＋」から作業記録を追加。写真での入力にも対応。担当者ごとに管理でき、引き継ぎもスムーズです。" },
-    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "本番では自社の車両データで、これらがすべて使えます。導入のご相談・無料デモはお気軽にどうぞ。", cta: "閉じる", showApply: true },
+    { center: true, step: "体験モード", title: "メカノAIを触ってみましょう", body: "実際の画面で操作感を体験できます（サンプルの軽バンを読み込み済み・AIはサンプル応答）。光っている場所をタップして進めてください。", cta: "はじめる" },
+    { sel: "#result", ch: 1, title: "車検証を読むと車両情報が出ます", body: "本番では車検証のQR・写真を撮るだけ。今回はサンプル車両（ダイハツ ハイゼットカーゴ）を読み込んでいます。" },
+    { sel: "#btnGoMaint", nav: true, ch: 2, title: "メンテナンス諸元を見る", body: "オイル量・締付トルクなどをすぐ確認できます。この光っているボタンをタップ。" },
+    { sel: "#specList", also: "#btnSpecAI", ch: 3, title: "諸元が即表示", body: "調べ物の時間を短縮。分からないことは「メカ君に聞く」でAIにも質問できます。若手や外国人スタッフでもすぐ戦力に。" },
+    { sel: "diag-nav", nav: true, ch: 4, title: "故障診断を開く", body: "上に並んだメニューから「🩺 診断」をタップ。" },
+    { sel: "#diagText", fill: "P0401", ch: 4, title: "症状やコードを入力", body: "例として「P0401」を入力しました。実際はダイアグコードや「エンストする」等の症状でOK。" },
+    { sel: "#btnDiagRun", action: true, result: "#diagResults", ch: 4, title: "AIに診断させる", body: "「メカ君に聞く」を押すと、原因候補が可能性の高い順に出ます（デモはサンプル回答）。",
+      after: { title: "原因候補が出ました", body: "スクロールすると、理由・切り分け方・改善の見込みを確認できます。" } },
+    { sel: "parts-nav", nav: true, ch: 5, title: "修理（部品・注文）を開く", body: "続いて上のメニューの「🛠 修理」をタップ。必要部品の洗い出しや注文リスト作成ができます。" },
+    { sel: "#qVehText", fill: "ブレーキパッド交換", ch: 5, title: "作業名を入れるだけでOK", body: "例として「ブレーキパッド交換」を入力しました。" },
+    { sel: "#btnVehAsk", action: true, result: "#qVehResult", ch: 5, title: "必要部品・手順を出す", body: "「メカ君に聞く」を押すと、必要な部品や作業手順の目安が出ます（デモはサンプル回答）。",
+      after: { title: "手順とトルクが出ました", body: "見出しをタップすると、部品リスト・交換手順・締付トルクが開きます。" } },
+    { sel: "karte-nav", nav: true, ch: 6, title: "整備カルテを開く", body: "上のメニューの「📋 カルテ」をタップ。作業内容を記録できます。" },
+    { sel: "#btnKarteAdd", also: "#karteList", ch: 6, title: "作業記録を残す", body: "右上のボタンから作業記録を追加。伝票やメモの写真からの入力にも対応しています。" },
+    { sel: "home-tab", nav: true, ch: 7, title: "入庫状況を見る（Works）", body: "最後に「📷 スキャン」をタップしてホームへ。ここからは法人版 Works の機能です。" },
+    { sel: "#homeIntake", openFold: true, ch: 7, title: "入庫中の車両がひと目で（Works）", body: "入庫区分（車検・点検・修理・板金）を選んだ車両がここに並び、社内の全端末で共有されます。ガイドを閉じたあと、見出しの📅で入出庫カレンダーも開けます。" },
+    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "このままデモを自由に触れます。料金や導入の流れは「詳細・申込」からどうぞ。", showApply: true },
   ];
+  var CH_TOTAL = STEPS.reduce(function (m, s) { return Math.max(m, s.ch || 0); }, 0);
+  function stepLabel(idx) {
+    var s = STEPS[idx];
+    if (!s.ch) return s.step || "";
+    var same = STEPS.filter(function (x) { return x.ch === s.ch; });
+    var sub = same.length > 1 ? '<span class="tt-sub">（' + (same.indexOf(s) + 1) + "/" + same.length + "）</span>" : "";
+    return "STEP " + s.ch + " / " + CH_TOTAL + sub;
+  }
 
-  var i = 0, ov, spot, tip, masks = [], curEl = null, stepDone = false, clickFn = null, revealed = false;
+  var i = 0, ov, spot, tip, masks = [], curEl = null, stepDone = false, clickFn = null, revealed = false, tick = null;
 
   function build() {
     ov = document.createElement("div"); ov.id = "tourOv";
@@ -46,6 +60,8 @@
     spot = document.createElement("div"); spot.id = "tourSpot"; spot.style.display = "none";
     tip = document.createElement("div"); tip.id = "tourTip";
     ov.appendChild(spot); ov.appendChild(tip); document.body.appendChild(ov);
+    // 文字入力や描画の遅れで対象が後から動いても、枠と暗幕が置き去りにならないよう定期的に合わせ直す
+    tick = setInterval(reposition, 300);
   }
   function swallow(e) { e.preventDefault(); e.stopPropagation(); if (spot && spot.style.display !== "none") { spot.classList.remove("pulse"); void spot.offsetWidth; spot.classList.add("pulse"); } }
 
@@ -54,6 +70,7 @@
     if (s.sel === "diag-nav") return visible('.navBtn[data-go="diag"]') || $("#btnGoDiag");
     if (s.sel === "parts-nav") return visible('.navBtn[data-go="parts"]') || $("#btnGoParts");
     if (s.sel === "karte-nav") return visible('.navBtn[data-go="karte"]') || $("#btnGoKarte");
+    if (s.sel === "home-tab") return visible('nav#tabs button[data-view="scan"]');
     return visible(s.sel) || $(s.sel);
   }
   function unionRect(s, el) {
@@ -116,19 +133,21 @@
   function render() {
     var s = STEPS[i];
     stepDone = false; revealed = false; unbind(); curEl = null;
+    var last = i === STEPS.length - 1;
     var btns = '<div class="tt-btns">' +
-      '<button class="tt-skip" data-act="skip">' + (i > 0 ? "スキップ" : "閉じる") + "</button>" +
+      '<button class="tt-skip" data-act="skip">' + (i > 0 && !last ? "スキップ" : "閉じる") + "</button>" +
       '<span class="tt-spacer"></span>' +
-      (s.showApply ? '<a class="tt-next" style="text-decoration:none" href="biz.html">詳細・申込</a>' :
+      (s.showApply ? '<a class="tt-next" href="biz.html">詳細・申込</a>' :
         '<button class="tt-next" data-act="next">' + (s.cta || "次へ") + "</button>") +
       "</div>";
     var hint = (s.nav || s.action) ? '<div class="tt-hint">👆 光っている場所をタップ</div>' : "";
-    tip.innerHTML = '<div class="tt-step">' + s.step + "</div><h4>" + s.title + "</h4><p>" + s.body + "</p>" + hint + btns;
+    var prog = '<div class="tt-prog"><i style="width:' + Math.round(i / (STEPS.length - 1) * 100) + '%"></i></div>';
+    tip.innerHTML = prog + '<div class="tt-step">' + stepLabel(i) + "</div><h4>" + s.title + "</h4><p>" + s.body + "</p>" + hint + btns;
     tip.querySelectorAll("[data-act]").forEach(function (b) {
       b.onclick = function () {
         if (b.dataset.act === "skip") return end();
         if (s.nav && curEl) { unbind(); try { curEl.click(); } catch (e) {} setTimeout(advance, 300); }
-        else if (s.action && curEl && !revealed) { doAction(); }   // 未実行なら「次へ」で実行して結果を見せる
+        else if (s.action && curEl && !revealed) { doAction(true); }   // 未実行なら「次へ」で実行して結果を見せる
         else advance();
       };
     });
@@ -138,12 +157,21 @@
     waitForTarget(s, 0);
   }
 
-  function doAction() {   // action: その場で結果表示 → 暗幕を外して結果へフォーカス
+  // action: その場で結果表示 → 暗幕を外して結果へフォーカス。
+  // viaTip=吹き出しの「次へ」から来た時だけ、対象ボタンを代わりに押す。
+  // 対象を本人がタップした時にも押すと二重実行になり、同じ結果が2件保存されていた。
+  function doAction(viaTip) {
     if (revealed) return; revealed = true;
     var s = STEPS[i];
-    try { curEl.click(); } catch (e) {}
+    unbind();
+    if (viaTip) { try { curEl.click(); } catch (e) {} }
     var next = tip.querySelector(".tt-next"); if (next) next.textContent = "次へ";
     var hint = tip.querySelector(".tt-hint"); if (hint) hint.remove();
+    if (s.after) {
+      var h = tip.querySelector("h4"), p = tip.querySelector("p");
+      if (h) h.textContent = s.after.title;
+      if (p) p.textContent = s.after.body;
+    }
     // 結果が描画されるのを待ってから、暗幕を消して結果を画面内へ
     var tries = 0;
     (function waitResult() {
@@ -153,7 +181,7 @@
         // 暗幕・枠を消して全体を見えるように(結果を邪魔しない)
         spot.style.display = "none";
         masks.forEach(function (m) { m.style.display = "none"; });
-        if (res) { try { res.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} }
+        if (res) { try { res.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (e) {} }
         tip.className = "pin";
         tip.style.left = ""; tip.style.top = "";
         return;
@@ -167,12 +195,14 @@
     if (el && el.offsetParent !== null) {
       curEl = el;
       if (s.fill) { try { if (!el.value) { el.value = s.fill; el.dispatchEvent(new Event("input", { bubbles: true })); } el.focus({ preventScroll: true }); } catch (e) {} }
+      // 折りたたみ(details)の中身を見せたいステップは、開いた状態にしてから囲む
+      if (s.openFold) { try { var fold = el.querySelector("details"); if (fold) fold.open = true; } catch (e) {} }
       try { el.scrollIntoView({ block: "center", behavior: "auto" }); } catch (e) {}
       setTimeout(function () {
         if (STEPS[i] !== s) return;
         place(el, s);
         if (s.nav) { clickFn = function () { setTimeout(advance, 300); }; el.addEventListener("click", clickFn, { once: true }); }
-        else if (s.action) { clickFn = function () { doAction(); }; el.addEventListener("click", clickFn, { once: true }); }
+        else if (s.action) { clickFn = function () { doAction(false); }; el.addEventListener("click", clickFn, { once: true }); }
       }, 160);
       // レイアウト確定後にもう一度合わせる(スクロール/フォント読み込みのズレ対策)
       setTimeout(function () { if (STEPS[i] === s && !revealed) place(el, s); }, 450);
@@ -182,7 +212,7 @@
     spot.style.display = "none"; fullMask(); tip.className = "center"; tip.style.left = ""; tip.style.top = "";
   }
 
-  function end() { unbind(); if (ov) ov.remove(); ov = spot = tip = null; masks = []; curEl = null; ensureReplay(); }
+  function end() { unbind(); if (tick) { clearInterval(tick); tick = null; } if (ov) ov.remove(); ov = spot = tip = null; masks = []; curEl = null; ensureReplay(); }
   function start() { i = 0; if (!ov) build(); render(); }
   // 外部(デモ起動側)からタイミングを合わせて確実に開始できるように公開。
   // force=true で「表示済みフラグ」を無視して開始。表示中(ov有り)なら何もしない(二重起動防止)。
