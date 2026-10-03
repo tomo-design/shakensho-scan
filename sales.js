@@ -1702,8 +1702,33 @@ ${SNS_HUMAN}`;
           ? "⚠ 送信用アドレス未設定のため送信されません（業者の管理画面で発行して入力）"
           : (c.faxLastRun ? "前回: " + fmtDate(c.faxLastRun) + " / " + (c.faxLastSent || 0) + "件送信" : "");
       }
+      if ($("trialMailEnabled")) $("trialMailEnabled").checked = !!c.trialMailEnabled;
+      if ($("trialMailDryRun")) $("trialMailDryRun").checked = c.trialMailDryRun !== false;   // 既定は試験送信
+      if ($("trialMailPerRun")) $("trialMailPerRun").value = c.trialMailPerRun || 50;
+      if ($("trialMailStat")) {
+        $("trialMailStat").textContent = !j.sgReady ? "⚠ メール送信(SendGrid)が未設定です。"
+          : !c.trialMailEnabled ? "現在は停止中です（1通も送られません）"
+          : (c.trialMailDryRun !== false ? "🧪 試験送信中（お客様には届きません）" : "✅ 本番送信中");
+      }
     } catch (e) { if ($("dripStat")) $("dripStat").textContent = e.message; }
   }
+  const _st = $("btnSaveTrialMail");
+  if (_st) _st.onclick = async () => {
+    // 試験送信をOFF(=本番送信)にする時だけ、取り返しがつかないので確認する。
+    if ($("trialMailEnabled").checked && !$("trialMailDryRun").checked &&
+        !confirm("本番送信に切り替えます。\n無料お試し中のお客様へ、明朝9:00から実際に案内メールが届きます。\n試験送信で文面を確認済みですか？")) return;
+    _st.disabled = true;
+    try {
+      await api("setConfig", { config: {
+        trialMailEnabled: $("trialMailEnabled").checked,
+        trialMailDryRun: $("trialMailDryRun").checked,
+        trialMailPerRun: parseInt($("trialMailPerRun").value, 10) || 50,
+      } });
+      toast("満了案内の設定を保存しました");
+      loadDripConfig();
+    } catch (e) { toast(e.message); }
+    finally { _st.disabled = false; }
+  };
   const _sf = $("btnSaveFax");
   if (_sf) _sf.onclick = async () => {
     _sf.disabled = true;

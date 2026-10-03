@@ -2585,6 +2585,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
         arLastRun: c.arLastRun || 0, arLastAdded: typeof c.arLastAdded === "number" ? c.arLastAdded : null,
         faxEnabled: !!c.faxEnabled, faxPerDay: c.faxPerDay || 3, faxToAddr: c.faxToAddr || "",
         faxLastRun: c.faxLastRun || 0, faxLastSent: typeof c.faxLastSent === "number" ? c.faxLastSent : null,
+        trialMailEnabled: !!c.trialMailEnabled, trialMailDryRun: c.trialMailDryRun !== false, trialMailPerRun: c.trialMailPerRun || 50,
       },
       sgReady: sgReady,
     });
@@ -2601,6 +2602,9 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
     if ("faxEnabled" in c) patch.faxEnabled = !!c.faxEnabled;
     if ("faxPerDay" in c) patch.faxPerDay = Math.min(Math.max(parseInt(c.faxPerDay, 10) || 3, 1), 20);
     if ("faxToAddr" in c) patch.faxToAddr = String(c.faxToAddr || "").trim().slice(0, 120);
+    if ("trialMailEnabled" in c) patch.trialMailEnabled = !!c.trialMailEnabled;
+    if ("trialMailDryRun" in c) patch.trialMailDryRun = !!c.trialMailDryRun;
+    if ("trialMailPerRun" in c) patch.trialMailPerRun = Math.min(Math.max(parseInt(c.trialMailPerRun, 10) || 50, 1), 200);
     await db.collection("salesConfig").doc("main").set(patch, { merge: true });
     return res.json({ ok: true });
   }
@@ -2940,3 +2944,292 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
     return res.status(500).json({ error: "送信に失敗しました。時間をおいて再度お試しください。" });
   }
 });
+
+/* ===================================================================
+   ① 無料お試しの満了案内メール(毎朝09:00 JST)
+   -------------------------------------------------------------------
+   アプリは「期間終了(8日目)にお支払いのご案内をお送りします」と画面で約束しているのに
+   (cloud.js のトライアル表示)、それを送る処理が無かった。
+   = Pocketの無料ユーザーは8日目にアプリを開かなければ、何も知らされないまま消える。
+   ここを埋める。
+
+   ・対象 : tenants の plan=="trial"
+   ・段階 : pure.trialStage() で pre(残り1〜3日) / end(満了直後) / last(満了2〜7日後)
+            日付ぴったりで判定せず幅を持たせているのは、定期実行が1日飛んでも
+            取りこぼさないため(残り2日ちょうどで判定すると、その日に失敗したら永久に送られない)。
+   ・重複 : 1段階1通だけ。tenants.trialMail.{pre,end,last} に送信時刻を記録して二度送らない。
+   ・Pocket(個人) : アプリ内の登録画面へ誘導する(?pocket=join)。
+                    Stripe CheckoutのURLは24時間で失効するのでメールには載せない。
+   ・Works(法人)  : provisionContract がStripeの送付インボイス契約を作っているので、
+                    満了時にStripeが請求書を自動送付する。こちらは予告＋未払い請求書URLの案内。
+                    (法人は満了時にWebhookでplan=="active"へ変わるため、実際に出るのは主にpre)
+   ・配信停止した方には送らない。ドメインの評価を守るほうを優先する。
+   ・salesConfig/main : trialMailEnabled(既定OFF) / trialMailDryRun / trialMailPerRun
+   =================================================================== */
+// JSTの日付文字列(Cloud FunctionsのTZはUTCなので必ずtimeZoneを指定する)
+const jstDateText = (ms) => new Date(Number(ms) || 0).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" });
+const yen = (n) => "¥" + Math.round(Number(n) || 0).toLocaleString("ja-JP");
+
+/* 満了案内メールの件名と本文を作る。t=tenantsドキュメント。 */
+function buildTrialMail(t, stage, appUrl, invoiceUrl) {
+  const personal = t.edition === "personal";
+  const left = pure.trialDaysLeft(t.paidUntil);
+  const until = jstDateText(t.paidUntil);
+  const who = t.name ? (String(t.name) + (personal ? " 様" : " 御中")) : (personal ? "お客様" : "ご担当者様");
+  const joinUrl = appUrl + "?pocket=join";
+  const askReply = "ご不明な点は、本メールにそのままご返信ください。担当者が確認いたします。";
+  if (personal) {
+    const price =
+      "▼ご料金\n月額 ¥500 ／ 年額 ¥5,000（月あたり¥417）\n" +
+      "お支払いは決済会社Stripeの画面で行います。カード番号が当社のサーバーに保存されることはありません。\n" +
+      "解約は設定タブからいつでも可能です（解約後も、お支払い済みの期間の満了まではお使いいただけます）。\n";
+    const howTo = "▼ご登録\n" + joinUrl + "\n　上のリンクを開いてログインすると、ご登録の画面が出ます。\n";
+    const dataNote =
+      "▼データについて\n端末に保存された車両データ・整備記録は消えません。\n" +
+      "のちほどご登録いただければ、そのまま続きからお使いいただけます。\n";
+    if (stage === "pre") {
+      return {
+        subject: "【メカノAI Pocket】無料お試しは残り" + left + "日です",
+        body: who + "\n\nメカノAI Pocket をお試しいただき、ありがとうございます。\n" +
+          "無料お試し期間は残り" + left + "日（" + until + "まで）です。\n\n" +
+          "このまま続けてお使いいただく場合は、下記からご登録ください。\n" +
+          "今ご登録いただいても、初回のご請求は無料期間が終わってからです（残りの無料期間はそのままお使いいただけます）。\n\n" +
+          howTo + "\n" + price + "\n" +
+          "▼ご登録されない場合\n無料期間の終了後は、機能のご利用が止まります。\n" +
+          "ただし車両データ・整備記録は端末に残りますので、ご安心ください。\n\n" +
+          askReply + "\n\n" + MAIL_SIGN,
+      };
+    }
+    if (stage === "end") {
+      return {
+        subject: "【メカノAI Pocket】無料お試し期間が終了しました",
+        body: who + "\n\nメカノAI Pocket の無料お試し期間が、" + until + "で終了しました。\n" +
+          "お試しいただき、ありがとうございました。\n\n" +
+          "引き続きお使いいただくには、月額プランへのご登録をお願いいたします。\n\n" +
+          howTo + "\n" + price + "\n" + dataNote + "\n" +
+          askReply + "\n\n" + MAIL_SIGN,
+      };
+    }
+    return {
+      subject: "【メカノAI Pocket】ご利用はいかがでしたか（最後のご案内）",
+      body: who + "\n\n先日、無料お試し期間の終了をご連絡いたしました。その後いかがでしょうか。\n\n" +
+        "もし「思っていたものと違った」「使う場面がなかった」「操作が分かりにくかった」など\n" +
+        "ございましたら、本メールにご返信いただけると、今後の改善に役立てさせていただきます。\n" +
+        "整備の現場で本当に使えるものにしたいので、率直なご意見がいちばん助かります。\n\n" +
+        "引き続きお使いいただける場合は、下記からご登録いただけます。\n\n" +
+        howTo + "\n" + dataNote + "\n" +
+        "ご案内は今回で最後にいたします。ありがとうございました。\n\n" + MAIL_SIGN,
+    };
+  }
+  // ---- 法人(Works) ----
+  const planLabel = planLabelFromCode(t.aiPlan);
+  const invoice = invoiceUrl ? ("\n▼請求書（お支払い用ページ）\n" + invoiceUrl + "\n") : "";
+  const cancel = "▼ご解約をご希望の場合\n本メールにご返信ください。請求書の発行を止めます。費用は一切かかりません。\n";
+  const support =
+    "▼設定・使い方のご相談\n従業員の追加や初期設定でお困りの点があれば、本メールにご返信ください。\n" +
+    "導入ガイド： " + appUrl + "manual.html\n";
+  if (stage === "pre") {
+    return {
+      subject: "【メカノAI】無料お試しは残り" + left + "日です（お支払いのご案内）",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）をお試しいただき、ありがとうございます。\n" +
+        "無料お試し期間は残り" + left + "日（" + until + "まで）です。\n\n" +
+        "▼お支払いについて\n無料期間の終了後、お支払いのご案内（請求書）をこのメールアドレスへお送りします。\n" +
+        "クレジットカード・銀行振込をお選びいただけます（お支払い期限は発行から14日間です）。\n" + invoice + "\n" +
+        cancel + "\n" + support + "\n" +
+        "引き続きよろしくお願いいたします。\n\n" + MAIL_SIGN,
+    };
+  }
+  if (stage === "end") {
+    return {
+      subject: "【メカノAI】無料お試し期間が終了しました（お支払いのご案内）",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）の無料お試し期間が、" + until + "で終了しました。\n\n" +
+        "お支払いのご案内（請求書）をお送りしておりますので、ご確認をお願いいたします。\n" + invoice + "\n" +
+        cancel + "\n" + support + "\n" + MAIL_SIGN,
+    };
+  }
+  return {
+    subject: "【メカノAI】お支払いのご確認のお願い",
+    body: who + "\n\n平素より大変お世話になっております。\n" +
+      "メカノAI（" + planLabel + "プラン）につきまして、お支払いがまだ確認できておりません。\n" +
+      "お手続き済みの場合や行き違いの際は、何卒ご容赦ください。\n" + invoice + "\n" +
+      cancel + "\n" + support + "\n" + MAIL_SIGN,
+  };
+}
+
+exports.trialMailer = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "256MB" })
+  .pubsub.schedule("every day 09:00").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    if (!conf.trialMailEnabled) { console.log("trialMail: 無効のためスキップ(salesConfig/main.trialMailEnabled)"); return null; }
+    if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("trialMail: SendGrid未設定のためスキップ"); return null; }
+    // 試験送信: 全部を運営宛に送り、送信済みの記録は残さない。
+    // 既定は「試験送信」。明示的に false にするまで本番送信しない(事故防止)。
+    const dry = conf.trialMailDryRun !== false;
+    const cap = Math.min(Math.max(parseInt(conf.trialMailPerRun, 10) || 50, 1), 200);
+    const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
+    const snap = await db.collection("tenants").where("plan", "==", "trial").limit(1000).get();
+    let sent = 0, skipped = 0;
+    for (const doc of snap.docs) {
+      if (sent >= cap) break;
+      const t = doc.data() || {};
+      const stage = pure.trialStage(t.paidUntil);
+      if (!stage) continue;                              // まだ早い / 古すぎる
+      if ((t.trialMail || {})[stage]) continue;          // その段階は既に送信済み
+      const email = String(t.contactEmail || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { skipped++; continue; }
+      const supId = Buffer.from(email).toString("base64").replace(/[^a-zA-Z0-9]/g, "");
+      if ((await db.collection("mailSuppress").doc(supId).get()).exists) { skipped++; continue; }
+      // 法人は未払い請求書のURLを案内に添える(あれば)
+      let invoiceUrl = "";
+      if (t.edition !== "personal" && t.stripeCustomerId && cfg().stripe.secret) {
+        try {
+          const stripe = require("stripe")(cfg().stripe.secret);
+          const invs = await stripe.invoices.list({ customer: t.stripeCustomerId, limit: 5 });
+          const open = (invs.data || []).find((i) => i.status === "open");
+          if (open) invoiceUrl = open.hosted_invoice_url || "";
+        } catch (e) { console.error("請求書URL取得失敗 " + doc.id, e.message); }
+      }
+      const m = buildTrialMail(t, stage, appUrl, invoiceUrl);
+      const ok = await sendMail(
+        dry ? cfg().sendgrid.notify : email,
+        dry ? "[試験送信] " + m.subject : m.subject,
+        dry ? ("※これは試験送信です。本番では " + email + " 宛（" + (t.name || doc.id) + "・段階" + stage + "）に届きます。\n\n" + m.body) : m.body,
+        replyAddr());
+      if (!ok) { skipped++; continue; }
+      sent++;
+      if (!dry) {
+        await doc.ref.set({ trialMail: Object.assign({}, t.trialMail || {}, { [stage]: Date.now() }) }, { merge: true });
+        await db.collection("trialMails").add({ tid: doc.id, email: email, stage: stage, subject: m.subject, body: m.body, ts: Date.now() });
+      }
+    }
+    console.log("trialMail: 送信 " + sent + " 件 / 見送り " + skipped + " 件" + (dry ? " (試験送信)" : ""));
+    return null;
+  });
+
+/* ===================================================================
+   ④ 日報(毎朝08:00 JST・運営あて)
+   -------------------------------------------------------------------
+   どの手当てが効いたのか判断できる数字を、毎日1通にまとめて運営へ送る。
+   これが無いと、満了案内メールを入れても効果が分からない。
+   ・契約数・無料お試し数・MRR(月額換算)
+   ・要対応: 決済の失敗/未払い、3日以内に無料期間が終わる先
+   ・昨日の動き: 新規発行・成約・課金開始・案内メール・営業活動
+   09:00以降の処理より前に動かし、「昨日(JST)」を締めて報告する。
+   =================================================================== */
+// Stripeのサブスクを状態ごとに全件取得(最大1,000件)。
+async function listSubsByStatus(stripe, status) {
+  const out = [];
+  let after = null;
+  for (let page = 0; page < 10; page++) {
+    const q = { status: status, limit: 100 };
+    if (after) q.starting_after = after;
+    const r = await stripe.subscriptions.list(q);
+    out.push(...(r.data || []));
+    if (!r.has_more || !(r.data || []).length) break;
+    after = r.data[r.data.length - 1].id;
+  }
+  return out;
+}
+
+exports.dailyReport = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "256MB" })
+  .pubsub.schedule("every day 08:00").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const y = pure.jstDayRange(Date.now(), -1);          // 昨日(JST)の[from,to)
+    const L = [];                                        // 本文の行
+    const warn = [];                                     // 要対応の行
+
+    // ---- 契約(Firestore) ----
+    const tsnap = await db.collection("tenants").limit(2000).get();
+    const c = { active: 0, trial: 0, stopped: 0, activeWorks: 0, activePocket: 0, newYesterday: 0, newWorks: 0, newPocket: 0 };
+    const byCustomer = {};                               // stripeCustomerId → 店舗名
+    const expiring = [];                                 // 3日以内に無料期間が終わる先
+    tsnap.forEach((d) => {
+      const t = d.data() || {};
+      const personal = t.edition === "personal";
+      if (t.stripeCustomerId) byCustomer[t.stripeCustomerId] = t.name || d.id;
+      if (t.plan === "active") { c.active++; if (personal) c.activePocket++; else c.activeWorks++; }
+      else if (t.plan === "trial") {
+        c.trial++;
+        const left = pure.trialDaysLeft(t.paidUntil);
+        if (left <= 3) expiring.push({ name: t.name || d.id, personal: personal, left: left, until: jstDateText(t.paidUntil), mailed: Object.keys(t.trialMail || {}).join(",") || "なし" });
+      } else if (t.plan) c.stopped++;
+      const pv = Number(t.provisionedAt) || 0;
+      if (pv >= y.from && pv < y.to) { c.newYesterday++; if (personal) c.newPocket++; else c.newWorks++; }
+    });
+    L.push("■ 契約");
+    L.push("　有効　　　　 " + c.active + " 件（法人 " + c.activeWorks + " / Pocket " + c.activePocket + "）");
+    L.push("　無料お試し中 " + c.trial + " 件");
+    L.push("　停止・失効　 " + c.stopped + " 件");
+    L.push("　昨日の新規発行 " + c.newYesterday + " 件（法人 " + c.newWorks + " / Pocket " + c.newPocket + "）");
+
+    // ---- 売上(Stripe) ----
+    if (cfg().stripe.secret) {
+      try {
+        const stripe = require("stripe")(cfg().stripe.secret);
+        const [act, tri, pd, un] = await Promise.all([
+          listSubsByStatus(stripe, "active"), listSubsByStatus(stripe, "trialing"),
+          listSubsByStatus(stripe, "past_due"), listSubsByStatus(stripe, "unpaid"),
+        ]);
+        let mrr = 0; act.forEach((s) => { mrr += pure.monthlyAmountFromSub(s); });
+        let mrrTrial = 0; tri.forEach((s) => { mrrTrial += pure.monthlyAmountFromSub(s); });
+        const newSubs = [].concat(act, tri, pd, un).filter((s) => (s.created || 0) * 1000 >= y.from && (s.created || 0) * 1000 < y.to);
+        const started = [].concat(act, pd, un).filter((s) => s.trial_end && s.trial_end * 1000 >= y.from && s.trial_end * 1000 < y.to);
+        L.push("");
+        L.push("■ 売上（Stripe）");
+        L.push("　月額換算（MRR）　 " + yen(mrr) + "　/　有効な契約 " + act.length + " 件");
+        L.push("　お試し中の見込み " + yen(mrrTrial) + "　/　お試し中 " + tri.length + " 件");
+        L.push("　昨日の新規契約　 " + newSubs.length + " 件" + (newSubs.length ? "（+" + yen(newSubs.reduce((a, s) => a + pure.monthlyAmountFromSub(s), 0)) + "/月）" : ""));
+        L.push("　昨日 お試し終了→課金開始 " + started.length + " 件");
+        const bad = [].concat(pd, un);
+        if (bad.length) {
+          warn.push("⚠ 決済の失敗・未払い " + bad.length + " 件（止まっていないので、このまま使われ続けています）");
+          bad.slice(0, 15).forEach((s) => warn.push("　　- " + (byCustomer[s.customer] || s.customer) + "（" + s.status + "・" + yen(pure.monthlyAmountFromSub(s)) + "/月）"));
+        }
+      } catch (e) {
+        console.error("日報: Stripe取得失敗", e);
+        L.push("");
+        L.push("■ 売上（Stripe）");
+        L.push("　取得に失敗しました: " + (e.message || e));
+      }
+    }
+
+    // ---- 要対応: 満了が近い無料お試し ----
+    if (expiring.length) {
+      expiring.sort((a, b) => a.left - b.left);
+      warn.push("⚠ 3日以内に無料期間が終わる " + expiring.length + " 件");
+      expiring.slice(0, 20).forEach((e) => warn.push("　　- " + e.name + "（" + (e.personal ? "Pocket" : "法人") + "・残り" + e.left + "日・" + e.until + "まで・案内済み:" + e.mailed + "）"));
+    }
+
+    // ---- 昨日の案内メール・営業活動 ----
+    const cnt = async (q) => { try { return (await q.count().get()).data().count; } catch (e) { return -1; } };
+    const n = (v) => (v < 0 ? "?" : String(v));
+    const tmSnap = await db.collection("trialMails").where("ts", ">=", y.from).where("ts", "<", y.to).limit(500).get();
+    const tm = { pre: 0, end: 0, last: 0 };
+    tmSnap.forEach((d) => { const st = (d.data() || {}).stage; if (tm[st] != null) tm[st]++; });
+    L.push("");
+    L.push("■ 満了案内メール（昨日送信）");
+    L.push("　満了前 " + tm.pre + " / 満了直後 " + tm.end + " / 最後の案内 " + tm.last);
+
+    const [lead, appr, nego, drip, inb, inq] = await Promise.all([
+      cnt(db.collection("salesLeads").where("status", "==", "見込み")),
+      cnt(db.collection("salesLeads").where("status", "==", "アプローチ中")),
+      cnt(db.collection("salesLeads").where("status", "==", "商談中")),
+      cnt(db.collection("salesOutbound").where("ts", ">=", y.from).where("ts", "<", y.to)),
+      cnt(db.collection("inboundMails").where("ts", ">=", y.from).where("ts", "<", y.to)),
+      cnt(db.collection("bizInquiries").where("createdAt", ">=", y.from).where("createdAt", "<", y.to)),
+    ]);
+    L.push("");
+    L.push("■ 営業");
+    L.push("　見込み " + n(lead) + " / アプローチ中 " + n(appr) + " / 商談中 " + n(nego));
+    L.push("　昨日: 送信 " + n(drip) + " 通 / 受信 " + n(inb) + " 件 / 問い合わせ " + n(inq) + " 件");
+
+    const head = "【メカノAI 日報】" + y.label + "（JST）";
+    const body = head + "\n\n" + (warn.length ? "■ 要対応\n" + warn.join("\n") + "\n\n" : "") + L.join("\n") + "\n";
+    await notifySuperMail(head, body);
+    const alerts = warn.filter((w) => w.indexOf("⚠") === 0);
+    if (alerts.length) await pushSuper("メカノAI 日報：要対応 " + alerts.length + " 件", alerts.map((w) => w.replace("⚠ ", "")).join(" / ").slice(0, 160));
+    console.log(body);
+    return null;
+  });

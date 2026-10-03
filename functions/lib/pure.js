@@ -42,4 +42,53 @@ function jstMonth(now) {
   return new Date((now == null ? Date.now() : now) + 9 * 3600 * 1000).toISOString().slice(0, 7);
 }
 
-module.exports = { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth };
+/* JSTの暦日(1日)の範囲[from,to)をUTCミリ秒で返す。offsetDays=-1で「昨日」。
+   日報の集計境界をJSTで揃えるために使う。label は "YYYY-MM-DD"(JST)。 */
+function jstDayRange(now, offsetDays) {
+  const JST = 9 * 3600 * 1000;
+  const day = Math.floor(((now == null ? Date.now() : now) + JST) / 86400000) + (offsetDays || 0);
+  const from = day * 86400000 - JST;
+  return { from: from, to: from + 86400000, label: new Date(day * 86400000).toISOString().slice(0, 10) };
+}
+
+/* JSTの日付(YYYY-MM-DD)。 */
+function jstDay(now) { return jstDayRange(now, 0).label; }
+
+/* 無料お試しの残日数。アプリ画面の表示(ceil)と必ず一致させる。 */
+function trialDaysLeft(paidUntil, now) {
+  return Math.ceil(((Number(paidUntil) || 0) - (now == null ? Date.now() : now)) / 86400000);
+}
+
+/* 無料お試しの満了案内を「どの段階として送るか」。送らない場合は ""。
+   pre  = 満了前(残り1〜3日)
+   end  = 満了直後(当日〜翌日)
+   last = 最後のご案内(満了から2〜7日)
+   幅を持たせているのは、定期実行が1日飛んでも取りこぼさないようにするため
+   (残り2日ちょうどで判定すると、その日に失敗したら永久に送られない)。 */
+function trialStage(paidUntil, now) {
+  if (!(Number(paidUntil) || 0)) return "";
+  const d = trialDaysLeft(paidUntil, now);
+  if (d >= 1 && d <= 3) return "pre";
+  if (d <= 0 && d >= -1) return "end";
+  if (d <= -2 && d >= -7) return "last";
+  return "";
+}
+
+/* Stripeのサブスク1件を月額(円)に正規化する。年額は1/12にする。
+   JPYはStripeのゼロ十進通貨なので unit_amount がそのまま円。 */
+function monthlyAmountFromSub(sub) {
+  let yen = 0;
+  for (const it of (((sub || {}).items || {}).data || [])) {
+    const pr = it.price || {}, rec = pr.recurring || {};
+    const months = rec.interval === "year" ? 12 * (Number(rec.interval_count) || 1)
+      : rec.interval === "month" ? (Number(rec.interval_count) || 1)
+      : rec.interval === "week" ? (Number(rec.interval_count) || 1) / 4.345
+      : rec.interval === "day" ? (Number(rec.interval_count) || 1) / 30.4 : 0;
+    if (months <= 0) continue;
+    yen += (Number(pr.unit_amount) || 0) * (Number(it.quantity) || 1) / months;
+  }
+  return Math.round(yen);
+}
+
+module.exports = { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth,
+  jstDayRange, jstDay, trialDaysLeft, trialStage, monthlyAmountFromSub };

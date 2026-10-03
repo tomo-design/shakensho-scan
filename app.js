@@ -207,7 +207,7 @@ function updatePocketAccountBox() {
 window.refreshPocketUI = function () { try { updatePocketAccountBox(); } catch (e) {} };
 /* Web版Pocket(個人モード・ストア版でない)でトライアル中なら、無料お試しの残日数を表示する。
    ・ストア版はpaywall.jsが担当。ここはWeb版Pocketのみ(テナントのpaidUntilから算出)。 */
-let _pocketTrialShown = false, _pocketPaywallShown = false;
+let _pocketTrialShown = false, _pocketPaywallShown = false, _pocketJoinWanted = false;
 function updatePocketTrialBanner() {
   const personal = getAppMode() === "personal";
   const isStore = document.body.classList.contains("storeApp");
@@ -219,6 +219,13 @@ function updatePocketTrialBanner() {
   const daysLeft = Math.ceil((info.paidUntil - Date.now()) / 86400000);
   // 契約中(active)は何も出さない。トライアル中は残日数、期限切れは登録ペイウォール。
   if (info.plan === "active" && daysLeft > 0) { if (trialRow) trialRow.classList.add("hidden"); return; }
+  // 満了案内メールの「ご登録」リンク(?pocket=join)で来たときは、料金プランの画面を直接開く。
+  // ログイン前は何も起きないので、ログインが済んでここが呼ばれた時点で開く。
+  if (_pocketJoinWanted) {
+    _pocketJoinWanted = false;
+    _pocketPaywallShown = true;
+    try { openPocketPaywall(daysLeft <= 0); } catch (e) {}
+  }
   if (daysLeft <= 0) {
     if (trialRow) trialRow.classList.add("hidden");
     if (!_pocketPaywallShown) { _pocketPaywallShown = true; try { openPocketPaywall(true); } catch (e) {} }
@@ -8805,6 +8812,9 @@ function startDemo() {
   let p = ""; try { p = new URLSearchParams(location.search).get("pocket") || ""; } catch (e) { return; }
   if (!p) return;
   try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  // 満了案内メール(trialMailer)の「ご登録」リンク。この時点ではまだ未ログインのことが多いので、
+  // 希望だけ覚えておき、updatePocketTrialBanner がログイン後に料金プランの画面を開く。
+  if (p === "join") { _pocketJoinWanted = true; return; }
   setTimeout(() => {
     if (p === "success") {
       alert("✓ ご登録ありがとうございます。月額プランが有効になりました。反映まで数十秒かかる場合があります。");

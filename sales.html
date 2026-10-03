@@ -431,6 +431,34 @@
         </div>
       </div>
 
+      <div class="panel" id="trialPanel">
+        <div class="field" style="margin:0 0 6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="trialMailEnabled" style="width:auto"> <b>🎁 無料お試しの満了案内を有効にする（毎朝9:00）</b>
+          </label>
+        </div>
+        <p class="vsub" style="margin:0 0 10px">
+          無料お試し中のお客様へ、<b>満了の3日前・満了直後・満了の数日後</b>の計3通までを自動でお送りします。1段階につき1通だけで、二重送信はしません。<br>
+          <b>Pocket（個人）</b>はアプリの登録画面へ誘導します。<b>Works（法人）</b>は請求書が届く予告と、未払い請求書のお支払いページをご案内します。<br>
+          配信停止をご希望の方には送りません。
+        </p>
+        <div class="field" style="margin:0 0 6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="trialMailDryRun" style="width:auto" checked> <b>🧪 試験送信（運営あてにまとめて送り、お客様には送らない）</b>
+          </label>
+        </div>
+        <p class="vsub" style="margin:0 0 10px">
+          <b>最初は必ずこれをONのままにして、届く文面を自分で確認してください。</b>試験送信中は「送信済み」の記録を残さないので、OFFにしたあとで本番の案内がきちんと届きます。
+        </p>
+        <div class="form-grid">
+          <div class="field"><label>1回の送信上限（最大200）</label><input type="number" id="trialMailPerRun" min="1" max="200" value="50"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btnSaveTrialMail" class="btn btn-accent btn-sm">保存</button>
+          <span id="trialMailStat" class="muted"></span>
+        </div>
+      </div>
+
       <div class="panel" id="faxPanel">
         <div class="field" style="margin:0 0 6px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
