@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- このファイルは tools/build-guide.js が db/*.json から自動生成します。直接編集しないでください。 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>燃圧・コモンレール点検の手引き｜準備物・手順・判定の目安 - メカノAI</title>
+<meta name="description" content="燃圧・コモンレール点検の手引き。準備物、点検手順7ステップ、判定の目安、作業時の注意を整備士向けにまとめました。まず燃料の量と質を確認（異臭・水混入・寒冷地の凍結）。タンクが空に近いとエア噛みする">
+<link rel="canonical" href="https://mechanoai-cablueie.com/guide/tebiki/fuel-pressure.html">
+<meta property="og:title" content="燃圧・コモンレール点検の手引き｜準備物・手順・判定の目安 - メカノAI">
+<meta property="og:description" content="燃圧・コモンレール点検の手引き。準備物、点検手順7ステップ、判定の目安、作業時の注意を整備士向けにまとめました。まず燃料の量と質を確認（異臭・水混入・寒冷地の凍結）。タンクが空に近いとエア噛みする">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mechanoai-cablueie.com/guide/tebiki/fuel-pressure.html">
+<meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
+<link rel="icon" type="image/png" href="../../icons/icon-192.png">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"メカノAI 整備メモ","item":"https://mechanoai-cablueie.com/guide/"},{"@type":"ListItem","position":2,"name":"点検の手引き","item":"https://mechanoai-cablueie.com/guide/#tebiki"},{"@type":"ListItem","position":3,"name":"燃圧・コモンレール点検の手引き","item":"https://mechanoai-cablueie.com/guide/tebiki/fuel-pressure.html"}]}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../"><img src="../../icons/icon-192.png" alt="" width="28" height="28">メカノAI <span>整備メモ</span></a></header>
+<main>
+<nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#tebiki">点検の手引き</a> › <span>燃圧・コモンレール点検の手引き</span></nav>
+<h1>燃圧・コモンレール点検の手引き</h1>
+<p class="lead">準備するもの、点検の手順、判定の目安、作業時の注意の順にまとめています。</p>
+<section><h2>準備するもの</h2><ul><li>診断機（レール圧データ）</li><li>燃圧計（ガソリン車）</li><li>リターン量測定ボトル（ディーゼル）</li></ul></section>
+<section><h2>点検の手順</h2><ol><li>まず燃料の量と質を確認（異臭・水混入・寒冷地の凍結）。タンクが空に近いとエア噛みする</li><li>燃料フィルタの交換歴を確認 → 古ければ先に交換＋水抜き</li><li>診断機で「目標レール圧」と「実レール圧」を比較（IG ON時・アイドル・レーシング）</li><li>実圧が目標に届かない: 低圧系（フィード圧・プライミングポンプ）→ 高圧系の順で切り分け</li><li>ディーゼル: インジェクタリターン量を全気筒測定 → 1本だけ多ければそのインジェクタ不良</li><li>リターン量が全体に正常でも圧が出ない場合: SCV（吸入調量弁）とサプライポンプ本体を疑う</li><li>ガソリン: 燃圧計で規定値を確認 → 低ければポンプ・レギュレータ・詰まり</li></ol></section>
+<section><h2>判定の目安</h2><ul><li>レール圧の目標と実測の乖離: アイドルで±5MPa以上ズレたら異常の目安</li><li>リターン量: 他気筒の1.5〜2倍以上出る気筒は不良</li></ul></section>
+<section><h2>作業時の注意</h2><div class="warn"><ul><li>コモンレールは超高圧（200MPa級）。エンジン停止後も配管に残圧あり、緩める前に必ず圧抜き</li><li>燃料系を開放したら確実にエア抜きしてから始動</li></ul></div></section>
+
+<section><h2>関連する故障コード</h2><ul class="links"><li><a href="../dtc/p0087.html">P0087 燃料レール圧力低すぎ</a></li><li><a href="../dtc/p0088.html">P0088 燃料レール圧力高すぎ</a></li><li><a href="../dtc/p0093.html">P0093 燃料系統大リーク検出</a></li><li><a href="../dtc/p0191.html">P0191 燃料レール圧センサ性能異常</a></li><li><a href="../dtc/p0627.html">P0627 燃料ポンプ制御回路異常</a></li><li><a href="../dtc/p2146.html">P2146 インジェクタ電源グループ回路異常</a></li></ul></section>
+<aside class="cta">
+  <div class="ctaH">この車両ではどうか、まで調べるなら</div>
+  <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
+  <a class="btn" href="../../?demo=1">登録なしで体験する</a>
+  <a class="btnSub" href="../../">アプリを開く</a>
+</aside>
+<p class="note">このページは現場での点検の進め方をまとめた参考情報です。数値や手順は車種・年式で異なるため、作業前に必ず整備要領書・メーカー資料で確認してください。</p>
+</main>
+<footer><a href="../../terms.html">利用規約</a> ・ <a href="../../privacy.html">プライバシーポリシー</a> ・ <a href="../../tokushoho.html">特定商取引法に基づく表記</a><br>© 2026 Cablueie</footer>
+</body>
+</html>

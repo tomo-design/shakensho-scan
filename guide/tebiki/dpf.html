@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- このファイルは tools/build-guide.js が db/*.json から自動生成します。直接編集しないでください。 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPF/DPD/DPR点検の手引き｜準備物・手順・判定の目安 - メカノAI</title>
+<meta name="description" content="DPF/DPD/DPR点検の手引き。準備物、点検手順7ステップ、判定の目安、作業時の注意を整備士向けにまとめました。診断機で再生履歴を確認: 再生インターバル（前回からの距離）が短くなっていないか">
+<link rel="canonical" href="https://mechanoai-cablueie.com/guide/tebiki/dpf.html">
+<meta property="og:title" content="DPF/DPD/DPR点検の手引き｜準備物・手順・判定の目安 - メカノAI">
+<meta property="og:description" content="DPF/DPD/DPR点検の手引き。準備物、点検手順7ステップ、判定の目安、作業時の注意を整備士向けにまとめました。診断機で再生履歴を確認: 再生インターバル（前回からの距離）が短くなっていないか">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mechanoai-cablueie.com/guide/tebiki/dpf.html">
+<meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
+<link rel="icon" type="image/png" href="../../icons/icon-192.png">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"メカノAI 整備メモ","item":"https://mechanoai-cablueie.com/guide/"},{"@type":"ListItem","position":2,"name":"点検の手引き","item":"https://mechanoai-cablueie.com/guide/#tebiki"},{"@type":"ListItem","position":3,"name":"DPF/DPD/DPR点検の手引き","item":"https://mechanoai-cablueie.com/guide/tebiki/dpf.html"}]}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../"><img src="../../icons/icon-192.png" alt="" width="28" height="28">メカノAI <span>整備メモ</span></a></header>
+<main>
+<nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#tebiki">点検の手引き</a> › <span>DPF/DPD/DPR点検の手引き</span></nav>
+<h1>DPF/DPD/DPR点検の手引き</h1>
+<p class="lead">準備するもの、点検の手順、判定の目安、作業時の注意の順にまとめています。</p>
+<section><h2>準備するもの</h2><ul><li>診断機（差圧・再生履歴・灰分量）</li><li>差圧配管清掃用エアブロー</li></ul></section>
+<section><h2>点検の手順</h2><ol><li>診断機で再生履歴を確認: 再生インターバル（前回からの距離）が短くなっていないか</li><li>差圧データを確認: IG ON（エンジン停止）でほぼ0か → 0でなければセンサ/配管異常</li><li>アイドルとレーシング(2000-3000rpm)で差圧の動きを確認</li><li>差圧配管を外して煤詰まりをエアブローで清掃（センサ側に吹き込まない）</li><li>強制再生を実施 → 再生完了後の差圧が下がるか確認</li><li>再生しても差圧が高いまま: 灰分(アッシュ)蓄積量を確認 → 規定超なら洗浄or交換</li><li>再生インターバルが短い根本原因を診断: インジェクタ劣化・EGR過多・エアクリ詰まり・オイル消費</li></ol></section>
+<section><h2>判定の目安</h2><ul><li>IG ON時差圧: ほぼ0kPaが正常</li><li>再生直後のアイドル差圧が下がりきらない場合は灰分満杯を疑う</li></ul></section>
+<section><h2>作業時の注意</h2><div class="warn"><ul><li>強制再生中は排気が高温(600℃級)。可燃物のない場所で実施し、車両から離れない</li><li>オイルがDPF再生で希釈されるため、再生頻発車はオイル量が増えていないか必ず確認</li></ul></div></section>
+<section><h2>この手引きを使う症状</h2><ul class="links"><li><a href="../symptom/black-smoke.html">黒煙</a></li><li><a href="../symptom/dpf-trouble.html">DPF系不調</a></li></ul></section>
+<section><h2>関連する故障コード</h2><ul class="links"><li><a href="../dtc/p2002.html">P2002 DPF/DPR/DPD 捕集効率低下(バンク1)</a></li><li><a href="../dtc/p2453.html">P2453 DPF差圧センサ性能異常</a></li><li><a href="../dtc/p2463.html">P2463 DPF煤過剰堆積</a></li><li><a href="../dtc/p0471.html">P0471 排気圧センサ性能異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul></section>
+<aside class="cta">
+  <div class="ctaH">この車両ではどうか、まで調べるなら</div>
+  <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
+  <a class="btn" href="../../?demo=1">登録なしで体験する</a>
+  <a class="btnSub" href="../../">アプリを開く</a>
+</aside>
+<p class="note">このページは現場での点検の進め方をまとめた参考情報です。数値や手順は車種・年式で異なるため、作業前に必ず整備要領書・メーカー資料で確認してください。</p>
+</main>
+<footer><a href="../../terms.html">利用規約</a> ・ <a href="../../privacy.html">プライバシーポリシー</a> ・ <a href="../../tokushoho.html">特定商取引法に基づく表記</a><br>© 2026 Cablueie</footer>
+</body>
+</html>
