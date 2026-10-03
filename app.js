@@ -8647,7 +8647,17 @@ function openPocketApply() {
 function demoAnswer(prompt) {
   const p = String(prompt || "");
   let text;
-  if (/"isWork"|修理|作業/.test(p) && /JSON/.test(p)) {
+  // 原因候補の「点検手引書」(buildInspectManualPrompt)。P0401サンプルの3候補には本番と同じ見出し構成の例を返す。
+  // 諸元の判定(下の「諸元」)より先に見る: 手引書の指示文にも車両の諸元が混ざることがあるため。
+  const guideCause = /点検手引書を作成する/.test(p) ? ((/^疑う原因: (.+)$/m.exec(p) || [])[1] || "") : "";
+  const demoGuide = guideCause && window.APP_LANG !== "en"
+    ? (/クーラー/.test(guideCause) ? DEMO_GUIDE_EGR.cooler
+      : /作動不良|固着|追従/.test(guideCause) ? DEMO_GUIDE_EGR.valve
+      : /カーボン|通路/.test(guideCause) ? DEMO_GUIDE_EGR.carbon : "")
+    : "";
+  if (demoGuide) {
+    text = demoGuide;
+  } else if (/"isWork"|修理|作業/.test(p) && /JSON/.test(p)) {
     text = JSON.stringify(DEMO_REPAIR);
   } else if (/"specs"|メンテナンス諸元|諸元/.test(p)) {
     text = JSON.stringify({ model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS });
@@ -8682,6 +8692,70 @@ const DEMO_DIAG_P0401 = [
   "■最初の1手",
   "診断機でEGRバルブの目標開度と実開度を比べるところから。ズレや張り付きがあればバルブ側、追従していれば通路・クーラーの詰まりへ進みます。組付け後は学習値をリセットし、暖機して再発を確認してください。"
 ].join("\n");
+/* デモ用の点検手引書(上のP0401サンプルの3候補ぶん)。見出し構成は本番(buildInspectManualPrompt)と同じ。
+   内容は内蔵の db/guides.json「EGR系統点検の手引き」に書いてある範囲だけ。数値は足していない。 */
+const DEMO_GUIDE_NOTE = "（デモ用のサンプルです。本契約版では車両と症状に合わせてAIが作成します）";
+const DEMO_GUIDE_EGR = {
+  carbon: [
+    "■準備する物",
+    "カーボン除去剤",
+    "スクレーパー",
+    "ガスケット新品",
+    "■点検手順",
+    "1. EGRバルブを取り外す",
+    "2. バルブ・ポート・EGRクーラー入口のカーボン堆積を点検する",
+    "3. 堆積があれば清掃する",
+    "4. 新品のガスケットで組み付ける",
+    "5. 学習値をリセットし、暖機して再発を確認する",
+    "■判定の目安",
+    "バルブや通路に煤が堆積して狭くなっていれば、この原因",
+    "清掃後、全閉時に実開度0%に戻れば正常",
+    "■この原因だった場合の対処",
+    "バルブ・通路の清掃。固着が酷ければEGRバルブを交換",
+    "■注意",
+    "ガスケットは必ず新品に（排気漏れは誤検出の元）",
+    "EGRクーラーは冷却水が通る。外す前に冷却水を抜くか配管をクランプ",
+    DEMO_GUIDE_NOTE
+  ].join("\n"),
+  valve: [
+    "■準備する物",
+    "診断機（アクティブテスト）",
+    "ガスケット新品",
+    "■点検手順",
+    "1. 診断機でEGRバルブの「目標開度」と「実開度」を比較する",
+    "2. アクティブテストでバルブを全閉⇔全開に動かす",
+    "3. 作動音と開度の追従を確認する",
+    "4. 追従しない・異音がする場合はバルブを取り外す",
+    "5. カーボン堆積を点検し、清掃する",
+    "■判定の目安",
+    "全閉時に実開度0%に戻れば正常",
+    "清掃後も開度ズレが残れば、ポジションセンサ・モーター不良",
+    "■この原因だった場合の対処",
+    "固着が酷い、または清掃後もズレが残る場合はEGRバルブを交換",
+    "■注意",
+    "ガスケットは必ず新品に（排気漏れは誤検出の元）",
+    DEMO_GUIDE_NOTE
+  ].join("\n"),
+  cooler: [
+    "■準備する物",
+    "カーボン除去剤",
+    "ガスケット新品",
+    "■点検手順",
+    "1. EGRクーラーの入口と出口の温度差を確認する",
+    "2. 差が小さければ、冷却水を抜くか配管をクランプする",
+    "3. EGRクーラーを取り外す",
+    "4. 入口のカーボン堆積を点検し、清掃する",
+    "5. 組付け後、学習値をリセットし、暖機して再発を確認する",
+    "■判定の目安",
+    "入口と出口の温度差が小さければ、詰まりを疑う",
+    "■この原因だった場合の対処",
+    "EGRクーラーの清掃。固着が酷ければ交換",
+    "■注意",
+    "EGRクーラーは冷却水が通る。外す前に冷却水を抜くか配管をクランプ",
+    "ガスケットは必ず新品に（排気漏れは誤検出の元）",
+    DEMO_GUIDE_NOTE
+  ].join("\n")
+};
 function showDemoBanner() {
   if (document.getElementById("demoBanner")) return;
   const b = document.createElement("div"); b.id = "demoBanner";
