@@ -5322,33 +5322,6 @@ function matchVehicleFaults(text, dtcs) {
   return { vehicle: v, matched, all: v.faults || [] };
 }
 
-/* ===== 診断タブに「診断ではない質問」が入った時の振り分け =====
-   診断タブは故障コード/症状の切り分け用。トルク・容量・手順など“作業や数値の質問”は修理タブの担当。
-   間違えて診断タブで聞いても気づけるよう、確認を出して希望すれば修理タブへそのまま送る。
-   判定は保守的に: 故障を示す語が1つでもあれば診断として扱う(迷ったら振り分けず、従来どおり診断する)。 */
-const FAULT_WORD_RE = /(異音|音が|ガタつ|ガタガタ|ゴトゴト|ガラガラ|キュルキュル|キーキー|カタカタ|警告灯|ランプ|点灯|点滅|かからない|掛からない|始動(不良|しない|できない)|エンスト|失火|ノッキング|振動|ブルブル|漏れ|漏る|にじみ|滲み|白煙|黒煙|煙|焦げ|異臭|臭い|においが|匂い|不調|不良|故障|効かない|効きが|消えない|出ない|入らない|入りにくい|ショック|ジャダー|オーバーヒート|過熱|加速(しない|が悪)|吹けない|止まる|止まった|切れる|ダイアグ|DTC|エラー|フェイル|間欠|症状|原因|おかしい|異常|再現|固着|焼き付|ふらつ|片効き|引きずり)/i;
-/* 数値を聞いているだけの語(トルク・容量・サイズ等) */
-const SPEC_Q_WORD_RE = /(トルク|締付|締め付け|規定値|規定量|容量|オイル量|リットル|品番|型番|サイズ|粘度|クリアランス|空気圧|ボルト径|ピッチ)/;
-/* 作業そのものを示す語(交換・脱着・手順など) */
-const REPAIR_WORK_VERB_RE = /(交換|脱着|取り外|取外|取り付け|取付|分解|組付|組み付け|調整|清掃|点検|整備|修理|作業|手順|やり方|外し方|付け方)/;
-function looksLikeRepairQuestion(text) {
-  const t = zen2han(String(text || "")).trim();
-  if (!t || t.length > 120) return false;
-  if (extractDTCs(t).length) return false;     // ダイアグコードがあれば診断
-  if (FAULT_WORD_RE.test(t)) return false;     // 故障を示す語があれば診断
-  if (SPEC_Q_WORD_RE.test(t)) return true;     // 「トルクを教えて」等、数値の質問
-  // 「パッド交換」のように作業名だけの短い入力(症状辞書に掛かる語が無い時だけ)
-  let sym = 0; try { sym = matchSymptoms(t).length; } catch (e) {}
-  return !sym && t.length <= 40 && REPAIR_WORK_VERB_RE.test(t);
-}
-/* 診断タブの入力を、修理タブの「この車両について質問」へ移して実行する */
-function sendDiagTextToRepair(text) {
-  stopFieldMic();
-  $("diagText").value = ""; autoGrow($("diagText"));
-  switchView("parts"); window.scrollTo(0, 0);
-  const q = $("qVehText"); q.value = text; autoGrow(q);
-  runVehAsk();
-}
 async function runDiag() {
   const text = $("diagText").value.trim();
   if (!text) { $("diagResults").innerHTML = '<div class="empty">コードまたは症状を入力してください。</div>'; return; }
@@ -5368,15 +5341,6 @@ $("btnDiagRun").addEventListener("click", async () => {
   stopFieldMic();
   // 写真・動画の添付があればメディアAI解析、無ければ従来のコード/問診解析
   if (diagAttachments.length) { await diagMediaAnalyze(); return; }
-  // 診断ではなく作業・数値の質問(トルク・手順など)なら、修理タブで聞くか確認する(診断のつもりで聞いて結果が噛み合わない/履歴に残るのを防ぐ)
-  const q0 = $("diagText").value.trim();
-  if (looksLikeRepairQuestion(q0)) {
-    const toRepair = await uiConfirm(
-      "「" + (q0.length > 40 ? q0.slice(0, 40) + "…" : q0) + "」は、故障の診断ではなく、作業や数値（トルク・手順・容量など）の質問のようです。\n\n" +
-      "ここは故障コード・症状の切り分け用です。修理タブなら、位置・所要時間・手順・トルクをまとめて答えます。",
-      { title: "修理タブの質問ですか？", okText: "修理タブで聞く", cancelText: "診断する" });
-    if (toRepair) { sendDiagTextToRepair(q0); return; }
-  }
   const btn = $("btnDiagRun"); setBtnLoading(btn, true, "メカ君が考え中…");
   try { await runDiag(); } finally { setBtnLoading(btn, false); }
 });
@@ -6383,10 +6347,32 @@ function saveDiagRecord(input, aiText, mode) {
   const rec = { id: "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     ts: Date.now(), veh: curVehLabel(), input: String(input || ""), aiText: String(aiText || ""),
     mode: mode || getAiMode(), guides: {} };
+  // カルテには「要約」だけ記録(全文は診断履歴/共有で確認)。追加相談後に同じ記録を更新できるよう、記録のidを控えておく。
+  rec.karteId = autoKarteRecord("diag", input, summarizeDiagText(aiText)) || null;
   const list = getDiagHist(); list.unshift(rec); setDiagHist(list);
   currentDiagRec = rec; renderDiagHistList();
-  autoKarteRecord("diag", input, summarizeDiagText(aiText));   // カルテには「要約」だけ記録(全文は診断履歴/共有で確認)
   return rec;
+}
+/* 追加相談で原因候補が組み直された時、カルテの同じ診断記録を最新の結果(と追加相談の内容)に更新する。
+   ・記録は増やさない(カルテを細かい記録で埋めない)。ユーザーが記録を削除済みなら復活させない。
+   ・別の車両の履歴を開いている時は、いま開いている車両のカルテを触らない。 */
+function updateKarteForDiag(rec, summary) {
+  try {
+    if (!rec || !summary) return;
+    const v = rec.veh || {};
+    if ((v.vin || "") !== ((current && current.vin) || "") || (v.type || "") !== ((current && current.type) || "")) return;
+    const list = getKarteList();
+    let ex = rec.karteId ? list.find(k => k.id === rec.karteId) : null;
+    if (!ex && !rec.karteId) {   // 記録idを持たない古い履歴: 同じ入力・近い時刻の自動記録を探す
+      const work = "🔧 AI故障診断" + (rec.input ? "：" + String(rec.input).replace(/\s+/g, " ").trim().slice(0, 60) : "");
+      ex = list.find(k => k.auto && k.autoKind === "diag" && k.work === work && Math.abs((Date.parse(k.at) || 0) - rec.ts) < 30 * 60 * 1000);
+    }
+    if (!ex) return;
+    const fu = (rec.followups || []).join(" → ");
+    const note = summary.replace(/^考えられる原因/, "考えられる原因（追加相談後）") + (fu ? "\n追加相談: " + fu : "");
+    const id = autoKarteRecord("diag", rec.input, note, ex);
+    if (id) rec.karteId = id;
+  } catch (e) {}
 }
 /* 診断結果を短い要約に(カルテのメモ用)。原因候補(番号付き)の上位3件を「考えられる原因: …」にまとめる。 */
 function summarizeDiagText(t) {
@@ -6412,12 +6398,18 @@ function summarizeDiagText(t) {
 /* 故障診断の結果を整備カルテに自動記録する(=永続保存＋クラウド同期で社内共有)。
    ・車両が特定できている時のみ / デモでは保存しない / 空結果は保存しない。
    ・修理タブの質問は記録しない(カルテは診断結果と、車検・修理入庫の内容/交換部品のためのもの)。 */
-function autoKarteRecord(kind, input, noteText) {
+function autoKarteRecord(kind, input, noteText, existing) {
   try {
-    if (typeof isDemo === "function" && isDemo()) return;
-    if (!current || !vehicleKey(current)) return;
+    if (typeof isDemo === "function" && isDemo()) return null;
+    if (!current || !vehicleKey(current)) return null;
     const note = String(noteText == null ? "" : noteText).trim();
-    if (!note) return;
+    if (!note) return null;
+    if (existing) {   // 既存の自動記録を最新内容に更新(新しい記録は作らない)
+      const upd = Object.assign({}, existing, { note: note.slice(0, 4000), at: new Date().toISOString() });
+      saveKarteEntry(upd);
+      try { if ($("karteList")) renderKarte(); } catch (e) {}
+      return upd.id;
+    }
     const d = new Date();
     const ymd = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     const label = "AI故障診断";
@@ -6433,7 +6425,8 @@ function autoKarteRecord(kind, input, noteText) {
     };
     saveKarteEntry(entry);
     try { if ($("karteList")) renderKarte(); } catch (e) {}
-  } catch (e) {}
+    return entry.id;
+  } catch (e) { return null; }
 }
 function saveDiagRecordObj(rec) {
   if (!rec) return;
@@ -6766,6 +6759,12 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           const newCauses = [...ans.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
           const keep = new Set(newCauses);
           Object.keys(currentDiagRec.guides || {}).forEach(k => { if (!keep.has(k)) delete currentDiagRec.guides[k]; });
+          // カルテの診断記録も最新の結果に更新(追加相談の内容も添える)。原因候補が並んでいない回答なら更新しない
+          const sum2 = summarizeDiagText(r.text);
+          if (sum2) {
+            currentDiagRec.followups = (currentDiagRec.followups || []).concat([tried ? tried.replace(/\s+/g, " ").slice(0, 60) : "写真・動画"]);
+            updateKarteForDiag(currentDiagRec, sum2);
+          }
           saveDiagRecordObj(currentDiagRec);
           const guideNote2 = document.createElement("div"); guideNote2.className = "hint guidePrep"; wrap.appendChild(guideNote2);
           autoGenGuides(newCauses, currentDiagRec, guideNote2);   // 今回の上位候補ぶんも先に用意(初回と同じ体感)
@@ -8294,7 +8293,7 @@ const SUPPORT_KB = [
   "【画面】下タブ=スキャン/履歴/DB編集/設定。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
   "【車検証スキャン】QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
-  "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。診断タブは故障コード・症状の切り分け用で、トルク・容量・手順などの質問を入れると『修理タブで聞きますか？』と確認が出て、そのまま修理タブへ送れる。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録されるが、修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
+  "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
