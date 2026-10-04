@@ -1765,6 +1765,8 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       if (!tid) tid = await tidFromCustomer(o.customer);
       let until = null; try { until = o.lines.data[0].period.end * 1000; } catch (e) {}
       if (tid) await setPlan(tid, true, until, tier);
+      // 入金が確認できたら「決済の失敗」の印を消す(翌朝のお知らせメールが出ないようにする)
+      if (tid) { try { await db.collection("tenants").doc(tid).set({ payFail: admin.firestore.FieldValue.delete() }, { merge: true }); } catch (e) {} }
       // カードで支払われた場合は、次回以降を自動更新(自動引き落とし)に切り替える
       try {
         if (o.subscription && o.payment_intent) {
@@ -1777,6 +1779,41 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
           }
         }
       } catch (e) { console.error("自動更新切替エラー", e); }
+    } else if (event.type === "invoice.payment_failed") {
+      /* ③ 決済の失敗。カードの期限切れ・限度額・振込の未入金など。
+         この実装では past_due/unpaid でサービスを止めない方針なので、放っておくと
+         「払われていないのに使われ続け、本人も運営も気づかない」状態になる。
+         止める代わりに、必ず気づける経路を2つ作る:
+           ・tenants.payFail に記録 → 翌朝の案内メール(trialMailer)がお客様へお知らせする
+             (メールの文面確認・配信停止・送信上限といった安全装置をそのまま使うため、
+              Webhookからは直接送らない)
+           ・運営へは即時にメール＋プッシュ通知 */
+      let tid = (o.subscription_details && o.subscription_details.metadata && o.subscription_details.metadata.tenantId) || (o.metadata && o.metadata.tenantId);
+      if (!tid && o.subscription) { try { const sub = await stripe.subscriptions.retrieve(o.subscription); tid = sub.metadata.tenantId; } catch (e) {} }
+      if (!tid) tid = await tidFromCustomer(o.customer);
+      let name = o.customer_email || o.customer || "(不明)";
+      if (tid) {
+        try {
+          const tRef = db.collection("tenants").doc(tid);
+          name = ((await tRef.get()).data() || {}).name || tid;
+          await tRef.set({ payFail: {
+            invoiceId: o.id, count: Number(o.attempt_count) || 1, at: Date.now(),
+            url: o.hosted_invoice_url || "", amount: Number(o.amount_due) || 0,
+            nextAttempt: o.next_payment_attempt ? o.next_payment_attempt * 1000 : 0,
+          } }, { merge: true });
+        } catch (e) { console.error("payFail記録エラー", e); }
+      }
+      const amt = "¥" + (Number(o.amount_due) || 0).toLocaleString("ja-JP");
+      const next = o.next_payment_attempt ? new Date(o.next_payment_attempt * 1000).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }) : "予定なし";
+      await notifySuperMail("【メカノAI】お支払いの失敗 " + name,
+        "お支払いが失敗しました。サービスは止めていません。\n\n" +
+        "店舗・お客様: " + name + (tid ? "（" + tid + "）" : "（テナント不明・要確認）") + "\n" +
+        "金額: " + amt + "\n試行回数: " + (o.attempt_count || 1) + " 回目\n" +
+        "Stripeの次回再試行: " + next + "\n" +
+        (o.hosted_invoice_url ? "請求書: " + o.hosted_invoice_url + "\n" : "") +
+        "\n※お客様へのお知らせは、翌朝の案内メール(満了案内の設定がONのとき)から送られます。\n" +
+        (tid ? "" : "※テナントが特定できなかったため、お客様へのお知らせは送られません。Stripeの画面でご確認ください。\n"));
+      await pushSuper("メカノAI お支払いの失敗", name + " / " + amt + " / " + (o.attempt_count || 1) + "回目");
     } else if (event.type === "customer.subscription.deleted") {
       const tid = o.metadata && o.metadata.tenantId;
       await setPlan(tid, false, null);   // 契約が完全終了 → 停止
@@ -2981,38 +3018,43 @@ exports.track = functions.region(REGION).runWith({ timeoutSeconds: 30, memory: "
 });
 
 /* ===================================================================
-   ① 無料お試しの満了案内メール(毎朝09:00 JST)
+   ①②③⑤ お客様への自動のお知らせメール(毎朝09:00 JST)
    -------------------------------------------------------------------
-   アプリは「期間終了(8日目)にお支払いのご案内をお送りします」と画面で約束しているのに
-   (cloud.js のトライアル表示)、それを送る処理が無かった。
-   = Pocketの無料ユーザーは8日目にアプリを開かなければ、何も知らされないまま消える。
-   ここを埋める。
+   集客(autoResearch/dripSend/faxSend)と商品・決済は自動化されていたのに、
+   「試した人 → 払う人 → 払い続ける人」の間が丸ごと無かった。そこを1本の処理で埋める。
+   きっかけはアプリの約束: 画面には「期間終了(8日目)にお支払いのご案内をお送りします」
+   (cloud.js のトライアル表示)と書いてあるのに、それを送る処理が無かった。
 
-   ・対象 : tenants の plan=="trial"
-   ・段階 : pure.trialStage() で pre(残り1〜3日) / end(満了直後) / last(満了2〜7日後)
-            日付ぴったりで判定せず幅を持たせているのは、定期実行が1日飛んでも
+   ・対象 : tenants 全件。pure.lifecycleStage() が「今日どれを送るか」を1つだけ決める。
+   ・段階 : payfail(決済の失敗) > pre/end/last(満了の案内) > onboard1/3(使い始め) > win14/45(失効後の再接触)
+            日付ぴったりで判定せず窓に幅を持たせているのは、定期実行が1日飛んでも
             取りこぼさないため(残り2日ちょうどで判定すると、その日に失敗したら永久に送られない)。
-   ・重複 : 1段階1通だけ。tenants.trialMail.{pre,end,last} に送信時刻を記録して二度送らない。
+   ・重複 : 1段階1通だけ。tenants.trialMail.{段階} に記録して二度送らない。
+            決済の失敗だけは請求書IDで記録し、「請求書ごとに1通」(同じ請求書で何度も催促しない)。
    ・Pocket(個人) : アプリ内の登録画面へ誘導する(?pocket=join)。
                     Stripe CheckoutのURLは24時間で失効するのでメールには載せない。
    ・Works(法人)  : provisionContract がStripeの送付インボイス契約を作っているので、
                     満了時にStripeが請求書を自動送付する。こちらは予告＋未払い請求書URLの案内。
-                    (法人は満了時にWebhookでplan=="active"へ変わるため、実際に出るのは主にpre)
+                    (法人は満了時にWebhookでplan=="active"へ変わるため、満了系で実際に出るのは主にpre)
    ・配信停止した方には送らない。ドメインの評価を守るほうを優先する。
-   ・salesConfig/main : trialMailEnabled(既定OFF) / trialMailDryRun / trialMailPerRun
+   ・再接触は満了から75日で打ち切る。何年も前に離れた方を掘り起こさないため。
+   ・salesConfig/main : trialMailEnabled(既定OFF) / trialMailDryRun(既定ON) / trialMailPerRun
    =================================================================== */
 // JSTの日付文字列(Cloud FunctionsのTZはUTCなので必ずtimeZoneを指定する)
 const jstDateText = (ms) => new Date(Number(ms) || 0).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" });
 const yen = (n) => "¥" + Math.round(Number(n) || 0).toLocaleString("ja-JP");
 
 /* 満了案内メールの件名と本文を作る。t=tenantsドキュメント。 */
-function buildTrialMail(t, stage, appUrl, invoiceUrl) {
+function buildTrialMail(t, stage, appUrl, invoiceUrl, tid) {
   const personal = t.edition === "personal";
   const left = pure.trialDaysLeft(t.paidUntil);
   const until = jstDateText(t.paidUntil);
   const who = t.name ? (String(t.name) + (personal ? " 様" : " 御中")) : (personal ? "お客様" : "ご担当者様");
   const joinUrl = appUrl + "?pocket=join";
   const askReply = "ご不明な点は、本メールにそのままご返信ください。担当者が確認いたします。";
+  // 決済に失敗したときのお支払い用ページ(Webhookが控えた請求書URL)。無ければ未払い請求書のURL。
+  const payUrl = ((t.payFail || {}).url) || invoiceUrl || "";
+  const unsubNote = "今後この種のご案内が不要でしたら、本メールに「配信停止」とご返信ください。以後お送りしません。";
   if (personal) {
     const price =
       "▼ご料金\n月額 ¥500 ／ 年額 ¥5,000（月あたり¥417）\n" +
@@ -3045,15 +3087,90 @@ function buildTrialMail(t, stage, appUrl, invoiceUrl) {
           askReply + "\n\n" + MAIL_SIGN,
       };
     }
+    if (stage === "last") {
+      return {
+        subject: "【メカノAI Pocket】ご利用はいかがでしたか",
+        body: who + "\n\n先日、無料お試し期間の終了をご連絡いたしました。その後いかがでしょうか。\n\n" +
+          "もし「思っていたものと違った」「使う場面がなかった」「操作が分かりにくかった」など\n" +
+          "ございましたら、本メールにご返信いただけると、今後の改善に役立てさせていただきます。\n" +
+          "整備の現場で本当に使えるものにしたいので、率直なご意見がいちばん助かります。\n\n" +
+          "引き続きお使いいただける場合は、下記からご登録いただけます。\n\n" +
+          howTo + "\n" + dataNote + "\n" + unsubNote + "\n" + MAIL_SIGN,
+      };
+    }
+    // ---- 決済の失敗(Pocket) ----
+    if (stage === "payfail") {
+      return {
+        subject: "【メカノAI Pocket】お支払いが確認できませんでした",
+        body: who + "\n\nいつもメカノAI Pocket をご利用いただき、ありがとうございます。\n" +
+          "月額プランのお支払いが確認できませんでした。\n" +
+          "カードの有効期限切れ・限度額・残高不足などが主な原因です。\n\n" +
+          (payUrl ? "▼お支払い・カードの変更\n" + payUrl + "\n\n" : "▼お手続き\n本メールにご返信ください。お支払い用のページをお送りします。\n\n") +
+          "▼ご利用について\nお手続きいただくまでの間も、アプリはそのままお使いいただけます。\n" +
+          "すでにお手続き済みの場合や行き違いの際は、何卒ご容赦ください。\n\n" +
+          "▼解約をご希望の場合\n本メールにご返信ください。すぐにお止めします。\n\n" +
+          askReply + "\n\n" + MAIL_SIGN,
+      };
+    }
+    // ---- 使い始めの案内(Pocket) ----
+    if (stage === "onboard1") {
+      return {
+        subject: "【メカノAI Pocket】まず1台、車検証を読ませてみてください",
+        body: who + "\n\n先日はご登録ありがとうございます。無料お試し期間が始まっています。\n" +
+          "最初の1台だけ試していただくと、何ができるかがすぐ分かります。\n\n" +
+          "▼やってみること（1分）\n" +
+          "1. アプリを開く　" + appUrl + "\n" +
+          "2. 「スキャン」で車検証の二次元コードにカメラを向ける（手で入力もできます）\n" +
+          "3. 型式が出たら「整備」を押す\n\n" +
+          "▼出てくるもの\n" +
+          "・エンジンオイルの量、ホイールナットの締付トルクなどの参考値\n" +
+          "・その型式で報告の多い不具合\n" +
+          "・リコールの検索（国交省・メーカーのページへ直接）\n\n" +
+          "うまく読めない車検証があれば、本メールにご返信ください。読めるように調整します。\n\n" +
+          "▼使い方の説明\n" + appUrl + "manual.html\n\n" + MAIL_SIGN,
+      };
+    }
+    if (stage === "onboard3") {
+      return {
+        subject: "【メカノAI Pocket】故障コードと部品交換の手順も調べられます",
+        body: who + "\n\nメカノAI Pocket の、スキャン以外の使い方をご案内します。\n\n" +
+          "▼故障コードから調べる\n" +
+          "「診断」で P0401 のようなコードを入れると、意味・点検の順番・切り分けが出ます。\n" +
+          "コードが分からないときは、症状の言葉（白煙が出る、かかりが悪い等）でも調べられます。\n" +
+          "診断機の画面を撮った写真から読み取ることもできます。\n\n" +
+          "▼部品交換の手順\n" +
+          "「部品交換の手順を調べる」に部品名を入れると、工具・手順・締付トルク・注意点が出ます。\n" +
+          "参考になる動画・ページのリンクも一緒に出ます。\n\n" +
+          "▼整備メモ（登録なしで読めます）\n" + appUrl + "guide/\n" +
+          "　DPF・SCR・エアブレーキなど、よくある故障の点検手引きをまとめています。\n\n" +
+          "▼お願い\n" +
+          "「ここが使いにくい」「この車種が出ない」など、何でも本メールにご返信ください。\n" +
+          "現場で本当に使えるものにしたいので、率直なご意見がいちばん助かります。\n\n" + MAIL_SIGN,
+      };
+    }
+    // ---- 失効後の再接触(Pocket) ----
+    if (stage === "win14") {
+      return {
+        subject: "【メカノAI Pocket】その後、現場はいかがですか",
+        body: who + "\n\n以前メカノAI Pocket をお試しいただき、ありがとうございました。\n" +
+          "その後、現場はいかがでしょうか。\n\n" +
+          "お試しのときに保存された車両データ・整備記録は、端末にそのまま残っています。\n" +
+          "ご登録いただければ、消さずにそのまま続きからお使いいただけます。\n\n" +
+          howTo + "\n" + price + "\n" +
+          "▼もしよろしければ\n" +
+          "「使わなかった理由」を一言だけ、本メールにご返信いただけませんか。\n" +
+          "値段なのか、精度なのか、使う場面が無かったのか。それが分かれば直せます。\n\n" +
+          unsubNote + "\n" + MAIL_SIGN,
+      };
+    }
     return {
-      subject: "【メカノAI Pocket】ご利用はいかがでしたか（最後のご案内）",
-      body: who + "\n\n先日、無料お試し期間の終了をご連絡いたしました。その後いかがでしょうか。\n\n" +
-        "もし「思っていたものと違った」「使う場面がなかった」「操作が分かりにくかった」など\n" +
-        "ございましたら、本メールにご返信いただけると、今後の改善に役立てさせていただきます。\n" +
-        "整備の現場で本当に使えるものにしたいので、率直なご意見がいちばん助かります。\n\n" +
-        "引き続きお使いいただける場合は、下記からご登録いただけます。\n\n" +
+      subject: "【メカノAI Pocket】ご案内は今回で最後です",
+      body: who + "\n\n以前メカノAI Pocket をお試しいただいた方へ、最後のご連絡です。\n\n" +
+        "アプリはその後も手を入れ続けており、調べられる車種・故障コード・点検手引きが増えています。\n" +
+        "またお試しいただける場合は、同じID・パスワードでログインできます。\n\n" +
         howTo + "\n" + dataNote + "\n" +
-        "ご案内は今回で最後にいたします。ありがとうございました。\n\n" + MAIL_SIGN,
+        "このご案内は今回で最後です。今後お送りすることはありません。\n" +
+        "長らくありがとうございました。\n\n" + MAIL_SIGN,
     };
   }
   // ---- 法人(Works) ----
@@ -3084,12 +3201,86 @@ function buildTrialMail(t, stage, appUrl, invoiceUrl) {
         cancel + "\n" + support + "\n" + MAIL_SIGN,
     };
   }
+  if (stage === "last") {
+    return {
+      subject: "【メカノAI】お支払いのご確認のお願い",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）につきまして、お支払いがまだ確認できておりません。\n" +
+        "お手続き済みの場合や行き違いの際は、何卒ご容赦ください。\n" + invoice + "\n" +
+        cancel + "\n" + support + "\n" + MAIL_SIGN,
+    };
+  }
+  // ---- 決済の失敗(Works) ----
+  if (stage === "payfail") {
+    return {
+      subject: "【メカノAI】お支払いが確認できませんでした",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）のお支払いが確認できませんでした。\n" +
+        "カードの有効期限切れ・限度額、またはお振込の行き違いが主な原因です。\n" +
+        (payUrl ? "\n▼お支払い・お支払い方法の変更\n" + payUrl + "\n" : "\n▼お手続き\n本メールにご返信ください。お支払い用のページをお送りします。\n") +
+        "\n▼ご利用について\nお手続きいただくまでの間も、これまでどおりお使いいただけます。\n" +
+        "すでにお手続き済みの場合や行き違いの際は、何卒ご容赦ください。\n\n" +
+        cancel + "\n" + support + "\n" + MAIL_SIGN,
+    };
+  }
+  // ---- 使い始めの案内(Works) ----
+  if (stage === "onboard1") {
+    return {
+      subject: "【メカノAI】まず1台スキャンして、従業員の方を追加してください",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）の無料お試し期間が始まっています。\n" +
+        "最初に次の2つだけ済ませていただくと、現場ですぐ使える状態になります。\n\n" +
+        "▼① 1台スキャンする（1分）\n" +
+        "アプリを開き「スキャン」で車検証の二次元コードを読ませてください。\n" +
+        "型式から、オイル量・締付トルクの参考値、その型式で報告の多い不具合、リコール検索が出ます。\n\n" +
+        "▼② 従業員の方を追加する\n" +
+        "従業員の方にアプリを開いてもらい、『設定 → クラウド同期 → 会社に参加』で\n" +
+        "店舗コード（" + (tid || "") + "）を入力して申請 → 代表管理者の方が承認すると追加されます。\n" +
+        "追加すると、車両データ・整備カルテが社内全員で自動的に共有されます。\n\n" + support + "\n" + MAIL_SIGN,
+    };
+  }
+  if (stage === "onboard3") {
+    return {
+      subject: "【メカノAI】故障コード・部品交換の手順・整備カルテ",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "メカノAI（" + planLabel + "プラン）の、スキャン以外の使い方をご案内します。\n\n" +
+        "▼故障コードから調べる\n" +
+        "「診断」で P0401 のようなコードを入れると、意味・点検の順番・切り分けが出ます。\n" +
+        "症状の言葉（白煙が出る、かかりが悪い等）でも調べられます。診断機の画面の写真からも読み取れます。\n\n" +
+        "▼部品交換の手順\n" +
+        "部品名を入れると、工具・手順・締付トルク・注意点が出ます。\n\n" +
+        "▼整備カルテ\n" +
+        "診断の結果や入庫の内容を車両ごとに残せます。次に同じ車が入ったとき、前回の内容がそのまま出ます。\n" +
+        "社内で共有されるので、担当者が替わっても引き継ぎが要りません。\n\n" +
+        "▼お願い\n" +
+        "「この車種が出ない」「ここが使いにくい」など、何でも本メールにご返信ください。\n\n" + support + "\n" + MAIL_SIGN,
+    };
+  }
+  // ---- 失効後の再接触(Works) ----
+  if (stage === "win14") {
+    return {
+      subject: "【メカノAI】その後、現場はいかがですか",
+      body: who + "\n\n平素より大変お世話になっております。\n" +
+        "以前メカノAI（" + planLabel + "プラン）をお試しいただき、ありがとうございました。\n\n" +
+        "お試しのときに登録された車両データ・整備カルテは、そのまま残しております。\n" +
+        "ご再開いただければ、同じID・パスワードで、消さずに続きからお使いいただけます。\n\n" +
+        "▼アプリを開く\n" + appUrl + "?corp=1\n\n" +
+        "▼もしよろしければ\n" +
+        "「使わなかった理由」を一言だけ、本メールにご返信いただけませんか。\n" +
+        "値段なのか、精度なのか、現場に合わなかったのか。それが分かれば直せます。\n\n" +
+        unsubNote + "\n" + MAIL_SIGN,
+    };
+  }
   return {
-    subject: "【メカノAI】お支払いのご確認のお願い",
+    subject: "【メカノAI】ご案内は今回で最後です",
     body: who + "\n\n平素より大変お世話になっております。\n" +
-      "メカノAI（" + planLabel + "プラン）につきまして、お支払いがまだ確認できておりません。\n" +
-      "お手続き済みの場合や行き違いの際は、何卒ご容赦ください。\n" + invoice + "\n" +
-      cancel + "\n" + support + "\n" + MAIL_SIGN,
+      "以前メカノAIをお試しいただいた貴社へ、最後のご連絡です。\n\n" +
+      "その後も手を入れ続けており、調べられる車種・故障コード・点検手引きが増えています。\n" +
+      "またお試しいただける場合は、同じID・パスワードでログインできます。\n\n" +
+      "▼アプリを開く\n" + appUrl + "?corp=1\n" +
+      "▼導入ガイド\n" + appUrl + "manual.html\n\n" +
+      "このご案内は今回で最後です。今後お送りすることはありません。\n" +
+      "長らくありがとうございました。\n\n" + MAIL_SIGN,
   };
 }
 
@@ -3104,21 +3295,23 @@ exports.trialMailer = functions.region(REGION).runWith({ timeoutSeconds: 300, me
     const dry = conf.trialMailDryRun !== false;
     const cap = Math.min(Math.max(parseInt(conf.trialMailPerRun, 10) || 50, 1), 200);
     const appUrl = (cfg().app.url || "https://mechanoai-cablueie.com/").replace(/\/?$/, "/");
-    const snap = await db.collection("tenants").where("plan", "==", "trial").limit(1000).get();
+    const snap = await db.collection("tenants").limit(2000).get();
     let sent = 0, skipped = 0;
     for (const doc of snap.docs) {
       if (sent >= cap) break;
       const t = doc.data() || {};
-      const stage = pure.trialStage(t.paidUntil);
-      if (!stage) continue;                              // まだ早い / 古すぎる
-      if ((t.trialMail || {})[stage]) continue;          // その段階は既に送信済み
+      const stage = pure.lifecycleStage(t);
+      if (!stage) continue;                              // 今日送るものが無い
+      const done = t.trialMail || {};
+      // 決済の失敗だけは「請求書ごとに1通」(同じ請求書で何度も催促しない)。他は1段階1通。
+      if (stage === "payfail" ? (done.payfail === (t.payFail || {}).invoiceId) : done[stage]) continue;
       const email = String(t.contactEmail || "").trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { skipped++; continue; }
       const supId = Buffer.from(email).toString("base64").replace(/[^a-zA-Z0-9]/g, "");
       if ((await db.collection("mailSuppress").doc(supId).get()).exists) { skipped++; continue; }
       // 法人は未払い請求書のURLを案内に添える(あれば)
       let invoiceUrl = "";
-      if (t.edition !== "personal" && t.stripeCustomerId && cfg().stripe.secret) {
+      if (t.edition !== "personal" && t.stripeCustomerId && cfg().stripe.secret && !((t.payFail || {}).url)) {
         try {
           const stripe = require("stripe")(cfg().stripe.secret);
           const invs = await stripe.invoices.list({ customer: t.stripeCustomerId, limit: 5 });
@@ -3126,7 +3319,7 @@ exports.trialMailer = functions.region(REGION).runWith({ timeoutSeconds: 300, me
           if (open) invoiceUrl = open.hosted_invoice_url || "";
         } catch (e) { console.error("請求書URL取得失敗 " + doc.id, e.message); }
       }
-      const m = buildTrialMail(t, stage, appUrl, invoiceUrl);
+      const m = buildTrialMail(t, stage, appUrl, invoiceUrl, doc.id);
       const ok = await sendMail(
         dry ? cfg().sendgrid.notify : email,
         dry ? "[試験送信] " + m.subject : m.subject,
@@ -3135,7 +3328,8 @@ exports.trialMailer = functions.region(REGION).runWith({ timeoutSeconds: 300, me
       if (!ok) { skipped++; continue; }
       sent++;
       if (!dry) {
-        await doc.ref.set({ trialMail: Object.assign({}, t.trialMail || {}, { [stage]: Date.now() }) }, { merge: true });
+        const mark = (stage === "payfail") ? ((t.payFail || {}).invoiceId || Date.now()) : Date.now();
+        await doc.ref.set({ trialMail: Object.assign({}, t.trialMail || {}, { [stage]: mark }) }, { merge: true });
         await db.collection("trialMails").add({ tid: doc.id, email: email, stage: stage, subject: m.subject, body: m.body, ts: Date.now() });
       }
     }
@@ -3257,11 +3451,12 @@ exports.dailyReport = functions.region(REGION).runWith({ timeoutSeconds: 300, me
     const cnt = async (q) => { try { return (await q.count().get()).data().count; } catch (e) { return -1; } };
     const n = (v) => (v < 0 ? "?" : String(v));
     const tmSnap = await db.collection("trialMails").where("ts", ">=", y.from).where("ts", "<", y.to).limit(500).get();
-    const tm = { pre: 0, end: 0, last: 0 };
+    const tm = { onboard1: 0, onboard3: 0, pre: 0, end: 0, last: 0, payfail: 0, win14: 0, win45: 0 };
     tmSnap.forEach((d) => { const st = (d.data() || {}).stage; if (tm[st] != null) tm[st]++; });
     L.push("");
-    L.push("■ 満了案内メール（昨日送信）");
-    L.push("　満了前 " + tm.pre + " / 満了直後 " + tm.end + " / 最後の案内 " + tm.last);
+    L.push("■ 自動のお知らせメール（昨日送信）");
+    L.push("　使い始め " + (tm.onboard1 + tm.onboard3) + " / 満了前 " + tm.pre + " / 満了直後 " + tm.end + " / 満了後 " + tm.last);
+    L.push("　決済の失敗 " + tm.payfail + " / 失効後の再接触 " + (tm.win14 + tm.win45));
 
     const [lead, appr, nego, drip, inb, inq] = await Promise.all([
       cnt(db.collection("salesLeads").where("status", "==", "見込み")),

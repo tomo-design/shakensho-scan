@@ -1716,7 +1716,7 @@ ${SNS_HUMAN}`;
   if (_st) _st.onclick = async () => {
     // 試験送信をOFF(=本番送信)にする時だけ、取り返しがつかないので確認する。
     if ($("trialMailEnabled").checked && !$("trialMailDryRun").checked &&
-        !confirm("本番送信に切り替えます。\n無料お試し中のお客様へ、明朝9:00から実際に案内メールが届きます。\n試験送信で文面を確認済みですか？")) return;
+        !confirm("本番送信に切り替えます。\n明朝9:00から、お客様へ実際にお知らせメールが届きます。\n（決済の失敗・使い始め・満了の案内・失効後の再接触）\n試験送信で文面を確認済みですか？")) return;
     _st.disabled = true;
     try {
       await api("setConfig", { config: {
@@ -1724,7 +1724,7 @@ ${SNS_HUMAN}`;
         trialMailDryRun: $("trialMailDryRun").checked,
         trialMailPerRun: parseInt($("trialMailPerRun").value, 10) || 50,
       } });
-      toast("満了案内の設定を保存しました");
+      toast("自動のお知らせの設定を保存しました");
       loadDripConfig();
     } catch (e) { toast(e.message); }
     finally { _st.disabled = false; }

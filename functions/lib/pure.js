@@ -74,6 +74,41 @@ function trialStage(paidUntil, now) {
   return "";
 }
 
+/* 顧客の状態から「今日どの案内を送るか」を1つだけ決める。送らない場合は ""。
+   t は tenants ドキュメント(plan / paidUntil / provisionedAt / payFail)。
+   優先順は「お金の話 → 使い方の話」。同じ日に2通送らないため、必ず1つに絞る。
+     payfail  = 決済に失敗した(Webhookが記録。サービスは止めないので、知らせないと回収できない)
+     pre/end/last = 無料お試しの満了前・満了直後・最後の案内(trialStage)
+     onboard1/3   = 使い始めの案内(申込から1〜2日目 / 3〜4日目)
+     win14/win45  = 失効してから14日後・45日後の再接触
+   窓に幅を持たせているのは、定期実行が1日飛んでも取りこぼさないため。 */
+function lifecycleStage(t, now) {
+  t = t || {};
+  const D = 86400000;
+  const ms = (now == null ? Date.now() : now);
+  if (t.payFail && t.payFail.invoiceId) return "payfail";
+  const plan = t.plan || "";
+  const until = Number(t.paidUntil) || 0;
+  if (plan === "active") return "";                     // 支払い済みで正常。何も送らない
+  if (plan === "trial") {
+    const ts = trialStage(until, ms);
+    if (ts) return ts;                                  // 満了の話があるときは、そちらを優先
+    const from = Number(t.provisionedAt) || 0;
+    if (from) {
+      const age = ms - from;
+      if (age >= 1 * D && age < 3 * D) return "onboard1";
+      if (age >= 3 * D && age < 5 * D) return "onboard3";
+    }
+  }
+  // 失効後の再接触。無料のまま終わったPocket(planはtrialのまま)と、停止した契約の両方が対象。
+  if (until && (plan === "trial" || plan === "suspended")) {
+    const lapsed = ms - until;
+    if (lapsed >= 14 * D && lapsed < 28 * D) return "win14";
+    if (lapsed >= 45 * D && lapsed < 75 * D) return "win45";
+  }
+  return "";
+}
+
 /* Stripeのサブスク1件を月額(円)に正規化する。年額は1/12にする。
    JPYはStripeのゼロ十進通貨なので unit_amount がそのまま円。 */
 function monthlyAmountFromSub(sub) {
@@ -90,5 +125,5 @@ function monthlyAmountFromSub(sub) {
   return Math.round(yen);
 }
 
-module.exports = { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth,
+module.exports = { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth, lifecycleStage,
   jstDayRange, jstDay, trialDaysLeft, trialStage, monthlyAmountFromSub };

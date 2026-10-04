@@ -438,12 +438,20 @@
       <div class="panel" id="trialPanel">
         <div class="field" style="margin:0 0 6px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input type="checkbox" id="trialMailEnabled" style="width:auto"> <b>🎁 無料お試しの満了案内を有効にする（毎朝9:00）</b>
+            <input type="checkbox" id="trialMailEnabled" style="width:auto"> <b>🎁 お客様への自動のお知らせを有効にする（毎朝9:00）</b>
           </label>
         </div>
         <p class="vsub" style="margin:0 0 10px">
-          無料お試し中のお客様へ、<b>満了の3日前・満了直後・満了の数日後</b>の計3通までを自動でお送りします。1段階につき1通だけで、二重送信はしません。<br>
-          <b>Pocket（個人）</b>はアプリの登録画面へ誘導します。<b>Works（法人）</b>は請求書が届く予告と、未払い請求書のお支払いページをご案内します。<br>
+          お客様の状況に合わせて、<b>1日に1通だけ</b>自動でお送りします。同じ案内を二度は送りません。
+        </p>
+        <table class="vsub" style="margin:0 0 10px;border-collapse:collapse;width:100%">
+          <tr><td style="padding:2px 10px 2px 0;white-space:nowrap"><b>決済の失敗</b></td><td>カードが通らなかった翌朝。お支払いページをご案内（止めていないので、これが唯一の回収手段です）</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;white-space:nowrap"><b>使い始め</b></td><td>申込の1〜2日目と3〜4日目。「まず1台スキャン」「故障コードも調べられます」</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;white-space:nowrap"><b>満了の案内</b></td><td>満了の3日前・満了直後・満了の数日後</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;white-space:nowrap"><b>失効後の再接触</b></td><td>満了から14日後と45日後。75日を過ぎた方には送りません</td></tr>
+        </table>
+        <p class="vsub" style="margin:0 0 10px">
+          <b>Pocket（個人）</b>はアプリの登録画面へ誘導します。<b>Works（法人）</b>は請求書・店舗コード・社内共有のご案内になります。<br>
           配信停止をご希望の方には送りません。
         </p>
         <div class="field" style="margin:0 0 6px">
