@@ -225,8 +225,8 @@
     "動画を添付": "Attach video", "動画を撮って添付": "Take & attach video",
     "修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。":
       "Ask about repair/maintenance (a task name is fine, e.g. “pad replacement”). 🎤 voice, 🗣️ chat, 📷 photo too.",
-    "ダイアグコード（例: P0401）や症状を入力。🎤音声・写真/動画の添付も可。":
-      "Enter a DTC (e.g. P0401) or symptom. 🎤 voice, photo/video attachments too.",
+    "ダイアグコード（例: P0401）や症状を入力。トルク・手順の質問は修理タブへ。🎤音声・写真/動画の添付も可。":
+      "Enter a DTC (e.g. P0401) or symptom. Ask torque/procedure questions in the Repair tab. 🎤 voice, photo/video attachments too.",
     "メッセージを入力…": "Type a message…", "送信": "Send",
     // ===== 直接入力の例(placeholder) =====
     "例: 2PG-FW74HZ / VY12": "e.g. 2PG-FW74HZ / VY12", "例: A09C / 6UZ1 / KF": "e.g. A09C / 6UZ1 / KF",
