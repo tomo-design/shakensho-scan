@@ -134,6 +134,7 @@
     var s = STEPS[i];
     stepDone = false; revealed = false; unbind(); curEl = null;
     var last = i === STEPS.length - 1;
+    if (last && window.mechaTrack) { try { window.mechaTrack("demo_done"); } catch (e) {} }   // ガイドを最後まで進めた回数(track.js)
     // 最後の画面は行き先を2つ出す(個人=Pocketの無料登録 / 会社=Worksの案内)。縦に並べて押し間違えないように。
     var btns = s.showApply
       ? '<div class="tt-ends">' +

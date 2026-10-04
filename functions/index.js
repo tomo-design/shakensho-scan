@@ -2946,6 +2946,37 @@ exports.bizInquiry = functions.region(REGION).https.onRequest(async (req, res) =
 });
 
 /* ===================================================================
+   入口の回数カウント(整備メモ・デモ・Pocket登録フォーム)
+   -------------------------------------------------------------------
+   track.js から「出来事の名前」だけを受け取り、funnelDaily/{JSTの日付} の回数を1つ増やす。
+   どこで人が離れているかを日報(dailyReport)で見るためのもの。
+   ・個人を特定する情報は受け取らない・保存しない(IPアドレスやユーザーエージェントも保存しない)。
+   ・決めた名前以外は捨てる。誰でも叩けるので、数字はあくまで目安。
+   =================================================================== */
+const TRACK_EVENTS = ["guide_view", "guide_uv", "guide_cta_demo", "guide_cta_pocket", "guide_cta_biz",
+  "demo_start", "demo_done", "demo_cta_pocket", "demo_cta_biz", "pocket_form", "pocket_submit"];
+exports.track = functions.region(REGION).runWith({ timeoutSeconds: 10, memory: "128MB" }).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).send("");
+  let d = req.body;   // sendBeacon は text/plain で届くので文字列のことがある
+  if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { d = null; } }
+  const ev = d && typeof d === "object" ? String(d.e || "") : "";
+  if (TRACK_EVENTS.indexOf(ev) < 0) return res.status(204).send("");
+  if (/bot|crawl|spider|slurp|headless/i.test(String(req.headers["user-agent"] || ""))) return res.status(204).send("");
+  const inc = admin.firestore.FieldValue.increment(1);
+  const patch = { [ev]: inc };
+  if (ev === "guide_view") {
+    const page = String(d.p || "").replace(/[^a-z0-9_-]/gi, "").slice(0, 60);
+    if (page) patch.pages = { [page]: inc };
+  }
+  try {
+    await admin.firestore().collection("funnelDaily").doc(pure.jstDay(Date.now())).set(patch, { merge: true });
+  } catch (e) { console.error("track 保存エラー", e.message); }
+  return res.status(204).send("");
+});
+
+/* ===================================================================
    ① 無料お試しの満了案内メール(毎朝09:00 JST)
    -------------------------------------------------------------------
    アプリは「期間終了(8日目)にお支払いのご案内をお送りします」と画面で約束しているのに
@@ -3201,6 +3232,22 @@ exports.dailyReport = functions.region(REGION).runWith({ timeoutSeconds: 300, me
       warn.push("⚠ 3日以内に無料期間が終わる " + expiring.length + " 件");
       expiring.slice(0, 20).forEach((e) => warn.push("　　- " + e.name + "（" + (e.personal ? "Pocket" : "法人") + "・残り" + e.left + "日・" + e.until + "まで・案内済み:" + e.mailed + "）"));
     }
+
+    // ---- 入口(昨日): 整備メモ → デモ → Pocket登録フォーム の回数(track が数えたもの) ----
+    // どこで人が離れているかを見るための数字。人数ではなく回数(端末数だけは1日1回で数えた目安)。
+    try {
+      const fd = (await db.collection("funnelDaily").doc(y.label).get()).data() || {};
+      const f = (k) => Number(fd[k]) || 0;
+      L.push("");
+      L.push("■ 入口（昨日の回数）");
+      L.push("　整備メモ　表示 " + f("guide_view") + " 回（端末数 " + f("guide_uv") + "）");
+      L.push("　　　→ 体験する " + f("guide_cta_demo") + " / 個人で使う " + f("guide_cta_pocket") + " / 会社で使う " + f("guide_cta_biz"));
+      L.push("　デモ　　　開始 " + f("demo_start") + " / 最後まで " + f("demo_done"));
+      L.push("　　　→ 個人で使う " + f("demo_cta_pocket") + " / 会社で導入 " + f("demo_cta_biz"));
+      L.push("　Pocket登録 フォーム表示 " + f("pocket_form") + " / 申込ボタン " + f("pocket_submit") + " / 発行 " + c.newPocket);
+      const top = Object.keys(fd.pages || {}).map((k) => [k, Number(fd.pages[k]) || 0]).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (top.length) L.push("　よく見られた整備メモ: " + top.map((p) => p[0] + " " + p[1]).join(" / "));
+    } catch (e) { console.error("日報: 入口の回数の取得失敗", e.message); }
 
     // ---- 昨日の案内メール・営業活動 ----
     const cnt = async (q) => { try { return (await q.count().get()).data().count; } catch (e) { return -1; } };
