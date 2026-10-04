@@ -8840,6 +8840,20 @@ function startDemo() {
   // 満了案内メール(trialMailer)の「ご登録」リンク。この時点ではまだ未ログインのことが多いので、
   // 希望だけ覚えておき、updatePocketTrialBanner がログイン後に料金プランの画面を開く。
   if (p === "join") { _pocketJoinWanted = true; return; }
+  // 整備メモ・デモの「個人で使う(7日間無料)」から来た人。ログイン画面が出たら(=未ログインと確定したら)
+  // Pocket側のパネルに合わせ、そのまま無料登録のフォームを開く。ログイン済みの人には何もしない。
+  if (p === "start") {
+    let n = 0;
+    const t = setInterval(() => {
+      const g = document.getElementById("authGate");
+      if (!g || g.classList.contains("hidden")) { if (++n > 40) clearInterval(t); return; }
+      clearInterval(t);
+      const panels = g.querySelector(".agPanels");
+      if (panels) { try { panels.scrollTo({ left: panels.clientWidth, behavior: "auto" }); } catch (e) {} }
+      try { openPocketApply(); } catch (e) {}
+    }, 250);
+    return;
+  }
   setTimeout(() => {
     if (p === "success") {
       alert("✓ ご登録ありがとうございます。月額プランが有効になりました。反映まで数十秒かかる場合があります。");

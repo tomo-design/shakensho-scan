@@ -25,6 +25,11 @@
 #tourTip .tt-next{background:#e8912d;color:#241403;min-width:96px}
 #tourTip .tt-next:active{background:#cf7c1c}
 #tourTip .tt-skip{background:transparent;color:#6b7280;border-color:transparent;padding:0 10px;font-weight:600;font-size:14px}
+/* 最後の画面: 行き先のボタンを縦に並べる(個人=塗り / 会社=枠線) */
+#tourTip .tt-ends{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+#tourTip .tt-ends .tt-next{width:100%}
+#tourTip a.tt-alt{background:transparent;color:#cf7c1c;border-color:#e8912d}
+#tourTip a.tt-alt:active{background:rgba(232,145,45,.15)}
 #tourTip .tt-arrow{position:absolute;width:14px;height:14px;background:#fff;transform:rotate(45deg)}
 #tourTip.center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;max-width:340px}
 #tourTip.center .tt-btns{justify-content:center}

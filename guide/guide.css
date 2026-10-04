@@ -24,6 +24,8 @@ li{margin:6px 0}
 .ctaH{font-weight:800;font-size:16px}
 .cta p{font-size:14px;color:#33414f;margin:6px 0 12px;text-align:left}
 .btn{display:block;background:#2563EB;color:#fff;font-weight:800;text-decoration:none;border-radius:10px;padding:13px 16px;min-height:48px}
+/* 2つ目のボタン(個人で使う)は枠線だけにして、主ボタン(体験する)と区別する */
+.btn.btnLine{background:#fff;color:#2563EB;border:2px solid #2563EB;margin-top:10px;padding:11px 16px}
 .btnSub{display:inline-block;margin-top:10px;font-size:14px;padding:8px 12px}
 .note{font-size:12.5px;color:#5a6b7b}
 footer{text-align:center;font-size:12px;color:#5a6b7b;padding:20px 16px 40px}

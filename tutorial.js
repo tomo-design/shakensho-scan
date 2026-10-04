@@ -41,7 +41,7 @@
     { sel: "#btnKarteAdd", also: "#karteList", ch: 6, title: "作業記録を残す", body: "右上のボタンから作業記録を追加。伝票やメモの写真からの入力にも対応しています。" },
     { sel: "home-tab", nav: true, ch: 7, title: "入庫状況を見る（Works）", body: "最後に「📷 スキャン」をタップしてホームへ。ここからは法人版 Works の機能です。" },
     { sel: "#homeIntake", openFold: true, ch: 7, title: "入庫中の車両がひと目で（Works）", body: "入庫区分（車検・点検・修理・板金）を選んだ車両がここに並び、社内の全端末で共有されます。ガイドを閉じたあと、見出しの📅で入出庫カレンダーも開けます。" },
-    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "このままデモを自由に触れます。料金や導入の流れは「詳細・申込」からどうぞ。", showApply: true },
+    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "このままデモを自由に触れます。入庫状況・カレンダー・社内共有は法人版 Works の機能です。個人版 Pocket は、スキャン・諸元・診断・修理・カルテを自分のスマホ1台で使えます。", showApply: true },
   ];
   var CH_TOTAL = STEPS.reduce(function (m, s) { return Math.max(m, s.ch || 0); }, 0);
   function stepLabel(idx) {
@@ -134,18 +134,30 @@
     var s = STEPS[i];
     stepDone = false; revealed = false; unbind(); curEl = null;
     var last = i === STEPS.length - 1;
-    var btns = '<div class="tt-btns">' +
-      '<button class="tt-skip" data-act="skip">' + (i > 0 && !last ? "スキップ" : "閉じる") + "</button>" +
-      '<span class="tt-spacer"></span>' +
-      (s.showApply ? '<a class="tt-next" href="biz.html">詳細・申込</a>' :
-        '<button class="tt-next" data-act="next">' + (s.cta || "次へ") + "</button>") +
-      "</div>";
+    // 最後の画面は行き先を2つ出す(個人=Pocketの無料登録 / 会社=Worksの案内)。縦に並べて押し間違えないように。
+    var btns = s.showApply
+      ? '<div class="tt-ends">' +
+          '<button class="tt-next" data-act="pocket">個人で使う（7日間無料）</button>' +
+          '<a class="tt-next tt-alt" href="biz.html">会社で導入する（詳細・申込）</a>' +
+          '<button class="tt-skip" data-act="skip">閉じる</button>' +
+        "</div>"
+      : '<div class="tt-btns">' +
+          '<button class="tt-skip" data-act="skip">' + (i > 0 && !last ? "スキップ" : "閉じる") + "</button>" +
+          '<span class="tt-spacer"></span>' +
+          '<button class="tt-next" data-act="next">' + (s.cta || "次へ") + "</button>" +
+        "</div>";
     var hint = (s.nav || s.action) ? '<div class="tt-hint">👆 光っている場所をタップ</div>' : "";
     var prog = '<div class="tt-prog"><i style="width:' + Math.round(i / (STEPS.length - 1) * 100) + '%"></i></div>';
     tip.innerHTML = prog + '<div class="tt-step">' + stepLabel(i) + "</div><h4>" + s.title + "</h4><p>" + s.body + "</p>" + hint + btns;
     tip.querySelectorAll("[data-act]").forEach(function (b) {
       b.onclick = function () {
         if (b.dataset.act === "skip") return end();
+        if (b.dataset.act === "pocket") {
+          // デモを抜けてから、ログイン画面のPocket無料登録へ(ss_demo が残っているとデモが再開してしまう)
+          try { sessionStorage.removeItem("ss_demo"); } catch (e) {}
+          location.href = location.pathname + "?pocket=start";
+          return;
+        }
         if (s.nav && curEl) { unbind(); try { curEl.click(); } catch (e) {} setTimeout(advance, 300); }
         else if (s.action && curEl && !revealed) { doAction(true); }   // 未実行なら「次へ」で実行して結果を見せる
         else advance();
