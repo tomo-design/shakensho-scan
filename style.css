@@ -537,20 +537,18 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .karteItem .kPartRows .kQty{flex:0 0 auto;min-width:34px;text-align:right;color:var(--cyan);font-weight:700;white-space:nowrap;font-size:13px;line-height:1.5}
 /* 作業点数(AI目安) */
 .karteItem .kPrint{background:none;border:1px solid var(--line);border-radius:10px;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer;white-space:nowrap;color:var(--dim)}
-.kAiMini{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;border:1px solid var(--amber);color:var(--amber);font-size:10px;font-weight:700;line-height:16px;vertical-align:1px}
 .karteItem .kPtsTotal{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);text-align:right;font-size:13px;color:var(--dim)}
 .karteItem .kPtsTotal b{color:var(--txt);font-size:15px}
+.kPtsOpen{margin-top:10px;width:100%}
 .kPts{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .kPtsHead{display:flex;align-items:center;gap:8px}
 .kPtsHead .fld{margin:0}
-.kAiTag{padding:0 8px;border-radius:8px;border:1px solid var(--amber);color:var(--amber);font-size:11px;font-weight:700;line-height:18px}
 .kPtsRows{margin-top:6px}
 .kPtsRow{display:flex;align-items:flex-start;gap:4px;margin-bottom:8px}
 .kPtsRow .kPtsN{flex:1 1 auto;min-width:0;padding-left:10px;padding-right:6px}
 .kPtsRow .kPtsPw{flex:0 0 58px;width:58px}
 .kPtsRow .kPtsP{width:100%;text-align:right;padding-left:6px;padding-right:8px}
 .kPtsRow .kPtsTag{display:block;height:12px;font-size:10px;font-weight:700;line-height:12px;color:var(--dim);text-align:center;margin-top:2px}
-.kPtsRow .kPtsTag.ai{color:var(--amber)}
 .kPtsRow .kPtsDel{flex:0 0 28px;background:none;border:none;color:var(--dim);font-size:20px;line-height:1;padding:12px 0;cursor:pointer}
 .kPtsAct{display:flex;gap:8px;margin-top:4px}
 .kPtsAct .btn{flex:1 1 0;min-width:0;white-space:nowrap}
@@ -585,14 +583,12 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
   .ps .psTbl .pt{width:74px}
   .ps .psTbl .wg{width:128px}
   .ps .psTbl .psTot td{background:#f3f3f3;font-weight:800}
-  .ps .psAi{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid #555;border-radius:6px;font-size:8pt;color:#333}
   .ps .psCost{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:6px 8px;border:2px solid #000;font-size:11pt}
   .ps .psCost b{font-size:15pt}
   .ps .psNote{min-height:46px;border:1px solid #333;padding:6px 8px;white-space:normal}
   .ps .psSign{display:flex;gap:8px;margin-top:14px}
   .ps .psSign>div{flex:1 1 0;border:1px solid #333;height:62px;position:relative}
   .ps .psSign span{position:absolute;left:5px;top:2px;font-size:8pt;color:#444}
-  .ps .psFoot{margin-top:8px;font-size:8.5pt;color:#333}
 }
 /* カルテの日付ごと折りたたみ(フラット・二重枠なし) */
 .kDayFold{border-bottom:1px solid var(--line);margin-bottom:8px}

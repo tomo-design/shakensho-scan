@@ -2515,9 +2515,10 @@ function canEditKarte(k) {
   if (k && k.by) return k.by === uid;
   return !!(k && k.byName && k.byName === (window.Cloud.myName && window.Cloud.myName()));
 }
-/* ===== 作業点数(AI目安)と整備作業明細書の印刷 =====
-   カルテ1件に items=[{n:作業名, p:点数|null, s:"memo"(メモ記載)|"ai"(AI目安)|"man"(手入力)}] と rate(点単価・円)を持つ。
-   点数は日整連『標準作業点数表』の水準をAIが推定した目安で公式値の保証はない。画面・印刷とも「目安」と明示し、その場で修正できる。 */
+/* ===== 作業点数(紙に書いてあった場合だけ保存)と整備作業明細書の印刷 =====
+   カルテ1件に items=[{n:作業名, p:点数|null, s:"memo"(紙の記載)|"man"(手入力)}] と rate(点単価・円)を持つ。
+   メカノAIは点数を計算・推定しない(標準作業点数表のデータは持たない)。手書き書類の写真を読み取った時に紙へ点数が書かれていればそのまま保存し、
+   書かれていなければ従来どおり 作業・部品・数量 だけを保存する。点数の自動付与は別の個人用ツール(tensu-tool)側で行う。 */
 const LABOR_LS = "ss_labor";   // {rate: 点単価(円), shop: 印刷に出す店名}  端末ごとの設定
 function laborCfg() { try { return JSON.parse(localStorage.getItem(LABOR_LS) || "{}") || {}; } catch (e) { return {}; } }
 function saveLaborCfg(patch) { try { localStorage.setItem(LABOR_LS, JSON.stringify(Object.assign(laborCfg(), patch))); } catch (e) {} }
@@ -2527,52 +2528,34 @@ const yen = n => "¥" + Math.round(n).toLocaleString("ja-JP");
 function cleanItems(arr) {
   return (Array.isArray(arr) ? arr : []).map(it => {
     const n = String((it && it.n) || "").trim(); if (!n) return null;
-    return { n, p: ptsNum(it.p), s: it.s === "memo" || it.s === "man" ? it.s : "ai" };   // Firestoreはundefined不可なので必ず3項目そろえる
+    return { n, p: ptsNum(it.p), s: it.s === "man" ? "man" : "memo" };   // Firestoreはundefined不可なので必ず3項目そろえる
   }).filter(Boolean);
 }
 const sumPts = items => (items || []).reduce((a, it) => a + (it.p || 0), 0);
-const POINTS_GUIDE = "【点数の付け方】日整連(日本自動車整備振興会連合会)『自動車整備標準作業点数表』の水準を想定し、各作業の標準作業点数の目安を0.1点単位の数値で付ける(工賃＝点数×整備工場の点単価)。車種区分(大型・中型・小型・乗用)や駆動・エンジン形式で点数は大きく変わるので、車両情報を踏まえる。一体で行う作業(例: クラッチOHに含まれる脱着)は重複して数えない。作業名が曖昧で見積れない時だけ p を null にする。あくまで目安なので確証のない値を断定しない。";
-function laborVehicleInfo() {
-  const f = currentVehicleFacts(), c = current || {};
-  return [f.model && "車種 " + f.model, c.maker && "メーカー " + c.maker, c.type && "型式 " + c.type, c.engine && c.engine !== "—" && "原動機 " + c.engine].filter(Boolean).join(" / ") || "不明";
-}
-/* 作業内容の文章から作業を切り出して点数を付ける(names無し) / 既存の作業名に点数だけ付ける(names有り)。生の配列[{n,p}]を返す */
-async function aiPointItems(workText, names) {
-  const known = !!(names && names.length);
-  const prompt = [
-    "あなたは日本の自動車整備工場のベテラン見積担当です。",
-    POINTS_GUIDE,
-    "車両: " + laborVehicleInfo(),
-    known ? "次の作業それぞれに点数を付けてください。作業名は変えず、同じ順序・同じ件数で返す:\n" + names.map((n, i) => (i + 1) + ". " + n).join("\n")
-      : "次の作業内容から、実施した作業を1つずつ(簡潔・正規化した作業名。例: エンジンオイル交換、フロントブレーキパッド交換、クラッチOH)に分けて抜き出し、それぞれに点数を付けてください。書かれていない作業を足さないこと。",
-    workText ? "作業内容の記述:\n" + workText : "",
-    "出力は厳密なJSONのみ(コードフェンス・説明不要)。数字は半角。形式: {\"items\":[{\"n\":\"作業名\",\"p\":1.5}]}",
-  ].filter(Boolean).join("\n");
-  const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 2048, thinkingBudget: 1024, noCache: true });
-  const obj = extractJson(r.text) || {};
-  return Array.isArray(obj.items) ? obj.items : [];
-}
-/* 作業点数の編集欄(追加フォーム・その場編集で共用)。host内に描画して {get(), set(items)} を返す。
-   get() → {items:[{n,p,s}], rate:点単価|null}。点単価・店名は端末に記憶して次回も使う。 */
+/* 点数が1つも無い作業リストは保存しない(従来どおり 作業・部品・数量 だけのカルテにする) */
+const itemsWithPts = items => (items.some(it => it.p != null) ? items : []);
+/* 作業点数の編集欄(追加フォーム・その場編集で共用)。点数が無い間は「＋ 作業点数を記入」だけ出して普段の見た目を変えない。
+   host内に描画して {get(), set(items)} を返す。get() → {items:[{n,p,s}], rate:点単価|null}。点単価・店名は端末に記憶する。 */
 function buildItemsEditor(host, init, opts) {
   opts = opts || {};
   const cfg0 = laborCfg();
-  let items = cleanItems(init);
+  let items = cleanItems(init), opened = false;
   host.innerHTML =
+    '<button type="button" class="btn btn-ghost btn-sm kPtsOpen">＋ 作業点数を記入</button>' +
     '<div class="kPts">' +
-      '<div class="kPtsHead"><span class="fld">作業点数</span><span class="kAiTag">AI目安・要確認</span></div>' +
+      '<div class="kPtsHead"><span class="fld">作業点数</span></div>' +
       '<div class="kPtsRows"></div>' +
-      '<div class="kPtsAct"><button type="button" class="btn btn-ghost btn-sm kPtsAdd">＋ 作業を追加</button>' +
-      '<button type="button" class="btn btn-amber btn-sm kPtsAi">AIで点数を付ける</button></div>' +
+      '<div class="kPtsAct"><button type="button" class="btn btn-ghost btn-sm kPtsAdd">＋ 作業を追加</button></div>' +
       '<div class="kPtsSum"></div>' +
       '<div class="kPtsCfg"><label>点単価(円/点)<input type="text" inputmode="numeric" class="kPtsRate" placeholder="例: 7500"></label>' +
       '<label>店名(印刷用)<input type="text" class="kPtsShop" placeholder="例: ○○自動車"></label></div>' +
     '</div>';
   const q = s => host.querySelector(s);
-  const rowsEl = q(".kPtsRows"), sumEl = q(".kPtsSum"), rateEl = q(".kPtsRate"), shopEl = q(".kPtsShop"), aiBtn = q(".kPtsAi");
+  const openBtn = q(".kPtsOpen"), box = q(".kPts"), rowsEl = q(".kPtsRows"), sumEl = q(".kPtsSum"), rateEl = q(".kPtsRate"), shopEl = q(".kPtsShop");
   rateEl.value = (opts.rate != null && opts.rate !== "" ? opts.rate : cfg0.rate) || "";
   shopEl.value = cfg0.shop || "";
   const rateVal = () => { const n = parseInt(han(rateEl.value).replace(/[^\d]/g, ""), 10); return n > 0 ? n : null; };
+  const vis = () => { const on = opened || items.length > 0; box.style.display = on ? "" : "none"; openBtn.style.display = on ? "none" : ""; };
   const updSum = () => {
     const t = sumPts(items), r = rateVal();
     sumEl.innerHTML = items.length ? '合計 <b>' + fmtPts(t) + '</b> 点' + (r ? ' × ' + r.toLocaleString("ja-JP") + '円 ＝ 工賃 <b>' + yen(t * r) + '</b>' : "") : "";
@@ -2584,42 +2567,24 @@ function buildItemsEditor(host, init, opts) {
       const n = document.createElement("input"); n.type = "text"; n.className = "kPtsN"; n.value = it.n; n.setAttribute("aria-label", "作業名");
       const p = document.createElement("input"); p.type = "text"; p.inputMode = "decimal"; p.className = "kPtsP"; p.value = it.p == null ? "" : it.p; p.placeholder = "点"; p.setAttribute("aria-label", "点数");
       const tag = document.createElement("span");
-      const setTag = () => { const ai = it.s === "ai" && it.p != null; tag.className = "kPtsTag" + (ai ? " ai" : ""); tag.textContent = it.p == null ? "" : (ai ? "目安" : it.s === "memo" ? "記載" : ""); };
+      const setTag = () => { tag.className = "kPtsTag"; tag.textContent = it.p == null ? "" : (it.s === "memo" ? "記載" : ""); };   // 紙に書いてあった点数だけ「記載」と表示
       const del = document.createElement("button"); del.type = "button"; del.className = "kPtsDel"; del.textContent = "×"; del.setAttribute("aria-label", "この行を削除");
       n.addEventListener("input", () => { it.n = n.value; });
-      p.addEventListener("input", () => { it.p = ptsNum(p.value); it.s = "man"; setTag(); updSum(); });   // 手で直した点数は「目安」ではなく確定扱い
-      del.addEventListener("click", () => { items.splice(i, 1); draw(); updSum(); });
-      const pw = document.createElement("div"); pw.className = "kPtsPw"; pw.append(p, tag);   // 点数の入力欄の真下に「目安/記載」を小さく添える(作業名の幅を確保)
+      p.addEventListener("input", () => { it.p = ptsNum(p.value); it.s = "man"; setTag(); updSum(); });
+      del.addEventListener("click", () => { items.splice(i, 1); draw(); updSum(); vis(); });
+      const pw = document.createElement("div"); pw.className = "kPtsPw"; pw.append(p, tag);   // 点数の入力欄の真下に「記載」を小さく添える(作業名の幅を確保)
       setTag(); row.append(n, pw, del); rowsEl.appendChild(row);
     });
   };
-  q(".kPtsAdd").addEventListener("click", () => { items.push({ n: "", p: null, s: "man" }); draw(); const ns = rowsEl.querySelectorAll(".kPtsN"); if (ns.length) ns[ns.length - 1].focus(); });
+  const addRow = () => { opened = true; items.push({ n: "", p: null, s: "man" }); draw(); updSum(); vis(); const ns = rowsEl.querySelectorAll(".kPtsN"); if (ns.length) ns[ns.length - 1].focus(); };
+  openBtn.addEventListener("click", addRow);
+  q(".kPtsAdd").addEventListener("click", addRow);
   rateEl.addEventListener("input", () => { saveLaborCfg({ rate: rateVal() }); updSum(); });
   shopEl.addEventListener("input", () => saveLaborCfg({ shop: shopEl.value.trim() }));
-  aiBtn.addEventListener("click", async () => {
-    if (!aiOK()) { uiAlert("点数の割り振りには無料のGemini APIキーの設定が必要です（設定タブ）。"); switchView("settings"); return; }
-    const work = opts.workText ? opts.workText().trim() : "";
-    if (!items.length && !work) { uiAlert("先に「作業内容」を入力するか、写真を読み取ってください。"); return; }
-    setBtnLoading(aiBtn, true, "点数を付けています…");
-    try {
-      if (!items.length) {
-        items = cleanItems((await aiPointItems(work, null)).map(it => ({ n: it && it.n, p: it && it.p, s: "ai" })));
-        if (!items.length) uiAlert("作業を読み取れませんでした。「＋ 作業を追加」で作業名を入れてからもう一度お試しください。");
-      } else {
-        const todo = items.filter(it => it.n.trim() && (it.p == null || it.s === "ai"));   // 記載・手入力の点数は上書きしない
-        if (todo.length) {
-          const res = await aiPointItems(work, todo.map(it => it.n.trim()));
-          todo.forEach((it, i) => { const v = res[i] ? ptsNum(res[i].p) : null; if (v != null) { it.p = v; it.s = "ai"; } });
-        }
-      }
-      draw(); updSum();
-    } catch (e) { uiAlert("点数を付けられませんでした。" + (e && e.message && e.message !== "__cancelled__" ? "\n" + e.message : "")); }
-    setBtnLoading(aiBtn, false);
-  });
-  draw(); updSum();
+  draw(); updSum(); vis();
   return {
-    get: () => ({ items: cleanItems(items), rate: rateVal() }),
-    set: (list) => { items = cleanItems(list); draw(); updSum(); },
+    get: () => ({ items: itemsWithPts(cleanItems(items)), rate: rateVal() }),
+    set: (list) => { items = cleanItems(list); draw(); updSum(); vis(); },
   };
 }
 /* 部品欄の文字列 → [{n:部品名, q:数量}](数字始まりのトークンを直前の部品名の数量とみなす。カード表示・印刷で共用) */
@@ -2643,7 +2608,7 @@ function karteSheetHtml(k) {
   const carName = [f.model, c.type].filter(Boolean).join("　");
   let workRows = "";
   if (items.length) {
-    workRows = items.map((it, i) => '<tr><td class="no">' + (i + 1) + '</td><td>' + t(it.n) + (it.p != null && it.s === "ai" ? '<span class="psAi">目安</span>' : "") + '</td><td class="r pt">' + fmtPts(it.p) + '</td>' + (rate ? '<td class="r wg">' + (it.p != null ? yen(it.p * rate) : "—") + '</td>' : "") + '</tr>').join("") +
+    workRows = items.map((it, i) => '<tr><td class="no">' + (i + 1) + '</td><td>' + t(it.n) + '</td><td class="r pt">' + fmtPts(it.p) + '</td>' + (rate ? '<td class="r wg">' + (it.p != null ? yen(it.p * rate) : "—") + '</td>' : "") + '</tr>').join("") +
       '<tr class="psTot"><td colspan="2" class="r">合計</td><td class="r pt">' + fmtPts(total) + '</td>' + (rate ? '<td class="r wg">' + yen(total * rate) + '</td>' : "") + '</tr>';
   } else {
     const lines = String(k.work || "").split(/[、,，\n]+/).map(s => han(s).trim()).filter(Boolean);
@@ -2651,7 +2616,6 @@ function karteSheetHtml(k) {
   }
   const parts = parseKarteParts(k.parts);
   const partsRows = parts.map((p, i) => '<tr><td class="no">' + (i + 1) + '</td><td>' + t(p.n) + '</td><td class="r">' + t(p.q) + '</td></tr>').join("");
-  const anyAi = items.some(it => it.p != null && it.s === "ai");
   return '<div class="ps">' +
     '<div class="psTop"><div class="psShop">' + (cfg.shop ? t(cfg.shop) : "&nbsp;") + '</div><div class="psTtl">整備作業明細書</div><div class="psIssue">発行日 ' + today + '</div></div>' +
     '<div class="psGrid">' +
@@ -2666,7 +2630,6 @@ function karteSheetHtml(k) {
     (k.cost ? '<div class="psCost"><span>ご請求額（記載）</span><b>' + yen(Number(han(String(k.cost)).replace(/[^\d]/g, "")) || 0) + '</b></div>' : "") +
     '<div class="psSec">備考・申し送り</div><div class="psNote">' + (k.note ? t(k.note).replace(/\n/g, "<br>") : "&nbsp;") + '</div>' +
     '<div class="psSign"><div><span>担当者</span></div><div><span>確認</span></div><div><span>お客様確認</span></div></div>' +
-    (anyAi ? '<div class="psFoot">※「目安」の点数はAIが日整連『標準作業点数表』の水準を参考に付けた参考値です。請求の根拠にする場合は点数表と点単価で確認してください。</div>' : "") +
   '</div>';
 }
 function printKarte(k) {
@@ -2759,7 +2722,7 @@ function buildKarteCard(k) {
     const itemsBlockHtml = () => {
       const tot = sumPts(workPts), rate = Number(k.rate) || 0;
       return '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">作業</span><span class="kQtyLbl">点数</span></div>' +
-        '<ul class="kItems kPartRows">' + workPts.map(it => '<li><span class="kPn">' + esc(it.n) + (it.p != null && it.s === "ai" ? '<span class="kAiMini">目安</span>' : "") + '</span><span class="kQty">' + fmtPts(it.p) + '</span></li>').join("") + '</ul>' +
+        '<ul class="kItems kPartRows">' + workPts.map(it => '<li><span class="kPn">' + esc(it.n) + '</span><span class="kQty">' + fmtPts(it.p) + '</span></li>').join("") + '</ul>' +
         '<div class="kPtsTotal">合計 <b>' + fmtPts(tot) + '</b> 点' + (rate ? ' ／ 工賃 <b>' + yen(tot * rate) + '</b>（' + rate.toLocaleString("ja-JP") + '円/点）' : "") + '</div></div>';
     };
     body.innerHTML = (workPts.length ? itemsBlockHtml() : block("作業", k.work)) + partsBlock(k.parts) +
@@ -3057,10 +3020,9 @@ async function runKartePhotoOCR() {
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
       "【最重要・厳守】メモに書かれていない情報を勝手に補完・推測・追加しないこと。特にメーカー名・銘柄・商品名・品番・数量・単位は、メモに明記されていない限り一切足さない(例: 『オイル 3.7L』とだけあれば、そのまま『オイル 3.7L』とし、メーカー名や『エンジンオイル』等の語を付け足さない)。あくまで書かれた文字をそのまま転記する。",
-      "【作業点数 items】work に書かれた作業を1つずつ分けて items に入れ、各作業に点数 p を付ける。作業名 n はメモに書かれた作業だけ(書かれていない作業を足さない。略字は正式名に整える。例『クラッチO/H』→クラッチOH)。" + POINTS_GUIDE +
-      " 車両: " + laborVehicleInfo() + "。メモに点数・工数・工賃が書かれている作業は s=\"memo\"、AIが目安を付けた作業は s=\"ai\"。これは上の『補完しない』の例外で、点数の目安を付けること自体が目的。",
+      "【作業点数 items】紙に作業ごとの点数(『点』『pt』の付いた数値や点数欄の数字)が書かれている場合に限り、その作業を items に1件ずつ入れる(n=作業名、p=書かれていた点数)。点数が書かれていない作業は p を null にする。点数を推測・計算・補完して付けてはいけない(読めた数字だけ)。紙に点数が1つも書かれていなければ items は空配列 [] にする。",
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
-      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null,\"s\":\"ai\"}]}",
+      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null}]}",
     ].join("\n");
     // 蓄積した圧縮済み写真をまとめて送信。思考は上限付きで速く(無制限だと数十秒かかっていた)。
     const r = await geminiAskMedia(prompt, kartePhotoMedia, { thinkingBudget: mediaThinking({}) });
@@ -3073,14 +3035,14 @@ async function runKartePhotoOCR() {
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
     if (obj.staff) $("kStaff").value = String(obj.staff).trim();
     if (obj.note) $("kNote").value = String(obj.note).trim();
-    // 作業点数: メモ記載の点数は「記載」、AIが付けたものは「目安」として区別して表示
+    // 作業点数: 紙に書かれていた点数だけを「記載」として保存(AIは点数を付けない)。点数が1つも読めなければ従来どおり作業・部品・数量のみ。
     let nItems = 0;
     if (kFormItems && Array.isArray(obj.items)) {
-      const its = cleanItems(obj.items.map(it => ({ n: it && it.n, p: it && it.p, s: it && it.s === "memo" ? "memo" : "ai" })));
+      const its = itemsWithPts(cleanItems(obj.items.map(it => ({ n: it && it.n, p: it && it.p, s: "memo" }))));
       kFormItems.set(its); nItems = its.length;
     }
     karteOcrSnapshot = JSON.stringify(readKarteFields());   // 保存時にAIの再整理を省くための控え
-    st.textContent = "✓ 写真" + (nPhotos > 1 ? nPhotos + "枚を統合して" : "を") + "読み取りました。" + (nItems ? "作業点数は目安です。" : "") + "内容を確認・修正して保存してください。";
+    st.textContent = "✓ 写真" + (nPhotos > 1 ? nPhotos + "枚を統合して" : "を") + "読み取りました。" + (nItems ? "紙に書かれていた作業点数も読み取りました。" : "") + "内容を確認・修正して保存してください。";
     kartePhotoMedia = [];   // 読み取り完了 → 蓄積をクリア
   } catch (err) {
     st.textContent = "⚠ " + (err.message === "__cancelled__" ? "中断しました" : (err.message || "写真を読み取れませんでした")) + "（手入力・音声入力もできます）";
@@ -8481,7 +8443,7 @@ const SUPPORT_KB = [
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
-  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。紙カルテの写真を読み取ると同時に、作業を1件ずつに分けてAIが標準作業点数の目安を付ける(日整連『標準作業点数表』の水準を推定した参考値で公式値ではない。メモに点数が書いてあればそれを『記載』として採用、AIが付けたものは『目安』表示)。点数・作業名はその場で修正でき、手で直した点数は確定扱い。点単価(円/点)を入れると合計点数から工賃を自動計算(点単価と店名は端末に記憶)。『AIで点数を付ける』で手入力の作業にも後から点数を付けられる。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
+  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(カード右上の丸を1タップでON/OFF・担当ごとの色。未選択カードは選択してから操作)を管理。手動で入庫追加も可。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫ボードだけのシンプル画面になりスキャン/AIは非表示。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
