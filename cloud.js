@@ -1024,6 +1024,8 @@
     myRole() { return (profile && profile.role) || ""; },
     tenantId() { return (profile && profile.tenantId) || ""; },
     isSuper() { return !!(profile && profile.role === "super"); },
+    // 店舗ごとの機能フラグ(テナント文書の features.<name> が true の店舗だけ)。運営がFirestoreで付ける。
+    tenantFeature(name) { return !!(tenantDoc && tenantDoc.features && tenantDoc.features[name] === true); },
     isLoggedIn() { return !!me; },
     // ログイン中アカウントの版(personal=Pocket / works=Works)。運営(super)は両用のため空を返す。
     // 未設定の旧法人アカウントは works 扱い。ゲートのエディション不一致検知に使用。

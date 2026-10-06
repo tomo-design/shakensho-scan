@@ -2641,7 +2641,21 @@ function printKarte(k) {
   window.addEventListener("afterprint", done);
   setTimeout(() => { try { window.print(); } catch (e) { done(); uiAlert("この端末では印刷を開始できませんでした。"); } }, 80);
 }
+/* 別アプリ「作業点数ツール」へのリンク(自社専用)。運営アカウント、または機能フラグ features.tensu が付いた店舗にだけ表示する。
+   点数表データ・点数の仕組みはメカノAIには無い。開くときは型式/原動機型式/車名だけをURLの#以降(サーバーに送られない部分)で渡す。 */
+const TENSU_URL = "https://tomo-design.github.io/tensu-app/";
+function tensuAllowed() {
+  try { const c = window.Cloud; return !!(c && c.isLoggedIn && c.isLoggedIn() && ((c.isSuper && c.isSuper()) || (c.tenantFeature && c.tenantFeature("tensu")))); } catch (e) { return false; }
+}
+function refreshTensuBtn() { toggle("btnTensu", tensuAllowed() && !!vehicleKey(current)); }
+$("btnTensu") && $("btnTensu").addEventListener("click", () => {
+  const f = currentVehicleFacts();
+  const info = { t: current.type || "", e: (current.engine && current.engine !== "—") ? current.engine : "", n: f.model || "" };
+  const enc = btoa(unescape(encodeURIComponent(JSON.stringify(info)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  window.open(TENSU_URL + "#v=" + enc, "_blank", "noopener");
+});
 function renderKarte() {
+  try { refreshTensuBtn(); } catch (e) {}
   const box = $("karteList"); if (!box) return;
   const cntEl = $("karteCount");
   box.innerHTML = "";
