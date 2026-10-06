@@ -1393,6 +1393,7 @@
             btn("syncplan", "t", id, "🔄同期") +
             btn("tcode", "t", id, "コード変更") +
             btn("aitier", "t", id, "AI:" + tierName(t), tierCode(t) === "na" ? "btn-ghost" : "btn-amber") +
+            btn("tensu", "t", id, (t.features && t.features.tensu === true) ? "📐点数ツール ✓" : "📐点数ツール", (t.features && t.features.tensu === true) ? "btn-amber" : "btn-ghost") +
             (t.active ? btn("off", "t", id, "停止") : btn("on", "t", id, "承認", "btn-amber") + btn("del", "t", id, "削除")) + "</span></div>" +
             "<div class='mBody hidden'>" +
             "<div class='mStat' id='stat_" + sid + "'>利用状況を取得中…</div>" +
@@ -1596,6 +1597,17 @@
         } catch (e) { uiAlert("集金通知の変更に失敗: " + (e.message || e)); }
         finally { if (btnEl) btnEl.disabled = false; }
         return "inplace";
+      }
+      if (act === "tensu") {
+        // 『作業点数ツール』(別アプリ)へのリンク表示の入切。テナント文書 features.tensu を切り替える(自社専用機能。運営のみ)。
+        const cur = (await db.collection("tenants").doc(id).get()).data() || {};
+        const on = !!(cur.features && cur.features.tensu === true);
+        if (!confirm("店舗「" + (cur.code || id) + "」のカルテ画面で『作業点数ツール』のリンクを" + (on ? "非表示" : "表示") + "にしますか？")) return;
+        try {
+          await db.collection("tenants").doc(id).set({ features: { tensu: !on } }, { merge: true });
+          uiAlert("『作業点数ツール』のリンクを" + (on ? "非表示" : "表示") + "にしました。\n※メンバーの画面は、開き直すと反映されます。");
+        } catch (e) { uiAlert("変更できませんでした：" + (e.message || e)); }
+        return;
       }
       if (act === "tcode") {
         // 運営(super)は店舗コード(別名)を何度でも変更できる。
