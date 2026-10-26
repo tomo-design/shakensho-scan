@@ -1319,6 +1319,26 @@ body.pwLocked{ overflow:hidden }
 .ibMemo.hasMemo{color:var(--txt)}
 .ibMemoN{flex:none;background:var(--accent,#3D6184);color:#fff;font-size:10px;font-weight:800;line-height:1;
   border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}
+/* 事務用: 1行ずつのリスト(案C)。列分けはやめ、上から順に読めるようにする */
+.ibRows{display:flex;flex-direction:column;gap:8px}
+.ibRow{position:relative;display:flex;align-items:center;gap:9px;padding:12px 13px 15px;
+  background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--kbc,#A8A299);border-radius:12px}
+.ibKind{flex:none;font-size:10.5px;font-weight:800;color:#fff;background:var(--kbc,#8C877D);
+  border:0;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:inherit}
+span.ibKind{cursor:default}
+.ibKind.done{background:#4A7A6B}
+.ibMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;background:transparent;border:0;
+  padding:0;text-align:left;cursor:pointer;font-family:inherit;color:var(--txt)}
+.ibL1{display:flex;align-items:baseline;gap:7px;min-width:0}
+.ibNo{font-size:16px;font-weight:800;letter-spacing:.02em;flex:none}
+.ibOwner{font-size:13px;font-weight:600;color:#44443F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibL2{display:flex;align-items:center;gap:8px;min-width:0}
+.ibMeta{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibDays{flex:none;font-size:11px;font-weight:700;color:#8C877D}
+.ibDays.warn{color:#9A6B3C}
+.ibDays.alert{color:#8A3A2E}
+.ibActs{flex:none;display:flex;align-items:center;gap:6px}
+.ibRow .hiProg{left:13px;right:13px;bottom:6px}
 .ibEmpty{text-align:center;color:var(--dim);font-size:13px;line-height:1.7;padding:30px 10px}
 
 /* ===== コメントスレッド(複数人・履歴) ===== */
@@ -1776,10 +1796,10 @@ body.gated{overflow:hidden}
 .kbMemoBtn .kbIc{font-size:13px;line-height:1}
 .kbMemoBtn.has{border-color:var(--kbc,#8C877D);color:var(--kbc,#8C877D)}
 .kbN{font-size:10px;font-weight:800}
-.kbFeeBtn{color:#fff;border:0;font-weight:800}
-.kbFeeBtn.feeUnpaid{background:#8A3A2E}
-.kbFeeBtn.feePaid{background:#4A7A6B}
-.kbFeeBtn.feeAdvance{background:#6F5B82}
+.kbFeeBtn{font-weight:800;border-width:1px;border-style:solid}
+.kbFeeBtn.feeUnpaid{background:#F6E9E6;border-color:#E8CFC9;color:#8A3A2E}
+.kbFeeBtn.feePaid{background:#E9F1EE;border-color:#C4D8D1;color:#35584D}
+.kbFeeBtn.feeAdvance{background:#F0ECF4;border-color:#D3C9DC;color:#52435F}
 .kbNext{margin-left:auto;border-color:var(--kbc,#8C877D);color:var(--kbc,#8C877D);font-weight:800}
 
 /* --- 詳細ドロワー(カードを選ぶと開く) --- */

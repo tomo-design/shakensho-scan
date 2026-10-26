@@ -1656,7 +1656,7 @@ $("btnGoKarte").addEventListener("click", () => goVehiclePage("karte"));
 document.querySelectorAll(".pageNav .navBtn").forEach(b =>
   b.addEventListener("click", () => {
     const go = b.dataset.go;
-    if (go === "scan") switchView("scan"); else goVehiclePage(go);
+    if (["scan", "settings", "db", "history"].includes(go)) switchView(go); else goVehiclePage(go);
   }));
 
 /* ===== 部品の洗い出し + 部品商への注文リスト ===== */
@@ -2150,7 +2150,7 @@ function showResult(d, opt = {}) {
   current = d;
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
-  toggle("result", true);
+  toggle("result", true); syncTabHighlight();
   // 毎回まず「何をしますか？」の選択に戻す
   toggle("choicePanel", true); toggle("vidEdit", false); toggle("secRaw", false); toggle("vidSavedMsg", false);
   toggle("mechaHero", false);   // 車両表示中はメカ君ヒーローを隠す
@@ -3616,6 +3616,11 @@ function advanceStatus(rid) {
 /* ボードの列分け(この端末で記憶): "kind"=区分別 / "status"=進捗別 */
 function getBoardGroup() { try { return localStorage.getItem("ss_ibGroup") === "status" ? "status" : "kind"; } catch (e) { return "kind"; } }
 function setBoardGroup(g) { try { localStorage.setItem("ss_ibGroup", g === "status" ? "status" : "kind"); } catch (e) {} renderIntakeBoard(); }
+/* 入庫管理の区分しぼり込み(すべて/車検/点検/修理/板金)。この端末で記憶 */
+function getBoardKind() {
+  try { const v = localStorage.getItem("ss_ibKind") || "all"; return (v === "all" || INTAKE_KINDS[v]) ? v : "all"; } catch (e) { return "all"; }
+}
+function setBoardKind(k) { try { localStorage.setItem("ss_ibKind", k); } catch (e) {} renderIntakeBoard(); }
 /* ボードの絞り込み語(番号・使用者・型式・担当を横断検索。この端末で記憶) */
 /* ナンバーの下4桁(例「大阪 480 あ 12-34」→「12-34」)。区切りが無ければそのまま返す */
 function plateLast4(p) {
@@ -4069,16 +4074,19 @@ function addManualIntake() {
 /* 上部ツールバー(列の切替・件数サマリー) */
 function renderIntakeToolbar(all, shown) {
   const box = $("ibFilter"); if (!box) return;
-  const group = getBoardGroup();
   box.innerHTML = "";
   const bar = document.createElement("div"); bar.className = "kbBar";
 
-  // 列の切替(区分 / 進捗)
+  // 区分でしぼり込む(すべて/車検/点検/修理/板金)
+  const cur = getBoardKind();
   const seg = document.createElement("div"); seg.className = "kbSeg";
-  [["kind", "区分で分ける"], ["status", "進捗で分ける"]].forEach(pair => {
+  const chips = [["all", "すべて"]].concat(Object.keys(INTAKE_KINDS).map(k => [k, INTAKE_KINDS[k].label]));
+  chips.forEach(pair => {
+    const n = (pair[0] === "all") ? all.length : all.filter(h => h.intakeKind === pair[0]).length;
     const b = document.createElement("button");
-    b.type = "button"; b.className = "kbSegBtn" + (group === pair[0] ? " on" : ""); b.textContent = pair[1];
-    b.addEventListener("click", () => setBoardGroup(pair[0]));
+    b.type = "button"; b.className = "kbSegBtn" + (cur === pair[0] ? " on" : "") + (pair[0] === "all" ? "" : " " + INTAKE_KINDS[pair[0]].cls);
+    b.textContent = pair[1] + (n ? " " + n : "");
+    b.addEventListener("click", () => setBoardKind(pair[0]));
     seg.appendChild(b);
   });
   bar.appendChild(seg);
@@ -4112,160 +4120,116 @@ function renderIntakeBoard() {
   // 入庫ボードは事務用モードの端末のみ表示(通常ログインのホームには出さない)
   if (!office) { toggle("intakeBoard", false); box.innerHTML = ""; return; }
 
-  const group = getBoardGroup();
   // 絞り込み検索は廃止。以前の検索語が残って車両が隠れないよう消しておく。
   try { localStorage.removeItem("ss_ibQuery"); } catch (e) {}
-  const list = all;
+  const kind = getBoardKind();
+  const list = (kind === "all") ? all : all.filter(h => h.intakeKind === kind);
   renderIntakeToolbar(all, list.length);
   const cnt = $("ibCount"); if (cnt) cnt.textContent = all.length ? "（" + all.length + "台）" : "";
   const sm = $("ibSummary"); if (sm) sm.textContent = "";
 
-  const keys = (group === "kind") ? Object.keys(INTAKE_KINDS) : STATUS_ORDER;
-  const meta = k => (group === "kind")
-    ? { label: INTAKE_KINDS[k].label, cls: INTAKE_KINDS[k].cls }
-    : { label: INTAKE_STATUS[k].label, cls: INTAKE_STATUS[k].cls };
-  const keyOf = h => (group === "kind") ? h.intakeKind : statusOf(h);
-
-  box.className = "ibList kbCols";
+  box.className = "ibList ibRows";
   box.innerHTML = "";
 
-  if (!all.length) {
-    box.className = "ibList";
-    box.innerHTML = '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
-    toggle("intakeBoard", true); renderIntakeDetail(all); return;
+  if (!list.length) {
+    box.innerHTML = all.length
+      ? '<div class="ibEmpty">この区分の入庫はありません。</div>'
+      : '<div class="ibEmpty">現在、入庫中の車両はありません。<br>整備士が車検証をスキャンすると、ここに自動で表示されます。</div>';
+    toggle("intakeBoard", true); renderIntakeDetail([]); return;
   }
 
-  keys.forEach(k => {
-    const m = meta(k);
-    const items = list.filter(h => keyOf(h) === k);
-    const col = document.createElement("section");
-    col.className = "kbCol " + m.cls;
-    col.dataset.key = k;
+  list.forEach(h => box.appendChild(buildIntakeRow(h, editable)));
 
-    const hd = document.createElement("header"); hd.className = "kbColHd";
-    hd.innerHTML = '<span class="kbDot"></span><span class="kbColTtl">' + esc(m.label) + '</span>' +
-                   '<span class="kbColN">' + items.length + '</span>';
-    col.appendChild(hd);
-
-    const body = document.createElement("div"); body.className = "kbColBody"; body.dataset.key = k;
-    if (editable) {
-      body.addEventListener("dragover", e => { e.preventDefault(); body.classList.add("kbOver"); });
-      body.addEventListener("dragleave", () => body.classList.remove("kbOver"));
-      body.addEventListener("drop", e => {
-        e.preventDefault(); body.classList.remove("kbOver");
-        const rid = e.dataTransfer.getData("text/plain"); if (!rid) return;
-        if (group === "kind") setIntakeKindOnly(rid, k); else setIntakeStatus(rid, k);
-      });
-    }
-    if (!items.length) {
-      const em = document.createElement("div"); em.className = "kbColEmpty";
-      em.textContent = "なし";
-      body.appendChild(em);
-    }
-    items.forEach(h => body.appendChild(buildIntakeCard(h, group, editable)));
-    col.appendChild(body);
-    box.appendChild(col);
-  });
-
-  renderIntakeDetail(list);
+  renderIntakeDetail([]);
   try { bindIntakeCal(); } catch (e) {}
   toggle("intakeBoard", true);
 }
-/* カンバンのカード1枚 */
-function buildIntakeCard(h, group, editable) {
+
+/* 事務用の1行。進捗は表示のみ(整備士が更新する)。出庫・確認レ点はここには出さない。 */
+function buildIntakeRow(h, editable) {
   const kind = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
   const st = statusOf(h), stInfo = INTAKE_STATUS[st];
-  const card = document.createElement("article");
-  card.className = "kbCard " + kind.cls + (h.rid === _ibSelected ? " kbSel" : "");
-  card.dataset.rid = h.rid;
-  if (editable) {
-    card.draggable = true;
-    card.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", h.rid); card.classList.add("kbDrag"); });
-    card.addEventListener("dragend", () => card.classList.remove("kbDrag"));
-  }
+  const inspDone = h.intakeKind === "車検" && h.inspDone;
+  const row = document.createElement("div");
+  row.className = "ibRow " + kind.cls;
+  row.dataset.rid = h.rid;
 
-  // 上段: 区分で分けている時は進捗チップ、進捗で分けている時は区分チップ(=常に足りない方の情報を出す)
-  const top = document.createElement("div"); top.className = "kbTop";
-  const chip = document.createElement("span");
-  if (group === "kind") { chip.className = "kbChip kbStatus " + stInfo.cls; chip.textContent = stInfo.label; chip.title = stInfo.desc; }
-  else { chip.className = "kbChip kbKind " + kind.cls; chip.textContent = kind.label; }
-  top.appendChild(chip);
-  if (h.intakeKind === "車検" && h.inspDone) {
-    const d = document.createElement("span"); d.className = "kbChip kbDone"; d.textContent = "完検済"; d.title = "完成検査 終了済み";
-    top.appendChild(d);
-  }
-  // 確認レ点(他メンバー + 自分のトグル)
+  // 区分。事務でも区分の付け替えは必要なのでタップで切替(車検→点検→修理→板金)
+  const tag = document.createElement(editable ? "button" : "span");
+  tag.className = "ibKind" + (inspDone ? " done" : "");
+  tag.textContent = inspDone ? "完検済" : kind.label;
   if (editable) {
-    const me = myConfirmId();
-    const conf = Array.isArray(h.confirms) ? h.confirms : [];
-    const checks = document.createElement("div"); checks.className = "kbChecks";
-    conf.filter(c => c.id !== me.id).forEach(c => {
-      const ck = document.createElement("span"); ck.className = "kbCk";
-      ck.style.background = c.color || "#8C877D"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
-      checks.appendChild(ck);
+    tag.type = "button";
+    tag.title = "区分を切り替える";
+    tag.addEventListener("click", e => {
+      e.stopPropagation();
+      const keys = Object.keys(INTAKE_KINDS);
+      const i = keys.indexOf(h.intakeKind);
+      setIntakeKindOnly(h.rid, keys[(i + 1 + keys.length) % keys.length]);
     });
-    const mine = conf.some(c => c.id === me.id);
-    const btn = document.createElement("button");
-    btn.type = "button"; btn.className = "kbCkBtn" + (mine ? " on" : "");
-    btn.title = mine ? "自分の確認を外す" : "確認レ点を付ける";
-    if (mine) { btn.style.background = me.color; btn.textContent = "✓"; }
-    btn.addEventListener("click", e => { e.stopPropagation(); toggleConfirm(h.rid); });
-    checks.appendChild(btn);
-    top.appendChild(checks);
   }
-  card.appendChild(top);
+  row.appendChild(tag);
 
-  // 本体: 番号(大) / 使用者 / 型式・満了・担当
-  const main = document.createElement("div"); main.className = "kbMain";
-  const plate = dispText(h.plate) || dispText(h.type) || "型式不明";
+  // 本体(タップで申し送りコメント)
+  const no4 = plateLast4(dispText(h.plate));
   const owner = dispText(h.name);
-  const bits = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : "", h.staff ? ("担当 " + dispText(h.staff)) : ""].filter(Boolean);
-  main.innerHTML = '<div class="kbPlate">' + esc(plate) + '</div>' +
-    (owner ? '<div class="kbOwner">' + esc(owner) + '</div>' : "") +
-    (bits.length ? '<div class="kbMeta">' + esc(bits.join(" ・ ")) + '</div>' : "");
-  main.addEventListener("click", () => { _ibSelected = (_ibSelected === h.rid) ? null : h.rid; renderIntakeBoard(); });
-  card.appendChild(main);
-
-  // 下段: 滞留日数 / コメント / 費用(車検) / 次の進捗へ
-  const foot = document.createElement("div"); foot.className = "kbFoot";
   const days = intakeDays(h);
-  const dayEl = document.createElement("span");
-  dayEl.className = "kbDays" + (days >= 14 ? " alert" : days >= 7 ? " warn" : "");
-  dayEl.textContent = days > 0 ? days + "日" : "本日";
-  dayEl.title = "入庫からの経過日数";
-  foot.appendChild(dayEl);
+  const bits = [dispText(h.type), h.expiry ? ("満了 " + fmtYMD(h.expiry)) : ""].filter(Boolean);
+  const main = document.createElement("button");
+  main.type = "button"; main.className = "ibMain";
+  main.title = "申し送りコメントを見る";
+  main.innerHTML =
+    '<span class="ibL1"><b class="ibNo">' + esc(no4 || "—") + '</b>' +
+      (owner ? '<span class="ibOwner">' + esc(owner) + '</span>' : "") +
+      (cmtHasUnread(h) ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : "") + '</span>' +
+    '<span class="ibL2">' +
+      (bits.length ? '<span class="ibMeta">' + esc(bits.join(" ・ ")) + '</span>' : "") +
+      '<span class="ibDays' + (days >= 14 ? " alert" : days >= 7 ? " warn" : "") + '">' + (days > 0 ? days + "日" : "本日") + '</span>' +
+      '<span class="hiSt ' + stInfo.cls + '" title="進捗は整備士が更新します">' + esc(stInfo.label) + '</span>' +
+    '</span>';
+  main.addEventListener("click", () => { try { openIntakeComments(h.rid, { noFocus: true }); } catch (e) {} });
+  row.appendChild(main);
 
-  if (editable) {
-    const cs = getComments(h);
-    const memo = document.createElement("button");
-    memo.type = "button"; memo.className = "kbBtn kbMemoBtn" + (cs.length ? " has" : "");
-    memo.title = cs.length ? (cs.length + "件のコメント") : "コメントを追加";
-    memo.innerHTML = '<span class="kbIc">💬</span>' + (cs.length ? '<span class="kbN">' + cs.length + "</span>" : "");
-    memo.addEventListener("click", e => { e.stopPropagation(); openIntakeComments(h.rid); });
-    foot.appendChild(memo);
+  // 右端: 担当 / 費用(車検) / コメント
+  const acts = document.createElement("div"); acts.className = "ibActs";
+  const staff = document.createElement(editable ? "button" : "span");
+  staff.className = "hiStaff" + (h.staff ? " on" : "") + (editable ? "" : " hiStaffRO");
+  staff.textContent = h.staff ? h.staff : (editable ? "＋ 担当" : "—");
+  if (editable) { staff.type = "button"; staff.addEventListener("click", e => { e.stopPropagation(); pickStaff(h.rid); }); }
+  acts.appendChild(staff);
 
-    if (h.intakeKind === "車検") {
-      const fs = FEE_STATES[feeStateOf(h)];
-      const fee = document.createElement("button");
-      fee.type = "button"; fee.className = "kbBtn kbFeeBtn " + fs.cls; fee.textContent = fs.label;
-      fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
-      fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
-      foot.appendChild(fee);
-    }
-    // 次の進捗へ(タッチ端末でもドラッグなしで進められる)
-    const i = STATUS_ORDER.indexOf(st);
-    if (i >= 0 && i < STATUS_ORDER.length - 1) {
-      const nx = document.createElement("button");
-      nx.type = "button"; nx.className = "kbBtn kbNext";
-      nx.textContent = STATUS_ORDER[i + 1] + " ▸";
-      nx.title = "進捗を「" + STATUS_ORDER[i + 1] + "」に進める";
-      nx.addEventListener("click", e => { e.stopPropagation(); advanceStatus(h.rid); });
-      foot.appendChild(nx);
-    }
+  if (editable && h.intakeKind === "車検") {
+    const fs = FEE_STATES[feeStateOf(h)];
+    const fee = document.createElement("button");
+    fee.type = "button"; fee.className = "kbBtn kbFeeBtn " + fs.cls; fee.textContent = fs.label;
+    fee.title = "費用の状況(タップで切替: 未回収→回収済→自社立替)";
+    fee.addEventListener("click", e => { e.stopPropagation(); cycleFee(h.rid); });
+    acts.appendChild(fee);
   }
-  card.appendChild(foot);
-  return card;
+
+  const cs = getComments(h);
+  const memo = document.createElement("button");
+  memo.type = "button"; memo.className = "kbBtn kbMemoBtn" + (cs.length ? " has" : "");
+  memo.title = cs.length ? (cs.length + "件のコメント") : "コメントを追加";
+  memo.innerHTML = '<span class="kbIc">💬</span>' + (cs.length ? '<span class="kbN">' + cs.length + "</span>" : "");
+  memo.addEventListener("click", e => { e.stopPropagation(); openIntakeComments(h.rid); });
+  acts.appendChild(memo);
+  row.appendChild(acts);
+
+  // 行の下端に4段階の進捗バー(色と長さだけで現在地が分かる・操作はできない)
+  const prog = document.createElement("div");
+  prog.className = "hiProg " + stInfo.cls;
+  prog.title = "進捗: " + stInfo.label + "（" + stInfo.desc + "）";
+  const sidx = STATUS_ORDER.indexOf(st);
+  STATUS_ORDER.forEach((k, i) => {
+    const seg = document.createElement("i");
+    if (i <= sidx) seg.className = "on";
+    prog.appendChild(seg);
+  });
+  row.appendChild(prog);
+  return row;
 }
+/* カンバンのカード1枚 */
 /* フローティングカードの配置(位置・大きさ)を保存/復元(PC。次回同じ配置で開く) */
 function saveFloatPos(key, el) {
   try { const r = el.getBoundingClientRect(); localStorage.setItem(key, JSON.stringify({ l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })); } catch (e) {}
@@ -4730,7 +4694,6 @@ function renderIntakeDetail(list) {
     '<div class="ibDetCard ' + info.cls + '">' +
       '<div class="ibDetTitle">' + esc(dispText(sel.plate) || dispText(sel.type) || "車両") + '</div>' +
       '<div class="ibDetTbl">' + rows.map(r => rowHtml(r[0], r[1])).join("") + '</div>' +
-      '<button type="button" class="ibDetOut" id="ibDetOut">出庫（ボードから外す）</button>' +
     '</div>';
 
   const close = $("kbDrawerClose");
@@ -8051,17 +8014,24 @@ function buildVoiceChatPrompt() {
    タブ切替・初期化
    ========================================================= */
 let curView = "scan";        // 現在の主要ビュー
+/* 下部タブのハイライト。車両を表示している間(メンテ/診断/修理/カルテ含む)は「車両」を選択状態にする */
+function syncTabHighlight() {
+  const res = $("result");
+  const onVeh = ["maint", "diag", "parts", "karte"].includes(curView) ||
+                (curView === "scan" && res && !res.classList.contains("hidden"));
+  const tabName = onVeh ? "vehicle" : curView;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
+}
 let lastVehPage = "scan";    // 車両表示中に最後に開いていたページ(scan/maint/diag/parts/karte)
 function switchView(name) {
+  if (name === "vehicle") name = "scan";   // 車両タブは view-scan(車検証カード)を使う
   try { stopFieldMic(); } catch (e) {}   // タブ/ページ切替で音声入力を確実に終了
   if (name !== "scan" && typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   curView = name;
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
-  // 車両のサブページ(メンテ/診断/部品)は下部タブ上「スキャン」を選択状態に
-  const tabName = ["maint", "diag", "parts", "karte"].includes(name) ? "scan" : name;
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
+  syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
   if (name === "diag") updateDiagVehicleHint();
@@ -8078,16 +8048,21 @@ function switchView(name) {
 }
 document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => {
-    if (b.dataset.view === "scan") {
+    // 「スキャン」はいつでもホーム(車検証を読み取る画面)へ
+    if (b.dataset.view === "scan") { goHome(); return; }
+    // 「車両」は、いま読み込んでいる車両へ戻る(最後に開いていたページのまま)
+    if (b.dataset.view === "vehicle") {
       const vehLoaded = current && (current.type || current.vin || current.kataShitei);
-      const vehViews = ["scan", "maint", "diag", "parts", "karte"];
-      // 設定/履歴/DB編集など非車両ビューに居て車両が読込済みなら、車両の最後のページ(修理/診断等)へ戻す
-      if (vehLoaded && !vehViews.includes(curView)) { switchView(lastVehPage || "scan"); toggle("result", true); return; }
-      // 車両ページに居る時は従来どおりホーム(3つの入口)へ
-      if (!$("result").classList.contains("hidden")) { goHome(); return; }
+      if (!vehLoaded) { goHome(); showToast("車検証をスキャンすると、ここに車両が出ます"); return; }
+      switchView(["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
+      toggle("mechaHero", false); toggle("result", true);
+      return;
     }
     switchView(b.dataset.view);
   }));
+
+/* 設定 → 車種データの編集(DB編集画面。下部タブからは外した) */
+(() => { const b = $("btnOpenDb"); if (b) b.addEventListener("click", () => switchView("db")); })();
 
 /* ホーム(スキャン初期画面)に戻す: 車両表示・進捗を畳み、メカ君ヒーローとスキャンボタンを出す */
 function goHome() {
@@ -8110,6 +8085,7 @@ function goHome() {
   renderLastVehicle();
   renderIntakeBoard();   // 事務モードの入庫ボード
   renderHomeIntake();    // ホームの入庫状況(管理者のみ)
+  syncTabHighlight();
   window.scrollTo(0, 0);
 }
 /* iOS対策: カメラ起動中にアプリを背面化/画面ロックするとWKWebViewが固まることがある。

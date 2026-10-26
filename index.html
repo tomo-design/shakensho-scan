@@ -301,11 +301,6 @@
     </div>
   </section>
 
-  <section id="secNotes" class="hidden">
-    <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
-    <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
-  </section>
-
   <section id="secRecall" class="hidden">
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
     <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
@@ -315,6 +310,11 @@
     <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
   </section>
+  <section id="secNotes" class="hidden">
+    <h2><span class="tag gr">NOTE</span>メモ・自社ノウハウ</h2>
+    <div class="sec-body"><p id="notesBody" style="font-size:14px;line-height:1.8"></p></div>
+  </section>
+
 </div>
 
 <!-- ============ VIEW: KARTE ============ -->
@@ -488,6 +488,10 @@
 
 <!-- ============ VIEW: DB EDIT ============ -->
 <div id="view-db" class="view">
+  <nav class="pageNav">
+    <button class="navBtn navBack" data-go="settings">← 設定</button>
+    <button class="navBtn navActive" data-go="db">🔧 車種データの編集</button>
+  </nav>
   <div class="btnRow" style="margin-top:14px">
     <button class="btn btn-amber" id="btnDbAdd">＋ 車種を追加</button>
   </div>
@@ -762,6 +766,14 @@
   <!-- 契約・解約(店舗のお支払い) — 文字読み取り機能の下。特典説明＋外部申込導線＋契約期間 -->
   <div id="cloudPlan" class="hidden" style="margin:0 0 14px"></div>
 
+  <section id="secVehDb">
+    <h2><span class="tag cy">DB</span>車種データの編集</h2>
+    <div class="sec-body">
+      <button class="btn btn-ghost" id="btnOpenDb" type="button">🔧 登録車種一覧をひらく</button>
+      <div class="hint" style="margin:8px 0 0">内蔵の車種データに、自社で使う車種を足したり直したりできます。</div>
+    </div>
+  </section>
+
   <section id="secDataMgmt">
     <details>
     <summary class="secSummary">データ管理</summary>
@@ -920,8 +932,8 @@
 <!-- bottom nav -->
 <nav id="tabs">
   <button data-view="scan" class="active"><span class="ico">📷</span>スキャン</button>
+  <button data-view="vehicle"><span class="ico">🚗</span>車両</button>
   <button data-view="history"><span class="ico">🕓</span>履歴</button>
-  <button data-view="db"><span class="ico">🔧</span>DB編集</button>
   <button data-view="settings"><span class="ico">⚙️</span>設定</button>
 </nav>
 
