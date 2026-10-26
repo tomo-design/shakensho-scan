@@ -265,7 +265,7 @@ function openPocketPaywall(blocking) {
         '<button type="button" class="agBtn agPocketLoginBtn" data-plan="month" style="margin:0">月額 ¥500 <span style="font-weight:600;font-size:12px">／月</span></button>' +
         '<button type="button" class="agBtn" data-plan="year" style="margin:0">年額 ¥5,000 <span style="font-weight:600;font-size:12px;color:var(--dim)">／年（月あたり¥417）</span></button>' +
       '</div>' +
-      '<div id="pocketPayMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:6px 0 0;text-align:left"></div>' +
+      '<div id="pocketPayMsg" style="font-size:12.5px;color:#8A3A2E;min-height:16px;margin:6px 0 0;text-align:left"></div>' +
       '<button type="button" class="ikLater" id="pocketPayCancel">' + (blocking ? "あとで" : "とじる") + '</button>' +
     '</div>';
   document.body.appendChild(ov);
@@ -1828,7 +1828,7 @@ function addDiagHeadShare(sec, rec) {
   const h2 = sec.querySelector("h2"); if (!h2 || h2.querySelector(".diagHeadShare")) return;
   const b = document.createElement("a"); b.href = "#"; b.className = "diagHeadShare";
   b.textContent = "📤 共有";
-  b.style.cssText = "margin-left:auto;color:var(--cyan,#1b9);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
+  b.style.cssText = "margin-left:auto;color:var(--cyan,#2E4A66);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
   b.addEventListener("click", (e) => { e.preventDefault(); shareDiagRecord(rec); });
   h2.appendChild(b);
 }
@@ -1838,7 +1838,7 @@ function addDiagShareBar(box, rec) {
   const bar = document.createElement("div"); bar.className = "histMetaRow repairShareBar";
   const sp = document.createElement("span"); sp.style.flex = "1 1 auto";
   const sh = document.createElement("a"); sh.href = "#"; sh.className = "diagShareLink"; sh.textContent = "📤 共有";
-  sh.style.cssText = "color:var(--cyan,#1b9);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
+  sh.style.cssText = "color:var(--cyan,#2E4A66);text-decoration:underline;font-size:13px;cursor:pointer;white-space:nowrap;";
   sh.addEventListener("click", (e) => { e.preventDefault(); shareDiagRecord(rec); });
   bar.append(sp, sh); box.appendChild(bar);
 }
@@ -3617,10 +3617,17 @@ function advanceStatus(rid) {
 function getBoardGroup() { try { return localStorage.getItem("ss_ibGroup") === "status" ? "status" : "kind"; } catch (e) { return "kind"; } }
 function setBoardGroup(g) { try { localStorage.setItem("ss_ibGroup", g === "status" ? "status" : "kind"); } catch (e) {} renderIntakeBoard(); }
 /* ボードの絞り込み語(番号・使用者・型式・担当を横断検索。この端末で記憶) */
+/* ナンバーの下4桁(例「大阪 480 あ 12-34」→「12-34」)。区切りが無ければそのまま返す */
+function plateLast4(p) {
+  const t = String(p || "").trim();
+  if (!t) return "";
+  const parts = t.split(/[ 　]+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : t;
+}
 /* 入庫からの経過日数 */
 function intakeDays(h) { return h && h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0; }
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
-const CONFIRM_COLORS = ["#2563EB", "#16A34A", "#EA8C00", "#DC2626", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#CA8A04", "#4F46E5", "#0D9488", "#9333EA"];
+const CONFIRM_COLORS = ["#3D6184", "#4A7A6B", "#9A6B3C", "#8A3A2E", "#6F5B82", "#2E6E7E", "#A3566B", "#6E7A3C", "#8A7430", "#4C5A86", "#3F7A72", "#7A5C8A"];
 /* uid/名前から固定色を決定的に割当(毎回同じ色) */
 function colorForUser(key) {
   let h = 0; const s = String(key || "guest");
@@ -4194,7 +4201,7 @@ function buildIntakeCard(h, group, editable) {
     const checks = document.createElement("div"); checks.className = "kbChecks";
     conf.filter(c => c.id !== me.id).forEach(c => {
       const ck = document.createElement("span"); ck.className = "kbCk";
-      ck.style.background = c.color || "#888"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
+      ck.style.background = c.color || "#8C877D"; ck.textContent = "✓"; ck.title = (c.name || "担当") + " が確認済み";
       checks.appendChild(ck);
     });
     const mine = conf.some(c => c.id === me.id);
@@ -4639,8 +4646,8 @@ function openIntakeDayDetail(y, m, d, ins, outs) {
         hd.style.padding = "12px 34px";
         hd.style.margin = "-4px -6px 8px";
         hd.style.borderRadius = "12px 12px 0 0";
-        hd.style.background = "var(--panel2,#f4f6fa)";
-        hd.style.borderBottom = "1px solid var(--line,#e2e8f0)";
+        hd.style.background = "var(--panel2,#F1EFEA)";
+        hd.style.borderBottom = "1px solid var(--line,#E5E3DD)";
         makeDraggable(card, hd);
       }
       enableRaise(card, ov);
@@ -4812,7 +4819,9 @@ function renderHomeIntake() {
   toggle("homeIntake", true);
   list.forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
-    const title = [dispText(h.plate), dispText(h.name)].filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
+    const no4 = plateLast4(dispText(h.plate));
+    const owner = dispText(h.name) || "";
+    const title = [no4, owner].filter(Boolean).join(" ") || dispText(h.type) || "型式不明";
     // 行 = 表示部(横スワイプで動く .hiSlide) + 背後の出庫ボタン(.hiOutWrap)
     const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const slide = document.createElement("div"); slide.className = "hiSlide";
@@ -4827,7 +4836,8 @@ function renderHomeIntake() {
       ? '<span class="hiTag done" title="完成検査 終了済み">完検済</span>'
       : '<span class="hiTag">' + esc(info.label) + '</span>';
     // 進捗は「入庫」以外の時だけ短く色文字で出す(既定の入庫は余計な表示を出さない)。
-    main.innerHTML = tagHtml + '<span class="hiTitle">' + esc(title) + '</span>' +
+    main.innerHTML = tagHtml + '<span class="hiTitle"><b class="hiNo">' + esc(no4 || title) + '</b>' +
+      (owner ? '<span class="hiOwner">' + esc(owner) + '</span>' : '') + '</span>' +
       (st !== "入庫" ? '<span class="hiSt ' + stInfo.cls + '">' + esc(stInfo.label) + '</span>' : '') +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
     // 車両をタップ → コメント(申し送り)スレッドを開く。メンバーも閲覧・追記できる。
@@ -8749,7 +8759,7 @@ function openPocketLogin() {
         'style="width:100%;box-sizing:border-box;margin:4px 0;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
       '<input type="password" id="pocketLoginPw" autocomplete="current-password" placeholder="パスワード" ' +
         'style="width:100%;box-sizing:border-box;margin:4px 0 2px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
-      '<div id="pocketLoginMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
+      '<div id="pocketLoginMsg" style="font-size:12.5px;color:#8A3A2E;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
       '<button type="button" class="agBtn agPocketLoginBtn" id="pocketLoginSend" style="margin:0">ログイン</button>' +
       '<button type="button" class="ikLater" id="pocketLoginCancel">やめる</button>' +
     '</div>';
@@ -8764,14 +8774,14 @@ function openPocketLogin() {
   if (emailEl) emailEl.focus();
   const doLogin = async () => {
     const email = (emailEl.value || "").trim(); const pw = pwEl.value || "";
-    if (!email || !pw) { msg.style.color = "#c0392b"; msg.textContent = "IDとパスワードを入力してください。"; return; }
+    if (!email || !pw) { msg.style.color = "#8A3A2E"; msg.textContent = "IDとパスワードを入力してください。"; return; }
     msg.style.color = "var(--dim)"; msg.textContent = "ログイン中…";
     send.disabled = true; const t0 = send.textContent; send.textContent = "ログイン中…";
     try {
       await window.Cloud.login(email, pw);
       close();   // 認証確定後はonAuthStateChangeがゲートを閉じてメイン画面へ
     } catch (e) {
-      msg.style.color = "#c0392b";
+      msg.style.color = "#8A3A2E";
       const m = (e && e.message) || String(e);
       msg.textContent = /password|user-not-found|invalid|credential|見つかりません/i.test(m)
         ? "IDまたはパスワードが正しくありません。" : ("ログインに失敗しました: " + m);
@@ -8797,7 +8807,7 @@ function openPocketApply() {
       '</div>' +
       '<input type="email" id="pocketApplyEmail" inputmode="email" autocomplete="email" placeholder="you@example.com" ' +
         'style="width:100%;box-sizing:border-box;margin:4px 0 2px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px" />' +
-      '<div id="pocketApplyMsg" style="font-size:12.5px;color:#c0392b;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
+      '<div id="pocketApplyMsg" style="font-size:12.5px;color:#8A3A2E;min-height:16px;margin:2px 0 6px;text-align:left"></div>' +
       '<button type="button" class="agBtn agPocketLoginBtn" id="pocketApplySend" style="margin:0">この内容で申し込む</button>' +
       '<button type="button" class="ikLater" id="pocketApplyCancel">やめる</button>' +
     '</div>';
@@ -8833,9 +8843,9 @@ function openPocketApply() {
         const done = document.getElementById("pocketApplyDone"); if (done) done.addEventListener("click", close);
         return;
       }
-      msg.style.color = "#c0392b"; msg.textContent = (d && d.error) || "送信に失敗しました。時間をおいて再度お試しください。";
+      msg.style.color = "#8A3A2E"; msg.textContent = (d && d.error) || "送信に失敗しました。時間をおいて再度お試しください。";
     } catch (e) {
-      msg.style.color = "#c0392b"; msg.textContent = "通信に失敗しました: " + (e.message || e);
+      msg.style.color = "#8A3A2E"; msg.textContent = "通信に失敗しました: " + (e.message || e);
     }
     send.disabled = false; send.textContent = t0;
   });

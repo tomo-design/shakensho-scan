@@ -1,8 +1,8 @@
 ﻿/*! メカノAI (MECHANO-AI) © 2026 Cablueie. All Rights Reserved. 無断複製・改変・再配布を禁じます。 */
 :root{
-  --bg:#F2F5F9; --panel:#FFFFFF; --panel2:#EAF0F7; --line:#D5DDE8;
-  --txt:#1B2530; --dim:#5E6B7C; --amber:#2563EB; --amber-dk:#B9CDF2;
-  --ok:#15803D; --alert:#DC2626; --cyan:#0E7490;
+  --bg:#F5F4F1; --panel:#FFFFFF; --panel2:#F1EFEA; --line:#E5E3DD;
+  --txt:#1F1F1D; --dim:#767168; --amber:#3D6184; --amber-dk:#C9D6E2;
+  --ok:#35584D; --alert:#8A3A2E; --cyan:#2E4A66;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 個人モード: クラウド同期・契約/解約を非表示(BYOK・単独端末で使う個人版) */
@@ -15,12 +15,12 @@ body:not(.personalMode) #secAiKey,body:not(.personalMode) #secVisionKey{display:
   border-radius:10px;padding:4px}
 .modeSwitch button{flex:1;border:0;background:transparent;color:var(--dim);font-size:12.5px;font-weight:700;
   padding:7px 0;border-radius:8px;cursor:pointer}
-.modeSwitch button.on{background:var(--amber);color:#fff;box-shadow:0 1px 4px rgba(37,99,235,.3)}
+.modeSwitch button.on{background:var(--amber);color:#fff;box-shadow:0 1px 4px rgba(61,97,132,.3)}
 .modeSwitchNote{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.5}
 /* 個人モードのAPIキー案内バナー(既定は非表示、個人モードのみ表示) */
 #personalKeyBanner{display:none}
 body.personalMode #personalKeyBanner{display:block;margin:14px 0 0;padding:12px 14px;
-  background:linear-gradient(180deg,#EAF6FA,#DCEEF5);border:1px solid #9FCEDD;border-radius:12px}
+  background:linear-gradient(180deg,#EAEFF4,#EAEFF4);border:1px solid #C9D6E2;border-radius:12px}
 .keyBannerTtl{font-weight:800;font-size:14px;color:var(--cyan)}
 .keyBannerBody{font-size:12px;color:var(--txt);margin-top:5px;line-height:1.6}
 .keyBannerBtns{display:flex;flex-direction:column;gap:8px;margin-top:10px}
@@ -36,7 +36,7 @@ body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;pa
 .faqA{padding:10px 12px;font-size:12.5px;line-height:1.7;color:var(--txt)}
 /* さりげない更新トースト */
 #appToast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,12px);z-index:300;
-  background:rgba(27,37,48,.94);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  background:rgba(46,74,102,.94);color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
   padding:10px 16px;border-radius:14px;box-shadow:0 3px 12px rgba(0,0,0,.25);line-height:1.5;
   white-space:pre-line;text-align:left;
   opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;max-width:82%}
@@ -60,9 +60,9 @@ body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;pa
 .kataYear{font-size:12.5px;color:var(--dim);font-weight:600}
 /* 起動時の言語選択バー(小さめ・中央上) */
 #langPick{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:center;gap:10px;
-  background:rgba(27,37,48,.92);color:#fff;font-size:12.5px;padding:7px 10px;backdrop-filter:blur(4px)}
+  background:rgba(46,74,102,.92);color:#fff;font-size:12.5px;padding:7px 10px;backdrop-filter:blur(4px)}
 #langPick span{opacity:.85;font-weight:700;letter-spacing:.02em}
-#langPick button{background:#fff;color:#1B2530;border:0;border-radius:999px;font-size:12.5px;font-weight:700;padding:5px 14px;cursor:pointer}
+#langPick button{background:#fff;color:#1F1F1D;border:0;border-radius:999px;font-size:12.5px;font-weight:700;padding:5px 14px;cursor:pointer}
 #langPick button:active{transform:scale(.96)}
 /* 言語バー表示中はその高さぶん本文を下げる(固定バーがヘッダーのロゴに被るのを防ぐ) */
 body.langPicking{padding-top:47px}
@@ -75,13 +75,23 @@ header{display:flex;align-items:center;gap:10px;padding:calc(16px + env(safe-are
 .lamp{width:12px;height:12px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);flex:none}
 .mascot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:50% 6%;flex:none}
 .mascot-mini{width:64px;height:auto;margin-bottom:6px}
-#mechaHero{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0 4px}
-#mechaHero{overflow:visible}
-#mechaHero .heroWrap{position:relative;display:inline-block;max-width:none;transform:translateX(-26px)}
-#mechaHero img{width:min(112%,500px);height:auto;display:block}
-#heroBtns{position:absolute;right:0;top:62%;width:46%;display:flex;flex-direction:column;gap:11px}
-.heroBtn{font-size:14px;font-weight:700;padding:11px 8px;border-radius:12px;border:1.5px solid #2f6bff;background:#fff;color:#1f4fd6;box-shadow:0 2px 6px rgba(0,0,0,.18);cursor:pointer;line-height:1.15;white-space:nowrap}
-.heroBtn:active{transform:translateY(1px);background:#2f6bff;color:#fff;border-color:#2f6bff}
+/* ホーム: 車検証を読み取る(案C) ─ 大きなメカ君の代わりに2枚のカードを主役にする */
+#mechaHero{margin:14px 0 2px}
+.homeTtl{margin:0 2px 10px;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;border:0;padding:0}
+#heroBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.heroBtn{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:9px;min-height:128px;
+  padding:15px;border-radius:13px;border:1px solid var(--line);background:var(--panel);color:var(--txt);
+  text-align:left;cursor:pointer;font-family:inherit;line-height:1.2}
+.heroBtn.primary{border:2px solid var(--amber);padding:14px}
+.heroBtn:active{transform:translateY(1px);border-color:var(--amber)}
+.heroIco{width:38px;height:38px;border-radius:10px;background:#F1EFEA;display:flex;align-items:center;justify-content:center;flex:none;color:#8C877D}
+.heroIco.qr{background:#EAEFF4;color:#2E4A66}
+.heroIco svg{width:22px;height:22px;display:block}
+.heroIco.cam svg{width:24px;height:19px}
+.heroTtl{font-size:15px;font-weight:700}
+.heroSub{font-size:10px;line-height:1.5;color:var(--dim);font-weight:400}
+.heroHint{margin:9px 2px 0;font-size:10px;line-height:1.65;color:#A8A299}
+#multiQrHint .qrMini{color:#1F1F1D}
 .wrenchSizes{font-weight:700;letter-spacing:.02em;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 /* カメラ画面中央の模擬QR。2つ版と1つ版をゆっくりクロスフェードで交互表示(車検証は通常2つ・1つの場合もあることを示唆) */
 #multiQrHint{position:relative;width:256px;height:150px;pointer-events:none}
@@ -103,8 +113,8 @@ header .sub{font-size:10px;color:var(--dim);letter-spacing:.18em;font-family:'Ch
 /* エディション表記(Pocket=個人版 / Works=法人版)。ロゴの右隣に小さなピルで表示 */
 .editionBadge{font:600 10px/1 -apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;letter-spacing:.08em;padding:2px 6px;border-radius:4px;white-space:nowrap;display:inline-block;box-sizing:border-box;color:var(--dim);background:transparent;border:1px solid var(--line)}
 .editionBadge:empty{display:none}
-.editionBadge.ed-works{color:#5b83d6;background:rgba(37,99,235,.07);border-color:rgba(37,99,235,.22)}
-.editionBadge.ed-pocket{color:#0F9D6B;background:rgba(15,157,107,.10);border-color:rgba(15,157,107,.30)}
+.editionBadge.ed-works{color:#3D6184;background:rgba(61,97,132,.07);border-color:rgba(61,97,132,.22)}
+.editionBadge.ed-pocket{color:#4A7A6B;background:rgba(53,88,77,.10);border-color:rgba(53,88,77,.30)}
 
 /* bottom nav */
 nav#tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:560px;margin:0 auto;
@@ -133,7 +143,7 @@ body.scanningNow #scanBack{display:inline-block;position:absolute;left:0;top:8px
 body.scanningNow #scanBack:active{background:var(--amber);color:#fff;border-color:var(--amber)}
 #video{width:100%;display:block;max-height:46vh;object-fit:cover;background:#000}
 #scanOverlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
-#scanOK{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(16,140,60,.82);color:#fff;animation:okPop .25s ease}
+#scanOK{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(53,88,77,.82);color:#fff;animation:okPop .25s ease}
 #scanOK .okMark{font-size:84px;font-weight:900;letter-spacing:.05em;font-family:'Chakra Petch';line-height:1;text-shadow:0 2px 8px rgba(0,0,0,.3)}
 #scanOK .okSub{font-size:15px;font-weight:700;text-align:center;padding:0 16px}
 @keyframes okPop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
@@ -147,12 +157,12 @@ body.scanningNow #scanBack:active{background:var(--amber);color:#fff;border-colo
 .reticle .scanLine{position:absolute;left:6%;right:6%;height:3px;top:6%;border-radius:4px;background:linear-gradient(90deg,transparent,var(--amber),transparent);box-shadow:0 0 10px var(--amber);animation:scanMove 1.9s ease-in-out infinite}
 @keyframes scanMove{0%{top:6%}50%{top:90%}100%{top:6%}}
 /* 読み取れた瞬間の緑フラッシュ */
-#scanFlash{position:absolute;inset:0;pointer-events:none;background:rgba(34,197,94,0);z-index:4}
+#scanFlash{position:absolute;inset:0;pointer-events:none;background:rgba(74,122,107,0);z-index:4}
 #scanFlash.hit{animation:scanHit .5s ease}
-@keyframes scanHit{0%{background:rgba(34,197,94,0)}25%{background:rgba(34,197,94,.4)}100%{background:rgba(34,197,94,0)}}
-#scanStatus{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;font-size:12px;background:rgba(20,28,40,.78);color:#cfd9e6;display:flex;justify-content:space-between;align-items:center;gap:8px}
+@keyframes scanHit{0%{background:rgba(74,122,107,0)}25%{background:rgba(74,122,107,.4)}100%{background:rgba(74,122,107,0)}}
+#scanStatus{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;font-size:12px;background:rgba(46,74,102,.78);color:#E5E3DD;display:flex;justify-content:space-between;align-items:center;gap:8px}
 #scanStatus .scanLeft{display:flex;align-items:center;gap:7px;min-width:0}
-#scanStatus .scanDot{flex:none;width:9px;height:9px;border-radius:50%;background:#43e08a;box-shadow:0 0 7px #43e08a;animation:scanPulse 1s infinite}
+#scanStatus .scanDot{flex:none;width:9px;height:9px;border-radius:50%;background:#4A7A6B;box-shadow:0 0 7px #4A7A6B;animation:scanPulse 1s infinite}
 @keyframes scanPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
 #qrCount{color:var(--amber);font-weight:700}
 #camPlaceholder{padding:34px 20px;text-align:center;color:var(--dim);font-size:13px;line-height:1.8}
@@ -178,18 +188,18 @@ button{font-family:inherit;border:0;cursor:pointer}
 
 /* caution plate card */
 .plate{margin-top:18px;border-radius:12px;padding:18px 16px 14px;position:relative;
-  background:linear-gradient(170deg,#FDFEFF 0%,#E9EEF5 55%,#DCE4EE 100%);
-  border:1px solid #C4CEDC;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 12px rgba(30,50,80,.10)}
+  background:linear-gradient(170deg,#FFFFFF 0%,#F1EFEA 55%,#E5E3DD 100%);
+  border:1px solid #E5E3DD;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 12px rgba(46,74,102,.10)}
 .plate::before,.plate::after{content:"";position:absolute;width:9px;height:9px;border-radius:50%;
-  background:radial-gradient(circle at 35% 35%,#fff,#A8B4C4 70%);top:9px}
+  background:radial-gradient(circle at 35% 35%,#fff,#A8A299 70%);top:9px}
 .plate::before{left:9px}.plate::after{right:9px}
-.plate .ttl{font-size:10px;letter-spacing:.3em;color:#7C8BA0;font-family:'Chakra Petch';margin-bottom:10px;text-align:center}
-.plate .vidName{font-size:18px;font-weight:900;line-height:1.35;text-align:center;color:#1B2530;margin:0 0 10px;word-break:break-word}
+.plate .ttl{font-size:10px;letter-spacing:.3em;color:#8C877D;font-family:'Chakra Petch';margin-bottom:10px;text-align:center}
+.plate .vidName{font-size:18px;font-weight:900;line-height:1.35;text-align:center;color:#1F1F1D;margin:0 0 10px;word-break:break-word}
 .plate dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;align-items:baseline}
-.plate dt{font-size:11px;color:#5E6B7C;letter-spacing:.1em;white-space:nowrap}
-.plate dd{font-family:'Chakra Petch';font-weight:700;font-size:17px;letter-spacing:.08em;color:#1B2530; text-shadow:0 1px 0 rgba(255,255,255,.8);word-break:break-all}
+.plate dt{font-size:11px;color:#767168;letter-spacing:.1em;white-space:nowrap}
+.plate dd{font-family:'Chakra Petch';font-weight:700;font-size:17px;letter-spacing:.08em;color:#1F1F1D; text-shadow:0 1px 0 rgba(255,255,255,.8);word-break:break-all}
 .plate dd.small{font-size:14px}
-.plate .match{margin-top:12px;padding-top:10px;border-top:1px dashed #C4CEDC;font-size:13px;font-weight:700;color:var(--amber)}
+.plate .match{margin-top:12px;padding-top:10px;border-top:1px dashed #E5E3DD;font-size:13px;font-weight:700;color:var(--amber)}
 .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:3px 8px;margin-left:8px;vertical-align:middle;letter-spacing:.05em}
 .badge.warn{background:var(--alert);color:#fff}
 .badge.ok{background:var(--ok);color:#fff}
@@ -270,7 +280,7 @@ label.fld:first-child{margin-top:0}
 /* AIモード選択 */
 .mode-btn{font-size:13px;line-height:1.5;padding:12px 8px}
 .mode-btn.mode-active{background:var(--amber);color:#fff;border-color:var(--amber)}
-.mode-btn.mode-active small{color:#dbe7ff!important}
+.mode-btn.mode-active small{color:#EAEFF4!important}
 
 /* AI回答 */
 .ai-answer{font-size:15px;line-height:1.9;word-break:break-word;color:var(--txt)}
@@ -375,7 +385,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .histItem .hSub{font-size:11px;color:var(--dim);margin-top:2px;word-break:break-all}
 /* 左スワイプで出現する削除ボタン(行の右側に固定) */
 .histItem .hDel{position:absolute;top:0;right:0;height:100%;width:84px;z-index:0;visibility:hidden;
-  background:var(--alert,#DC2626);border:0;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+  background:var(--alert,#8A3A2E);border:0;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
 .histItem.revealing .hDel{visibility:visible}
 .histItem .hDel:active{filter:brightness(.92)}
 .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:13px;line-height:1.8}
@@ -426,7 +436,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 #cloudDevices .devCur{font-size:11px;color:var(--cyan);font-weight:700;margin-left:4px}
 #cloudDevices .devWhen{font-size:11px;color:var(--dim);font-weight:400}
 #cloudDevices .devDel{flex:0 0 auto;padding:6px 12px}
-#cloudDevices .devBlock{margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--txt);background:var(--panel2);border:1px solid var(--al,#e0a);border-radius:10px;padding:10px}
+#cloudDevices .devBlock{margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--txt);background:var(--panel2);border:1px solid var(--al,#E5E3DD);border-radius:10px;padding:10px}
 /* 店舗プラン */
 .planHead{font-size:13px;font-weight:700;margin-bottom:6px}
 .planBtns{display:flex;gap:8px;margin:6px 0 2px;flex-wrap:wrap}
@@ -458,7 +468,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .foldCard>summary::before{content:"▸";color:var(--dim);font-size:11px;transition:transform .15s}
 .foldCard[open]>summary::before{transform:rotate(90deg)}
 .foldCard .foldTag{margin-left:auto;font-size:11px;font-weight:600;color:var(--dim);background:var(--panel2);border-radius:20px;padding:2px 8px}
-.foldCard .foldTag.warn{color:#fff;background:var(--alert,#e0533d)}
+.foldCard .foldTag.warn{color:#fff;background:var(--alert,#8A3A2E)}
 .foldCard .foldBody{padding:0 12px 12px}
 /* セクション見出しごと折り畳み(クラウド同期など) */
 .foldSecSum{list-style:none;cursor:pointer;padding:14px 34px;font-size:15px;font-weight:700;color:var(--txt);display:flex;align-items:center;justify-content:center;gap:8px;position:relative;text-align:center}
@@ -502,7 +512,7 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
 .mBody.hidden{display:none}
 .mInfo .mMeta{color:var(--dim);font-size:11px;margin-top:2px}
 /* 参加申請の通知バナー */
-.joinNotice{background:#FFF7E6;border:1px solid var(--amber);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;line-height:1.6;color:var(--txt)}
+.joinNotice{background:#F5EDE4;border:1px solid var(--amber);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px;line-height:1.6;color:var(--txt)}
 /* 整備カルテ */
 .karteForm{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2);margin-top:8px}
 .karteForm .fld{margin-top:8px}
@@ -567,28 +577,28 @@ dl.specs{display:flex;flex-direction:column;gap:10px}
   .ps .psTop{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
   .ps .psShop{flex:1 1 0;font-size:12pt;font-weight:700}
   .ps .psTtl{flex:0 0 auto;font-size:20pt;font-weight:800;letter-spacing:.3em;text-align:center}
-  .ps .psIssue{flex:1 1 0;text-align:right;font-size:9pt;color:#333}
-  .ps .psGrid{display:flex;flex-wrap:wrap;border-top:1px solid #333;border-left:1px solid #333;margin-bottom:12px}
-  .ps .psCell{box-sizing:border-box;border-right:1px solid #333;border-bottom:1px solid #333;padding:3px 6px;width:50%;min-height:34px}
+  .ps .psIssue{flex:1 1 0;text-align:right;font-size:9pt;color:#44443F}
+  .ps .psGrid{display:flex;flex-wrap:wrap;border-top:1px solid #44443F;border-left:1px solid #44443F;margin-bottom:12px}
+  .ps .psCell{box-sizing:border-box;border-right:1px solid #44443F;border-bottom:1px solid #44443F;padding:3px 6px;width:50%;min-height:34px}
   .ps .psCell.w4{width:100%}
-  .ps .psL{font-size:8pt;color:#444}
+  .ps .psL{font-size:8pt;color:#44443F}
   .ps .psV{font-size:11pt;font-weight:600;word-break:break-all}
   .ps .psSec{margin:12px 0 4px;padding-left:6px;border-left:5px solid #000;font-size:11pt;font-weight:800}
   .ps .psTbl{width:100%;border-collapse:collapse;page-break-inside:auto}
   .ps .psTbl tr{page-break-inside:avoid}
-  .ps .psTbl th{background:#e6e6e6;border:1px solid #333;padding:4px 6px;font-size:9.5pt;text-align:left}
-  .ps .psTbl td{border:1px solid #333;padding:5px 6px;vertical-align:top}
+  .ps .psTbl th{background:#E5E3DD;border:1px solid #44443F;padding:4px 6px;font-size:9.5pt;text-align:left}
+  .ps .psTbl td{border:1px solid #44443F;padding:5px 6px;vertical-align:top}
   .ps .psTbl .no{width:34px;text-align:center}
   .ps .psTbl .r{text-align:right;white-space:nowrap}
   .ps .psTbl .pt{width:74px}
   .ps .psTbl .wg{width:128px}
-  .ps .psTbl .psTot td{background:#f3f3f3;font-weight:800}
+  .ps .psTbl .psTot td{background:#F1EFEA;font-weight:800}
   .ps .psCost{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:6px 8px;border:2px solid #000;font-size:11pt}
   .ps .psCost b{font-size:15pt}
-  .ps .psNote{min-height:46px;border:1px solid #333;padding:6px 8px;white-space:normal}
+  .ps .psNote{min-height:46px;border:1px solid #44443F;padding:6px 8px;white-space:normal}
   .ps .psSign{display:flex;gap:8px;margin-top:14px}
-  .ps .psSign>div{flex:1 1 0;border:1px solid #333;height:62px;position:relative}
-  .ps .psSign span{position:absolute;left:5px;top:2px;font-size:8pt;color:#444}
+  .ps .psSign>div{flex:1 1 0;border:1px solid #44443F;height:62px;position:relative}
+  .ps .psSign span{position:absolute;left:5px;top:2px;font-size:8pt;color:#44443F}
 }
 /* カルテの日付ごと折りたたみ(フラット・二重枠なし) */
 .kDayFold{border-bottom:1px solid var(--line);margin-bottom:8px}
@@ -624,23 +634,23 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .partsItem .pMeta{font-size:12px;color:var(--dim);margin-top:2px}
 .partsItem .pShops{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .partsItem .pShop{flex:1 1 0;min-width:120px;text-align:center;font-size:13px;font-weight:800;text-decoration:none;padding:9px 8px;border-radius:10px;border:1px solid var(--line);white-space:nowrap}
-.partsItem .pShopR{color:#bf0000;background:rgba(191,0,0,.07);border-color:rgba(191,0,0,.35)}
+.partsItem .pShopR{color:#6B2B21;background:rgba(107,43,33,.07);border-color:rgba(107,43,33,.35)}
 /* 注文部品リスト: 部品名タップ → 通販選択ポップアップ(目印は簡易的な▾) */
 .orderNameTap{background:none;border:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;display:inline}
-.orderNameTap .orderCaret{color:var(--dim,#888);font-size:.9em}
+.orderNameTap .orderCaret{color:var(--dim,#8C877D);font-size:.9em}
 .orderNameTap:active{opacity:.6}
 .shopPop{max-width:340px}
-.shopPopT{font-size:15px;font-weight:800;color:var(--ink,#0f2a5a);line-height:1.5;margin-bottom:2px}
-.shopPopSub{font-size:12px;color:var(--dim,#777);margin-bottom:14px}
+.shopPopT{font-size:15px;font-weight:800;color:var(--ink,#2E4A66);line-height:1.5;margin-bottom:2px}
+.shopPopSub{font-size:12px;color:var(--dim,#767168);margin-bottom:14px}
 .shopPopBtns{display:flex;flex-direction:column;gap:9px}
 .shopPopBtn{display:block;text-align:center;font-size:14px;font-weight:800;text-decoration:none;padding:13px 10px;border-radius:12px;border:1px solid var(--line)}
-.shopPopBtn.pShopR{color:#bf0000;background:rgba(191,0,0,.06);border-color:rgba(191,0,0,.35)}
-.shopPopBtn.pShopY{color:#c0203a;background:rgba(255,0,40,.05);border-color:rgba(200,30,60,.35)}
-.shopPopBtn.pShopA{color:#b05000;background:rgba(255,153,0,.08);border-color:rgba(210,120,0,.40)}
+.shopPopBtn.pShopR{color:#6B2B21;background:rgba(107,43,33,.06);border-color:rgba(107,43,33,.35)}
+.shopPopBtn.pShopY{color:#8A3A2E;background:rgba(138,58,46,.05);border-color:rgba(138,58,46,.35)}
+.shopPopBtn.pShopA{color:#74512C;background:rgba(154,107,60,.08);border-color:rgba(116,81,44,.40)}
 .shopPopBtn:active{transform:translateY(1px)}
-.shopPopCancel{width:100%;margin-top:12px;padding:11px;border:none;background:none;color:var(--dim,#777);font-size:13px;cursor:pointer;text-decoration:underline}
-.partsItem .pShopY{color:#c00;background:rgba(255,0,40,.06);border-color:rgba(220,0,50,.35)}
-.partsItem .pShopA{color:#c45500;background:rgba(255,153,0,.10);border-color:rgba(255,153,0,.45)}
+.shopPopCancel{width:100%;margin-top:12px;padding:11px;border:none;background:none;color:var(--dim,#767168);font-size:13px;cursor:pointer;text-decoration:underline}
+.partsItem .pShopY{color:#6B2B21;background:rgba(138,58,46,.06);border-color:rgba(138,58,46,.35)}
+.partsItem .pShopA{color:#74512C;background:rgba(154,107,60,.10);border-color:rgba(154,107,60,.45)}
 .partsItem .pShop:active{transform:translateY(1px)}
 /* 注文部品: 部品名タップでYahoo!ショッピングへ(別タブ)。※は右端に配置 */
 .orderRow{display:flex;align-items:flex-start;gap:6px}
@@ -656,9 +666,9 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .toolShops{display:inline-flex;gap:6px}
 .toolShops .pShop{font-size:11.5px;font-weight:600;text-decoration:none;padding:4px 10px;border-radius:14px;border:1px solid var(--line);white-space:nowrap;color:var(--dim);background:transparent}
 .toolShops .pShop::before{content:"🛒 ";font-size:.9em}
-.toolShops .pShopY{color:#c0203a;border-color:rgba(200,30,60,.30)}
-.toolShops .pShopA{color:#b05000;border-color:rgba(210,120,0,.30)}
-.orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#eef4ff}
+.toolShops .pShopY{color:#8A3A2E;border-color:rgba(138,58,46,.30)}
+.toolShops .pShopA{color:#74512C;border-color:rgba(116,81,44,.30)}
+.orderBox{margin-top:14px;border:1.5px solid var(--amber);border-radius:12px;padding:10px 12px;background:#EAEFF4}
 .orderT{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:6px}
 .orderPre{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.6;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:8px}
 .orderRow{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line)}
@@ -689,8 +699,8 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .repairSecBody .ai-h{display:none}
 .orderToolNote{font-size:11.5px;color:var(--dim);margin:0 0 8px 16px}
 .toolTag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:8px;vertical-align:middle;white-space:nowrap}
-.toolTagMust{color:#b23;background:rgba(200,40,60,.10)}
-.toolTagBenri{color:#1e7a46;background:rgba(30,150,90,.12)}
+.toolTagMust{color:#8A3A2E;background:rgba(138,58,46,.10)}
+.toolTagBenri{color:#35584D;background:rgba(53,88,77,.12)}
 /* クラウド同期のアクション(メンバー管理/パスワード変更/ログアウト): 文字を折り返さず等幅グリッド */
 .cloudActs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .cloudActs .btn{flex:0 1 calc(50% - 4px);min-width:120px;white-space:nowrap;padding:11px 6px;min-height:44px;font-size:13px}
@@ -698,21 +708,21 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 /* 契約・プラン: グレード別特典をきれいに */
 .planHead{font-size:15px;font-weight:700;margin:2px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tierBadge{font-size:13px;font-weight:800;padding:3px 12px;border-radius:14px;color:#fff}
-.tier-na{background:#6b7280}
-.tier-turbo{background:#2563eb}
-.tier-twinturbo{background:linear-gradient(90deg,#7c3aed,#2563eb)}
+.tier-na{background:#767168}
+.tier-turbo{background:#3D6184}
+.tier-twinturbo{background:linear-gradient(90deg,#6F5B82,#3D6184)}
 .planPrice{font-size:12.5px;color:var(--dim);margin:0 0 10px}
 .planPerk{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 12px;background:var(--panel)}
 .planPerkTtl{font-size:12px;font-weight:700;color:var(--dim);margin:2px 0 6px}
 .planPerkTtl+.planPerkList{margin-top:0}
 .planPerkList{list-style:none;padding:0;margin:0 0 8px}
 .planPerkList li{font-size:13px;line-height:1.7;padding:3px 0 3px 4px}
-.planPerkSub li{color:#555;font-size:12.5px}
+.planPerkSub li{color:#44443F;font-size:12.5px}
 .planPerkSub li::before{content:"・";color:var(--dim)}
 .planChange{margin:6px 0;border:1px solid var(--line);border-radius:10px;padding:4px 12px}
 .planChange>summary{font-size:13px;padding:6px 0}
 ol.ai-list li.stepFlash{animation:stepFlash 1.4s ease}
-@keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#fde68a}}
+@keyframes stepFlash{0%,100%{background:var(--panel2)}20%{background:#DEC9B0}}
 /* 手順タップで工具表示 */
 ol.ai-list li.hasTools>div{cursor:pointer}
 .stepTools{margin-top:6px;font-size:13px;line-height:1.6;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
@@ -836,7 +846,7 @@ details[open] > .secSummary::after{content:"▴"}
 .lcLens:active{opacity:.8}
 /* 音声会話ログ */
 .vcMsg{font-size:14px;line-height:1.6;padding:8px 12px;border-radius:12px;max-width:88%}
-.vcMsg.user{align-self:flex-end;background:var(--amber);color:#3a2a00}
+.vcMsg.user{align-self:flex-end;background:var(--amber);color:#74512C}
 .vcMsg.mecha{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
 .btn:active{transform:scale(.97)}
 .btnLoading{opacity:.7;pointer-events:none}
@@ -847,7 +857,7 @@ details[open] > .secSummary::after{content:"▴"}
 .supportChat{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
 /* メカ君サポートは開くと全画面表示 */
 .scFullHd{display:none}
-#scDetails[open] .scPanel{position:fixed;inset:0;z-index:900;background:var(--bg,#F2F5F9);display:flex;flex-direction:column;padding:calc(8px + env(safe-area-inset-top,0px)) 12px calc(10px + env(safe-area-inset-bottom,0px));overflow:auto}
+#scDetails[open] .scPanel{position:fixed;inset:0;z-index:900;background:var(--bg,#F5F4F1);display:flex;flex-direction:column;padding:calc(8px + env(safe-area-inset-top,0px)) 12px calc(10px + env(safe-area-inset-bottom,0px));overflow:auto}
 #scDetails[open] .scFullHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex:0 0 auto}
 .scFullTtl{font-size:16px;font-weight:800;color:var(--txt)}
 .scCloseBtn{border:0;background:none;font-size:22px;line-height:1;color:var(--dim);padding:6px 10px;cursor:pointer}
@@ -880,7 +890,7 @@ details[open] > .secSummary::after{content:"▴"}
 .scAv img{width:100%;height:100%;object-fit:cover}
 .scMsg{max-width:76%;padding:9px 12px;border-radius:16px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 1px rgba(0,0,0,.04)}
 .scBot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
-.scUser{background:#06C755;color:#fff;border-bottom-right-radius:4px}   /* LINEグリーン */
+.scUser{background:#4A7A6B;color:#fff;border-bottom-right-radius:4px}   /* LINEグリーン */
 /* 入力: textareaは文字量で自動拡大、送信は小さな丸ボタン */
 .scInputRow{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
 .scIn{flex:1;min-width:0;padding:10px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--txt);font-size:15px;font-family:inherit;resize:none;line-height:1.5;max-height:150px;overflow-y:auto}
@@ -927,12 +937,12 @@ details[open] > .secSummary::after{content:"▴"}
 .uiModal{background:var(--panel,#fff);color:var(--txt);border-radius:16px;max-width:340px;width:100%;padding:22px 20px 16px;box-shadow:0 14px 44px rgba(0,0,0,.32)}
 .uiModal .uiModalTitle{font-weight:800;font-size:16px;margin-bottom:8px}
 .uiModal .uiModalBody{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
-.uiModal .uiModalOk{margin-top:16px;width:100%;padding:12px;border:0;border-radius:10px;background:#1e5aa8;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+.uiModal .uiModalOk{margin-top:16px;width:100%;padding:12px;border:0;border-radius:10px;background:#2E4A66;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
 .uiModal .uiModalOk:active{opacity:.85}
 .uiModal .uiModalBtns{display:flex;gap:10px;margin-top:16px}
 .uiModal .uiModalBtns .uiModalOk,.uiModal .uiModalBtns .uiModalCancel{margin-top:0;flex:1}
-.uiModal .uiModalCancel{padding:12px;border:1px solid var(--line,#D5DDE8);border-radius:10px;background:transparent;color:var(--txt,#1B2530);font-weight:800;font-size:15px;cursor:pointer}
-.uiModal .uiModalOk.danger{background:#DC2626}
+.uiModal .uiModalCancel{padding:12px;border:1px solid var(--line,#E5E3DD);border-radius:10px;background:transparent;color:var(--txt,#1F1F1D);font-weight:800;font-size:15px;cursor:pointer}
+.uiModal .uiModalOk.danger{background:#8A3A2E}
 
 /* 修理タブ: 手動の整備モード手順(目立たない折り畳み) */
 .manualMode{margin:6px 0 2px;border:1px dashed var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;background:var(--panel)}
@@ -957,10 +967,10 @@ details[open] > .secSummary::after{content:"▴"}
 .torqueNote{font-size:12px;color:var(--dim);margin-top:6px}
 
 /* 法人デモ: 上部固定バナー + ログイン/契約系を隠す */
-#demoBanner{position:fixed;left:0;right:0;bottom:0;z-index:400;background:#0f2a5a;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 -2px 10px rgba(0,0,0,.25)}
+#demoBanner{position:fixed;left:0;right:0;bottom:0;z-index:400;background:#2E4A66;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;padding:8px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 -2px 10px rgba(0,0,0,.25)}
 #demoBanner .demoTxt{flex:1 1 auto;min-width:0}
 #demoBanner .demoBtns{display:flex;gap:8px;flex:none}
-#demoBanner .demoCta{background:#ffb100;color:#0f2a5a;font-weight:800;text-decoration:none;padding:7px 14px;border-radius:8px;white-space:nowrap}
+#demoBanner .demoCta{background:#9A6B3C;color:#2E4A66;font-weight:800;text-decoration:none;padding:7px 14px;border-radius:8px;white-space:nowrap}
 #demoBanner .demoExit{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);padding:7px 12px;border-radius:8px;font-weight:700;white-space:nowrap}
 /* スマホ幅では帯を1行に収める(長い説明文は広い画面だけ)。折り返すと帯が高くなり画面を圧迫する */
 #demoBanner .demoShort{display:none}
@@ -1000,60 +1010,60 @@ body.personalMode .corpOnly{ display:none !important }
 /* --- 個人版ペイウォール(Google Playサブスク) --- */
 body.pwLocked{ overflow:hidden }
 #pwOverlay{ position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center;
-  padding:20px; background:linear-gradient(160deg,#0f2a5a 0%,#1e5aa8 100%); overflow:auto }
+  padding:20px; background:linear-gradient(160deg,#2E4A66 0%,#2E4A66 100%); overflow:auto }
 #pwOverlay .pwCard{ width:100%; max-width:360px; background:#fff; border-radius:20px; padding:26px 22px 22px;
   box-shadow:0 20px 50px rgba(0,0,0,.35); text-align:center }
 #pwOverlay .pwLogo{ width:72px; height:72px; border-radius:16px; margin:0 auto 10px; display:block }
-#pwOverlay h2{ font-size:20px; margin:4px 0 6px; color:#0f2a5a }
-#pwOverlay .pwLead{ font-size:14px; color:#444; margin:0 0 14px; line-height:1.6 }
+#pwOverlay h2{ font-size:20px; margin:4px 0 6px; color:#2E4A66 }
+#pwOverlay .pwLead{ font-size:14px; color:#44443F; margin:0 0 14px; line-height:1.6 }
 #pwOverlay .pwPrice{ margin:6px 0 14px }
-#pwOverlay .pwYen{ font-size:38px; font-weight:800; color:#1e5aa8 }
-#pwOverlay .pwPer{ font-size:15px; color:#666; margin-left:2px }
+#pwOverlay .pwYen{ font-size:38px; font-weight:800; color:#2E4A66 }
+#pwOverlay .pwPer{ font-size:15px; color:#767168; margin-left:2px }
 #pwOverlay .pwFeat{ list-style:none; padding:0; margin:0 0 18px; text-align:left }
-#pwOverlay .pwFeat li{ font-size:14px; color:#333; padding:7px 0 7px 26px; position:relative; border-bottom:1px solid #eef1f5 }
-#pwOverlay .pwFeat li::before{ content:"✓"; position:absolute; left:4px; color:#1e9e5a; font-weight:800 }
-#pwOverlay .pwBuy{ width:100%; padding:15px; border:none; border-radius:12px; background:#1e5aa8; color:#fff;
+#pwOverlay .pwFeat li{ font-size:14px; color:#44443F; padding:7px 0 7px 26px; position:relative; border-bottom:1px solid #F9F8F6 }
+#pwOverlay .pwFeat li::before{ content:"✓"; position:absolute; left:4px; color:#35584D; font-weight:800 }
+#pwOverlay .pwBuy{ width:100%; padding:15px; border:none; border-radius:12px; background:#2E4A66; color:#fff;
   font-size:16px; font-weight:700; cursor:pointer }
 #pwOverlay .pwBuy:disabled{ opacity:.6 }
-#pwOverlay .pwRestore{ width:100%; padding:10px; margin-top:8px; border:none; background:none; color:#1e5aa8;
+#pwOverlay .pwRestore{ width:100%; padding:10px; margin-top:8px; border:none; background:none; color:#2E4A66;
   font-size:13px; cursor:pointer; text-decoration:underline }
-#pwOverlay .pwNote{ font-size:11px; color:#888; margin:12px 0 0; line-height:1.6 }
-#pwOverlay .pwNote a{ color:#1e5aa8 }
+#pwOverlay .pwNote{ font-size:11px; color:#8C877D; margin:12px 0 0; line-height:1.6 }
+#pwOverlay .pwNote a{ color:#2E4A66 }
 #pwBanner{ position:fixed; left:50%; transform:translateX(-50%); bottom:76px; z-index:9000;
-  background:rgba(15,42,90,.92); color:#fff; font-size:12px; padding:7px 16px; border-radius:20px;
+  background:rgba(46,74,102,.92); color:#fff; font-size:12px; padding:7px 16px; border-radius:20px;
   box-shadow:0 4px 14px rgba(0,0,0,.25); pointer-events:none }
 
 /* ===== 診断結果: 共有バー / 保存履歴 ===== */
 .diagShareBar{ display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 10px }
 .diagShareBar .btn{ flex:0 0 auto }
-.manualBtn.ready{ border-color:var(--brand,#1e5aa8); color:var(--brand,#1e5aa8); font-weight:600 }
+.manualBtn.ready{ border-color:var(--brand,#2E4A66); color:var(--brand,#2E4A66); font-weight:600 }
 #diagHistList{ display:flex; flex-direction:column; gap:8px }
-.histRow{ display:flex; align-items:stretch; gap:6px; border:1px solid var(--line,#e2e2e2);
+.histRow{ display:flex; align-items:stretch; gap:6px; border:1px solid var(--line,#E5E3DD);
   border-radius:10px; overflow:hidden; background:var(--card,#fff) }
 .histOpen{ flex:1 1 auto; text-align:left; background:none; border:0; padding:9px 11px; cursor:pointer;
   display:flex; flex-direction:column; gap:3px; min-width:0 }
-.histTitle{ font-size:13px; font-weight:600; color:var(--ink,#222); overflow:hidden;
+.histTitle{ font-size:13px; font-weight:600; color:var(--ink,#1F1F1D); overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap }
-.histSub{ font-size:11px; color:#888 }
-.histIco{ flex:0 0 auto; width:38px; border:0; border-left:1px solid var(--line,#eee);
-  background:none; cursor:pointer; font-size:15px; color:#666 }
+.histSub{ font-size:11px; color:#8C877D }
+.histIco{ flex:0 0 auto; width:38px; border:0; border-left:1px solid var(--line,#F1EFEA);
+  background:none; cursor:pointer; font-size:15px; color:#767168 }
 .histIco:active{ background:rgba(0,0,0,.05) }
 
 /* ストリーミング中の回答: 改行を保持し、末尾に点滅カーソル */
 .ai-answer.streaming{ white-space:pre-wrap; line-height:1.7 }
-.ai-answer.streaming::after{ content:"▍"; margin-left:1px; animation:blinkCaret 1s step-end infinite; color:var(--brand,#1e5aa8) }
+.ai-answer.streaming::after{ content:"▍"; margin-left:1px; animation:blinkCaret 1s step-end infinite; color:var(--brand,#2E4A66) }
 @keyframes blinkCaret{ 50%{ opacity:0 } }
 /* 点検手引書を先行生成中のボタン */
 .manualBtn.preparing{ opacity:.75 }
 .manualBtn.preparing::before{ content:"⏳ "; }
 
 /* 保存結果の日時メタ行 / 手引書の先行生成ステータス */
-.histMeta{ font-size:12px; color:#888; margin:0 0 10px; padding-bottom:8px; border-bottom:1px dashed var(--line,#e2e2e2) }
-.guidePrep{ margin-top:10px; color:var(--brand,#1e5aa8); font-weight:600 }
+.histMeta{ font-size:12px; color:#8C877D; margin:0 0 10px; padding-bottom:8px; border-bottom:1px dashed var(--line,#E5E3DD) }
+.guidePrep{ margin-top:10px; color:var(--brand,#2E4A66); font-weight:600 }
 
 /* 保存結果カード: ヘッダー右上の共有ボタン(1つだけ) */
 .histShareBtn{ margin-left:auto; flex:0 0 auto; font-size:12.5px; font-weight:600; padding:4px 6px;
-  border:0; background:none; color:var(--brand,#1e5aa8); cursor:pointer; letter-spacing:0 }
+  border:0; background:none; color:var(--brand,#2E4A66); cursor:pointer; letter-spacing:0 }
 .histShareBtn:active{ opacity:.55 }
 .histMetaRow{ display:flex; align-items:center; gap:10px; margin-bottom:10px }
 .histMetaRow .histMeta{ flex:1 1 auto; margin:0; padding:0; border:0 }
@@ -1061,15 +1071,15 @@ body.pwLocked{ overflow:hidden }
 /* 過去の診断/手引書パネル: ボタン風カードではなく、控えめな見出し＋一覧 */
 .histPanel{ margin-top:20px; background:none; border:0 }
 .histSummary{ list-style:none; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:.04em;
-  color:var(--txt,#222); padding:8px 2px; border-bottom:1px solid var(--line,#e2e2e2);
+  color:var(--txt,#1F1F1D); padding:8px 2px; border-bottom:1px solid var(--line,#E5E3DD);
   display:flex; align-items:center; gap:7px }
 .histSummary::-webkit-details-marker{ display:none }
-.histSummary::before{ content:"▸"; color:#9aa2ad; font-size:11px }
+.histSummary::before{ content:"▸"; color:#A8A299; font-size:11px }
 .histPanel details[open] .histSummary::before{ content:"▾" }
 .histPanelBody{ padding-top:12px }
 
 /* 保存結果の「閉じる」ボタン(共有の左) */
-.histCloseBtn{ flex:0 0 auto; border:0; background:none; color:#8a929c; font-size:18px; line-height:1; cursor:pointer; padding:4px 8px }
+.histCloseBtn{ flex:0 0 auto; border:0; background:none; color:#A8A299; font-size:18px; line-height:1; cursor:pointer; padding:4px 8px }
 .histCloseBtn:active{ opacity:.55 }
 .histMetaRow .histCloseBtn{ margin-left:auto }
 
@@ -1079,11 +1089,11 @@ body.pwLocked{ overflow:hidden }
 /* 使用エンジンのバッジ(高精度Pro / 標準Flash) */
 .engBadge{ flex:0 0 auto; font-size:10px; font-weight:700; letter-spacing:.02em;
   padding:3px 9px; border-radius:12px; white-space:nowrap }
-.engBadge.pro{ background:#0f7b6c; color:#fff }
-.engBadge.flash{ background:#e7ebf0; color:#5a6472 }
+.engBadge.pro{ background:#35584D; color:#fff }
+.engBadge.flash{ background:#F1EFEA; color:#767168 }
 /* 診断ヘッダー右端の共有ボタン(バッジを左に寄せた分の右側スペースへ) */
 .diagHeadShare{ margin-left:auto; flex:0 0 auto; font:inherit; font-size:12px; font-weight:600;
-  background:none; color:#1e5aa8; border:0; padding:0 2px; text-decoration:underline; cursor:pointer }
+  background:none; color:#2E4A66; border:0; padding:0 2px; text-decoration:underline; cursor:pointer }
 .diagHeadShare:active{ opacity:.55 }
 
 /* 契約プラン: 期間表示・有料席追加ボタン・解約リンクを控えめに */
@@ -1102,7 +1112,7 @@ body.pwLocked{ overflow:hidden }
 .csBtns{ display:flex; gap:8px; justify-content:flex-end }
 
 /* 修理: 入力欄と結果ブロックを区切り線で分離 */
-#qVehResult:not(:empty){ margin-top:14px; padding-top:16px; border-top:2px solid var(--line,#e2e2e2) }
+#qVehResult:not(:empty){ margin-top:14px; padding-top:16px; border-top:2px solid var(--line,#E5E3DD) }
 
 /* プラン: 金額と「有料席を追加」を同じ行に(金額=左、ボタン=右) */
 .planPriceRow{ display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap }
@@ -1126,105 +1136,105 @@ body.pwLocked{ overflow:hidden }
   font-size:12px;font-weight:700;padding:0 14px;cursor:pointer}
 .ibOut:active{background:var(--line)}
 /* 区分色 */
-.ibCard.ikShaken{border-left-color:#2563EB}   .ikShaken .ibTag{background:#2563EB}
-.ibCard.ikTenken{border-left-color:#16A34A}   .ikTenken .ibTag{background:#16A34A}
-.ibCard.ikRepair{border-left-color:#EA8C00}   .ikRepair .ibTag{background:#EA8C00}
-.ibCard.ikJiko{border-left-color:#DC2626}     .ikJiko  .ibTag{background:#DC2626}
+.ibCard.ikShaken{border-left-color:#3D6184}   .ikShaken .ibTag{background:#3D6184}
+.ibCard.ikTenken{border-left-color:#4A7A6B}   .ikTenken .ibTag{background:#4A7A6B}
+.ibCard.ikRepair{border-left-color:#9A6B3C}   .ikRepair .ibTag{background:#9A6B3C}
+.ibCard.ikJiko{border-left-color:#8A3A2E}     .ikJiko  .ibTag{background:#8A3A2E}
 
 /* ===== 月間カレンダー(入出庫) ===== */
-.intakeCalWrap{margin:6px 0 12px;border:1px solid var(--line,#D5DDE8);border-radius:12px;background:var(--panel,#fff);overflow:hidden}
-.intakeCalWrap .icSummary{cursor:pointer;list-style:none;padding:11px 14px;font-weight:600;font-size:14px;color:var(--txt,#1B2530);background:var(--panel2,#EAF0F7);user-select:none}
+.intakeCalWrap{margin:6px 0 12px;border:1px solid var(--line,#E5E3DD);border-radius:12px;background:var(--panel,#fff);overflow:hidden}
+.intakeCalWrap .icSummary{cursor:pointer;list-style:none;padding:11px 14px;font-weight:600;font-size:14px;color:var(--txt,#1F1F1D);background:var(--panel2,#F1EFEA);user-select:none}
 .intakeCalWrap .icSummary::-webkit-details-marker{display:none}
-.intakeCalWrap[open] .icSummary{border-bottom:1px solid var(--line,#D5DDE8)}
+.intakeCalWrap[open] .icSummary{border-bottom:1px solid var(--line,#E5E3DD)}
 .icTools{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 12px 4px}
-.icNav{width:34px;height:34px;border:1px solid var(--line,#D5DDE8);background:var(--panel,#fff);color:var(--txt,#1B2530);border-radius:10px;font-size:19px;line-height:1;cursor:pointer}
-.icNav:active{background:var(--panel2,#EAF0F7)}
-.icTitle{font-weight:700;font-size:15.5px;min-width:120px;text-align:center;color:var(--txt,#1B2530)}
-.icTodayBtn{border:1px solid var(--line,#D5DDE8);background:var(--panel,#fff);color:var(--dim,#5E6B7C);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex:none}
+.icNav{width:34px;height:34px;border:1px solid var(--line,#E5E3DD);background:var(--panel,#fff);color:var(--txt,#1F1F1D);border-radius:10px;font-size:19px;line-height:1;cursor:pointer}
+.icNav:active{background:var(--panel2,#F1EFEA)}
+.icTitle{font-weight:700;font-size:15.5px;min-width:120px;text-align:center;color:var(--txt,#1F1F1D)}
+.icTodayBtn{border:1px solid var(--line,#E5E3DD);background:var(--panel,#fff);color:var(--dim,#767168);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex:none}
 .icTotals{display:flex;gap:10px;justify-content:center;padding:2px 12px 8px}
 .icTot{font-size:12.5px;font-weight:700;padding:3px 12px;border-radius:999px;white-space:nowrap}
-.icInT{color:#1D4ED8;background:rgba(37,99,235,.10)}
-.icOutT{color:#B45309;background:rgba(234,140,0,.12)}
+.icInT{color:#3D6184;background:rgba(61,97,132,.10)}
+.icOutT{color:#74512C;background:rgba(154,107,60,.12)}
 .icGrid{padding:0 8px 8px}
 /* 月間まとめ(区分別 何台) — コンパクトな4分割スタッツ(区分名なし・色で判別) */
 .icSummary{margin:4px 10px 6px}
 .icSumHd{display:flex;align-items:center;gap:6px;margin-bottom:5px}
 .icSumMon{font-size:11.5px;font-weight:800;color:var(--txt)}
-.icSumTag{font-size:9px;font-weight:800;color:var(--dim,#5E6B7C);background:var(--panel2,#EEF2F7);border-radius:999px;padding:0 6px}
-.icSumTag.fixed{color:#15803D;background:rgba(22,163,74,.14)}
-.icSumTot{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--dim,#5E6B7C)}
+.icSumTag{font-size:9px;font-weight:800;color:var(--dim,#767168);background:var(--panel2,#F9F8F6);border-radius:999px;padding:0 6px}
+.icSumTag.fixed{color:#35584D;background:rgba(53,88,77,.14)}
+.icSumTot{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--dim,#767168)}
 .icSumGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.icSumCell{position:relative;display:flex;align-items:center;justify-content:center;padding:6px 2px 5px;border-radius:8px;background:var(--panel,#fff);border:1px solid var(--line,#E3E9F1);overflow:hidden}
+.icSumCell{position:relative;display:flex;align-items:center;justify-content:center;padding:6px 2px 5px;border-radius:8px;background:var(--panel,#fff);border:1px solid var(--line,#F1EFEA);overflow:hidden}
 .icSumCell::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
-.icSumCell.ikShaken::before{background:#2563EB}
-.icSumCell.ikTenken::before{background:#16A34A}
-.icSumCell.ikRepair::before{background:#EA8C00}
-.icSumCell.ikJiko::before{background:#DC2626}
+.icSumCell.ikShaken::before{background:#3D6184}
+.icSumCell.ikTenken::before{background:#4A7A6B}
+.icSumCell.ikRepair::before{background:#9A6B3C}
+.icSumCell.ikJiko::before{background:#8A3A2E}
 .icSumN{font-size:16px;font-weight:800;line-height:1;color:var(--txt)}
-.icSumCell.ikShaken .icSumN{color:#2563EB}
-.icSumCell.ikTenken .icSumN{color:#16A34A}
-.icSumCell.ikRepair .icSumN{color:#EA8C00}
-.icSumCell.ikJiko .icSumN{color:#DC2626}
+.icSumCell.ikShaken .icSumN{color:#3D6184}
+.icSumCell.ikTenken .icSumN{color:#4A7A6B}
+.icSumCell.ikRepair .icSumN{color:#9A6B3C}
+.icSumCell.ikJiko .icSumN{color:#8A3A2E}
 .icDowRow,.icCells{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .icDowRow{margin-bottom:4px}
-.icDowC{text-align:center;font-size:11px;font-weight:500;color:var(--dim,#5E6B7C);padding:2px 0}
-.icDowC.icSun{color:#DC2626}.icDowC.icSat{color:#2563EB}
-.icCell{min-height:52px;border:1px solid var(--line,#E3E9F1);border-radius:8px;padding:3px 3px 2px;background:var(--panel,#fff);position:relative;overflow:hidden}
+.icDowC{text-align:center;font-size:11px;font-weight:500;color:var(--dim,#767168);padding:2px 0}
+.icDowC.icSun{color:#8A3A2E}.icDowC.icSat{color:#3D6184}
+.icCell{min-height:52px;border:1px solid var(--line,#F1EFEA);border-radius:8px;padding:3px 3px 2px;background:var(--panel,#fff);position:relative;overflow:hidden}
 .icCell.icEmpty{border:0;background:transparent}
 .icCell.icHas{cursor:pointer}
-.icCell.icHas:active{background:var(--panel2,#EAF0F7)}
-.icCell.icToday{border-color:#2563EB;box-shadow:inset 0 0 0 1px #2563EB}
-.icNum{font-size:11.5px;font-weight:500;color:var(--dim,#5E6B7C);line-height:1.2}
+.icCell.icHas:active{background:var(--panel2,#F1EFEA)}
+.icCell.icToday{border-color:#3D6184;box-shadow:inset 0 0 0 1px #3D6184}
+.icNum{font-size:11.5px;font-weight:500;color:var(--dim,#767168);line-height:1.2}
 .icBadges{display:flex;flex-wrap:wrap;gap:2px;margin-top:1px}
 .icBadge{font-size:8.5px;font-weight:700;padding:0 3px;border-radius:4px;line-height:13px}
-.icInB{color:#fff;background:#2563EB}
-.icOutB{color:#fff;background:#EA8C00}
+.icInB{color:#fff;background:#3D6184}
+.icOutB{color:#fff;background:#9A6B3C}
 .icDotsRow{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
-.icDot{width:7px;height:7px;border-radius:50%;background:#889;display:inline-block;flex:none}
-.icDot.ikShaken{background:#2563EB}.icDot.ikTenken{background:#16A34A}.icDot.ikRepair{background:#EA8C00}.icDot.ikJiko{background:#DC2626}
-.icLegend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 14px 12px;font-size:11.5px;color:var(--dim,#5E6B7C)}
+.icDot{width:7px;height:7px;border-radius:50%;background:#8C877D;display:inline-block;flex:none}
+.icDot.ikShaken{background:#3D6184}.icDot.ikTenken{background:#4A7A6B}.icDot.ikRepair{background:#9A6B3C}.icDot.ikJiko{background:#8A3A2E}
+.icLegend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 14px 12px;font-size:11.5px;color:var(--dim,#767168)}
 .icLeg{display:inline-flex;align-items:center;gap:4px}
 .icLegNote{margin-left:auto;font-size:11px}
 /* 日付タップの明細 */
 .icDetSec{margin:8px 0}
 .icDetHd{font-size:12.5px;font-weight:800;margin-bottom:4px}
-.icDetRow{display:flex;align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--line,#EEF2F8)}
+.icDetRow{display:flex;align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--line,#F9F8F6)}
 .icDetTag{font-size:11px;font-weight:800;color:#fff;padding:1px 7px;border-radius:8px}
-.icDetTag.ikShaken{background:#2563EB}.icDetTag.ikTenken{background:#16A34A}.icDetTag.ikRepair{background:#EA8C00}.icDetTag.ikJiko{background:#DC2626}
-.icDetTitle{font-size:13px;color:var(--txt,#1B2530)}
-.icDetNone{font-size:12px;color:var(--dim,#9aa4b2);padding:3px 0}
+.icDetTag.ikShaken{background:#3D6184}.icDetTag.ikTenken{background:#4A7A6B}.icDetTag.ikRepair{background:#9A6B3C}.icDetTag.ikJiko{background:#8A3A2E}
+.icDetTitle{font-size:13px;color:var(--txt,#1F1F1D)}
+.icDetNone{font-size:12px;color:var(--dim,#A8A299);padding:3px 0}
 /* 入庫予定(カレンダー) */
-.icBadge.icPlanB{background:#7C3AED}
-.icTot.icPlanT{background:rgba(124,58,237,.12);color:#6D28D9}
-.icDetHd.icPlanT{color:#6D28D9}
+.icBadge.icPlanB{background:#6F5B82}
+.icTot.icPlanT{background:rgba(111,91,130,.12);color:#6F5B82}
+.icDetHd.icPlanT{color:#6F5B82}
 /* 入庫予定・出庫予定を左右2カラムで横並び(赤枠にきれいに収める) */
 .icPlanCols{display:flex;gap:8px}
 .icPlanCols>.icDetSec{flex:1;min-width:0}
 .icPlanCols .icDetHd{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px}
 .icPlanCols .icPlanAdd{margin-left:auto;min-width:44px;min-height:40px;padding:0;font-size:18px;text-align:center}
 /* 出庫予定(カレンダー) */
-.icBadge.icOutPlanB{background:#0E7490}
-.icTot.icOutPlanT{background:rgba(14,116,144,.12);color:#0E7490}
-.icDetHd.icOutPlanT{color:#0E7490}
+.icBadge.icOutPlanB{background:#2E4A66}
+.icTot.icOutPlanT{background:rgba(46,74,102,.12);color:#2E4A66}
+.icDetHd.icOutPlanT{color:#2E4A66}
 /* 集金予定(💰・コメントからAI自動登録) */
-.icBadge.icPayB{background:#B45309}
-.icTot.icPayT{background:rgba(180,83,9,.12);color:#B45309}
-.icDetHd.icPayT{color:#B45309}
-.icPlanAdd{margin-left:6px;border:1px solid #C4B5FD;background:#F5F3FF;color:#6D28D9;border-radius:8px;font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer}
-.icDetHd.icOutPlanT .icPlanAdd{border-color:#67E8F9;background:#ECFEFF;color:#0E7490}
-.icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#c0392b;font-size:16px;cursor:pointer;padding:0;min-width:40px;min-height:40px;flex:none}
-.icDetNote{color:var(--dim,#9aa4b2);font-size:11.5px}
+.icBadge.icPayB{background:#74512C}
+.icTot.icPayT{background:rgba(116,81,44,.12);color:#74512C}
+.icDetHd.icPayT{color:#74512C}
+.icPlanAdd{margin-left:6px;border:1px solid #C9D6E2;background:#EAEFF4;color:#6F5B82;border-radius:8px;font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer}
+.icDetHd.icOutPlanT .icPlanAdd{border-color:#C9D6E2;background:#EAEFF4;color:#2E4A66}
+.icPlanDel,.icVehDel{margin-left:auto;border:0;background:transparent;color:#8A3A2E;font-size:16px;cursor:pointer;padding:0;min-width:40px;min-height:40px;flex:none}
+.icDetNote{color:var(--dim,#A8A299);font-size:11.5px}
 .icDetRow{position:relative}
 /* 予定追加フォーム */
-.apDate{font-size:13px;color:var(--dim,#5E6B7C);margin:2px 0 2px}
-.apInput{width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border:1px solid var(--line,#D5DDE8);border-radius:10px;font-size:15px;background:var(--panel,#fff);color:var(--txt,#1B2530)}
+.apDate{font-size:13px;color:var(--dim,#767168);margin:2px 0 2px}
+.apInput{width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border:1px solid var(--line,#E5E3DD);border-radius:10px;font-size:15px;background:var(--panel,#fff);color:var(--txt,#1F1F1D)}
 .apKindRow{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0}
-.apKind{flex:1;min-width:60px;border:1px solid var(--line,#D5DDE8);background:var(--panel,#fff);color:var(--txt,#1B2530);border-radius:10px;padding:8px 4px;font-size:13px;font-weight:700;cursor:pointer}
+.apKind{flex:1;min-width:60px;border:1px solid var(--line,#E5E3DD);background:var(--panel,#fff);color:var(--txt,#1F1F1D);border-radius:10px;padding:8px 4px;font-size:13px;font-weight:700;cursor:pointer}
 .apKind.on{color:#fff}
-.apKind.on.ikShaken{background:#2563EB;border-color:#2563EB}
-.apKind.on.ikTenken{background:#16A34A;border-color:#16A34A}
-.apKind.on.ikRepair{background:#EA8C00;border-color:#EA8C00}
-.apKind.on.ikJiko{background:#DC2626;border-color:#DC2626}
+.apKind.on.ikShaken{background:#3D6184;border-color:#3D6184}
+.apKind.on.ikTenken{background:#4A7A6B;border-color:#4A7A6B}
+.apKind.on.ikRepair{background:#9A6B3C;border-color:#9A6B3C}
+.apKind.on.ikJiko{background:#8A3A2E;border-color:#8A3A2E}
 .apBtns{display:flex;gap:8px;margin-top:8px}
 .apBtns>button{flex:1}
 /* 予定追加フォームを大きめに */
@@ -1241,11 +1251,11 @@ body.pwLocked{ overflow:hidden }
 /* カレンダーのポップアップ枠(ikModalを流用しつつ幅広・スクロール可) */
 .icModalCard{max-width:460px;max-height:88vh;overflow:auto;padding:14px 14px 12px}
 .icModalHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.icModalTitle{font-size:15px;font-weight:700;color:var(--txt,#1B2530)}
-.icClose{border:0;background:transparent;color:var(--dim,#5E6B7C);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer}
+.icModalTitle{font-size:15px;font-weight:700;color:var(--txt,#1F1F1D)}
+.icClose{border:0;background:transparent;color:var(--dim,#767168);font-size:18px;line-height:1;padding:4px 6px;cursor:pointer}
 
 /* ===== 入庫区分ポップアップ ===== */
-.ikModal{position:fixed;inset:0;z-index:400;background:rgba(20,28,38,.5);
+.ikModal{position:fixed;inset:0;z-index:400;background:rgba(46,74,102,.5);
   display:flex;align-items:center;justify-content:center;padding:22px}
 .ikModal.hidden{display:none}
 /* 入力欄タップでキーボードが出た時は、カードを上寄せにしてキーボードで隠れないようにする */
@@ -1255,17 +1265,17 @@ body.pwLocked{ overflow:hidden }
 .ikTitle{font-size:16px;font-weight:800;color:var(--txt);text-align:center}
 .ikVeh{font-size:13px;color:var(--dim);text-align:center;margin:6px 0 12px;font-weight:600}
 .ikStaffBtn{display:flex;align-items:center;justify-content:center;gap:4px;width:fit-content;margin:0 auto 14px;
-  padding:7px 16px;border:0;border-radius:999px;background:var(--chip,#eef2f8);color:var(--txt);
+  padding:7px 16px;border:0;border-radius:999px;background:var(--chip,#F9F8F6);color:var(--txt);
   font-size:13px;font-weight:700;cursor:pointer}
 .ikStaffBtn.hidden{display:none}
 #ikStaffName{font-weight:800}
 .ikStaffCaret{color:var(--dim);font-size:12px}
 .ikBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ikBtn{border:0;border-radius:12px;color:#fff;font-size:15px;font-weight:800;padding:16px 0;cursor:pointer}
-.ikBtn[data-kind="車検"]{background:#6b9beb}
-.ikBtn[data-kind="点検"]{background:#5cbd86}
-.ikBtn[data-kind="修理"]{background:#f0b35a}
-.ikBtn[data-kind="事故"]{background:#e78a8a}
+.ikBtn[data-kind="車検"]{background:#3D6184}
+.ikBtn[data-kind="点検"]{background:#4A7A6B}
+.ikBtn[data-kind="修理"]{background:#9A6B3C}
+.ikBtn[data-kind="事故"]{background:#8A3A2E}
 .ikBtn:active{filter:brightness(.92)}
 .ikLater{display:block;width:100%;margin-top:14px;background:none;border:0;color:var(--dim);
   font-size:14px;font-weight:600;padding:6px;min-height:44px;cursor:pointer;text-decoration:underline}
@@ -1275,65 +1285,65 @@ body.pwLocked{ overflow:hidden }
   pointer-events:none;animation:npDrop .3s ease}
 .notifyPop.hidden{display:none}
 @keyframes npDrop{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}
-.npCard{pointer-events:auto;background:var(--panel);border:2px solid #2563EB;border-radius:14px;
+.npCard{pointer-events:auto;background:var(--panel);border:2px solid #3D6184;border-radius:14px;
   box-shadow:0 10px 34px rgba(0,0,0,.3);padding:14px 16px;max-width:420px;width:100%;
   display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
 .npIcon{font-size:26px;grid-row:span 2}
 .npTitle{font-size:15px;font-weight:800;color:var(--txt)}
 .npText{font-size:13px;color:var(--dim);line-height:1.5}
 .npBtns{grid-column:2;display:flex;gap:8px;margin-top:6px}
-.npOpen{background:#2563EB;color:#fff;border:0;border-radius:10px;font-size:13px;font-weight:700;padding:8px 16px;cursor:pointer}
+.npOpen{background:#3D6184;color:#fff;border:0;border-radius:10px;font-size:13px;font-weight:700;padding:8px 16px;cursor:pointer}
 .npClose{background:var(--panel2);color:var(--dim);border:0;border-radius:10px;font-size:13px;font-weight:700;padding:8px 14px;cursor:pointer}
 
 /* ===== 入庫ボード: 費用回収・コメント・手動追加 ===== */
 .ibHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.ibAdd{margin-left:auto;background:#2563EB;color:#fff;border:0;border-radius:10px;
+.ibAdd{margin-left:auto;background:#3D6184;color:#fff;border:0;border-radius:10px;
   font-size:12.5px;font-weight:700;padding:7px 12px;cursor:pointer}
 .ibAdd.hidden{display:none}
 .ibCard{flex-wrap:wrap}
 .ibMeta{flex-basis:100%;display:flex;gap:8px;align-items:center;padding:0 12px 10px;flex-wrap:wrap}
 .ibFee{border:0;border-radius:999px;font-size:10px;font-weight:800;padding:3px 9px;cursor:pointer;color:#fff;margin-left:auto}
-.ibFee.feeUnpaid{background:#DC2626}
-.ibFee.feePaid{background:#16A34A}
-.ibFee.feeAdvance{background:#7C3AED}
+.ibFee.feeUnpaid{background:#8A3A2E}
+.ibFee.feePaid{background:#4A7A6B}
+.ibFee.feeAdvance{background:#6F5B82}
 /* 完検(完成検査終了)トグル */
-.ibInsp{border:1.5px solid #16A34A;background:#fff;color:#15803D;border-radius:999px;font-size:10px;font-weight:800;padding:2px 9px;cursor:pointer;margin-left:6px}
-.ibInsp.done{background:#16A34A;color:#fff;border-color:#16A34A}
+.ibInsp{border:1.5px solid #4A7A6B;background:#fff;color:#35584D;border-radius:999px;font-size:10px;font-weight:800;padding:2px 9px;cursor:pointer;margin-left:6px}
+.ibInsp.done{background:#4A7A6B;color:#fff;border-color:#4A7A6B}
 .ibInsp:active{opacity:.85}
 /* 完検済になったら区分バッジ自体を緑「完検済」に(車検の青より優先) */
-.ibCard .ibTag.done{background:#16A34A}
+.ibCard .ibTag.done{background:#4A7A6B}
 .ibMemo{flex:none;display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;
   font-size:12px;color:var(--dim);padding:4px 6px;cursor:pointer;border-radius:8px}
 .ibMemo .ibMemoIc{font-size:14px;line-height:1}
 .ibMemoTxt{font-size:12px}
 .ibMemo.hasMemo{color:var(--txt)}
-.ibMemoN{flex:none;background:var(--accent,#2563EB);color:#fff;font-size:10px;font-weight:800;line-height:1;
+.ibMemoN{flex:none;background:var(--accent,#3D6184);color:#fff;font-size:10px;font-weight:800;line-height:1;
   border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}
 .ibEmpty{text-align:center;color:var(--dim);font-size:13px;line-height:1.7;padding:30px 10px}
 
 /* ===== コメントスレッド(複数人・履歴) ===== */
 .cmtOv{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
-.cmtBox{background:var(--panel,#fff);color:var(--txt,#1B2530);width:100%;max-width:460px;max-height:82vh;
+.cmtBox{background:var(--panel,#fff);color:var(--txt,#1F1F1D);width:100%;max-width:460px;max-height:82vh;
   border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden;padding:16px}
 .cmtHd{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
 .cmtHd b{font-size:16px}
 .cmtCar{font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cmtList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;min-height:80px}
 .cmtEmpty{text-align:center;color:var(--dim);font-size:13px;padding:24px 8px}
-.cmtItem{background:var(--panel2,#F2F5F9);border-radius:12px;padding:8px 11px;max-width:88%;align-self:flex-start}
-.cmtItem.mine{align-self:flex-end;background:#e7f0ff}
+.cmtItem{background:var(--panel2,#F5F4F1);border-radius:12px;padding:8px 11px;max-width:88%;align-self:flex-start}
+.cmtItem.mine{align-self:flex-end;background:#EAEFF4}
 .cmtMeta{display:flex;align-items:center;gap:6px;margin-bottom:3px}
 .cmtDot{width:9px;height:9px;border-radius:50%;flex:none}
 .cmtNm{font-size:11.5px;font-weight:800;color:var(--txt)}
 .cmtTime{font-size:10.5px;color:var(--dim);margin-left:2px}
 .cmtDel{margin-left:auto;background:transparent;border:0;color:var(--dim);font-size:16px;line-height:1;
   cursor:pointer;padding:0 2px;border-radius:8px}
-.cmtDel:hover{color:var(--alert,#DC2626)}
+.cmtDel:hover{color:var(--alert,#8A3A2E)}
 .cmtText{font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .cmtInputRow{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
 .cmtInput{flex:1;resize:vertical;min-height:42px;max-height:120px;border:1px solid var(--line);border-radius:10px;
   padding:8px 10px;font-size:14px;font-family:inherit;background:var(--panel2,#fff);color:var(--txt)}
-.cmtSend{flex:none;background:var(--accent,#2563EB);color:#fff;border:0;border-radius:10px;
+.cmtSend{flex:none;background:var(--accent,#3D6184);color:#fff;border:0;border-radius:10px;
   padding:10px 16px;font-weight:800;font-size:14px;cursor:pointer}
 .cmtSend:disabled{opacity:.5}
 .cmtHint{font-size:11px;color:var(--dim);margin:8px 2px 0;line-height:1.5}
@@ -1344,7 +1354,7 @@ body.pwLocked{ overflow:hidden }
 .offToggle{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--txt);cursor:pointer;margin-top:8px}
 .offToggle input{width:18px;height:18px}
 .officeBar{position:fixed;top:0;left:0;right:0;z-index:220;display:flex;align-items:center;gap:10px;
-  background:#1B2530;color:#fff;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+  background:#1F1F1D;color:#fff;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
 .officeBar.hidden{display:none}
 body.officeMode{padding-top:84px}
 body.officeMode #intakeBoard .ibHead{margin-top:6px}
@@ -1380,10 +1390,10 @@ body.officeMode #view-scan{padding-top:0}
 /* 履歴行の入庫区分チップ(スマートな小型ピル) */
 .hIntake{flex:none;border:0;border-radius:8px;font-size:11px;font-weight:700;
   padding:4px 9px;cursor:pointer;color:#fff;white-space:nowrap;align-self:center;letter-spacing:.02em}
-.hIntake.ikShaken{background:#2563EB}
-.hIntake.ikTenken{background:#16A34A}
-.hIntake.ikRepair{background:#EA8C00}
-.hIntake.ikJiko{background:#DC2626}
+.hIntake.ikShaken{background:#3D6184}
+.hIntake.ikTenken{background:#4A7A6B}
+.hIntake.ikRepair{background:#9A6B3C}
+.hIntake.ikJiko{background:#8A3A2E}
 .hIntake.hIntakeSet{background:transparent;color:var(--dim);border:1px dashed var(--line);font-weight:600}
 
 /* ログイン時: 事務用の専用ログイン選択 */
@@ -1414,11 +1424,11 @@ body.officeMode #view-scan{padding-top:0}
 .ibList .ibCard{opacity:.5;filter:saturate(.8)}
 .ibList .ibCard.ibSel{opacity:1;filter:none;box-shadow:0 3px 14px rgba(0,0,0,.14)}
 .ibDetCard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
-.ibDetTag{display:inline-block;font-size:12px;font-weight:800;color:#fff;background:#555;border-radius:8px;padding:2px 10px;margin-bottom:6px}
-.ibDetCard.ikShaken .ibDetTag{background:#2563EB}
-.ibDetCard.ikTenken .ibDetTag{background:#16A34A}
-.ibDetCard.ikRepair .ibDetTag{background:#EA8C00}
-.ibDetCard.ikJiko .ibDetTag{background:#DC2626}
+.ibDetTag{display:inline-block;font-size:12px;font-weight:800;color:#fff;background:#44443F;border-radius:8px;padding:2px 10px;margin-bottom:6px}
+.ibDetCard.ikShaken .ibDetTag{background:#3D6184}
+.ibDetCard.ikTenken .ibDetTag{background:#4A7A6B}
+.ibDetCard.ikRepair .ibDetTag{background:#9A6B3C}
+.ibDetCard.ikJiko .ibDetTag{background:#8A3A2E}
 .ibDetTitle{font-size:19px;font-weight:500;color:var(--txt);margin-bottom:12px;text-align:center}
 .ibDetTbl{font-size:14px}
 /* ラベルは左端に固定・値は全幅で中央寄せ → タイトルと同じ中央線に揃う */
@@ -1435,29 +1445,29 @@ body.officeMode #view-scan{padding-top:0}
 }
 
 /* ログインゲート(法人・未ログイン時の全画面) */
-.authGate{position:fixed;inset:0;z-index:600;background:linear-gradient(160deg,#eef3fb,#dfe8f5);
+.authGate{position:fixed;inset:0;z-index:600;background:linear-gradient(160deg,#F9F8F6,#EAEFF4);
   display:flex;align-items:center;justify-content:center;padding:22px;overflow:auto}
 .authGate.hidden{display:none}
 body.gated{overflow:hidden}
-.agCard{background:var(--panel);border-radius:20px;box-shadow:0 16px 50px rgba(15,42,90,.22);
+.agCard{background:var(--panel);border-radius:20px;box-shadow:0 16px 50px rgba(46,74,102,.22);
   padding:26px 22px;max-width:380px;width:100%;text-align:center}
 /* 2枚パネル(法人Works / 個人Pocket)。PC=横並び / スマホ・タブレット=縦並び(1画面に収める) */
-.agShell{background:var(--panel);border-radius:20px;box-shadow:0 16px 50px rgba(15,42,90,.22);
+.agShell{background:var(--panel);border-radius:20px;box-shadow:0 16px 50px rgba(46,74,102,.22);
   padding:22px 20px;max-width:760px;width:100%;text-align:center;max-height:100dvh;overflow:auto}
 .agPanels{display:flex;gap:14px;margin-top:4px}
 .agPanel{flex:1;min-width:0;border:1px solid var(--line);border-radius:14px;padding:16px 14px;text-align:left;
   display:flex;flex-direction:column;background:var(--panel2)}
-.agPanel-pocket{background:rgba(15,157,107,.06);border-color:rgba(15,157,107,.28)}
+.agPanel-pocket{background:rgba(53,88,77,.06);border-color:rgba(53,88,77,.28)}
 .agPanelHead{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:800;color:var(--txt);margin-bottom:4px}
 .agPanelLead{font-size:12.5px;color:var(--dim);line-height:1.6;margin:0 0 10px;flex:1}
 .agEd{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
-.agEd.ed-works{background:#2563EB;color:#fff}
-.agEd.ed-pocket{background:#0F9D6B;color:#fff}
+.agEd.ed-works{background:#3D6184;color:#fff}
+.agEd.ed-pocket{background:#4A7A6B;color:#fff}
 /* Pocketの主ボタン=ログイン。薄い青の塗り(青文字)。詳細度を上げて.agBtnに勝たせる。 */
-.agBtn.agPocketLoginBtn{background:#E4EDFF;color:#1D4ED8;border-color:#C6D8FA;font-weight:800}
+.agBtn.agPocketLoginBtn{background:#EAEFF4;color:#3D6184;border-color:#C9D6E2;font-weight:800}
 .agBtn.agPocketLoginBtn:active{filter:brightness(.97)}
 /* Worksの主ボタン=ログイン。青ベタをやめてPocketと同じ薄い青の塗りに揃える。 */
-.agBtn.agWorksLoginBtn{background:#E4EDFF;color:#1D4ED8;border-color:#C6D8FA;font-weight:800}
+.agBtn.agWorksLoginBtn{background:#EAEFF4;color:#3D6184;border-color:#C9D6E2;font-weight:800}
 .agBtn.agWorksLoginBtn:active{filter:brightness(.97)}
 /* 「会社を新規登録 / 参加」は必ず1行に収める(はみ出す端末では自動で少し縮小) */
 .agBtn.agNewBtn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1496,7 +1506,7 @@ body.gated{overflow:hidden}
 .agLead{font-size:13.5px;color:var(--dim);line-height:1.7;margin:0 0 18px}
 .agBtn{display:block;width:100%;margin-top:10px;border:1px solid var(--line);border-radius:12px;
   background:var(--panel2);color:var(--txt);font-size:14.5px;font-weight:700;padding:13px;cursor:pointer}
-.agBtn.agPrimary{background:#2563EB;color:#fff;border-color:#2563EB}
+.agBtn.agPrimary{background:#3D6184;color:#fff;border-color:#3D6184}
 .agBtn.agGhost{background:transparent;color:var(--dim);font-weight:600}
 .agBtn:active{filter:brightness(.95)}
 .agDiv{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px;margin:14px 2px 4px}
@@ -1510,19 +1520,21 @@ body.gated{overflow:hidden}
 .hiList{display:flex;flex-direction:column;gap:6px}
 .hiRow{position:relative;overflow:hidden;border-left:4px solid var(--line);background:var(--panel2);border-radius:8px}
 .hiSlide{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);position:relative;z-index:1;touch-action:pan-y;will-change:transform}
-.hiRow.ikShaken{border-left-color:#2563EB}
-.hiRow.ikTenken{border-left-color:#16A34A}
-.hiRow.ikRepair{border-left-color:#EA8C00}
-.hiRow.ikJiko{border-left-color:#DC2626}
+.hiRow.ikShaken{border-left-color:#3D6184}
+.hiRow.ikTenken{border-left-color:#4A7A6B}
+.hiRow.ikRepair{border-left-color:#9A6B3C}
+.hiRow.ikJiko{border-left-color:#8A3A2E}
 .hiMain{flex:1;min-width:0;display:flex;align-items:center;gap:8px;cursor:pointer}
 .hiTag{flex:none;font-size:10.5px;font-weight:800;color:#fff;border-radius:4px;padding:2px 7px}
-.hiRow.ikShaken .hiTag{background:#2563EB}
-.hiRow.ikTenken .hiTag{background:#16A34A}
-.hiRow.ikRepair .hiTag{background:#EA8C00}
-.hiRow.ikJiko .hiTag{background:#DC2626}
-.hiTitle{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hiRow.ikShaken .hiTag{background:#3D6184}
+.hiRow.ikTenken .hiTag{background:#4A7A6B}
+.hiRow.ikRepair .hiTag{background:#9A6B3C}
+.hiRow.ikJiko .hiTag{background:#8A3A2E}
+.hiTitle{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden}
+.hiNo{font-size:15px;font-weight:800;letter-spacing:.02em;color:var(--txt);flex:none}
+.hiOwner{font-size:12.5px;font-weight:600;color:#44443F;overflow:hidden;text-overflow:ellipsis}
 /* 未読コメントの小さな赤丸。他の担当者が新しく残した申し送りがある時だけ表示 */
-.hiUnread{flex:none;width:8px;height:8px;border-radius:50%;background:#DC2626;box-shadow:0 0 0 2px rgba(220,38,38,.18)}
+.hiUnread{flex:none;width:8px;height:8px;border-radius:50%;background:#8A3A2E;box-shadow:0 0 0 2px rgba(138,58,46,.18)}
 /* 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ */
 .hiStaff{flex:none;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;max-width:8.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 担当設定済み: 背景色は付けず、文字を通常色にするだけ(人アイコン・色背景なし) */
@@ -1533,16 +1545,16 @@ body.gated{overflow:hidden}
 /* 背面ラッパは透明(カードから赤がはみ出て“赤い線”に見えるのを防ぐ)。赤はボタン自体だけ。 */
 .hiOutWrap{position:absolute;top:0;right:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none;visibility:hidden}
 .hiRow.revealing .hiOutWrap{visibility:visible}
-.hiOut{background:#e9573f;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;pointer-events:auto}
+.hiOut{background:#8A3A2E;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;pointer-events:auto}
 .hiOut:active{opacity:.85}
 /* 右スワイプで出す「検査済(完検)」ボタン(左側)。車検カードのみ */
 .hiInspWrap{position:absolute;top:0;left:0;bottom:0;width:84px;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none;visibility:hidden}
 .hiRow.revealing .hiInspWrap{visibility:visible}
-.hiInsp{background:#16A34A;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer;pointer-events:auto}
-.hiInsp.done{background:#6B7280}
+.hiInsp{background:#4A7A6B;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;padding:8px 12px;cursor:pointer;pointer-events:auto}
+.hiInsp.done{background:#767168}
 .hiInsp:active{opacity:.85}
 /* 完検済になったら区分バッジ自体を緑「完検済」に(車検の青より優先) */
-.hiRow .hiTag.done{background:#16A34A}
+.hiRow .hiTag.done{background:#4A7A6B}
 
 /* 担当者 名簿ポップアップ */
 .staffPickOv{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:18px}
@@ -1550,11 +1562,11 @@ body.gated{overflow:hidden}
 .spHead{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:12px;text-align:center}
 .spList{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;max-height:46vh;overflow-y:auto}
 .spName{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;font-size:13px;font-weight:700;padding:9px 14px;cursor:pointer}
-.spName.on{background:#2563EB;border-color:#2563EB;color:#fff}
+.spName.on{background:#3D6184;border-color:#3D6184;color:#fff}
 .spEmpty{font-size:12px;color:var(--dim);padding:6px 2px;line-height:1.6}
 .spActs{display:flex;gap:8px;flex-wrap:wrap}
 .spActs button{flex:1;min-width:90px;border-radius:10px;font-size:12.5px;font-weight:700;padding:9px 8px;cursor:pointer;border:1px solid var(--line)}
-.spAdd{background:#eef4ff;border-color:#9dbdf5 !important;color:#2455b8}
+.spAdd{background:#EAEFF4;border-color:#C9D6E2 !important;color:#3D6184}
 .spClear{background:var(--panel2);color:var(--dim)}
 .spClose{background:var(--panel2);color:var(--txt)}
 
@@ -1569,7 +1581,7 @@ body.gated{overflow:hidden}
 .ibHead h2{padding-left:6px}
 .ibHint{font-size:10.5px;color:var(--dim);font-weight:400;opacity:.55;margin-left:auto}
 .ibSubHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 8px;padding:0 2px 0 6px}
-.ibSummary{font-size:12.5px;font-weight:800;color:#DC2626}
+.ibSummary{font-size:12.5px;font-weight:800;color:#8A3A2E}
 .ibSummary:empty{display:none}
 .ibDetTop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .ibDetTop .ibDetTag{margin-bottom:0}
@@ -1608,12 +1620,12 @@ body.gated{overflow:hidden}
 .ibFilter{display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 10px}
 .ibFchip{border:1px solid var(--line);background:var(--panel);color:var(--dim);border-radius:999px;
   font-size:12px;font-weight:700;padding:6px 13px;cursor:pointer}
-.ibFchip.on{color:#fff;border-color:transparent;background:#334155}
-.ibFchip.on.ibFall{background:#334155}
-.ibFchip.on.ikShaken{background:#2563EB}
-.ibFchip.on.ikTenken{background:#16A34A}
-.ibFchip.on.ikRepair{background:#EA8C00}
-.ibFchip.on.ikJiko{background:#DC2626}
+.ibFchip.on{color:#fff;border-color:transparent;background:#44443F}
+.ibFchip.on.ibFall{background:#44443F}
+.ibFchip.on.ikShaken{background:#3D6184}
+.ibFchip.on.ikTenken{background:#4A7A6B}
+.ibFchip.on.ikRepair{background:#9A6B3C}
+.ibFchip.on.ikJiko{background:#8A3A2E}
 
 
 /* 詳細: 担当者ボタン＋右上スロット */
@@ -1640,18 +1652,18 @@ body.gated{overflow:hidden}
 /* PC事務モード: フッター文言を画面最下部に固定(フローティングボードで中央に浮くのを防ぐ) */
 @media(min-width:1024px){
   body.officeMode #appFoot{position:fixed;left:0;right:0;bottom:0;z-index:50;margin:0;
-    background:var(--panel,#fff);border-top:1px solid var(--line,#D5DDE8);padding:5px 14px 6px}
+    background:var(--panel,#fff);border-top:1px solid var(--line,#E5E3DD);padding:5px 14px 6px}
   body.officeMode #appFoot .note{margin:1px 0;font-size:11px}
 }
 
 /* 安全注意(修理手順・トルク等の保安喚起)。主張しすぎず、淡いアンバーで"注意"と認識できる程度に。 */
 .hint.safetyNote{
-  border-left:3px solid rgba(217,119,6,.55);
+  border-left:3px solid rgba(154,107,60,.55);
   padding-left:8px;
-  background:rgba(217,119,6,.06);
+  background:rgba(154,107,60,.06);
   border-radius:4px;
 }
-.hint.safetyNote b{color:#b45309}
+.hint.safetyNote b{color:#74512C}
 
 /* トルク出典リンク: 注意書き内の控えめなインラインリンク(主張しすぎず・折り返さない) */
 .hint a.srcLink{
@@ -1681,29 +1693,29 @@ body.gated{overflow:hidden}
    入庫管理ボード(カンバン)  —— 区分別／進捗別の列 + カード
    色は --kbc(カンバンカラー)1本で統一。列・カード・チップ・ボタンが同じ色を共有する。
    =================================================================== */
-.ikShaken{--kbc:#2563EB}   /* 車検 */
-.ikTenken{--kbc:#16A34A}   /* 点検 */
-.ikRepair{--kbc:#EA8C00}   /* 修理 */
-.ikJiko  {--kbc:#DC2626}   /* 板金 */
-.stIn    {--kbc:#64748B}   /* 入庫   */
-.stWork  {--kbc:#2563EB}   /* 作業中 */
-.stDone  {--kbc:#16A34A}   /* 完了   */
-.stWait  {--kbc:#D97706}   /* 引渡待 */
+.ikShaken{--kbc:#3D6184}   /* 車検 */
+.ikTenken{--kbc:#4A7A6B}   /* 点検 */
+.ikRepair{--kbc:#9A6B3C}   /* 修理 */
+.ikJiko  {--kbc:#8A3A2E}   /* 板金 */
+.stIn    {--kbc:#8C877D}   /* 入庫   */
+.stWork  {--kbc:#3D6184}   /* 作業中 */
+.stDone  {--kbc:#4A7A6B}   /* 完了   */
+.stWait  {--kbc:#9A6B3C}   /* 引渡待 */
 
 /* --- 上部ツールバー(列の切替 / 絞り込み / サマリー) --- */
 .kbBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 14px;flex:1 1 100%;width:100%}
 .kbSeg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px;flex:none}
 .kbSegBtn{border:0;background:transparent;color:var(--dim);font-size:12px;font-weight:700;
   padding:7px 14px;border-radius:999px;cursor:pointer;min-height:36px;white-space:nowrap}
-.kbSegBtn.on{background:var(--panel);color:var(--txt);box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.kbSegBtn.on{background:var(--panel);color:var(--txt);box-shadow:0 1px 3px rgba(46,74,102,.14)}
 .kbStats{display:flex;gap:6px;flex-wrap:wrap;flex:none;margin-left:auto}
 .kbStat{font-size:11px;font-weight:700;color:var(--dim);background:var(--panel2);
   border:1px solid var(--line);border-radius:999px;padding:5px 10px;white-space:nowrap}
 .kbStat b{font-size:13px;font-weight:800;color:var(--txt);margin-right:2px}
-.kbStat.warn{background:#FEF3C7;border-color:#FDE68A;color:#92400E}
-.kbStat.warn b{color:#92400E}
-.kbStat.alert{background:#FEE2E2;border-color:#FECACA;color:#991B1B}
-.kbStat.alert b{color:#991B1B}
+.kbStat.warn{background:#F5EDE4;border-color:#DEC9B0;color:#74512C}
+.kbStat.warn b{color:#74512C}
+.kbStat.alert{background:#F6E9E6;border-color:#E8CFC9;color:#6B2B21}
+.kbStat.alert b{color:#6B2B21}
 
 /* --- 列(カンバンのカラム) --- */
 .kbCols{display:grid;grid-auto-flow:column;gap:14px;align-items:start;
@@ -1712,29 +1724,29 @@ body.gated{overflow:hidden}
   display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .kbColHd{display:flex;align-items:center;gap:8px;padding:10px 12px;
   border-bottom:1px solid var(--line);background:var(--panel2);flex:none}
-.kbDot{width:10px;height:10px;border-radius:50%;background:var(--kbc,#64748B);flex:none}
+.kbDot{width:10px;height:10px;border-radius:50%;background:var(--kbc,#8C877D);flex:none}
 .kbColTtl{font-size:13px;font-weight:800;color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kbColN{margin-left:auto;flex:none;font-size:12px;font-weight:800;color:#fff;
-  background:var(--kbc,#64748B);border-radius:999px;min-width:24px;text-align:center;padding:2px 8px;line-height:1.4}
+  background:var(--kbc,#8C877D);border-radius:999px;min-width:24px;text-align:center;padding:2px 8px;line-height:1.4}
 .kbColBody{padding:10px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:90px}
-.kbColBody.kbOver{background:rgba(37,99,235,.07);outline:2px dashed var(--kbc,#64748B);outline-offset:-6px}
+.kbColBody.kbOver{background:rgba(61,97,132,.07);outline:2px dashed var(--kbc,#8C877D);outline-offset:-6px}
 .kbColEmpty{font-size:12px;color:var(--dim);text-align:center;padding:20px 8px;
   border:1px dashed var(--line);border-radius:10px}
 
 /* --- カード --- */
-.kbCard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--kbc,#64748B);
-  border-radius:12px;padding:10px 12px;box-shadow:0 1px 2px rgba(16,24,40,.05);
+.kbCard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--kbc,#8C877D);
+  border-radius:12px;padding:10px 12px;box-shadow:0 1px 2px rgba(46,74,102,.05);
   transition:box-shadow .15s ease,transform .12s ease;min-width:0}
-.kbCard:hover{box-shadow:0 4px 14px rgba(16,24,40,.12)}
-.kbCard.kbSel{outline:2px solid var(--kbc,#64748B);outline-offset:1px}
+.kbCard:hover{box-shadow:0 4px 14px rgba(46,74,102,.12)}
+.kbCard.kbSel{outline:2px solid var(--kbc,#8C877D);outline-offset:1px}
 .kbCard.kbDrag{opacity:.45}
 .kbCard[draggable="true"]{cursor:grab}
 .kbCard[draggable="true"]:active{cursor:grabbing}
 
 .kbTop{display:flex;align-items:center;gap:6px;margin-bottom:8px;min-height:26px}
 .kbChip{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#fff;
-  background:var(--kbc,#64748B);line-height:1.5;white-space:nowrap}
-.kbChip.kbDone{background:#16A34A}
+  background:var(--kbc,#8C877D);line-height:1.5;white-space:nowrap}
+.kbChip.kbDone{background:#4A7A6B}
 .kbChecks{margin-left:auto;display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .kbCk{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;font-weight:900;
   display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.2);flex:none}
@@ -1755,25 +1767,25 @@ body.gated{overflow:hidden}
   border-top:1px dashed var(--line);flex-wrap:wrap}
 .kbDays{font-size:11px;font-weight:800;color:var(--dim);background:var(--panel2);
   border-radius:999px;padding:4px 9px;flex:none}
-.kbDays.warn{background:#FEF3C7;color:#92400E}
-.kbDays.alert{background:#FEE2E2;color:#991B1B}
+.kbDays.warn{background:#F5EDE4;color:#74512C}
+.kbDays.alert{background:#F6E9E6;color:#6B2B21}
 .kbBtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;
   font-size:11px;font-weight:700;padding:5px 10px;min-height:32px;cursor:pointer;
   display:inline-flex;align-items:center;gap:4px;color:var(--txt);font-family:inherit}
 .kbBtn:active{transform:scale(.96)}
 .kbMemoBtn .kbIc{font-size:13px;line-height:1}
-.kbMemoBtn.has{border-color:var(--kbc,#64748B);color:var(--kbc,#64748B)}
+.kbMemoBtn.has{border-color:var(--kbc,#8C877D);color:var(--kbc,#8C877D)}
 .kbN{font-size:10px;font-weight:800}
 .kbFeeBtn{color:#fff;border:0;font-weight:800}
-.kbFeeBtn.feeUnpaid{background:#DC2626}
-.kbFeeBtn.feePaid{background:#16A34A}
-.kbFeeBtn.feeAdvance{background:#7C3AED}
-.kbNext{margin-left:auto;border-color:var(--kbc,#64748B);color:var(--kbc,#64748B);font-weight:800}
+.kbFeeBtn.feeUnpaid{background:#8A3A2E}
+.kbFeeBtn.feePaid{background:#4A7A6B}
+.kbFeeBtn.feeAdvance{background:#6F5B82}
+.kbNext{margin-left:auto;border-color:var(--kbc,#8C877D);color:var(--kbc,#8C877D);font-weight:800}
 
 /* --- 詳細ドロワー(カードを選ぶと開く) --- */
 .ibDetail{display:none}
 .ibDetail.show{display:block;position:fixed;right:0;top:61px;bottom:0;width:min(400px,94vw);
-  background:var(--panel);border-left:1px solid var(--line);box-shadow:-10px 0 44px rgba(16,24,40,.20);
+  background:var(--panel);border-left:1px solid var(--line);box-shadow:-10px 0 44px rgba(46,74,102,.20);
   z-index:70;overflow-y:auto;padding:18px}
 .kbDrawerClose{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;
   border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:16px;
@@ -1790,7 +1802,7 @@ body.gated{overflow:hidden}
   .kbStats{width:100%}
   .ibDetail.show{top:auto;width:100%;max-height:76vh;border-left:0;
     border-top:1px solid var(--line);border-radius:16px 16px 0 0;
-    box-shadow:0 -10px 44px rgba(16,24,40,.20)}
+    box-shadow:0 -10px 44px rgba(46,74,102,.20)}
 }
 /* タブレット: 2列ずつ見せて横スクロール */
 @media(min-width:768px) and (max-width:1099px){
@@ -1807,13 +1819,13 @@ body.gated{overflow:hidden}
    月間カレンダー(入出庫) —— カンバンと同じデザイン言語の中央モーダル
    旧: PCではドラッグ可能な浮動カード → 全幅カンバンに覆いかぶさるため中央モーダルへ変更
    =================================================================== */
-#intakeCalModal.ikModal{background:rgba(16,24,40,.45);padding:20px;pointer-events:auto;
+#intakeCalModal.ikModal{background:rgba(46,74,102,.45);padding:20px;pointer-events:auto;
   align-items:center;justify-content:center}
 #intakeCalModal .icModalCard{position:relative;left:auto;top:auto;margin:0;
   width:min(680px,100%);max-width:100%;height:auto;max-height:min(88vh,820px);
   display:flex;flex-direction:column;overflow:hidden;
   background:var(--panel);border:1px solid var(--line);border-radius:16px;
-  box-shadow:0 24px 70px rgba(16,24,40,.30);padding:0}
+  box-shadow:0 24px 70px rgba(46,74,102,.30);padding:0}
 #intakeCalModal .icModalHd{display:flex;align-items:center;gap:8px;flex:none;margin:0;
   padding:14px 16px;border-bottom:1px solid var(--line);cursor:default}
 #intakeCalModal .icModalTitle{font-size:15px;font-weight:800;color:var(--txt)}
@@ -1840,18 +1852,18 @@ body.gated{overflow:hidden}
 #intakeCalModal .icDowRow,#intakeCalModal .icCells{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 #intakeCalModal .icDowRow{margin-bottom:6px}
 #intakeCalModal .icDowC{text-align:center;font-size:11px;font-weight:700;color:var(--dim);padding:2px 0}
-#intakeCalModal .icDowC.icSun{color:#DC2626}
-#intakeCalModal .icDowC.icSat{color:#2563EB}
+#intakeCalModal .icDowC.icSun{color:#8A3A2E}
+#intakeCalModal .icDowC.icSat{color:#3D6184}
 #intakeCalModal .icCell{min-height:64px;border:1px solid var(--line);border-radius:10px;
   padding:5px 5px 4px;background:var(--panel);position:relative;overflow:hidden;
   display:flex;flex-direction:column;gap:3px;transition:background .12s ease,border-color .12s ease}
 #intakeCalModal .icCell.icEmpty{border:0;background:transparent}
 #intakeCalModal .icCell.icHas{cursor:pointer;background:var(--panel2);border-color:var(--line)}
-#intakeCalModal .icCell.icHas:hover{border-color:#94A3B8}
+#intakeCalModal .icCell.icHas:hover{border-color:#A8A299}
 #intakeCalModal .icCell.icHas:active{background:var(--line)}
-#intakeCalModal .icCell.icToday{border-color:#2563EB;box-shadow:inset 0 0 0 1px #2563EB}
+#intakeCalModal .icCell.icToday{border-color:#3D6184;box-shadow:inset 0 0 0 1px #3D6184}
 #intakeCalModal .icNum{font-size:12px;font-weight:700;color:var(--dim);line-height:1.2;flex:none}
-#intakeCalModal .icCell.icToday .icNum{color:#2563EB}
+#intakeCalModal .icCell.icToday .icNum{color:#3D6184}
 #intakeCalModal .icBadges{display:flex;flex-wrap:wrap;gap:3px;margin:0}
 #intakeCalModal .icBadge{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;
   line-height:1.6;white-space:nowrap}
@@ -1862,13 +1874,13 @@ body.gated{overflow:hidden}
 #intakeCalModal .icSumMon{font-size:13px;font-weight:800;color:var(--txt)}
 #intakeCalModal .icSumTag{font-size:10px;font-weight:800;color:var(--dim);background:var(--panel2);
   border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-#intakeCalModal .icSumTag.fixed{color:#15803D;background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.3)}
+#intakeCalModal .icSumTag.fixed{color:#35584D;background:rgba(53,88,77,.12);border-color:rgba(53,88,77,.3)}
 #intakeCalModal .icSumTot{margin-left:auto;font-size:12px;font-weight:700;color:var(--dim)}
 #intakeCalModal .icSumGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 #intakeCalModal .icSumCell{position:relative;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:2px;padding:10px 4px 8px;border-radius:10px;
   background:var(--panel);border:1px solid var(--line);overflow:hidden}
-#intakeCalModal .icSumCell::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--kbc,#94A3B8)}
+#intakeCalModal .icSumCell::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--kbc,#A8A299)}
 #intakeCalModal .icSumCell::after{content:attr(title);font-size:10px;font-weight:700;color:var(--dim)}
 #intakeCalModal .icSumN{font-size:20px;font-weight:800;line-height:1;color:var(--kbc,var(--txt))}
 
@@ -1877,7 +1889,7 @@ body.gated{overflow:hidden}
   margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
 #intakeCalModal .icLeg{display:inline-flex;align-items:center;gap:4px;font-size:11px;
   font-weight:700;color:var(--dim)}
-#intakeCalModal .icDot{width:9px;height:9px;border-radius:50%;background:var(--kbc,#94A3B8);flex:none}
+#intakeCalModal .icDot{width:9px;height:9px;border-radius:50%;background:var(--kbc,#A8A299);flex:none}
 #intakeCalModal .icLegNote{flex-basis:100%;font-size:10.5px;color:var(--dim);line-height:1.6}
 
 /* スマホ: 全画面シート。セルは詰めて1画面に収める */
@@ -1898,12 +1910,12 @@ body.gated{overflow:hidden}
 /* ===== 「現在の入庫状況」の進捗ピル ＋ 進捗ピッカー =====
    入庫ボードまで行かなくても、ホームの行から進捗(入庫/作業中/完了/引渡待)を変えられる。 */
 .hiStatus{flex:none;border:0;border-radius:999px;font-size:11px;font-weight:800;color:#fff;
-  background:var(--kbc,#64748B);padding:5px 10px;min-height:30px;cursor:pointer;
+  background:var(--kbc,#8C877D);padding:5px 10px;min-height:30px;cursor:pointer;
   white-space:nowrap;font-family:inherit;line-height:1.6;letter-spacing:.02em}
 .hiStatus:active{transform:scale(.95)}
 .hiStatus.ro{cursor:default}
 /* 右スワイプで出る「進捗を進める」ボタン(完検の隣)。押すと次の進捗へ、最後まで行くと先頭へ戻る */
-.hiStNext{background:var(--kbc,#64748B);border:none;color:#fff;border-radius:8px;
+.hiStNext{background:var(--kbc,#8C877D);border:none;color:#fff;border-radius:8px;
   font-size:12px;font-weight:800;padding:8px 10px;cursor:pointer;pointer-events:auto;
   white-space:nowrap;font-family:inherit}
 .hiStNext:active{transform:scale(.95)}
@@ -1918,17 +1930,17 @@ body.gated{overflow:hidden}
    の2点で、横幅を増やさず現在地が一目で分かるようにする。
    =================================================================== */
 .hiSlide{padding-bottom:12px}
-.hiSt{flex:none;font-size:10.5px;font-weight:800;color:var(--kbc,#64748B);white-space:nowrap;letter-spacing:.02em}
+.hiSt{flex:none;font-size:10.5px;font-weight:800;color:var(--kbc,#8C877D);white-space:nowrap;letter-spacing:.02em}
 .hiProg{position:absolute;left:10px;right:10px;bottom:5px;height:3px;display:flex;gap:3px;pointer-events:none}
-.hiProg i{flex:1;background:rgba(100,116,139,.22);border-radius:999px}
-.hiProg i.on{background:var(--kbc,#64748B)}
+.hiProg i{flex:1;background:rgba(61,97,132,.22);border-radius:999px}
+.hiProg i.on{background:var(--kbc,#8C877D)}
 
 /* ===================================================================
    診断の原因候補 = 可能性の高い順(順位)なので番号バッジ。手順系(交換/点検手順)は矢印のまま。
    =================================================================== */
 ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;border-radius:50%;
   background:var(--amber);color:#fff;font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;
-  font-size:14px;line-height:1;align-items:center;margin-top:1px;box-shadow:0 1px 3px rgba(37,99,235,.3)}
+  font-size:14px;line-height:1;align-items:center;margin-top:1px;box-shadow:0 1px 3px rgba(61,97,132,.3)}
 
 /* ===================================================================
    入庫管理ボード — スマホは「1画面でなるべく多く見渡せる」詰めたレイアウト
@@ -2036,7 +2048,7 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
   body:not(.officeMode) #scDetails[open] .scPanel{inset:0;margin:auto;
     width:min(680px, calc(100vw - 48px));height:min(820px, calc(100vh - 48px));
     border:1px solid var(--line);border-radius:16px;padding:12px 16px 14px;
-    box-shadow:0 24px 70px rgba(16,24,40,.30),0 0 0 100vmax rgba(16,24,40,.40)}
+    box-shadow:0 24px 70px rgba(46,74,102,.30),0 0 0 100vmax rgba(46,74,102,.40)}
 
   /* 言語切替(EN)を見出しの線の内側にそろえる */
   body:not(.officeMode) #langToggle{right:24px}

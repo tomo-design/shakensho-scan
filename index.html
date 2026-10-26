@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#F2F5F9">
+<meta name="theme-color" content="#F5F4F1">
 <title>メカノAI - 車両整備サポート</title>
 <meta name="description" content="車検証をスキャンするだけで、その車両のメンテナンス諸元・故障診断・整備カルテまで。整備士のための車両整備サポートアプリ「メカノAI」。">
 <link rel="canonical" href="https://mechanoai-cablueie.com/">
@@ -39,18 +39,8 @@
   <!-- スキャン中のみ表示: ホームへ戻る(左上・小さく) -->
   <button type="button" id="scanBack">← 戻る</button>
 
-  <div id="mechaHero">
-    <div class="heroWrap">
-      <img src="img/hero2.png" alt="メカ君">
-    </div>
-    <div id="heroBtns">
-      <button class="heroBtn" id="btnStart" type="button">QRでScan</button>
-      <button class="heroBtn" id="lnkShowOcr" type="button">写真でScan</button>
-    </div>
-  </div>
-
   <svg width="0" height="0" aria-hidden="true" style="position:absolute"><symbol id="qrGlyph" viewBox="0 0 25 25">
-    <g fill="#1B2530">
+    <g fill="currentColor">
       <!-- ファインダー(背景透過=枠と中心のみ描画) -->
       <rect x="0" y="0" width="7" height="1"/><rect x="0" y="6" width="7" height="1"/><rect x="0" y="1" width="1" height="5"/><rect x="6" y="1" width="1" height="5"/><rect x="2" y="2" width="3" height="3"/>
       <rect x="18" y="0" width="7" height="1"/><rect x="18" y="6" width="7" height="1"/><rect x="18" y="1" width="1" height="5"/><rect x="24" y="1" width="1" height="5"/><rect x="20" y="2" width="3" height="3"/>
@@ -65,6 +55,23 @@
       <rect x="16" y="18" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="20" y="22" width="1" height="1"/><rect x="22" y="19" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/>
       <rect x="9" y="4" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/></g>
   </symbol></svg>
+  <div id="mechaHero">
+    <h2 class="homeTtl">車検証を読み取る</h2>
+    <div id="heroBtns">
+      <button class="heroBtn primary" id="btnStart" type="button">
+        <span class="heroIco qr"><svg viewBox="0 0 25 25" aria-hidden="true"><use href="#qrGlyph"/></svg></span>
+        <span class="heroTtl">QRでScan</span>
+        <span class="heroSub">車検証のQRコード</span>
+      </button>
+      <button class="heroBtn" id="lnkShowOcr" type="button">
+        <span class="heroIco cam"><svg viewBox="0 0 26 21" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="1" y="4" width="24" height="16" rx="4"/><path d="M8 4l1.7-2.8h6.6L18 4"/><circle cx="13" cy="12" r="4.2"/></svg></span>
+        <span class="heroTtl">写真でScan</span>
+        <span class="heroSub">全体・コーションプレート・PC画面</span>
+      </button>
+    </div>
+    <p class="heroHint">QRが複数ある車検証は「2つずつ」写してください。読めない時は「写真でScan（全体）」へ。</p>
+  </div>
+
 
   <div id="scanWrap" class="hidden">
     <video id="video" playsinline muted></video>
@@ -811,7 +818,7 @@
   </div>
   <!-- Web版Pocket専用: 設定タブ最下部に残る無料お試し残日数（起動時バナーがフェード後もここに常設） -->
   <div id="pocketTrialRow" class="hidden" style="text-align:center;margin:2px 0 18px">
-    <button type="button" id="pocketTrialBtn" style="display:inline-block;border:0;background:rgba(15,42,90,.9);color:#fff;font-size:12.5px;line-height:1.4;padding:8px 16px;border-radius:16px;cursor:pointer"></button>
+    <button type="button" id="pocketTrialBtn" style="display:inline-block;border:0;background:rgba(46,74,102,.9);color:#fff;font-size:12.5px;line-height:1.4;padding:8px 16px;border-radius:16px;cursor:pointer"></button>
   </div>
 </div>
 
