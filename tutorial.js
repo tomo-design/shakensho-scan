@@ -39,9 +39,8 @@
       after: { title: "手順とトルクが出ました", body: "見出しをタップすると、部品リスト・交換手順・締付トルクが開きます。" } },
     { sel: "karte-nav", nav: true, ch: 6, title: "整備カルテを開く", body: "上のメニューの「📋 カルテ」をタップ。作業内容を記録できます。" },
     { sel: "#btnKarteAdd", also: "#karteList", ch: 6, title: "作業記録を残す", body: "右上のボタンから作業記録を追加。伝票やメモの写真からの入力にも対応しています。" },
-    { sel: "home-tab", nav: true, ch: 7, title: "入庫状況を見る（Works）", body: "最後に「📷 スキャン」をタップしてホームへ。ここからは法人版 Works の機能です。" },
-    { sel: "#homeIntake", openFold: true, ch: 7, title: "入庫中の車両がひと目で（Works）", body: "入庫区分（車検・点検・修理・板金）を選んだ車両がここに並び、社内の全端末で共有されます。ガイドを閉じたあと、見出しの📅で入出庫カレンダーも開けます。" },
-    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "このままデモを自由に触れます。入庫状況・カレンダー・社内共有は法人版 Works の機能です。個人版 Pocket は、スキャン・諸元・診断・修理・カルテを自分のスマホ1台で使えます。", showApply: true },
+    { sel: "home-tab", nav: true, ch: 7, title: "ホームに戻る", body: "最後に「📷 スキャン」をタップしてホームへ。前回の車両はここからすぐ開けます。" },
+    { center: true, step: "体験おわり", title: "おつかれさまでした！", body: "このままデモを自由に触れます。この体験は個人版 Pocket の内容です（スキャン・諸元・診断・修理・カルテを自分のスマホ1台で）。入庫管理・入出庫カレンダー・社内共有は法人版 Works の機能です。", showApply: true },
   ];
   var CH_TOTAL = STEPS.reduce(function (m, s) { return Math.max(m, s.ch || 0); }, 0);
   function stepLabel(idx) {

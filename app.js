@@ -169,7 +169,11 @@ function toolQuery(sz) {
   return s;   // 名前付き工具(プライヤー等)はそのまま検索
 }
 /* 表示モード: personal=個人版(クラウド同期/契約を隠す・BYOK) / corp=法人版(従来通り) */
-function getAppMode() { return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp"; }
+function getAppMode() {
+  // デモ(体験ガイド)はPocket(個人版)として見せる。入庫区分・入庫状況・カレンダー等の法人機能は出さない。
+  if (typeof isDemo === "function" && isDemo()) return "personal";
+  return localStorage.getItem("ss_appmode") === "personal" ? "personal" : "corp";
+}
 function applyAppMode() {
   const personal = getAppMode() === "personal";
   document.body.classList.toggle("personalMode", personal);
@@ -8828,7 +8832,7 @@ const SUPPORT_KB = [
   "【AIの用意】個人利用は設定タブで無料のGeminiキー(カード不要)を登録。契約店舗はサーバー経由で鍵登録不要。常に最新のGeminiを使用。",
   "【料金プラン(法人)】3段階。NA=裏取り検索なし(標準AI・全機能可)。ターボ=AI Pro＋裏取り検索(月500回)。ツインターボ=AI Pro＋裏取り検索(無制限・検索を使えるのは席数まで=標準3席、4席目〜+¥3,000/席)。『裏取り検索』はGoogle検索で実データを確認し精度を上げる機能(診断・修理で有効)。現在の契約特典は設定→『契約・プラン』にグレード別に表示。プラン変更・席追加は同画面(代表管理者)または運営。支払いは月額/年契約。",
   "【MECHANO-AI Pocket（個人向け・Web版）】ブラウザで利用(mechanoai-cablueie.com)。最初の7日間は全機能無料、8日目以降は月額¥500。ログイン画面の『Pocket ＞ 7日間無料ではじめる』でメール入力→ID・パスが自動で届く。スマホはホーム画面に追加すればアプリのように使える。直通リンク mechanoai-cablueie.com/?pocket=start を開くと無料登録のフォームがそのまま出る。★入庫区分の選択・入庫状況・入出庫カレンダー・社内共有は法人版Worksだけの機能で、Pocketにはない(Pocketではスキャンしても入庫区分は聞かれない)。※App Store/Google Playのストア版は現在準備中。",
-  "【デモ(登録なしの体験)】ログイン画面の『ログインせずにデモを試す』、または mechanoai-cablueie.com/?demo=1。サンプル車両(ダイハツ ハイゼットカーゴ)で、体験ガイド(STEP1〜7)に沿って 車両情報→メンテ諸元→故障診断→修理→整備カルテ→入庫状況(法人版Worksの機能) を試せる。デモのAIは固定のサンプル回答で、内容が出るのは診断の『P0401』(原因候補と点検手引書)と修理の『ブレーキパッド交換』だけ。ほかの入力には案内文が返る。やり直しは右下の『❓体験ガイド』、終了は画面下の帯の『デモ終了』。最後の画面から『個人で使う（7日間無料）』=Pocketの無料登録、『会社で導入する』=法人向けの案内へ進める。",
+  "【デモ(登録なしの体験)】ログイン画面の『ログインせずにデモを試す』、または mechanoai-cablueie.com/?demo=1。デモは個人版(Pocket)として動き、サンプル車両(ダイハツ ハイゼットカーゴ)で 車両情報→メンテ諸元→故障診断→修理→整備カルテ を試せる(入庫管理・カレンダー・社内共有は法人版Worksの機能なのでデモには出ない)。デモ中はクラウドへ一切書き込まないので、会社にログイン中の端末でデモを開いても社内のデータや入庫の通知には影響しない。デモのAIは固定のサンプル回答で、内容が出るのは診断の『P0401』(原因候補と点検手引書)と修理の『ブレーキパッド交換』だけ。ほかの入力には案内文が返る。やり直しは右下の『❓体験ガイド』、終了は画面下の帯の『デモ終了』。最後の画面から『個人で使う（7日間無料）』=Pocketの無料登録、『会社で導入する』=法人向けの案内へ進める。",
   "【整備メモ(無料の公開ページ)】https://mechanoai-cablueie.com/guide/ はログイン不要・無料で読める点検メモ集。点検の手引き16(DPF/DPD/DPR・尿素SCR・エアブレーキ(大型)・EGR・コモンレール等)、症状別31(白煙・黒煙・始動不良・エンスト等)、故障コード別65。各ページから関連する手引き・症状・故障コードへ行き来できる。内容は参考情報で、数値や手順は車種・年式で異なるため整備要領書で確認する。",
   "【サイトの利用状況の集計】ウェブサイトでは、整備メモの表示・デモの開始や完了・登録フォームの表示などの『回数』だけを日ごとに集計している。個人を特定する情報やCookieは使わず、IPアドレスや端末の情報、入力した車両情報・整備カルテの内容は記録しない。詳しくはプライバシーポリシー。",
   "【困った時】『AIが混み合っています』は少し時間をおいて再試行。諸元が遅い/出ない時は『最新に更新』や個別🔄、契約店舗はプラン有効期限を確認。データは端末を削除すると消えるので大切な記録は控えを。アプリが古い時は設定下部『アプリを最新に更新』(MECHANO-AI Pocketはブラウザの再読み込みで最新に)。",
@@ -9329,20 +9333,30 @@ function showDemoBanner() {
   const ex = document.getElementById("demoExit");
   if (ex) ex.addEventListener("click", () => { try { sessionStorage.removeItem("ss_demo"); } catch (e) {} location.href = location.pathname; });
 }
+/* デモ(体験ガイド)はこの端末の中だけで完結させる。
+   会社にログイン中の端末でデモを開いても、サンプル車両が社内へ同期されない(入庫の通知が飛ばない)ようにする。 */
+function sealDemoFromCloud() {
+  const seal = () => {
+    const C = window.Cloud;
+    if (!C || C.__demoSealed) return !!(C && C.__demoSealed);
+    C.__demoSealed = true;
+    ["pushRecord", "updateRecordFields", "deleteRecord", "pushVehicle", "deleteVehicle", "pushAll"].forEach(k => {
+      if (typeof C[k] === "function") C[k] = function () { return Promise.resolve(); };
+    });
+    return true;
+  };
+  if (seal()) return;
+  let n = 0;   // cloud.js の読み込みが後になる場合に備えて少しの間リトライ
+  const t = setInterval(() => { if (seal() || ++n > 25) clearInterval(t); }, 200);
+}
 function startDemo() {
   try { sessionStorage.setItem("ss_demo", "1"); } catch (e) {}
+  sealDemoFromCloud();
   document.body.classList.add("demoMode");
   showDemoBanner();
   // サンプル車両の諸元・故障を端末に記憶させ、AIを呼ばずにメンテ/診断へ表示
   try { setLearned(vehicleKey(DEMO_VEHICLE), { model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS, specDone: true }); } catch (e) {}
   try { showResult(Object.assign({}, DEMO_VEHICLE), {}); } catch (e) {}
-  // サンプル車両を「車検で入庫中」にしておく(ホームの入庫状況・カレンダーに1台出して、法人版の入庫管理を体験できるように)
-  try {
-    if (getAppMode() !== "personal" && !activeIntakes().length) {
-      if (!findHistEntry(getHistory(), current)) addHistory(current);   // 区分は履歴レコードに持つので、先に履歴へ入れる
-      setIntake(null, "車検"); updateVidIntakeBtn(current);
-    }
-  } catch (e) {}
   try { renderHomeIntake(); } catch (e) {}   // 車両を表示中はホームの入庫状況を畳む(ホームに戻った時だけ出す)
   // ★URL(?demo=1)経由でもログインゲートを確実に解除(でないとゲートが前面に残り体験ガイドが操作できない)
   try { if (typeof refreshAuthGate === "function") refreshAuthGate(); } catch (e) {}
