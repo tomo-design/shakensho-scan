@@ -602,6 +602,47 @@
       <button class="btn btn-cyan btn-sm" id="btnJumpVision">📷 OCR用キー設定<span class="jarr"> ↓</span></button>
     </div>
   </div>
+  
+
+  
+
+  
+
+  <!-- 部品の実写画像(Google Custom Search)。法人契約中は設定不要で使えるため、個人/未契約時のみ案内 -->
+  
+
+  <!-- 契約・解約(店舗のお支払い) — 文字読み取り機能の下。特典説明＋外部申込導線＋契約期間 -->
+  <div id="cloudPlan" class="hidden" style="margin:0 0 14px"></div>
+
+  
+
+  
+
+  <!-- 個人モードのみ表示: メカ君サポート(一番下) -->
+  
+
+  <p class="note" id="verNote">バージョン情報を取得中…</p>
+  <div style="text-align:center;margin:4px 0 12px"><button type="button" class="btn btn-ghost btn-sm" id="btnAppUpdate" style="flex:0 0 auto;display:inline-block;min-height:40px">🔄 アプリを最新に更新</button></div>
+  <!-- Web版Pocket専用: 設定タブ最下部にパスワード変更とログアウトを横並びで(個人モードでは同期セクションが隠れるため) -->
+  <div id="pocketLogoutRow" class="hidden btnRow" style="justify-content:center;gap:10px;margin:8px 0 16px">
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:0 0 auto;display:inline-block;min-height:40px">🔑 パスワードを変更</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button>
+  </div>
+  <!-- Web版Pocket専用: 設定タブ最下部に残る無料お試し残日数（起動時バナーがフェード後もここに常設） -->
+  <div id="pocketTrialRow" class="hidden" style="text-align:center;margin:2px 0 18px">
+    <button type="button" id="pocketTrialBtn" style="display:inline-block;border:0;background:rgba(46,74,102,.9);color:#fff;font-size:12.5px;line-height:1.4;padding:8px 16px;border-radius:16px;cursor:pointer"></button>
+  </div>
+
+  <h2 class="setGrp">会社</h2>
+  <section id="secVehDb">
+    <h2><span class="tag cy">DB</span>車種データの編集</h2>
+    <div class="sec-body">
+      <button class="btn btn-ghost" id="btnOpenDb" type="button">🔧 登録車種一覧をひらく</button>
+      <div class="hint" style="margin:8px 0 0">内蔵の車種データに、自社で使う車種を足したり直したりできます。</div>
+    </div>
+  </section>
+
+  <h2 class="setGrp">クラウド同期・ログイン</h2>
   <section id="secCloudSync" style="margin-top:14px">
     <details class="foldSec" open>
     <summary class="foldSecSum">クラウド同期</summary>
@@ -676,6 +717,7 @@
     </details>
   </section>
 
+  <h2 class="setGrp">AI・キー</h2>
   <section id="secAiKey">
     <details id="secAiKeyFold">
       <summary class="secSummary">メカ君に相談機能</summary>
@@ -711,7 +753,6 @@
       </div>
     </details>
   </section>
-
   <section id="secVisionKey">
     <details>
       <summary class="secSummary">文字読み取り（OCR）について</summary>
@@ -750,8 +791,6 @@
       </div>
     </details>
   </section>
-
-  <!-- 部品の実写画像(Google Custom Search)。法人契約中は設定不要で使えるため、個人/未契約時のみ案内 -->
   <section id="secCse" class="hidden">
     <details>
       <summary class="secSummary">部品の実写画像</summary>
@@ -801,17 +840,7 @@
     </details>
   </section>
 
-  <!-- 契約・解約(店舗のお支払い) — 文字読み取り機能の下。特典説明＋外部申込導線＋契約期間 -->
-  <div id="cloudPlan" class="hidden" style="margin:0 0 14px"></div>
-
-  <section id="secVehDb">
-    <h2><span class="tag cy">DB</span>車種データの編集</h2>
-    <div class="sec-body">
-      <button class="btn btn-ghost" id="btnOpenDb" type="button">🔧 登録車種一覧をひらく</button>
-      <div class="hint" style="margin:8px 0 0">内蔵の車種データに、自社で使う車種を足したり直したりできます。</div>
-    </div>
-  </section>
-
+  <h2 class="setGrp">データ・サポート</h2>
   <section id="secDataMgmt">
     <details>
     <summary class="secSummary">データ管理</summary>
@@ -827,8 +856,6 @@
     </div>
     </details>
   </section>
-
-  <!-- 個人モードのみ表示: メカ君サポート(一番下) -->
   <section id="secContact">
     <details id="scDetails">
       <summary class="secSummary">メカ君サポート</summary>
@@ -858,18 +885,6 @@
       </div>
     </details>
   </section>
-
-  <p class="note" id="verNote">バージョン情報を取得中…</p>
-  <div style="text-align:center;margin:4px 0 12px"><button type="button" class="btn btn-ghost btn-sm" id="btnAppUpdate" style="flex:0 0 auto;display:inline-block;min-height:40px">🔄 アプリを最新に更新</button></div>
-  <!-- Web版Pocket専用: 設定タブ最下部にパスワード変更とログアウトを横並びで(個人モードでは同期セクションが隠れるため) -->
-  <div id="pocketLogoutRow" class="hidden btnRow" style="justify-content:center;gap:10px;margin:8px 0 16px">
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:0 0 auto;display:inline-block;min-height:40px">🔑 パスワードを変更</button>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button>
-  </div>
-  <!-- Web版Pocket専用: 設定タブ最下部に残る無料お試し残日数（起動時バナーがフェード後もここに常設） -->
-  <div id="pocketTrialRow" class="hidden" style="text-align:center;margin:2px 0 18px">
-    <button type="button" id="pocketTrialBtn" style="display:inline-block;border:0;background:rgba(46,74,102,.9);color:#fff;font-size:12.5px;line-height:1.4;padding:8px 16px;border-radius:16px;cursor:pointer"></button>
-  </div>
 </div>
 
 <!-- ============ VIEW: ADMIN (運営・隠しタブ・superのみ) ============ -->

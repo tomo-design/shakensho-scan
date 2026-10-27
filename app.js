@@ -8115,6 +8115,17 @@ function setPageTitles() {
   const t = current ? (han(current.plate) || dispText(current.type) || "車両") : "車両";
   document.querySelectorAll(".pnTtl:not(.pnTtlFixed)").forEach(e => { e.textContent = t; });
 }
+/* 設定のグループ見出し: 中身が全部隠れているグループは見出しも出さない */
+function syncSettingGroups() {
+  const v = document.getElementById("view-settings"); if (!v) return;
+  let grp = null, any = false;
+  const flush = () => { if (grp) grp.classList.toggle("hidden", !any); };
+  Array.prototype.forEach.call(v.children, el => {
+    if (el.classList.contains("setGrp")) { flush(); grp = el; any = false; return; }
+    if (el.tagName === "SECTION" && el.offsetParent !== null) any = true;
+  });
+  flush();
+}
 function syncTabHighlight() {
   try { setPageTitles(); } catch (e) {}
   const res = $("result");
@@ -8132,6 +8143,7 @@ function switchView(name) {
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
+  if (name === "settings") { try { syncSettingGroups(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
