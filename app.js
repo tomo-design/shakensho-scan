@@ -8106,7 +8106,12 @@ function buildVoiceChatPrompt() {
    ========================================================= */
 let curView = "scan";        // 現在の主要ビュー
 /* 下部タブのハイライト。車両を表示している間(メンテ/診断/修理/カルテ含む)は「車両」を選択状態にする */
+function setPageTitles() {
+  const t = current ? (han(current.plate) || dispText(current.type) || "車両") : "車両";
+  document.querySelectorAll(".pnTtl:not(.pnTtlFixed)").forEach(e => { e.textContent = t; });
+}
 function syncTabHighlight() {
+  try { setPageTitles(); } catch (e) {}
   const res = $("result");
   const onVeh = ["maint", "diag", "parts", "karte"].includes(curView) ||
                 (curView === "scan" && res && !res.classList.contains("hidden"));

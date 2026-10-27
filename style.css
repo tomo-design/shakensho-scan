@@ -268,14 +268,18 @@ label.fld:first-child{margin-top:0}
 #choicePanel .btn-big:active{border-color:var(--amber);color:var(--amber)}
 
 /* 全ページ共通ナビ(戻る矢印を統一) */
-.pageNav{display:flex;gap:4px;position:sticky;top:0;z-index:30;background:var(--bg);
-  padding:10px 0 8px;margin:0 0 6px;border-bottom:1px solid var(--line)}
-.pageNav .navBtn{flex:1;min-width:0;font-family:inherit;font-size:11.5px;font-weight:700;
-  background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:10px;
-  padding:9px 2px;min-height:42px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pageNav .navBtn.navBack{flex:0 0 auto;padding:9px 9px;color:var(--dim)}
-.pageNav .navBtn:active{transform:scale(.97)}
-.pageNav .navBtn.navActive{border-color:var(--amber);color:var(--amber)}
+.pageNav{display:block;position:sticky;top:0;z-index:30;background:var(--panel);
+  border-bottom:1px solid var(--line);margin:0 -14px 14px;padding:0}
+.pnTop{display:flex;align-items:center;gap:9px;padding:11px 16px 10px}
+.pnTtl{flex:1;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pageNav .navBtn{font-family:inherit;cursor:pointer}
+.pageNav .navBtn.navBack{width:34px;height:34px;flex:0 0 34px;min-height:0;padding:0;font-size:16px;
+  border-radius:10px;border:1px solid var(--line);background:var(--panel);color:#44443F}
+.pnTabs{display:flex;padding:0 10px;gap:2px;overflow-x:auto}
+.pnTabs .navBtn{flex:1;min-width:0;background:none;border:0;border-bottom:2px solid transparent;border-radius:0;
+  padding:9px 6px 10px;font-size:12px;font-weight:600;color:#8C877D;min-height:0;white-space:nowrap}
+.pnTabs .navBtn.navActive{color:#2E4A66;border-bottom-color:#3D6184;font-weight:700}
+.pageNav .navBtn:active{opacity:.7}
 
 /* AIモード選択 */
 .mode-btn{font-size:13px;line-height:1.5;padding:12px 8px}
@@ -2225,3 +2229,24 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .vhProgHd .hiSt.stWork{background:#EAEFF4;color:#2E4A66}
 .vhProgHd .hiSt.stDone{background:#E9F1EE;color:#35584D}
 .vhProgHd .hiSt.stWait{background:#F5EDE4;color:#74512C}
+
+/* ===== 案C / 質問カード(修理・診断) ===== */
+.qCard{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:14px}
+.qCard>h2{display:none}
+.qLbl{display:block;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;margin-bottom:7px}
+.qTa{width:100%;box-sizing:border-box;padding:10px 12px;font-size:14px;line-height:1.6;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel);resize:none;margin-bottom:12px;min-height:60px;font-family:inherit;color:var(--txt)}
+.qTools{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin-bottom:9px}
+.qTool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:6px 2px;
+  border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer;font-family:inherit;color:#44443F}
+.qTool .qIco{font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center}
+.qTool .qIco img{width:17px;height:17px;object-fit:contain}
+.qTool .qCap{font-size:8px;font-weight:600;line-height:1.2;text-align:center;color:#5C574E}
+.qTool.sel{border-color:#3D6184;background:#EAEFF4;color:#2E4A66}
+.qNote{margin:0 0 12px;font-size:10px;line-height:1.65;color:#A8A299}
+.qBtns{display:flex;gap:8px}
+.qAsk{flex:1;min-height:48px;font-size:14px;font-weight:700;border-radius:11px;border:1px solid #3D6184;
+  background:#3D6184;color:#fff;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px}
+.qAsk .btnMecha{width:22px;height:22px;object-fit:contain}
+.qClear{min-height:48px;padding:0 13px;font-size:13px;font-weight:600;border-radius:11px;border:1px solid var(--line);
+  background:var(--panel);cursor:pointer;color:#44443F;font-family:inherit}

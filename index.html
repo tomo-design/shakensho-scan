@@ -268,11 +268,17 @@
 <!-- ============ VIEW: MAINT ============ -->
 <div id="view-maint" class="view">
   <nav class="pageNav">
-    <button class="navBtn navBack" data-go="scan">← 車両</button>
-    <button class="navBtn" data-go="maint">🔧 メンテ</button>
-    <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🛠 修理</button>
-    <button class="navBtn" data-go="karte">📋 カルテ</button>
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="scan" aria-label="車両へ戻る">‹</button>
+      <span class="pnTtl"></span>
+    </div>
+    <div class="pnTabs">
+      <button class="navBtn" data-go="scan">車両</button>
+      <button class="navBtn" data-go="maint">メンテ</button>
+      <button class="navBtn" data-go="diag">診断</button>
+      <button class="navBtn" data-go="parts">修理</button>
+      <button class="navBtn" data-go="karte">カルテ</button>
+    </div>
   </nav>
 
   <section id="secSpec" class="hidden">
@@ -324,11 +330,17 @@
 <!-- ============ VIEW: KARTE ============ -->
 <div id="view-karte" class="view">
   <nav class="pageNav">
-    <button class="navBtn navBack" data-go="scan">← 車両</button>
-    <button class="navBtn" data-go="maint">🔧 メンテ</button>
-    <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🛠 修理</button>
-    <button class="navBtn" data-go="karte">📋 カルテ</button>
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="scan" aria-label="車両へ戻る">‹</button>
+      <span class="pnTtl"></span>
+    </div>
+    <div class="pnTabs">
+      <button class="navBtn" data-go="scan">車両</button>
+      <button class="navBtn" data-go="maint">メンテ</button>
+      <button class="navBtn" data-go="diag">診断</button>
+      <button class="navBtn" data-go="parts">修理</button>
+      <button class="navBtn" data-go="karte">カルテ</button>
+    </div>
   </nav>
 
   <section id="secKarte" style="margin-top:6px">
@@ -376,31 +388,41 @@
 <!-- ============ VIEW: PARTS ============ -->
 <div id="view-parts" class="view">
   <nav class="pageNav">
-    <button class="navBtn navBack" data-go="scan">← 車両</button>
-    <button class="navBtn" data-go="maint">🔧 メンテ</button>
-    <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🛠 修理</button>
-    <button class="navBtn" data-go="karte">📋 カルテ</button>
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="scan" aria-label="車両へ戻る">‹</button>
+      <span class="pnTtl"></span>
+    </div>
+    <div class="pnTabs">
+      <button class="navBtn" data-go="scan">車両</button>
+      <button class="navBtn" data-go="maint">メンテ</button>
+      <button class="navBtn" data-go="diag">診断</button>
+      <button class="navBtn" data-go="parts">修理</button>
+      <button class="navBtn" data-go="karte">カルテ</button>
+    </div>
   </nav>
-  <section><h2 class="secHead"><span class="tag cy">ASK</span><span class="secTtl">修理/その他</span><span class="diagIcons inHead">
-      <button type="button" class="diagIco txt" id="btnVehMic" title="音声で入力">🎤</button>
-      <button type="button" class="diagIco txt" id="btnVehVoiceChat" title="メカ君と会話">🗣️</button>
-      <button type="button" class="diagIco" id="btnVehPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
-      <button type="button" class="diagIco" id="btnVehPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
-      <button type="button" class="diagIco" id="btnVehVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
-      <button type="button" class="diagIco" id="btnVehVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
-    </span></h2>
-  <div class="sec-body">
-    <textarea id="qVehText" class="kGrow" style="min-height:60px" placeholder="修理・整備の質問（作業名だけでもOK 例:「パッド交換」）。🎤音声・🗣️会話・📷写真も。"></textarea>
+  <section class="qCard">
+    <label class="qLbl" for="qVehText">修理・整備の質問（作業名だけでもOK）</label>
+    <textarea id="qVehText" class="qTa kGrow" placeholder="例:「インテークマニホールド ガスケット交換」"></textarea>
+    <span class="qLbl">音声・会話・写真・動画</span>
+    <div class="qTools">
+      <button type="button" class="diagIco txt qTool" id="btnVehMic" title="音声で入力"><span class="qIco">🎤</span><span class="qCap">音声</span></button>
+      <button type="button" class="diagIco txt qTool" id="btnVehVoiceChat" title="メカ君と会話"><span class="qIco">🗣️</span><span class="qCap">会話</span></button>
+      <button type="button" class="diagIco qTool" id="btnVehPhoto" title="写真を添付"><span class="qIco"><img src="img/ic-photo.png" alt=""></span><span class="qCap">写真フォルダ</span></button>
+      <button type="button" class="diagIco qTool" id="btnVehPhotoCam" title="写真を撮って添付"><span class="qIco"><img src="img/ic-photo-cam.png" alt=""></span><span class="qCap">写真撮影</span></button>
+      <button type="button" class="diagIco qTool" id="btnVehVideo" title="動画を添付"><span class="qIco"><img src="img/ic-video.png" alt=""></span><span class="qCap">動画ファイル</span></button>
+      <button type="button" class="diagIco qTool" id="btnVehVideoCam" title="動画を撮って添付"><span class="qIco"><img src="img/ic-video-cam.png" alt=""></span><span class="qCap">動画撮影</span></button>
+    </div>
+    <div class="qBody">
     <div id="vehAttachList" class="hidden" style="margin-top:8px"></div>
     <input type="file" id="inVehPhoto" accept="image/*" multiple class="hidden">
     <input type="file" id="inVehPhotoCam" accept="image/*" capture="environment" class="hidden">
     <input type="file" id="inVehVideo" accept="video/*" class="hidden">
     <input type="file" id="inVehVideoCam" accept="video/*" capture="environment" class="hidden">
     <div id="vehVideoStatus" class="hint hidden" style="margin-top:6px"></div>
-    <div class="btnRow diagRunRow">
-      <button class="btn btn-ghost btnPick btn-sm" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
-      <button class="btn btn-ghost btn-sm" id="btnVehClear" style="flex:0 0 30%">クリア</button>
+    <p class="qNote">写真はフォルダから複数選べます。動画は約30秒・容量を超えると自動で圧縮します。</p>
+    <div class="qBtns">
+      <button class="qAsk" type="button" id="btnVehAsk"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
+      <button class="qClear" type="button" id="btnVehClear">クリア</button>
     </div>
     <div id="qVehResult" class="ai-answer hidden" style="margin-top:10px"></div>
     <div class="copyRow"><button type="button" id="copyKata" class="copyKata hidden"></button><span id="kataYear" class="kataYear hidden"></span></div>
@@ -422,11 +444,17 @@
 <!-- ============ VIEW: DIAG ============ -->
 <div id="view-diag" class="view">
   <nav class="pageNav">
-    <button class="navBtn navBack" data-go="scan">← 車両</button>
-    <button class="navBtn" data-go="maint">🔧 メンテ</button>
-    <button class="navBtn" data-go="diag">🩺 診断</button>
-    <button class="navBtn" data-go="parts">🛠 修理</button>
-    <button class="navBtn" data-go="karte">📋 カルテ</button>
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="scan" aria-label="車両へ戻る">‹</button>
+      <span class="pnTtl"></span>
+    </div>
+    <div class="pnTabs">
+      <button class="navBtn" data-go="scan">車両</button>
+      <button class="navBtn" data-go="maint">メンテ</button>
+      <button class="navBtn" data-go="diag">診断</button>
+      <button class="navBtn" data-go="parts">修理</button>
+      <button class="navBtn" data-go="karte">カルテ</button>
+    </div>
   </nav>
 
   <section style="margin-top:6px">
@@ -493,8 +521,10 @@
 <!-- ============ VIEW: DB EDIT ============ -->
 <div id="view-db" class="view">
   <nav class="pageNav">
-    <button class="navBtn navBack" data-go="settings">← 設定</button>
-    <button class="navBtn navActive" data-go="db">🔧 車種データの編集</button>
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="settings" aria-label="設定へ戻る">‹</button>
+      <span class="pnTtl pnTtlFixed">車種データの編集</span>
+    </div>
   </nav>
   <div class="btnRow" style="margin-top:14px">
     <button class="btn btn-amber" id="btnDbAdd">＋ 車種を追加</button>
