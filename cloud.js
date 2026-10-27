@@ -243,7 +243,10 @@
       }
     }
     const body = '<div class="sec-body pcBody">' + bannerBlock + cycleBar + statusCard + cards + seatCard + hidden + foot + '</div>';
-    box.innerHTML = '<section><details><summary class="secSummary">契約・プラン</summary>' + body + '</details></section>';
+    // 描き直しで折り畳みが閉じないように、開いていたかどうかを引き継ぐ
+    const wasOpen = !!box.querySelector("details[open]");
+    box.innerHTML = '<section><details' + (wasOpen ? " open" : "") + '><summary class="secSummary">契約・プラン</summary>' +
+      body + '</details></section>';
     // 支払い間隔の切替
     box.querySelectorAll(".pcCycBtn").forEach(b => b.onclick = () => { planCycle = b.dataset.cyc === "year" ? "year" : "month"; renderPlan(); });
     // プランのボタン → 既存の申し込み処理へ(隠しラジオを合わせてから実行)
