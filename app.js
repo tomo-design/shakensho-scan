@@ -5564,7 +5564,7 @@ async function runDiag() {
   await runDiagAI(text); // 解析と同時にAI思考を自動実行(ボタンの処理中表示が完了まで持続)
 }
 function updateDiagVehicleHint() {
-  $("diagVehicleHint").textContent = current.type
+  $("diagVehicleHint").textContent = (current && current.type)
     ? "🚚 スキャン済み車両: " + current.type + " — 検索リンクと持病照合に反映されます"
     : "車検証をスキャンしておくと、車種固有の持病との照合・型式付き事例検索ができます";
 }
