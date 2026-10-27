@@ -132,8 +132,12 @@
     <!-- 月間カレンダー(ポップアップ): その月の入庫(▼)・出庫(▲)を一目で -->
     <div id="intakeCalModal" class="ikModal hidden">
       <div class="ikCard icModalCard">
-        <div class="icModalHd"><span class="icModalTitle">📅 月間カレンダー（入出庫）</span><button type="button" id="icClose" class="icClose" aria-label="閉じる">✕</button></div>
+        <div class="icModalHd"><span class="icModalTitle">入出庫カレンダー</span><span class="icShared">社内で共有</span><button type="button" id="icClose" class="icClose" aria-label="閉じる">✕</button></div>
         <div class="icModalBody">
+          <div class="icViews">
+            <button type="button" class="icViewBtn on" data-cv="month">月表示</button>
+            <button type="button" class="icViewBtn" data-cv="agenda">一覧</button>
+          </div>
           <div class="icTools"><button type="button" id="icPrev" class="icNav">‹</button><span id="icTitle" class="icTitle"></span><button type="button" id="icNext" class="icNav">›</button><button type="button" id="icToday" class="icTodayBtn">今月</button></div>
           <div id="icTotals" class="icTotals"></div>
           <div id="icGrid" class="icGrid"></div>
@@ -538,19 +542,20 @@
   <nav class="pageNav">
     <div class="pnTop">
       <button class="navBtn navBack" data-go="settings" aria-label="設定へ戻る">‹</button>
-      <span class="pnTtl pnTtlFixed">車種データの編集</span>
+      <span class="pnTtl pnTtlFixed">車種DBの編集</span>
+      <span class="pnCount" id="dbCount"></span>
     </div>
   </nav>
   <div class="btnRow" style="margin-top:14px">
     <button class="btn btn-amber" id="btnDbAdd">＋ 車種を追加</button>
   </div>
-  <div class="btnRow" style="flex-direction:column">
-    <button class="btn btn-ghost btn-sm" id="btnDbExport">⬇ JSONエクスポート</button>
-    <button class="btn btn-ghost btn-sm" id="btnDbImport">⬆ JSONインポート</button>
+  <div class="dbIo">
+    <button class="dbIoBtn" type="button" id="btnDbExport">⬇ JSONエクスポート</button>
+    <button class="dbIoBtn" type="button" id="btnDbImport">⬆ JSONインポート</button>
     <input type="file" id="dbImportIn" accept="application/json,.json" class="hidden">
   </div>
 
-  <section id="dbFormSec" class="hidden">
+  <section id="dbFormSec" class="hidden formCard">
     <h2><span class="tag">EDIT</span><span id="dbFormTitle">車種を追加</span></h2>
     <div class="sec-body">
       <label class="fld">車種名（例: いすゞ ギガ）</label>

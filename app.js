@@ -4594,6 +4594,47 @@ async function maybeRecordCollection(rid, text) {
     }
   } catch (e) {}   // 失敗しても通常のコメント投稿は妨げない
 }
+/* カレンダーの表示方法: "month"=月のマス目 / "agenda"=今日から順の一覧 */
+let _icView = "month";
+(() => {
+  document.querySelectorAll(".icViewBtn").forEach(b =>
+    b.addEventListener("click", () => { _icView = b.dataset.cv || "month"; renderIntakeCalendar(); }));
+})();
+/* 一覧表示の1行に出す車両名(ナンバー下4桁＋使用者) */
+function calVehLabel(h) {
+  const no = plateLast4(dispText(h.plate));
+  return [no, dispText(h.name)].filter(Boolean).join(" ") || dispText(h.type) || "車両";
+}
+/* 一覧表示(今日から月末まで)。日ごとに入庫・出庫・予定・集金をまとめる。 */
+function renderCalAgenda(y, m, maps) {
+  const now = new Date();
+  const isThisMonth = now.getFullYear() === y && now.getMonth() === m;
+  const from = isThisMonth ? now.getDate() : 1;
+  const days = new Date(y, m + 1, 0).getDate();
+  const wd = ["日", "月", "火", "水", "木", "金", "土"];
+  let html = "", any = false;
+  for (let d = from; d <= days; d++) {
+    const rows = [];
+    (maps.inByDay[d] || []).forEach(h => rows.push(["入庫", "icAgIn", calVehLabel(h), (INTAKE_KINDS[h.intakeKind] || {}).label || ""]));
+    (maps.outByDay[d] || []).forEach(h => rows.push(["出庫", "icAgOut", calVehLabel(h), (INTAKE_KINDS[h.intakeKind] || {}).label || ""]));
+    (maps.outPlanByDay[d] || []).forEach(p => rows.push(["出庫予定", "icAgOutPlan", p.title || "予定", p.note || ""]));
+    (maps.planByDay[d] || []).forEach(p => rows.push(["予定", "icAgPlan", p.title || "予定", p.note || ""]));
+    (maps.payPlanByDay[d] || []).forEach(p => rows.push(["集金", "icAgPay", p.title || "集金", p.note || ""]));
+    if (!rows.length) continue;
+    any = true;
+    const dt = new Date(y, m, d);
+    const isToday = isThisMonth && d === now.getDate();
+    html += '<section class="icAgDay' + (isToday ? " today" : "") + '">' +
+      '<div class="icAgHd"><b>' + (m + 1) + "/" + d + '</b><span class="icAgW">(' + wd[dt.getDay()] + ')</span>' +
+      (isToday ? '<span class="icAgToday">今日</span>' : "") +
+      '<span class="icAgN">' + rows.length + "件</span></div>" +
+      '<div class="icAgBody">' + rows.map(r =>
+        '<div class="icAgRow"><span class="icAgTag ' + r[1] + '">' + esc(r[0]) + '</span>' +
+        '<span class="icAgMain"><b>' + esc(r[2]) + '</b>' + (r[3] ? '<span>' + esc(r[3]) + '</span>' : "") + '</span></div>').join("") +
+      '</div></section>';
+  }
+  return any ? html : '<div class="icAgEmpty">この先の入出庫・予定はまだありません。</div>';
+}
 function renderIntakeCalendar() {
   const grid = $("icGrid"); if (!grid) return;
   const ref = icMonthRef();
@@ -4620,6 +4661,17 @@ function renderIntakeCalendar() {
   Object.keys(outPlanByDay).forEach(k => outPlanTot += outPlanByDay[k].length);
   Object.keys(payPlanByDay).forEach(k => payTot += payPlanByDay[k].length);
   const totEl = $("icTotals"); if (totEl) { totEl.innerHTML = ""; totEl.classList.add("hidden"); }   // 上部の合計行(▼入庫/▲出庫/💰集金)は非表示
+  document.querySelectorAll(".icViewBtn").forEach(b => b.classList.toggle("on", b.dataset.cv === _icView));
+  if (_icView === "agenda") {
+    grid.className = "icAgenda";
+    grid.innerHTML = renderCalAgenda(y, m, { inByDay, outByDay, planByDay, outPlanByDay, payPlanByDay });
+    const sm = $("icSummary"); if (sm) sm.classList.add("hidden");
+    const lg = $("icLegend"); if (lg) lg.classList.add("hidden");
+    return;
+  }
+  grid.className = "icGrid";
+  const sm0 = $("icSummary"); if (sm0) sm0.classList.remove("hidden");
+  const lg0 = $("icLegend"); if (lg0) lg0.classList.remove("hidden");
   const dots = arr => (arr || []).slice(0, 8).map(h => '<span class="icDot ' + ((INTAKE_KINDS[h.intakeKind] || {}).cls || '') + '"></span>').join('');
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -5172,6 +5224,8 @@ let editingId = null; // null=新規, string=カスタムid, "builtin:<name>"=�
 
 function renderDBList() {
   const box = $("dbList"); box.innerHTML = "";
+  const cn = $("dbCount");
+  if (cn) cn.textContent = (BUILTIN_DB.length + CUSTOM_DB.length) + "車種";
   const customNames = new Set(CUSTOM_DB.map(v => v.name));
   const rows = [
     ...CUSTOM_DB.map(v => ({ v, custom: true })),

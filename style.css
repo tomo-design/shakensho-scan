@@ -2342,3 +2342,38 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
   width:100%;box-sizing:border-box;min-height:42px;padding:10px 11px;font-size:14px;border:1px solid var(--line);
   border-radius:9px;background:var(--panel);font-family:inherit;color:var(--txt)}
 .karteForm textarea{min-height:64px;line-height:1.6}
+
+/* ===== 案C / 車種DBの編集 ===== */
+.pnCount{font-size:11px;color:#767168;flex-shrink:0}
+.dbIo{display:flex;gap:8px;margin-bottom:14px}
+.dbIoBtn{flex:1;min-height:42px;font-size:12px;font-weight:600;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel);cursor:pointer;color:#44443F;font-family:inherit}
+/* 追加・編集フォームは青枠で「いま編集中」を示す */
+section.formCard{border:2px solid #3D6184}
+
+/* ===== 案C / 入出庫カレンダー ===== */
+.icShared{font-size:11px;color:#767168;margin-left:8px}
+.icViews{display:flex;background:#EFEDE8;border-radius:10px;padding:3px;margin-bottom:10px}
+.icViewBtn{flex:1;min-height:34px;border:0;border-radius:8px;background:transparent;font-size:13px;font-weight:600;
+  color:#767168;cursor:pointer;font-family:inherit}
+.icViewBtn.on{background:var(--panel);color:#1F1F1D;font-weight:700}
+.icAgenda{display:flex;flex-direction:column;gap:10px}
+.icAgDay{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.icAgDay.today{border-color:#3D6184}
+.icAgHd{display:flex;align-items:baseline;gap:8px;padding:10px 12px;border-bottom:1px solid #EFEDE8}
+.icAgHd b{font-size:15px}
+.icAgW{font-size:11px;color:#8C877D}
+.icAgToday{font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px;background:#EAEFF4;color:#2E4A66}
+.icAgN{margin-left:auto;font-size:11px;color:#8C877D;white-space:nowrap}
+.icAgBody{padding:9px 10px;display:flex;flex-direction:column;gap:7px}
+.icAgRow{display:flex;align-items:center;gap:9px}
+.icAgTag{font-size:10px;font-weight:700;border-radius:6px;padding:3px 7px;flex-shrink:0;background:#F1EFEA;color:#5C574E}
+.icAgTag.icAgIn{background:#EAEFF4;color:#2E4A66}
+.icAgTag.icAgOut{background:#E9F1EE;color:#35584D}
+.icAgTag.icAgOutPlan{background:#F5EDE4;color:#74512C}
+.icAgTag.icAgPlan{background:#F0ECF4;color:#52435F}
+.icAgTag.icAgPay{background:#F6E9E6;color:#8A3A2E}
+.icAgMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.icAgMain b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icAgMain span{font-size:10px;color:#8C877D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icAgEmpty{padding:18px 4px;text-align:center;font-size:12px;color:#A8A299}
