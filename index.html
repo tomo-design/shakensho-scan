@@ -118,10 +118,12 @@
 
   <!-- ホームの入庫状況(管理者のみ・前回の車両の下)。閲覧＋出庫。入庫管理ボードと同じデータ -->
   <section id="homeIntake" class="homeIntake hidden">
-    <details class="hiFold">
-      <summary class="hiSummary">現在の入庫状況 <span id="hiCount" class="hiCount"></span><button type="button" id="hiCalBtn" class="hiCalBtn" title="入出庫カレンダー（社内共有）">📅</button></summary>
-      <div id="hiList" class="hiList"></div>
-    </details>
+    <div class="hiHead">
+      <h2>現在の入庫状況</h2><span id="hiCount" class="hiCount"></span>
+      <button type="button" id="hiCalBtn" class="hiCalBtn" title="入出庫カレンダー（社内共有）">📅</button>
+    </div>
+    <div class="hiFilter hidden" id="hiFilterRow"><button type="button" id="hiMore" class="hiMore">すべて</button></div>
+    <div id="hiList" class="hiList"></div>
   </section>
 
   <!-- 入庫ボード: 現在庫の車両を区分色で一覧(ホームのみ) -->
@@ -457,21 +459,23 @@
     </div>
   </nav>
 
-  <section style="margin-top:6px">
-    <h2 class="secHead"><span class="tag al">DTC</span>故障診断/ダイアグ<span class="diagIcons inHead">
-      <button type="button" class="diagIco txt" id="btnDiagMic" title="音声で入力">🎤</button>
-      <button type="button" class="diagIco" id="btnAttachPhoto" title="写真を添付"><img src="img/ic-photo.png" alt="写真を添付"></button>
-      <button type="button" class="diagIco" id="btnAttachPhotoCam" title="写真を撮って添付"><img src="img/ic-photo-cam.png" alt="写真を撮って添付"></button>
-      <button type="button" class="diagIco" id="btnAttachVideo" title="動画を添付"><img src="img/ic-video.png" alt="動画を添付"></button>
-      <button type="button" class="diagIco" id="btnAttachVideoCam" title="動画を撮って添付"><img src="img/ic-video-cam.png" alt="動画を撮って添付"></button>
-    </span></h2>
-    <div class="sec-body">
-      <textarea id="diagText" class="kGrow" style="min-height:60px" placeholder="ダイアグコード（例: P0401）や症状を入力。🎤音声・写真/動画の添付も可。"></textarea>
+  <section class="qCard">
+    <label class="qLbl" for="diagText">ダイアグコード（複数可）・症状・問診</label>
+    <textarea id="diagText" class="qTa kGrow" placeholder="例: P0401／「アイドリングが不安定、朝だけ始動が悪い」"></textarea>
+    <span class="qLbl">音声・写真・動画</span>
+    <div class="qTools qTools5">
+      <button type="button" class="diagIco txt qTool" id="btnDiagMic" title="音声で入力"><span class="qIco">🎤</span><span class="qCap">音声</span></button>
+      <button type="button" class="diagIco qTool" id="btnAttachPhoto" title="写真を添付"><span class="qIco"><img src="img/ic-photo.png" alt=""></span><span class="qCap">写真フォルダ</span></button>
+      <button type="button" class="diagIco qTool" id="btnAttachPhotoCam" title="写真を撮って添付"><span class="qIco"><img src="img/ic-photo-cam.png" alt=""></span><span class="qCap">写真撮影</span></button>
+      <button type="button" class="diagIco qTool" id="btnAttachVideo" title="動画を添付"><span class="qIco"><img src="img/ic-video.png" alt=""></span><span class="qCap">動画ファイル</span></button>
+      <button type="button" class="diagIco qTool" id="btnAttachVideoCam" title="動画を撮って添付"><span class="qIco"><img src="img/ic-video-cam.png" alt=""></span><span class="qCap">動画撮影</span></button>
+    </div>
+    <div class="qBody">
       <div id="diagAttachList" class="hidden" style="margin-top:8px"></div>
       <div id="diagVideoStatus" class="hint hidden" style="margin-top:8px"></div>
-      <div class="btnRow diagRunRow">
-        <button class="btn btn-ghost btnPick btn-sm" id="btnDiagRun"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
-        <button class="btn btn-ghost btn-sm" id="btnDiagClear" style="flex:0 0 30%">クリア</button>
+      <div class="qBtns">
+        <button class="qAsk" type="button" id="btnDiagRun"><img src="img/kangae.png" class="btnMecha" alt="">メカ君に聞く</button>
+        <button class="qClear" type="button" id="btnDiagClear">クリア</button>
       </div>
       <div class="hint" id="diagVehicleHint" style="margin-top:8px"></div>
       <input type="file" id="inAttachPhoto" accept="image/*" multiple class="hidden">

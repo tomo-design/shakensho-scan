@@ -4848,6 +4848,7 @@ function applyOfficeMode() {
   });
 })();
 /* ホームの入庫状況(管理者のみ・前回の車両の下)。閲覧＋出庫。入庫管理ボードと同じデータに反映 */
+let _hiAll = false;   // ホームの入庫状況を全件表示するか
 function renderHomeIntake() {
   const sec = $("homeIntake"), box = $("hiList"); if (!sec || !box) return;
   const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
@@ -4871,7 +4872,11 @@ function renderHomeIntake() {
   const cnt = $("hiCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
   box.innerHTML = "";
   toggle("homeIntake", true);
-  list.forEach(h => {
+  // 台数が多い時は上位5台だけ出し、チップで全件に切り替える
+  toggle("hiFilterRow", list.length > 5);
+  const more = $("hiMore");
+  if (more) { more.textContent = _hiAll ? "上位5台" : "すべて"; more.onclick = () => { _hiAll = !_hiAll; renderHomeIntake(); }; }
+  (list.length > 5 && !_hiAll ? list.slice(0, 5) : list).forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const no4 = plateLast4(dispText(h.plate));
     const owner = dispText(h.name) || "";
@@ -8287,8 +8292,10 @@ function renderLastVehicle() {
   const curId = (current && (current.type || current.vin || current.kataShitei)) ? vehId(current) : "";
   const last = arr.find(v => vehId(v) !== curId);
   if (!last) { toggle("lastVehicle", false); return; }
-  const label = [dispText(last.plate), dispText(last.name)].filter(Boolean).join(" / ") || dispText(last.type) || "前回の車両";
-  el.innerHTML = '🕒 前回の車両: <b>' + esc(label) + '</b> ›';
+  const label = [dispText(last.plate), dispText(last.name)].filter(Boolean).join(" ／ ") || dispText(last.type) || "前回の車両";
+  el.innerHTML = '<span class="lvIco" aria-hidden="true">🚗</span>' +
+    '<span class="lvBody"><span class="lvLbl">前回の車両</span><span class="lvName">' + esc(label) + '</span></span>' +
+    '<span class="lvArr" aria-hidden="true">›</span>';
   toggle("lastVehicle", true);
   el.onclick = () => { const e2 = findHistEntry(getHistory(), last); showResult(e2 ? histToResult(e2) : last, { fromScan: false }); };
 }

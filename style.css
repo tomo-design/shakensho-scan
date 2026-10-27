@@ -205,13 +205,13 @@ button{font-family:inherit;border:0;cursor:pointer}
 .badge.ok{background:var(--ok);color:#fff}
 
 /* sections */
-section{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-section>h2{padding:12px 14px;font-size:13px;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+section{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+section>h2{padding:12px 15px 9px;font-size:11px;font-weight:700;letter-spacing:.07em;color:#8C877D;display:flex;align-items:center;gap:7px;border-bottom:1px solid #EFEDE8}
 section>h2 .tag{display:none}
 section>h2 .tag.cy{background:var(--cyan)}
 section>h2 .tag.al{background:var(--alert);color:#fff}
 section>h2 .tag.gr{background:var(--ok);color:#fff}
-.sec-body{padding:12px 14px}
+.sec-body{padding:12px 15px}
 ul.flat{list-style:none}
 ul.flat li{padding:10px 2px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.65;display:flex;gap:9px}
 ul.flat li:last-child{border-bottom:0}
@@ -2250,3 +2250,32 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .qAsk .btnMecha{width:22px;height:22px;object-fit:contain}
 .qClear{min-height:48px;padding:0 13px;font-size:13px;font-weight:600;border-radius:11px;border:1px solid var(--line);
   background:var(--panel);cursor:pointer;color:#44443F;font-family:inherit}
+.qTools5{grid-template-columns:repeat(5,minmax(0,1fr))}
+
+/* ===== 案C / ホームの前回車両・入庫状況 ===== */
+.lastVeh{display:flex;align-items:center;gap:11px;width:100%;margin:14px 0 18px;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:12px 13px;text-align:left;font-family:inherit;cursor:pointer}
+.lvIco{width:32px;height:32px;border-radius:9px;background:#F1EFEA;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.lvBody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.lvLbl{font-size:10px;font-weight:700;color:#8C877D;letter-spacing:.06em}
+.lvName{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvArr{font-size:14px;color:#A8A299;flex-shrink:0}
+.hiHead{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.hiHead h2{margin:0 0 0 2px;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;border:0;padding:0}
+.hiHead .hiCalBtn{margin-left:auto;width:30px;height:30px;min-height:0;padding:0;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
+.hiFilter{display:flex;justify-content:flex-end;margin:0 2px 9px}
+.hiMore{min-height:30px;padding:0 12px;font-size:12px;font-weight:600;border-radius:15px;border:1px solid var(--line);
+  background:var(--panel);cursor:pointer;color:#44443F;white-space:nowrap;font-family:inherit}
+.hiList{display:flex;flex-direction:column;gap:8px}
+.hiRow{border-left:0;border:1px solid var(--line);background:var(--panel);border-radius:12px}
+.hiTag{border-radius:7px;padding:4px 8px;font-size:11px;font-weight:600;color:#44443F;background:#F1EFEA}
+.hiRow.ikShaken .hiTag{background:#EAEFF4;color:#2E4A66}
+.hiRow.ikTenken .hiTag{background:#E9F1EE;color:#35584D}
+.hiRow.ikRepair .hiTag{background:#F5EDE4;color:#74512C}
+.hiRow.ikJiko .hiTag{background:#F0ECF4;color:#52435F}
+.hiRow .hiTag.done{background:#E9F1EE;color:#35584D}
+.hiNo{font-size:16px;font-weight:700;letter-spacing:.02em}
+/* 入庫状況は見出しを地の上に置き、行だけをカードにする */
+#homeIntake{background:none;border:0;border-radius:0;overflow:visible;margin-top:18px}
+#homeIntake .hiHead h2{font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;line-height:1.3}
