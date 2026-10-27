@@ -4610,11 +4610,11 @@ function calVehLabel(h) {
   const no = plateLast4(dispText(h.plate));
   return [no, dispText(h.name)].filter(Boolean).join(" ") || dispText(h.type) || "車両";
 }
-/* 一覧表示(今日から月末まで)。日ごとに入庫・出庫・予定・集金をまとめる。 */
+/* 一覧表示(その月の1日から月末まで)。日ごとに入庫・出庫・予定・集金をまとめる。 */
 function renderCalAgenda(y, m, maps) {
   const now = new Date();
   const isThisMonth = now.getFullYear() === y && now.getMonth() === m;
-  const from = isThisMonth ? now.getDate() : 1;
+  const from = 1;
   const days = new Date(y, m + 1, 0).getDate();
   const wd = ["日", "月", "火", "水", "木", "金", "土"];
   let html = "", any = false;
@@ -4638,7 +4638,7 @@ function renderCalAgenda(y, m, maps) {
         '<span class="icAgMain"><b>' + esc(r[2]) + '</b>' + (r[3] ? '<span>' + esc(r[3]) + '</span>' : "") + '</span></div>').join("") +
       '</div></section>';
   }
-  return any ? html : '<div class="icAgEmpty">この先の入出庫・予定はまだありません。</div>';
+  return any ? html : '<div class="icAgEmpty">この月の入出庫・予定はまだありません。</div>';
 }
 function renderIntakeCalendar() {
   const grid = $("icGrid"); if (!grid) return;
