@@ -342,7 +342,7 @@ ul.guide-caution li::before{content:"⚠";color:var(--alert)}
 
 /* spec table */
 /* メンテ諸元: 項目ごとにカード分け(スマホで見やすく) */
-dl.specs{display:flex;flex-direction:column;gap:10px}
+dl.specs{display:block}
 .specItem{position:relative;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:10px 14px}
 .specItemUp{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px;line-height:1;cursor:pointer;opacity:.7}
 .specItemUp:hover{opacity:1}
@@ -2284,3 +2284,21 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 /* 設定のグループ見出し */
 .setGrp{margin:22px 2px 8px;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;border:0;padding:0}
 .setGrp:first-of-type{margin-top:14px}
+
+/* ===== 案C / メンテの諸元(種類ごとのカード) ===== */
+.spGrp{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:12px}
+.spGrp:last-child{margin-bottom:0}
+.spGrpHd{display:flex;align-items:center;gap:8px;padding:11px 14px 9px;border-bottom:1px solid #EFEDE8}
+.spGrpIco{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;background:#F1EFEA;flex-shrink:0}
+.spGrpIco.amber{background:#F5EDE4}.spGrpIco.blue{background:#EAEFF4}.spGrpIco.green{background:#E9F1EE}.spGrpIco.purple{background:#F0ECF4}
+.spGrpHd h3{margin:0;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em}
+.spGrpBody{padding:3px 14px 11px}
+.specItem:not(.editing){display:flex;align-items:baseline;gap:10px;background:none;border:0;border-left:0;
+  border-bottom:1px solid #F3F1EC;border-radius:0;padding:10px 0;position:relative}
+.spGrpBody .specItem:not(.editing):last-child{border-bottom:0}
+.specItem:not(.editing) .specK{order:1;flex:1 1 44%;min-width:0;font-size:13px;font-weight:400;letter-spacing:0;color:#44443F;margin:0;padding:0}
+.specItem:not(.editing) .specV{order:2;flex:0 1 auto;max-width:56%;text-align:right;font-size:14px;font-weight:700;line-height:1.5;padding:0}
+.specItem:not(.editing) .specItemUp{order:3;position:static;flex:0 0 24px;width:24px;height:24px;font-size:11px;align-self:center;opacity:.55}
+.specItem.specManual:not(.editing) .specV{color:#2A4A41}
+.specItem .specTapHint{display:none}
+.specItem:not(.editing) .specVar{display:block;font-size:10px;font-weight:700;color:#2E4A66;margin-bottom:3px;text-align:right}

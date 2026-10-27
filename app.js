@@ -2334,6 +2334,40 @@ function obdSpec() {
     : "対象車の可能性（初度登録 " + reg + "／型式指定日で確定・車検証備考も確認）";
   return { k: "OBD検査", v: v };
 }
+/* 諸元のグループ(案C)。上から順に当てはめるので、並び順がそのまま優先順位。 */
+const SPEC_GROUPS = [
+  { key: "oil",    icon: "🛢", title: "エンジンオイル・油脂", tint: "amber",
+    re: /(オイル|粘度|規格|ドレン|エレメント|油量|油脂|グリス|atf|cvt|デフ|ミッション|ギヤ)/ },
+  { key: "torque", icon: "🔩", title: "締付トルク", tint: "blue",
+    re: /(締付|締め付け|トルク|ナット|ボルト)/ },
+  { key: "cool",   icon: "🧊", title: "冷却・ブレーキ", tint: "green",
+    re: /(クーラント|冷却水|llc|ラジエータ|サーモ|ブレーキ|フルード|パッド|ライニング|ディスク|ドラム)/ },
+  { key: "elec",   icon: "⚡", title: "電装・タイヤ", tint: "purple",
+    re: /(バッテリー|電圧|オルタネータ|プラグ|ヒューズ|タイヤ|空気圧|ホイール|リム|ベルト)/ },
+  { key: "stamp",  icon: "🔎", title: "打刻位置", tint: "grey", re: /(打刻|刻印)/ },
+  { key: "other",  icon: "📋", title: "その他", tint: "grey", re: null },
+];
+function specGroupOf(k) {
+  const t = String(k == null ? "" : k).normalize("NFKC").toLowerCase();
+  return SPEC_GROUPS.find(g => g.re && g.re.test(t)) || SPEC_GROUPS[SPEC_GROUPS.length - 1];
+}
+/* 諸元1項目(名前・値・この項目だけ更新するボタン)。タップでその場編集。 */
+function buildSpecItem(s) {
+  const item = document.createElement("div"); item.className = "specItem";
+  if (s.manual) item.classList.add("specManual");
+  const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
+  const v = document.createElement("div"); v.className = "specV";
+  // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
+  // 〔ターボ KF-VET〕のような変種見出し(HKSのNA/ターボ・年式違い)は、キー名と同じ小さな青文字の見出し行にする。
+  // 「／」→改行の置換の後に差し込む(閉じタグの / を改行に変えないため)
+  v.innerHTML = esc(keepUnit(cleanCite(han(s.v)))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>").replace(/〔([^〕]*)〕/g, '<span class="specVar">$1</span>');
+  const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
+  up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
+  const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
+  item.append(k, v, up, hint);
+  item.addEventListener("click", () => { if (!item.classList.contains("editing")) enterSpecItemEdit(item, s.k); });
+  return item;
+}
 function renderSpecs(specs, source) {
   shownSpecs = dedupSpecs(normalizeSpecs(specs || []));   // 固まった値は項目ごとに分解し、同義項目の重複は統合して表示
   const realCount = shownSpecs.length;
@@ -2345,20 +2379,21 @@ function renderSpecs(specs, source) {
   const dl = $("specList"); dl.innerHTML = "";
   toggle("specAiBox", false); $("specAiBox").innerHTML = "";  // 車両が変わったらAI結果をリセット
   toggle("specEditBox", false);
+  // 種類ごとのカードに分けて並べる(案C)
+  const bag = new Map();
   shownSpecs.forEach(s => {
-    const item = document.createElement("div"); item.className = "specItem";
-    if (s.manual) item.classList.add("specManual");
-    const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
-    const v = document.createElement("div"); v.className = "specV";
-    // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
-    // 〔ターボ KF-VET〕のような変種見出し(HKSのNA/ターボ・年式違い)は、キー名と同じ小さな青文字の見出し行にする。
-    // 「／」→改行の置換の後に差し込む(閉じタグの / を改行に変えないため)
-    v.innerHTML = esc(keepUnit(cleanCite(han(s.v)))).replace(/\n/g, "<br>").replace(/\s*[／/]\s*/g, "<br>").replace(/〔([^〕]*)〕/g, '<span class="specVar">$1</span>');
-    const up = document.createElement("button"); up.className = "specItemUp"; up.title = "この項目だけAIで最新に更新"; up.textContent = "🔄";
-    up.addEventListener("click", e => { e.stopPropagation(); refreshSpecItem(s.k, up); });
-    const hint = document.createElement("div"); hint.className = "specTapHint"; hint.textContent = "タップで編集";
-    item.append(up, k, v, hint); dl.appendChild(item);
-    item.addEventListener("click", () => { if (!item.classList.contains("editing")) enterSpecItemEdit(item, s.k); });
+    const g = specGroupOf(s.k);
+    if (!bag.has(g.key)) bag.set(g.key, []);
+    bag.get(g.key).push(s);
+  });
+  SPEC_GROUPS.forEach(g => {
+    const items = bag.get(g.key); if (!items || !items.length) return;
+    const box = document.createElement("div"); box.className = "spGrp";
+    box.innerHTML = '<div class="spGrpHd"><span class="spGrpIco ' + g.tint + '" aria-hidden="true">' + g.icon +
+      '</span><h3>' + esc(g.title) + '</h3></div>';
+    const body = document.createElement("div"); body.className = "spGrpBody";
+    items.forEach(s => body.appendChild(buildSpecItem(s)));
+    box.appendChild(body); dl.appendChild(box);
   });
   toggle("specList", shownSpecs.length > 0);
   // 出所ラベル
