@@ -2377,3 +2377,77 @@ section.formCard{border:2px solid #3D6184}
 .icAgMain b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .icAgMain span{font-size:10px;color:#8C877D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .icAgEmpty{padding:18px 4px;text-align:center;font-size:12px;color:#A8A299}
+
+/* ===== 案C / 診断の結果 ===== */
+/* 見出しは小さな灰色の小見出しに(アンバーの帯をやめる) */
+.ai-h{font-size:11px;font-weight:700;letter-spacing:.07em;color:#8C877D;margin:18px 2px 10px;padding:0;
+  background:none;border-left:0;border-radius:0}
+.ai-h:first-child{margin-top:2px}
+/* 見出し直後の本文(統合した故障像など)は白いカードに */
+.ai-h + .ai-p{margin:0 0 11px;padding:13px 14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:13px;font-size:13px;line-height:1.7;color:#44443F}
+/* 原因候補: 1件=白いカード(順位バッジ＋見出し) */
+ol.guide-steps.ai-rank{gap:10px}
+ol.guide-steps.ai-rank li{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:13px 14px;gap:9px;align-items:flex-start}
+.ai-rank .ai-cause{font-size:15px;font-weight:700;line-height:1.5}
+/* 改善の見込み: 淡色のピル */
+.ai-rank .ai-cure{margin:9px 0 0;padding:0;background:none;border-left:0;display:flex;align-items:center;gap:7px}
+.ai-rank .ai-cure .ai-cure-lv{font-size:11px;font-weight:700;border-radius:6px;padding:3px 8px;background:#F1EFEA;color:#5C574E}
+.ai-rank .ai-cure-high .ai-cure-lv{background:#E9F1EE;color:#35584D}
+.ai-rank .ai-cure-mid .ai-cure-lv{background:#F5EDE4;color:#74512C}
+.ai-rank .ai-cure-low .ai-cure-lv{background:#F1EFEA;color:#767168}
+.ai-rank .ai-cure-note{font-size:10px;color:#8C877D}
+/* 理由: タップで開く。中身は青い縦線付きの囲み */
+.ai-rank .ai-reason{margin-top:9px}
+.ai-rank .ai-reason-toggle{font-size:11px;font-weight:600;color:#767168;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:5px 10px;letter-spacing:0}
+.ai-rank .ai-reason.open .ai-reason-toggle{color:#2E4A66;border-color:#C9D6E2;background:#EAEFF4}
+.ai-rank .ai-reason-body{margin:8px 0 0;padding:10px 11px;background:#F9F8F6;border-left:3px solid #3D6184;
+  border-radius:0 9px 9px 0;font-size:12px;line-height:1.7;color:#44443F}
+/* 切り分け: ラベル付きの囲み */
+.ai-rank .ai-check{margin:9px 0 0;padding:9px 10px;background:#F9F8F6;border-left:0;border-radius:9px;
+  font-size:12px;line-height:1.6;color:#44443F;display:flex;gap:8px}
+.ai-rank .ai-check::before{content:"切り分け";font-size:10px;font-weight:700;color:#8C877D;flex-shrink:0;padding-top:2px}
+/* 点検手引書: 候補カードの中の控えめなボタン */
+.ai-rank .manualWrap{margin-top:10px}
+.ai-rank .manualBtn{border-top:0;border:1px solid var(--line);border-radius:9px;padding:9px 11px;
+  text-align:center;font-size:12px;color:#44443F;background:var(--panel)}
+.ai-rank .manualBtn.ready{background:#EAEFF4;border-color:#C9D6E2;color:#2E4A66}
+
+/* ===== 案C / 修理の結果の中身 ===== */
+.repairSecBody .ai-p{margin:0 0 8px;font-size:13px;line-height:1.75;color:#44443F}
+.repairSecBody .ai-p:last-child{margin-bottom:0}
+/* 部品・工具: 1行=タップできるタイル(右肩に購入先) */
+.repairSecBody .orderBox{display:flex;flex-direction:column;gap:7px;margin-top:0;border:0;border-radius:0;padding:0;background:none}
+.repairSecBody .orderRow{display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid #EFEDE8;
+  border-radius:10px;background:#F9F8F6}
+.repairSecBody .orderRow .orderName{flex:1;min-width:0;font-size:13px;font-weight:600;line-height:1.5}
+.repairSecBody .orderRow .orderNameTap{display:flex;align-items:center;gap:10px;width:100%}
+.repairSecBody .orderNameTap .orderCaret{display:none}
+.repairSecBody .orderNameTap::after{content:"購入先 ›";margin-left:auto;font-size:10px;font-weight:400;color:#2E4A66;white-space:nowrap}
+.repairSecBody .orderRow .orderMeta{flex:none;margin-left:0;font-size:10px;color:#8C877D;font-weight:400}
+.repairSecBody .orderBox .btnRow{margin-top:9px}
+/* 交換手順: 番号バッジ＋区切り線 */
+.repairSecBody ol.guide-steps{gap:0}
+.repairSecBody ol.guide-steps li{background:none;border:0;border-bottom:1px solid #F3F1EC;border-radius:0;
+  padding:9px 0;gap:11px;font-size:13px;line-height:1.65;color:#44443F}
+.repairSecBody ol.guide-steps li:last-child{border-bottom:0}
+.repairSecBody ol.guide-steps li::before{content:counter(gstep);width:22px;height:22px;border-radius:6px;
+  background:#EAEFF4;color:#2E4A66;font-size:11px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;line-height:1}
+.repairSecBody .stepHead{font-weight:700;font-size:13px;line-height:1.6}
+.repairSecBody .stepBody{font-weight:400;font-size:13px;line-height:1.7;margin-top:3px;color:#44443F}
+
+/* ===== 案C / 設定の行(アイコン＋名前＋説明) ===== */
+#view-settings .setRow{display:flex;align-items:center;gap:10px;padding:12px 14px;text-align:left;
+  justify-content:flex-start;font-size:13px;font-weight:400;position:relative}
+#view-settings summary.setRow{padding-right:32px}
+#view-settings h2.setRow{border-bottom:1px solid #EFEDE8;letter-spacing:0;color:var(--txt)}
+.setIco{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;background:#F1EFEA;flex-shrink:0}
+.setIco.blue{background:#EAEFF4}.setIco.green{background:#E9F1EE}
+.setIco.amber{background:#F5EDE4}.setIco.purple{background:#F0ECF4}
+.setTx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.setTx b{font-size:13px;font-weight:700;color:#1F1F1D}
+.setTx>span{font-size:11px;color:#767168;line-height:1.5}

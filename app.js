@@ -8250,6 +8250,32 @@ function setPageTitles() {
   const t = current ? (han(current.plate) || dispText(current.type) || "車両") : "車両";
   document.querySelectorAll(".pnTtl:not(.pnTtlFixed)").forEach(e => { e.textContent = t; });
 }
+/* 設定の各項目を「アイコン＋名前＋説明」の行にする(案C)。中の操作は変えない。 */
+const SET_ROWS = {
+  secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り" },
+  secCloudSync: { ico: "☁",  tint: "blue",   desc: "会社の共有・メンバー管理・契約・この端末の登録" },
+  secAiKey:     { ico: "🤖", tint: "blue",   desc: "契約店舗は登録不要。個人はGeminiの無料キーを登録" },
+  secVisionKey: { ico: "🔍", tint: "amber",  desc: "車検証の写真読み取りを高精度にする(月1,000枚まで無料)" },
+  secCse:       { ico: "🖼", tint: "purple", desc: "部品の実物画像を表示するのに使います" },
+  secDataMgmt:  { ico: "💾", tint: "green",  desc: "履歴・カスタム車種の書き出し／削除" },
+  secContact:   { ico: "💬", tint: "grey",   desc: "使い方の質問・不具合の報告・フィードバック" },
+};
+function decorateSettingRows() {
+  Object.keys(SET_ROWS).forEach(id => {
+    const sec = document.getElementById(id); if (!sec) return;
+    const head = sec.querySelector(":scope > details > summary") || sec.querySelector(":scope > h2");
+    if (!head || head.dataset.setRow) return;
+    const info = SET_ROWS[id];
+    // 見出しの英字タグ(非表示)は名前に含めない
+    const cl = head.cloneNode(true);
+    cl.querySelectorAll(".tag").forEach(x => x.remove());
+    const title = (cl.textContent || "").trim();
+    head.dataset.setRow = "1";
+    head.classList.add("setRow");
+    head.innerHTML = '<span class="setIco ' + info.tint + '" aria-hidden="true">' + info.ico + '</span>' +
+      '<span class="setTx"><b>' + esc(title) + '</b><span>' + esc(info.desc) + '</span></span>';
+  });
+}
 /* 設定のグループ見出し: 中身が全部隠れているグループは見出しも出さない */
 function syncSettingGroups() {
   const v = document.getElementById("view-settings"); if (!v) return;
@@ -8278,7 +8304,7 @@ function switchView(name) {
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  if (name === "settings") { try { syncSettingGroups(); } catch (e) {} }
+  if (name === "settings") { try { decorateSettingRows(); syncSettingGroups(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
