@@ -136,6 +136,7 @@
     } catch (e) { uiAlert("端末の解除に失敗しました: " + (e.message || e)); }
   }
   /* 店舗のお支払い(月額) — 折り畳み。代表管理者のみ表示。決済リンクは後で差し込む。 */
+  let planCycle = "month";   // 契約・プラン画面の支払い間隔(月額/年契約)
   function renderPlan() {
     const box = $("cloudPlan"); if (!box) return;
     const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
@@ -145,72 +146,110 @@
     const code = tierCode();                       // na / turbo / twinturbo
     const seats = (tenantDoc && tenantDoc.searchSeats) || 3;
     const TN = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" };
-    const PRICE = { na: "月¥7,980 / 年¥86,000", turbo: "月¥12,800 / 年¥138,000", twinturbo: "月¥19,800 / 年¥198,000" };
-    // グレード別のAI特典(現在の契約グレードに応じて出し分け)
-    const AI_PERK = {
-      na: ["🔧 AIメンテナンス諸元・故障診断・修理サポート（標準）", "🔎 Web裏取り検索：なし"],
-      turbo: ["🔧 AIメンテナンス諸元・故障診断・修理サポート", "⚡ AI Pro（高精度）", "🔎 Web裏取り検索：月500回まで"],
-      twinturbo: ["🔧 AIメンテナンス諸元・故障診断・修理サポート", "⚡ AI Pro（高精度）", "🔎 Web裏取り検索：無制限", "👥 検索席：" + seats + "席（3席標準・4席目〜+¥3,000/席）"],
-    };
-    const COMMON = [
-      "車両データ・車種DB・整備カルテを社内の全端末で自動共有",
-      "メンバーは何人でも参加OK（1人2端末まで）",
-      "車検証スキャン・整備カルテをフル機能で利用",
-      "更新・新機能を随時反映／優先サポート",
-    ];
-    const li = a => a.map(x => "<li>" + x + "</li>").join("");
     // 契約中: 現在グレードの特典だけをきれいに表示。未契約: 案内のみ。
     // 契約期間(次回更新/終了日)。paidUntil(ms)がその期間の終わり。
     const paidUntil = tenantDoc && tenantDoc.paidUntil ? Number(tenantDoc.paidUntil) : 0;
     const periodText = paidUntil ? "〜" + new Date(paidUntil).toLocaleDateString("ja-JP") + " まで" : "";
-    const perkBlock = active
-      ? '<div class="planHead"><span class="planHeadTtl">現在のプラン</span> <span class="tierBadge tier-' + code + '">' + TN[code] + '</span>' +
-          (periodText ? '<span class="planPeriod">' + periodText + '</span>' : '') +
-        '</div>' +
-        '<div class="planPriceRow"><span class="planPrice">' + PRICE[code] + '</span>' +
-          (code === "twinturbo" ? '<button type="button" class="btn btn-ghost btn-sm planSeatBtn" id="btnSeatChange">➕ 有料席を追加</button>' : '') +
-        '</div>' +
-        '<div class="planPerk"><div class="planPerkTtl">このプランでできること</div>' +
-          '<ul class="planPerkList">' + li(AI_PERK[code] || AI_PERK.na) + '</ul>' +
-          '<div class="planPerkTtl">共通</div><ul class="planPerkList planPerkSub">' + li(COMMON) + '</ul>' +
-        '</div>'
-      : '<div class="planHead">現在の状態: <b>未契約（無料/試用）</b></div>' +
-        '<div class="planNote">下から契約すると、社内共有・フル機能・AIサポートが使えます。</div>';
-    // プラン変更/申し込み(契約中は折り畳みでスッキリ)
-    const form =
-      '<div class="signupForm">' +
-        '<div class="fld">プラン</div>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="na"' + (code === "na" ? " checked" : "") + '> <b>NA</b>（AI標準・検索なし）</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="turbo"' + (code === "turbo" ? " checked" : "") + '> <b>ターボ</b>（Pro・検索月500）</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupTier" value="twinturbo"' + (code === "twinturbo" ? " checked" : "") + '> <b>ツインターボ</b>（Pro・検索無制限）</label>' +
-        '<div class="fld" style="margin-top:8px">お支払い間隔</div>' +
-        '<label class="signupRadio"><input type="radio" name="signupPlan" value="monthly" checked> 月額</label>' +
-        '<label class="signupRadio"><input type="radio" name="signupPlan" value="yearly"> 年契約（約1ヶ月分お得）</label>' +
-        '<div class="planBtns"><button class="btn btn-amber btn-sm" id="btnSignupSend">📝 ' + (active ? "プラン変更・お支払いへ" : "申し込み・お支払いへ進む") + '</button></div>' +
-        '<div id="signupStat" class="planNote"></div>' +
+    // 表示する金額(現行の料金。試作の数字には合わせない)
+    const PLANS = [
+      { key: "na", name: "NA", month: "¥7,980", year: "¥86,000",
+        lead: "裏取り検索なし。標準AIで全機能が使えます。",
+        feats: [[1, "車検証スキャン・メンテ諸元・診断・修理・カルテ"], [1, "入庫管理・社内共有・入出庫カレンダー"],
+                [0, "AI Pro（高精度モード）"], [0, "裏取り検索"]] },
+      { key: "turbo", name: "ターボ", month: "¥12,800", year: "¥138,000",
+        lead: "AI Pro＋裏取り検索が月500回。中〜大規模の工場向け。",
+        feats: [[1, "NAの全機能"], [1, "AI Pro（高精度モード）"], [1, "裏取り検索 月500回"], [1, "写真・動画の診断もPro"]] },
+      { key: "twinturbo", name: "ツインターボ", month: "¥19,800", year: "¥198,000",
+        lead: "裏取り検索が無制限。席数まで何人でも使えます。",
+        feats: [[1, "ターボの全機能"], [1, "裏取り検索 無制限"],
+                [1, "検索席 標準3席（4席目〜 +¥3,000/席）"], [1, "優先サポート"]] },
+    ];
+    const cyc = planCycle;   // "month" | "year"
+    const esc2 = x => String(x == null ? "" : x).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    // 支払い間隔の切替
+    const cycleBar =
+      '<div class="pcCycle">' +
+        '<button type="button" class="pcCycBtn' + (cyc === "month" ? " on" : "") + '" data-cyc="month">月額</button>' +
+        '<button type="button" class="pcCycBtn' + (cyc === "year" ? " on" : "") + '" data-cyc="year">年契約（2か月分お得）</button>' +
       '</div>';
-    const formBlock = active
-      ? '<details class="planChange"><summary class="secSummary">プランを変更する</summary>' + form + '</details>'
-      : form;
-    // 8日目の決済導線: 無料お試しが残りわずか/終了なら、画面上にお支払いバナーを出す。
-    let bannerBlock = "";
-    if (tenantDoc && tenantDoc.plan === "trial" && paidUntil) {
-      const dleft = Math.ceil((paidUntil - Date.now()) / 86400000);
-      const ended = paidUntil <= Date.now();
-      if (ended || dleft <= 2) {
-        bannerBlock = '<div style="border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;line-height:1.65;' +
-          (ended ? 'background:#fdecea;border:1px solid #e79a9a' : 'background:#fff7e6;border:1px solid #f0c66b') + '">' +
-          (ended
-            ? '⏰ <b>無料お試し期間が終了しました。</b>続けてご利用いただくには、お支払いのお手続きをお願いします。'
-            : '🎁 無料お試しは<b>残り' + Math.max(dleft, 0) + '日</b>です。期間終了（8日目）に、お支払いのご案内（請求書）をご登録のメールへお送りします。') +
-          '<div style="margin-top:8px"><button class="btn btn-amber btn-sm" id="btnPayNow">お支払いへ進む</button></div>' +
-          '<div id="payNowStat" class="planNote"></div></div>';
-      }
-    }
-    const body = '<div class="sec-body">' + bannerBlock + perkBlock + formBlock +
-      (canCancel ? '<div class="planCancel"><button class="textlink" id="btnPlanCancel" type="button">解約する</button></div>' : '') +
+    // 現在の契約＋利用状況
+    const statusCard = active
+      ? '<section class="pcNow">' +
+          '<div class="pcNowHd"><span class="pcNowLbl">ご利用中</span>' +
+            '<span class="pcTier tier-' + code + '">' + TN[code] + '</span>' +
+            (paidUntil ? '<span class="pcNext">次回更新 ' + (new Date(paidUntil).getMonth() + 1) + "/" + new Date(paidUntil).getDate() + '</span>' : "") +
+          '</div>' +
+          '<div class="pcTiles">' +
+            '<span class="pcTile"><b id="pcSearch">—</b><span>今月の検索' + (code === "turbo" ? " / 500" : code === "twinturbo" ? " / 無制限" : "") + '</span></span>' +
+            '<span class="pcTile"><b>' + tenantMembers.length + '</b><span>メンバー</span></span>' +
+            '<span class="pcTile"><b>' + ((profile && Array.isArray(profile.devices)) ? profile.devices.length : 0) + " / " + deviceLimitOf() + '</b><span>この端末の枠</span></span>' +
+          '</div>' +
+        '</section>'
+      : '<section class="pcNow"><div class="pcNowHd"><span class="pcNowLbl">現在の状態</span>' +
+          '<span class="pcTier">未契約（無料・お試し）</span></div>' +
+          '<p class="pcLead">契約すると、社内共有・フル機能・AIサポートが使えます。</p></section>';
+    // プランのカード
+    const cards = PLANS.map(p => {
+      const cur = active && p.key === code;
+      const price = (cyc === "year" ? p.year : p.month) + '<span class="pcPer"> /' + (cyc === "year" ? "年" : "月") + '</span>';
+      const feats = p.feats.map(f =>
+        '<li class="' + (f[0] ? "pcOk" : "pcNg") + '"><span>' + (f[0] ? "✓" : "—") + '</span>' + esc2(f[1]) + '</li>').join("");
+      const btn = cur
+        ? '<button type="button" class="pcBtn pcBtnCur" disabled>ご利用中のプラン</button>'
+        : '<button type="button" class="pcBtn pcBtnGo" data-tier="' + p.key + '">「' + p.name + '」に' + (active ? "変更する" : "申し込む") + '</button>';
+      return '<section class="pcCard' + (cur ? " cur" : "") + '">' +
+        '<div class="pcHd"><h3>' + p.name + '</h3>' + (cur ? '<span class="pcCurTag">ご利用中</span>' : "") +
+          '<span class="pcPrice">' + price + '</span></div>' +
+        '<p class="pcLead">' + esc2(p.lead) + '</p>' +
+        '<ul class="pcFeats">' + feats + '</ul>' + btn + '</section>';
+    }).join("");
+    // 検索席(ツインターボのみ)
+    const seatCard = (active && code === "twinturbo")
+      ? '<section class="pcSeat"><h3>検索席（ツインターボ）</h3>' +
+          '<p class="pcLead">裏取り検索を使える人数です。標準3席、4席目から <b>+¥3,000/席（月額）</b>。代表管理者がメンバー管理で指名します。</p>' +
+          '<div class="pcSeatRow"><span class="pcSeatN"><b>' + seats + '</b><span>席</span></span>' +
+            '<button type="button" class="pcSeatBtn" id="btnSeatChange">席数を変更</button></div>' +
+          '<div class="pcSeatExtra"><span>追加分</span><b>' + (seats > 3 ? (seats - 3) + "席" : "なし") + '</b></div>' +
+        '</section>'
+      : "";
+    // 申し込み処理は既存のまま(隠しラジオ＋既存のボタンid)
+    const hidden =
+      '<div class="pcHidden">' +
+        PLANS.map(p => '<input type="radio" name="signupTier" value="' + p.key + '"' + (p.key === code ? " checked" : "") + '>').join("") +
+        '<input type="radio" name="signupPlan" value="monthly"' + (cyc === "month" ? " checked" : "") + '>' +
+        '<input type="radio" name="signupPlan" value="yearly"' + (cyc === "year" ? " checked" : "") + '>' +
+        '<button type="button" id="btnSignupSend"></button>' +
       '</div>';
+    const foot =
+      '<div class="pcFoot">' +
+        (active ? '<button type="button" class="pcFootBtn" id="btnPlanInvoice">請求書・お支払いページ</button>' : "") +
+        (canCancel ? '<button type="button" class="pcFootBtn pcCancel" id="btnPlanCancel">解約の手続き</button>' : "") +
+      '</div>' +
+      '<div id="signupStat" class="planNote"></div>' +
+      '<p class="pcNote">「裏取り検索」はGoogle検索で実データを確認して精度を上げる機能です（診断・修理で有効）。支払いは月額または年契約。</p>';
+
+    const body = '<div class="sec-body pcBody">' + bannerBlock + cycleBar + statusCard + cards + seatCard + hidden + foot + '</div>';
     box.innerHTML = '<section><details><summary class="secSummary">契約・プラン</summary>' + body + '</details></section>';
+    // 支払い間隔の切替
+    box.querySelectorAll(".pcCycBtn").forEach(b => b.onclick = () => { planCycle = b.dataset.cyc === "year" ? "year" : "month"; renderPlan(); });
+    // プランのボタン → 既存の申し込み処理へ(隠しラジオを合わせてから実行)
+    box.querySelectorAll(".pcBtnGo").forEach(b => b.onclick = () => {
+      const t = box.querySelector('input[name="signupTier"][value="' + b.dataset.tier + '"]'); if (t) t.checked = true;
+      const c = box.querySelector('input[name="signupPlan"][value="' + (planCycle === "year" ? "yearly" : "monthly") + '"]'); if (c) c.checked = true;
+      const send = $("btnSignupSend"); if (send) send.click();
+    });
+    // 今月の検索回数(代表管理者のみ閲覧可。読めない時は「—」のまま)
+    if (active && profile && profile.tenantId) {
+      (async () => {
+        try {
+          const jst = new Date(Date.now() + 9 * 3600 * 1000);
+          const month = jst.toISOString().slice(0, 7);
+          const u = (await db.collection("usage").doc(profile.tenantId).get()).data() || {};
+          const n = (u.pMonth === month) ? (u.mPaid || 0) : 0;
+          const el = $("pcSearch"); if (el) el.textContent = String(n);
+        } catch (e) {}
+      })();
+    }
     const pn = $("btnPayNow"); if (pn) pn.onclick = async () => {
       pn.disabled = true; const st = $("payNowStat"); if (st) st.textContent = "お支払いページを準備中…";
       try {
@@ -256,6 +295,17 @@
         uiAlert("検索席を " + r.seats + " 席に設定しました" + (r.extra > 0 ? "（追加 " + r.extra + "席）" : "") + "。\n" + (r.note || (r.billed ? "追加分は次回請求にまとめて計上されます。" : "")));
         renderPlan();
       } catch (e) { seatBtn.disabled = false; uiAlert("席数の変更に失敗しました: " + (e.message || e)); }
+    };
+    const inv = $("btnPlanInvoice");
+    if (inv) inv.onclick = async () => {
+      inv.disabled = true; const st = $("signupStat"); if (st) st.textContent = "お支払いページを準備中…";
+      try {
+        let d = await window.Cloud.callFn("getPayLink", { tid: profile.tenantId });
+        if (!d || !d.url) { try { await window.Cloud.callFn("syncPlan", { tid: profile.tenantId }); } catch (e) {} d = await window.Cloud.callFn("getPayLink", { tid: profile.tenantId }); }
+        if (d && d.url) { window.location.href = d.url; return; }
+        if (st) st.textContent = "まだ請求書が発行されていません。まもなくご登録のメールにお支払いのご案内が届きます。";
+      } catch (e) { if (st) st.textContent = "取得できませんでした：" + (e.message || e); }
+      inv.disabled = false;
     };
     const cx = $("btnPlanCancel"); if (cx) cx.onclick = () => openCancelSurvey();
     // 支払いページから戻った(bfcache)とき、進行中表示を確実にリセット
