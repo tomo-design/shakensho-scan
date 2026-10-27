@@ -260,7 +260,7 @@ label.fld:first-child{margin-top:0}
 .textlink{flex:1 1 0;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--txt);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
   text-decoration:none;padding:14px 8px;text-align:center;min-height:52px}
 .textlink:active{color:var(--amber);border-color:var(--amber)}
-#choicePanel{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+#choicePanel{margin-top:16px}
 .choice-q{font-size:15px;font-weight:700;text-align:center;letter-spacing:.04em}
 .btn-big{padding:18px 12px;font-size:16px;line-height:1.4}
 .btn-big small{display:block;font-size:11px;font-weight:400;margin-top:3px;opacity:.75}
@@ -2151,3 +2151,77 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
   /* 初回の言語選択バー(上部固定)が出ている間は、サイドメニューをその下から始める */
   body.langPicking:not(.officeMode) nav#tabs{top:47px}
 }
+
+/* ===== 案C / 車両カード ===== */
+.vhHead{margin:14px 0 12px}
+.vhTop{display:flex;align-items:flex-start;gap:10px}
+.vhPlate{flex:1;min-width:0;font-size:26px;font-weight:700;letter-spacing:.015em;line-height:1.2;word-break:break-word}
+.vhEdit{width:34px;height:34px;flex:0 0 34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:#44443F;font-size:15px;cursor:pointer;font-family:inherit}
+.vhSub{margin-top:5px;font-size:13px;color:#767168;word-break:break-word}
+#rModel:not(.hidden) ~ #rUser::before{content:" ・ "}
+.vhChips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:13px}
+.vhChip{font-size:11px;font-weight:600;border-radius:7px;padding:5px 9px;background:#F1EFEA;color:#5C574E}
+.vhChip.done{background:#E9F1EE;color:#35584D}
+.vhChip.at{margin-left:auto;background:none;padding:5px 0;color:#8C877D;font-weight:400}
+.vhKind{font-size:11px;font-weight:600;border-radius:7px;padding:5px 9px;border:1px solid var(--line);background:var(--panel);color:#44443F;cursor:pointer;font-family:inherit;min-height:0}
+.vhKind.ikShaken{background:#EAEFF4;color:#2E4A66;border-color:#C9D6E2}
+.vhKind.ikTenken{background:#E9F1EE;color:#35584D;border-color:#C4D8D1}
+.vhKind.ikRepair{background:#F5EDE4;color:#74512C;border-color:#DEC9B0}
+.vhKind.ikJiko{background:#F0ECF4;color:#52435F;border-color:#D3C9DC}
+
+.vhCard{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:10px}
+.vhCardTtl{margin:0;padding:12px 15px 9px;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;border-bottom:1px solid #EFEDE8;display:flex;align-items:center;gap:7px;border-top:0;border-left:0;border-right:0}
+.vhCardTtl .n{background:#F1EFEA;border-radius:9px;padding:1px 7px;font-size:10px;color:#5C574E;font-weight:600}
+.vhSpecs{margin:0;padding:2px 15px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.vhSpecs>div{padding:9px 0;border-bottom:1px solid #F3F1EC;min-width:0}
+.vhSpecs dt{font-size:10px;color:#8C877D;margin-bottom:3px}
+.vhSpecs dd{margin:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vhCard .match{margin:0;padding:10px 15px 12px;font-size:13px;font-weight:700;color:var(--amber)}
+.vhCard .match:empty{display:none}
+
+.vhQrRow{display:flex;gap:8px}
+.vhQrBtn{flex:1;min-height:42px;font-size:12px;font-weight:600;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:#44443F;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* 進捗 */
+.vhProg{padding:15px}
+.vhProgHd{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.vhProgHd h3{margin:0;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em}
+.vhProgHd .marks{margin-left:auto;display:flex;align-items:center;gap:4px}
+.vhMark{width:24px;height:24px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vhMyCheck{width:26px;height:26px;border-radius:50%;border:1px dashed #C9C4BA;background:var(--panel);color:#A8A299;font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;min-height:0}
+.vhMyCheck.on{border:1px solid transparent;color:#fff}
+.vhBars{display:flex;gap:4px;margin-bottom:8px}
+.vhBars i{flex:1;height:4px;border-radius:2px;background:#EFEDE8}
+.vhLabels{display:flex;gap:4px;margin-bottom:15px}
+.vhLabels span{flex:1;font-size:10px;text-align:center;color:#A8A299}
+.vhLabels span.on{font-weight:700}
+.vhProgFoot{display:flex;align-items:center;gap:9px}
+.vhStaff{display:flex;align-items:center;gap:7px;flex:1;min-width:0;font-size:12px;color:#767168;background:none;border:0;padding:0;font-family:inherit;text-align:left;min-height:0}
+.vhAv{width:29px;height:29px;border-radius:50%;background:#EAEFF4;color:#3D6184;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vhNext{min-height:38px;padding:0 15px;font-size:12px;font-weight:700;border-radius:10px;border:1px solid #2E4A66;background:#2E4A66;color:#fff;cursor:pointer;font-family:inherit;flex-shrink:0}
+
+/* 作業メニュー(この車両で何をしますか) */
+.actGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.actCard{min-height:108px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;padding:13px;border-radius:13px;cursor:pointer;text-align:left;background:var(--panel);border:1px solid var(--line);font-family:inherit;color:var(--txt)}
+.actCard:active{border-color:var(--amber)}
+.actIco{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;background:#F1EFEA}
+.actIco.blue{background:#EAEFF4}.actIco.green{background:#E9F1EE}.actIco.amber{background:#F5EDE4}.actIco.purple{background:#F0ECF4}
+.actTtl{font-size:14px;font-weight:700}
+.actSub{font-size:10px;line-height:1.5;color:#767168}
+
+/* 申し送り */
+.vhMemoRow{display:flex;gap:10px;padding:12px 15px;border-bottom:1px solid #F3F1EC}
+.vhMemoAv{width:26px;height:26px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vhMemoBody{flex:1;min-width:0}
+.vhMemoWho{display:flex;align-items:baseline;gap:7px;margin-bottom:3px}
+.vhMemoWho b{font-size:12px}
+.vhMemoWho span{font-size:10px;color:#8C877D}
+.vhMemoTx{display:block;font-size:13px;line-height:1.65;color:#44443F;word-break:break-word;white-space:pre-wrap}
+.vhMemoAdd{margin:11px 15px;width:calc(100% - 30px);min-height:42px;font-size:13px;font-weight:600;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:#44443F;font-family:inherit}
+.vhMemoNone{padding:14px 15px;font-size:12px;color:#A8A299}
+/* 進捗カードの中の状態チップ */
+.vhProgHd .hiSt{font-size:11px;font-weight:600;border-radius:7px;padding:4px 8px;letter-spacing:0}
+.vhProgHd .hiSt.stIn{background:#F1EFEA;color:#5C574E}
+.vhProgHd .hiSt.stWork{background:#EAEFF4;color:#2E4A66}
+.vhProgHd .hiSt.stDone{background:#E9F1EE;color:#35584D}
+.vhProgHd .hiSt.stWait{background:#F5EDE4;color:#74512C}

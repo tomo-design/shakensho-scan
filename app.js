@@ -2157,10 +2157,12 @@ function showResult(d, opt = {}) {
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
+  toggle("fallbackLinks", false);   // 車両表示中はホームの入口を出さない
   scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
-  setText("rUser", noEmail(histEntry && histEntry.name) || "—");   // メール混入は表示しない
+  const _nm = noEmail(histEntry && histEntry.name) || "";   // メール混入は表示しない
+  setText("rUser", _nm); toggle("rUser", !!_nm);
   // QR生データがあり、未取得項目があればAI解析(自動実行・タップ不要)
   current.qrRaw = d.qrRaw && d.qrRaw.length ? d.qrRaw : (current.qrRaw || []);
   // 表示項目: 車名(分かる時だけ) / 型式 / 車台番号 / 原動機型式 / 登録番号 / 指定・類別 / 使用者
@@ -2175,6 +2177,10 @@ function showResult(d, opt = {}) {
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
+  const _ex = d.expiry ? String(d.expiry) : "";
+  setText("rExpiry", _ex ? _ex.replace(/-/g, "/") : "—"); toggle("rExpiryBox", !!_ex);
+  const _fr = d.firstReg;
+  setText("rFirstReg", (_fr && _fr.year) ? (_fr.year + "/" + pad2(_fr.month)) : "—"); toggle("rFirstRegBox", !!(_fr && _fr.year));
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
   // 先に履歴へ統合保存(=ridを確定)してから「前回車両」カードを書く。
   // これをしないと、車台番号・登録番号が無い型式のみの車両で、カードのrid/使用者名/原動機型式が
@@ -2184,6 +2190,7 @@ function showResult(d, opt = {}) {
   if (typeof pushRecentVehicle === "function") pushRecentVehicle(d);  // 表示した車両を記録(前回=最後に表示していた車両)
   toggle("lastVehicle", false);   // 車両を表示中は「前回の車両」チップは出さない(ホームでのみ表示)
   try { updateVidIntakeBtn(d); } catch (e) {}   // カードの「区分選択」ボタンの表示/ラベルを更新
+  try { renderVehicleIntake(); } catch (e) {}   // 入庫チップ・進捗・申し送り
 
   // DB照合: 型式のハイフン以降(無ければ全体)
   let hit = null;
@@ -3764,7 +3771,10 @@ function updateVidIntakeBtn(d) {
   if (!on) return;
   const e = d ? findHistEntry(getHistory(), d) : null;
   const active = e && e.intakeKind && INTAKE_KINDS[e.intakeKind] && !e.intakeOut;
-  btn.textContent = active ? ("🚦 区分：" + INTAKE_KINDS[e.intakeKind].label + " ▾") : "🚦 区分選択";
+  btn.classList.add("vhKind");
+  Object.keys(INTAKE_KINDS).forEach(k => btn.classList.remove(INTAKE_KINDS[k].cls));
+  if (active) btn.classList.add(INTAKE_KINDS[e.intakeKind].cls);
+  btn.textContent = active ? (INTAKE_KINDS[e.intakeKind].label + " ▾") : "🚦 区分選択";
 }
 function openIntakeForCurrent() {
   if (!current) return;
@@ -4109,6 +4119,7 @@ function renderIntakeToolbar(all, shown) {
   box.appendChild(bar);
 }
 function renderIntakeBoard() {
+  try { renderVehicleIntake(); } catch (e) {}   // 車両カードの進捗も一緒に最新化
   const sec = $("intakeBoard"), box = $("ibList"); if (!sec || !box) return;
   const all = activeIntakes();
   notifyNewIntakes(all);   // 他端末からの新規入庫を音＋ポップアップで通知
@@ -4141,6 +4152,93 @@ function renderIntakeBoard() {
   renderIntakeDetail([]);
   try { bindIntakeCal(); } catch (e) {}
   toggle("intakeBoard", true);
+}
+
+/* 申し送りの時刻表示(今日 10:12 / 昨日 16:40 / 10/22) */
+function cmtWhen(at) {
+  if (!at) return "";
+  const d = new Date(at), n = new Date();
+  const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const hm = d.getHours() + ":" + pad2(d.getMinutes());
+  if (same(d, n)) return "今日 " + hm;
+  if (same(d, new Date(n.getTime() - 86400000))) return "昨日 " + hm;
+  return (d.getMonth() + 1) + "/" + d.getDate();
+}
+/* 進捗バーの色(4段階) */
+const STATUS_BAR = { "入庫": "#8C877D", "作業中": "#3D6184", "完了": "#4A7A6B", "引渡待": "#9A6B3C" };
+/* 車両カードの「入庫チップ・進捗・申し送り」。入庫していない車両では進捗と申し送りは出さない。 */
+function renderVehicleIntake() {
+  const chips = $("vhChips"), prog = $("vhProg"), memo = $("vhMemo");
+  if (!chips || !prog || !memo) return;
+  chips.querySelectorAll(".vhChip").forEach(x => x.remove());   // 区分ボタン以外は作り直す
+  prog.innerHTML = ""; toggle("vhProg", false);
+  memo.innerHTML = ""; toggle("vhMemo", false);
+  if (!current) return;
+  const h = findHistEntry(getHistory(), current);
+  if (!h) return;
+  const active = !!(h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut);
+  if (!active) return;
+
+  // 完検済 / 入庫N日目 / 入庫日
+  if (h.intakeKind === "車検" && h.inspDone) {
+    const c = document.createElement("span"); c.className = "vhChip done"; c.textContent = "完検済"; chips.appendChild(c);
+  }
+  const days = intakeDays(h);
+  const dc = document.createElement("span"); dc.className = "vhChip";
+  dc.textContent = days > 0 ? ("入庫 " + (days + 1) + "日目") : "本日入庫";
+  chips.appendChild(dc);
+  if (h.intakeAt) {
+    const t = new Date(h.intakeAt);
+    const at = document.createElement("span"); at.className = "vhChip at";
+    at.textContent = (t.getMonth() + 1) + "/" + t.getDate() + " 入庫";
+    chips.appendChild(at);
+  }
+
+  // 進捗(整備士が進める。レ点・担当・費用もここから)
+  const st = statusOf(h), stInfo = INTAKE_STATUS[st], sidx = STATUS_ORDER.indexOf(st);
+  const me = myConfirmId();
+  const confirms = Array.isArray(h.confirms) ? h.confirms : [];
+  const mine = confirms.some(c => c.id === me.id);
+  const marks = confirms.map(c =>
+    '<span class="vhMark" style="background:' + esc(c.color || "#767168") + '" title="' + esc(c.name || "") + ' 確認済み">' +
+    esc(String(c.name || "？").slice(0, 1)) + '</span>').join("");
+  const fee = FEE_STATES[feeStateOf(h)];
+  prog.innerHTML =
+    '<div class="vhProgHd"><h3>進捗</h3><span class="hiSt ' + stInfo.cls + '">' + esc(stInfo.label) + '</span>' +
+      '<span class="marks">' + marks +
+      '<button type="button" id="vhCheck" class="vhMyCheck' + (mine ? " on" : "") + '"' +
+        (mine ? ' style="background:' + esc(me.color) + '"' : '') + ' title="自分の確認レ点">✓</button></span></div>' +
+    '<div class="vhBars">' + STATUS_ORDER.map((k, i) =>
+      '<i' + (i <= sidx ? ' style="background:' + STATUS_BAR[k] + '"' : '') + '></i>').join("") + '</div>' +
+    '<div class="vhLabels">' + STATUS_ORDER.map((k, i) =>
+      '<span class="' + (i === sidx ? "on" : "") + '">' + esc(k) + '</span>').join("") + '</div>' +
+    '<div class="vhProgFoot">' +
+      '<button type="button" id="vhStaffBtn" class="vhStaff"><span class="vhAv">' + esc(String(h.staff || "？").slice(0, 1)) + '</span>' +
+        '<span>' + (h.staff ? "担当 " + esc(h.staff) : "担当を決める") + '</span></button>' +
+      (h.intakeKind === "車検" ? '<button type="button" id="vhFeeBtn" class="kbBtn kbFeeBtn ' + fee.cls + '">' + esc(fee.label) + '</button>' : "") +
+      '<button type="button" id="vhNextBtn" class="vhNext">進める</button>' +
+    '</div>';
+  toggle("vhProg", true);
+  const ck = $("vhCheck"); if (ck) ck.addEventListener("click", () => toggleConfirm(h.rid));
+  const sb = $("vhStaffBtn");
+  if (sb) { if (canEditIntake()) sb.addEventListener("click", () => pickStaff(h.rid)); else sb.disabled = true; }
+  const fb = $("vhFeeBtn"); if (fb) fb.addEventListener("click", () => cycleFee(h.rid));
+  const nb = $("vhNextBtn");
+  if (nb) nb.addEventListener("click", () => setIntakeStatus(h.rid, STATUS_ORDER[(sidx + 1) % STATUS_ORDER.length]));
+
+  // 申し送り(直近3件。全文と追記は既存のスレッドを開く)
+  const cs = getComments(h);
+  const rows = cs.slice(-3).map(c =>
+    '<div class="vhMemoRow"><span class="vhMemoAv" style="background:' + esc(c.color || colorForUser(c.id || c.name)) + '">' +
+      esc(String(c.name || "？").slice(0, 1)) + '</span>' +
+    '<span class="vhMemoBody"><span class="vhMemoWho"><b>' + esc(c.name || "担当") + '</b><span>' + esc(cmtWhen(c.at)) + '</span></span>' +
+    '<span class="vhMemoTx">' + esc(c.text || "") + '</span></span></div>').join("");
+  memo.innerHTML =
+    '<h2 class="vhCardTtl">申し送り' + (cs.length ? '<span class="n">' + cs.length + '</span>' : "") + '</h2>' +
+    (rows || '<div class="vhMemoNone">まだ申し送りはありません。</div>') +
+    '<button type="button" id="vhMemoAdd" class="vhMemoAdd">＋ 申し送りを書く</button>';
+  toggle("vhMemo", true);
+  const ma = $("vhMemoAdd"); if (ma) ma.addEventListener("click", () => openIntakeComments(h.rid));
 }
 
 /* 事務用の1行。進捗は表示のみ(整備士が更新する)。出庫・確認レ点はここには出さない。 */

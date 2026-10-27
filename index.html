@@ -186,24 +186,32 @@
 
   <!-- result -->
   <div id="result" class="hidden">
-    <div class="plate">
-      <div class="ttl">VEHICLE IDENTIFICATION</div>
-      <div class="vidName hidden" id="rModel"></div>
-      <dl>
-        <dt>型式</dt><dd id="rType" class="small">—</dd>
-        <dt>車台番号</dt><dd id="rVin" class="small">—</dd>
-        <dt>原動機型式</dt><dd id="rEngine" class="small">—</dd>
-        <dt>登録番号</dt><dd id="rPlate" class="small">—</dd>
-        <dt>指定・類別</dt><dd id="rKata" class="small">—</dd>
-        <dt>使用者</dt><dd id="rUser" class="small">—</dd>
-      </dl>
-      <div class="match" id="rMatch"></div>
+    <div class="vhHead" id="vidActions">
+      <div class="vhTop">
+        <div class="vhPlate" id="rPlate">—</div>
+        <button class="vhEdit" id="lnkFixRead" type="button" title="車両データを修正" aria-label="車両データを修正">✎</button>
+      </div>
+      <div class="vhSub"><span id="rModel" class="hidden"></span><span id="rUser">—</span></div>
+      <div class="vhChips" id="vhChips">
+        <button class="vhKind hidden" id="btnVidIntake" type="button">🚦 区分選択</button>
+      </div>
     </div>
 
-    <div class="btnRow" id="vidActions" style="margin-top:10px">
-      <button class="btn btn-ghost btn-sm" id="lnkFixRead" type="button">✎ 車両データを修正</button>
-      <button class="btn btn-cyan btn-sm hidden" id="btnVidIntake" type="button" style="margin-left:auto">🚦 区分選択</button>
-    </div>
+    <section class="vhCard vhProg hidden" id="vhProg"></section>
+
+    <section class="vhCard" id="vhInfo">
+      <h2 class="vhCardTtl">車両情報</h2>
+      <dl class="vhSpecs">
+        <div><dt>型式</dt><dd id="rType">—</dd></div>
+        <div><dt>車台番号</dt><dd id="rVin">—</dd></div>
+        <div><dt>原動機型式</dt><dd id="rEngine">—</dd></div>
+        <div><dt>指定・類別</dt><dd id="rKata">—</dd></div>
+        <div class="hidden" id="rExpiryBox"><dt>車検満了</dt><dd id="rExpiry">—</dd></div>
+        <div class="hidden" id="rFirstRegBox"><dt>初度登録</dt><dd id="rFirstReg">—</dd></div>
+      </dl>
+      <div class="match" id="rMatch"></div>
+    </section>
+
     <div id="vidSavedMsg" class="hint hidden" style="margin-top:6px"></div>
 
     <div id="vidEdit" class="hidden" style="margin-top:10px">
@@ -225,27 +233,22 @@
     </div>
 
     <div id="aiQrParse" class="hidden" style="margin-top:10px">
-      <div class="btnRow" style="margin-top:0">
-        <button class="btn btn-ghost" id="btnAiQr"><img src="img/qrmecha.png" class="btnMecha" alt="">QR解析</button>
+      <div class="vhQrRow">
+        <button class="vhQrBtn" id="btnAiQr" type="button"><img src="img/qrmecha.png" class="btnMecha" alt="">QR解析（残りの項目をAIで）</button>
       </div>
       <div id="aiQrStatus" class="hint hidden" style="margin-top:6px"></div>
     </div>
 
     <!-- 認識後の行き先選択 -->
     <div id="choicePanel">
-      <div class="choice-q">この車両で何をしますか？</div>
-      <div class="btnRow" style="margin-top:10px">
-        <button class="btn btn-ghost btn-big" id="btnGoMaint">🔧 メンテナンスデータを見る<small>オイル量・トルク・定番故障・リコール</small></button>
+      <h2 class="homeTtl">この車両で何をしますか</h2>
+      <div class="actGrid">
+        <button class="actCard" id="btnGoMaint" type="button"><span class="actIco blue">🔧</span><span class="actTtl">メンテ諸元</span><span class="actSub">オイル量・トルク・定番故障・リコール</span></button>
+        <button class="actCard" id="btnGoDiag" type="button"><span class="actIco purple">🩺</span><span class="actTtl">故障診断</span><span class="actSub">ダイアグコード・問診から原因究明</span></button>
+        <button class="actCard" id="btnGoParts" type="button"><span class="actIco amber">🛠</span><span class="actTtl">修理・部品</span><span class="actSub">部品の洗い出し・注文リスト作成</span></button>
+        <button class="actCard" id="btnGoKarte" type="button"><span class="actIco green">📋</span><span class="actTtl">整備カルテ</span><span class="actSub">作業記録・社内共有・写真で入力</span></button>
       </div>
-      <div class="btnRow">
-        <button class="btn btn-ghost btn-big" id="btnGoDiag">🩺 故障診断をする<small>ダイアグコード・問診から原因究明</small></button>
-      </div>
-      <div class="btnRow">
-        <button class="btn btn-ghost btn-big" id="btnGoParts">🛠 修理（部品・注文リスト）<small>必要部品の洗い出し・取付位置・注文リスト作成</small></button>
-      </div>
-      <div class="btnRow">
-        <button class="btn btn-ghost btn-big" id="btnGoKarte">📋 整備カルテ（作業記録）<small>作業内容を記録・社内で共有／写真で入力も</small></button>
-      </div>
+      <section class="vhCard vhMemo hidden" id="vhMemo"></section>
     </div>
 
   </div>
