@@ -2053,7 +2053,14 @@ function renderRepairAnswer(box, obj, q) {
   kids.forEach(el => {
     if (el.classList.contains("ai-h")) {
       const det = document.createElement("details"); det.className = "repairSec";   // 初期は閉じる
-      const sm = document.createElement("summary"); sm.className = "repairSecSum"; sm.innerHTML = el.innerHTML;
+      const sm = document.createElement("summary"); sm.className = "repairSecSum";
+      // 見出しに項目ごとのアイコンを付け、点数などの補足は右端へ(案C)
+      const cl = el.cloneNode(true);
+      const lg = cl.querySelector(".orderLegend"); if (lg) lg.remove();
+      const ttl = (cl.textContent || "").trim();
+      const icKey = Object.keys(REPAIR_ICONS).find(k => ttl.indexOf(k) === 0);
+      sm.innerHTML = '<span class="rsIco">' + (icKey ? REPAIR_ICONS[icKey] : "🔹") + '</span>' +
+        '<span class="rsTtl">' + cl.innerHTML + '</span>' + (lg ? lg.outerHTML : "");
       const bd = document.createElement("div"); bd.className = "repairSecBody";
       det.append(sm, bd); box.appendChild(det); curBody = bd;
     } else if (curBody) { curBody.appendChild(el); }
@@ -3637,6 +3644,11 @@ function plateLast4(p) {
 /* 入庫からの経過日数 */
 function intakeDays(h) { return h && h.intakeAt ? Math.floor((Date.now() - h.intakeAt) / 86400000) : 0; }
 /* ===== レ点(確認済み): 入庫管理ログイン者ごとに固定色。打つと自分の色の✓が横1列に並ぶ ===== */
+/* 修理の各項目の見出しアイコン(案C) */
+const REPAIR_ICONS = {
+  "取り付け位置": "📍", "所要時間": "⏱", "部品注文リスト": "🧩", "別途必要な工具": "🔧",
+  "特殊作業": "⚠", "交換手順": "📝", "締付トルク": "🔩", "手動": "🛠",
+};
 const CONFIRM_COLORS = ["#3D6184", "#4A7A6B", "#9A6B3C", "#8A3A2E", "#6F5B82", "#2E6E7E", "#A3566B", "#6E7A3C", "#8A7430", "#4C5A86", "#3F7A72", "#7A5C8A"];
 /* uid/名前から固定色を決定的に割当(毎回同じ色) */
 function colorForUser(key) {

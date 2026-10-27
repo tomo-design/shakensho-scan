@@ -692,14 +692,16 @@ textarea.kGrow{overflow:hidden;resize:none;min-height:48px}
 .ai-h.orderHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .orderHead .orderLegend{font-size:10px;font-weight:600;color:var(--dim);opacity:.75;letter-spacing:0}
 /* 修理タブ: 各項目を折り畳み式に */
-.repairSec{margin:16px 0 0}
+.repairSec{margin:0 0 9px;background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
 .repairSec:first-child{margin-top:2px}
-.repairSec>summary{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--txt);padding:10px 12px;background:var(--panel2);border-left:4px solid var(--amber);border-radius:8px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.repairSec>summary{font-size:14px;font-weight:700;color:var(--txt);padding:13px 14px;background:var(--panel);cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+.rsIco{width:32px;height:32px;border-radius:9px;background:#F1EFEA;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.rsTtl{flex:1;min-width:0}
 .repairSec>summary::-webkit-details-marker{display:none}
 .repairSec>summary::after{content:"▾";flex:none;color:var(--dim);font-size:12px;transition:transform .15s}
 .repairSec[open]>summary::after{transform:rotate(180deg)}
-.repairSec>summary .orderLegend{margin-left:auto;font-size:10px;font-weight:600;color:var(--dim);opacity:.75}
-.repairSecBody{padding:8px 2px 2px}
+.repairSec>summary .orderLegend{font-size:11px;font-weight:400;color:#8C877D;opacity:1;white-space:nowrap}
+.repairSecBody{padding:0 14px 12px;border-top:1px solid #EFEDE8}
 .repairSecBody .ai-h{display:none}
 .orderToolNote{font-size:11.5px;color:var(--dim);margin:0 0 8px 16px}
 .toolTag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:8px;vertical-align:middle;white-space:nowrap}
