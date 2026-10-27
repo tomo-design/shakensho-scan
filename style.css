@@ -2302,3 +2302,24 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .specItem.specManual:not(.editing) .specV{color:#2A4A41}
 .specItem .specTapHint{display:none}
 .specItem:not(.editing) .specVar{display:block;font-size:10px;font-weight:700;color:#2E4A66;margin-bottom:3px;text-align:right}
+
+/* ===== 案C / 履歴・車両検索 ===== */
+.hxHead{display:flex;align-items:baseline;gap:10px;margin:14px 2px 11px}
+.hxHead h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.02em}
+.hxCount{font-size:12px;color:#767168}
+.hxSearch{width:100%;box-sizing:border-box;min-height:44px;padding:0 13px;font-size:14px;border:1px solid var(--line);
+  border-radius:11px;background:var(--panel);margin-bottom:11px;font-family:inherit;color:var(--txt)}
+.hxFilters{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:10px}
+.hxChip{min-height:34px;padding:0 15px;font-size:13px;font-weight:600;border-radius:17px;cursor:pointer;flex-shrink:0;
+  border:1px solid var(--line);background:var(--panel);color:#767168;font-family:inherit}
+.hxChip.on{border-color:#3D6184;background:#EAEFF4;color:#2E4A66}
+.hxNote{margin:0 2px 10px;font-size:10px;line-height:1.65;color:#A8A299}
+.hTop{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.hPlate{flex:1;min-width:0;font-size:16px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hFoot{display:flex;align-items:center;gap:9px;margin-top:7px}
+.hExp{font-size:11px;font-weight:600;border-radius:7px;padding:3px 8px;background:#F1EFEA;color:#5C574E;flex-shrink:0}
+.hExp.near{background:#F5EDE4;color:#74512C}
+.hExp.soon{background:#F6E9E6;color:#8A3A2E}
+.hExp.over{background:#8A3A2E;color:#fff}
+.hLast{font-size:11px;color:#8C877D;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hKarte{font-size:11px;color:#8C877D;flex-shrink:0}

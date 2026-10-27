@@ -5065,23 +5065,57 @@ function histToResult(h) {
     raw: [h.type, h.vin, h.plate].filter(Boolean),
   };
 }
+/* 履歴の検索欄・絞り込みチップ */
+(() => {
+  const q = document.getElementById("hxQ");
+  if (q) q.addEventListener("input", () => { _hxQ = q.value || ""; renderHistory(); });
+  document.querySelectorAll(".hxChip").forEach(b =>
+    b.addEventListener("click", () => { _hxF = b.dataset.f || "all"; renderHistory(); }));
+})();
+/* 履歴の絞り込み(この端末のみ・保存はしない) */
+let _hxQ = "", _hxF = "all";
+/* 満了まで何日か(expiry="YYYY-MM-DD")。不明なら null。 */
+function expiryDays(h) {
+  if (!h || !h.expiry) return null;
+  const t = Date.parse(String(h.expiry));
+  if (isNaN(t)) return null;
+  return Math.floor((t - Date.now()) / 86400000);
+}
+function histMatches(h) {
+  if (_hxF === "yard" && !(h.intakeKind && INTAKE_KINDS[h.intakeKind] && !h.intakeOut)) return false;
+  if (_hxF === "near") { const d = expiryDays(h); if (d === null || d > 60) return false; }
+  const q = _hxQ.trim();
+  if (!q) return true;
+  const hay = [h.plate, h.name, h.type, h.vin, h.engine].map(x => normPlate(String(x || ""))).join(" ");
+  return hay.indexOf(normPlate(q)) >= 0;
+}
 function renderHistory() {
   try { renderIntakeBoard(); } catch (e) {}   // 入庫ボードも同期(クラウド反映時に最新化)
   try { renderHomeIntake(); } catch (e) {}   // ホームの入庫状況(管理者)も最新化
   try { if (typeof window.__cmtRefresh === "function") window.__cmtRefresh(); } catch (e) {}   // 開いているコメントスレッドをリアルタイム更新
-  const hist = dedupeHistoryStore();
+  const all = dedupeHistoryStore();
   const box = $("histList"); box.innerHTML = "";
-  if (!hist.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
+  const cnt = $("hxCount"); if (cnt) cnt.textContent = all.length ? all.length + "台" : "";
+  document.querySelectorAll(".hxChip").forEach(b => b.classList.toggle("on", b.dataset.f === _hxF));
+  if (!all.length) { box.innerHTML = '<div class="empty"><img src="img/mecha.png" class="mascot-mini" alt="メカ君"><br>履歴はまだないよ。<br>車検証をスキャンするとここに記録されます。</div>'; return; }
+  const hist = all.filter(histMatches);
+  if (!hist.length) { box.innerHTML = '<div class="empty">条件に合う車両はありません。</div>'; return; }
   hist.forEach(h => {
     const div = document.createElement("div"); div.className = "histItem";
     const slide = document.createElement("div"); slide.className = "hSlide";
     const main = document.createElement("div"); main.className = "hMain";
     const dt = new Date(h.at);
     const title = [h.plate, h.name].map(dispText).filter(Boolean).join(" ／ ") || dispText(h.type) || "型式不明";
-    main.innerHTML = '<div class="hType">' + esc(title) + '</div>' +
-      '<div class="hSub">' + esc(dispText(h.type) || "型式不明") + " ・ " + esc(dispText(h.vin) || "車台番号なし") + " ・ " +
-      dt.getFullYear() + "/" + String(dt.getMonth()+1).padStart(2,"0") + "/" + String(dt.getDate()).padStart(2,"0") +
-      " " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0") + "</div>";
+    const ed = expiryDays(h);
+    const expCls = ed === null ? "" : (ed < 0 ? " over" : ed <= 30 ? " soon" : ed <= 60 ? " near" : "");
+    const expTxt = (ed === null) ? "満了日 不明"
+      : (ed < 0 ? "満了切れ " : "満了 ") + fmtYMD(h.expiry);
+    const kn = (h.karte || []).filter(k => k && !k.deleted).length;
+    main.innerHTML = '<div class="hTop"><span class="hPlate">' + esc(title) + '</span></div>' +
+      '<div class="hSub">' + esc(dispText(h.type) || "型式不明") + " ・ " + esc(dispText(h.vin) || "車台番号なし") + '</div>' +
+      '<div class="hFoot"><span class="hExp' + expCls + '">' + esc(expTxt) + '</span>' +
+      '<span class="hLast">最終入庫 ' + dt.getFullYear() + "/" + String(dt.getMonth() + 1).padStart(2, "0") + "/" + String(dt.getDate()).padStart(2, "0") + '</span>' +
+      (kn ? '<span class="hKarte">カルテ ' + kn + '</span>' : "") + '</div>';
     main.addEventListener("click", () => showResult(histToResult(h), { fromScan: false }));
     slide.appendChild(main);
     // 入庫区分は法人版の管理者のみ表示(個人版には出さない)

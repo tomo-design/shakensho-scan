@@ -515,10 +515,15 @@
 
 <!-- ============ VIEW: HISTORY ============ -->
 <div id="view-history" class="view">
-  <section style="margin-top:14px">
-    <h2><span class="tag cy">LOG</span>スキャン履歴</h2>
-    <div id="histList"></div>
-  </section>
+  <div class="hxHead"><h1>履歴・車両検索</h1><span id="hxCount" class="hxCount"></span></div>
+  <input id="hxQ" type="search" class="hxSearch" placeholder="ナンバー・使用者・型式で検索" autocomplete="off">
+  <div class="hxFilters">
+    <button type="button" class="hxChip on" data-f="all">すべて</button>
+    <button type="button" class="hxChip" data-f="yard">入庫中</button>
+    <button type="button" class="hxChip" data-f="near">満了が近い</button>
+  </div>
+  <p class="hxNote">タップで車両カードへ。行を左にスワイプすると削除が出ます（管理者のみ）。</p>
+  <div id="histList"></div>
   <p class="note">履歴には型式・車台番号・日時のみ保存されます（この端末内のみ）。</p>
 </div>
 
