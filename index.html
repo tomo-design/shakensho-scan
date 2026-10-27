@@ -649,6 +649,35 @@
     <button type="button" id="pocketTrialBtn" style="display:inline-block;border:0;background:rgba(46,74,102,.9);color:#fff;font-size:12.5px;line-height:1.4;padding:8px 16px;border-radius:16px;cursor:pointer"></button>
   </div>
 
+  <div id="setAccount" class="setAcct hidden"></div>
+
+  <div id="setPushCard" class="setPushCard hidden">
+    <div class="spTop"><span class="setIco amber" aria-hidden="true">🔔</span>
+      <span class="setTx"><b>プッシュ通知を許可する</b><span>アプリを開いていなくても新しい入庫が届きます</span></span></div>
+    <button type="button" class="spBtn" id="btnSetPush">許可する（1回だけ）</button>
+    <p class="spNote">iPhoneは「ホーム画面に追加」したアプリでのみ動きます（Safariのタブ単体・LINE等のアプリ内ブラウザは不可）。</p>
+  </div>
+
+  <h2 class="setGrp">表示</h2>
+  <section class="setList">
+    <button type="button" class="setItem" id="rowLang"><span class="setIco blue" aria-hidden="true">🌐</span>
+      <span class="setTx"><b>言語</b><span>アプリ全体の表示言語</span></span><span class="setVal" id="valLang">日本語</span></button>
+    <button type="button" class="setItem" id="rowFont"><span class="setIco grey" aria-hidden="true">🔤</span>
+      <span class="setTx"><b>文字の大きさ</b><span>現場で読みやすいサイズに</span></span><span class="setVal" id="valFont">標準</span></button>
+    <button type="button" class="setItem" id="rowOffice"><span class="setIco purple" aria-hidden="true">🏢</span>
+      <span class="setTx"><b>事務用モード</b><span>この端末を入庫管理だけの画面にする（スキャン・AIは非表示）</span></span><span class="setVal">切替</span></button>
+  </section>
+
+  <h2 class="setGrp">作業</h2>
+  <section class="setList">
+    <div class="setItem"><span class="setIco amber" aria-hidden="true">🔔</span>
+      <span class="setTx"><b>新規入庫の通知</b><span>他の端末で入庫されたら知らせる</span></span>
+      <button type="button" class="setSw" id="swIntake" role="switch" aria-label="新規入庫の通知"></button></div>
+    <div class="setItem"><span class="setIco grey" aria-hidden="true">🔊</span>
+      <span class="setTx"><b>通知音</b><span>入庫・コメントの着信音</span></span>
+      <button type="button" class="setSw" id="swSound" role="switch" aria-label="通知音"></button></div>
+  </section>
+
   <h2 class="setGrp">会社</h2>
   <section id="secVehDb">
     <h2><span class="tag cy">DB</span>車種データの編集</h2>

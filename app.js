@@ -3909,6 +3909,7 @@ function notifyNewIntakes(list) {
   saveIntakeSeen(seen);   // 今ボードにある車両は「既知」として必ず記録(通知の有無に関わらず)
   // 起動直後(8秒)はログイン→クラウド同期の遅延で既存車両が"新規"扱いになるため、通知せず記録だけ。
   if ((Date.now() - _intakePageLoadAt) < 8000) return;
+  if (!intakeNotifyOn()) return;   // 設定「新規入庫の通知」がOFF
   if (!officeMode()) return;   // 通知は事務用モードの端末のみ(通常ログインには出さない)
   if (!fresh.length) return;
   const h = fresh[0];
@@ -8250,6 +8251,79 @@ function setPageTitles() {
   const t = current ? (han(current.plate) || dispText(current.type) || "車両") : "車両";
   document.querySelectorAll(".pnTtl:not(.pnTtlFixed)").forEach(e => { e.textContent = t; });
 }
+/* ===== 設定「表示」「作業」 ===== */
+/* 文字の大きさ(標準/大/特大)。本文の表示領域だけを拡大し、下タブや固定の画面は等倍のままにする。 */
+const FONT_STEPS = [["std", "標準"], ["large", "大"], ["xl", "特大"]];
+function fontScale() { try { return localStorage.getItem("ss_fontScale") || "std"; } catch (e) { return "std"; } }
+function applyFontScale() {
+  const v = fontScale();
+  document.body.classList.toggle("fsL", v === "large");
+  document.body.classList.toggle("fsXL", v === "xl");
+  const lbl = (FONT_STEPS.find(x => x[0] === v) || FONT_STEPS[0])[1];
+  setText("valFont", lbl);
+}
+function cycleFontScale() {
+  const i = FONT_STEPS.findIndex(x => x[0] === fontScale());
+  const next = FONT_STEPS[(i + 1 + FONT_STEPS.length) % FONT_STEPS.length][0];
+  try { localStorage.setItem("ss_fontScale", next); } catch (e) {}
+  applyFontScale();
+}
+/* 通知音・新規入庫の通知(どちらも既定ON。この端末のみ) */
+function soundOn() { try { return localStorage.getItem("ss_sound") !== "0"; } catch (e) { return true; } }
+function intakeNotifyOn() { try { return localStorage.getItem("ss_notifyIntake") !== "0"; } catch (e) { return true; } }
+function syncSettingSwitches() {
+  const a = $("swIntake"); if (a) { a.classList.toggle("on", intakeNotifyOn()); a.setAttribute("aria-checked", intakeNotifyOn() ? "true" : "false"); }
+  const b = $("swSound"); if (b) { b.classList.toggle("on", soundOn()); b.setAttribute("aria-checked", soundOn() ? "true" : "false"); }
+  setText("valLang", (localStorage.getItem("ss_lang") === "en") ? "English" : "日本語");
+}
+/* 設定の先頭: アカウント(名前・店舗・役割・プラン・端末・人数)とプッシュ通知の案内 */
+function renderSetAccount() {
+  const box = $("setAccount"); if (!box) return;
+  const C = window.Cloud;
+  const inWorks = !!(C && typeof C.isLoggedIn === "function" && C.isLoggedIn() && getAppMode() !== "personal");
+  if (!inWorks) { box.innerHTML = ""; toggle("setAccount", false); toggle("setPushCard", false); return; }
+  const name = (typeof C.myName === "function" && C.myName()) || "";
+  const shop = (typeof C.tenantName === "function" && C.tenantName()) || "";
+  const role = (typeof C.myRole === "function" && C.myRole()) || "";
+  const roleJa = role === "admin" ? "管理者" : role === "super" ? "運営" : "メンバー";
+  const tier = (typeof C.planTierName === "function" && C.planTierName()) || "";
+  const dev = (typeof C.deviceInfo === "function" && C.deviceInfo()) || null;
+  const mem = (typeof C.memberCount === "function" && C.memberCount()) || 0;
+  const chips = [tier ? tier + " プラン" : "", dev ? "端末 " + dev.used + " / " + dev.limit : "", mem ? "メンバー " + mem + "名" : ""].filter(Boolean);
+  box.innerHTML =
+    '<div class="saTop"><span class="saAv">' + esc(String(name || "？").slice(0, 1)) + '</span>' +
+      '<span class="saTx"><b>' + esc(name || "—") + '</b><span>' + esc([shop, roleJa].filter(Boolean).join(" ・ ")) + '</span></span></div>' +
+    (chips.length ? '<div class="saChips">' + chips.map(c => '<span>' + esc(c) + '</span>').join("") + '</div>' : "");
+  toggle("setAccount", true);
+  // プッシュ通知の案内は「まだ許可していない時」だけ出す
+  const on = !!(C && typeof C.pushEnabled === "function" && C.pushEnabled());
+  toggle("setPushCard", !on && typeof C.enablePush === "function");
+}
+(() => {
+  const lang = $("rowLang");
+  if (lang) lang.addEventListener("click", () => { const b = $("langToggle"); if (b) b.click(); setTimeout(syncSettingSwitches, 60); });
+  const font = $("rowFont"); if (font) font.addEventListener("click", cycleFontScale);
+  const off = $("rowOffice");
+  if (off) off.addEventListener("click", () => {
+    const chk = document.getElementById("officeModeChk");
+    if (chk) { chk.checked = !chk.checked; chk.dispatchEvent(new Event("change")); return; }
+    if (!confirm("この端末を入庫管理画面にします。スキャンやAIなどは表示されなくなります。よろしいですか？")) return;
+    try { localStorage.setItem("ss_office", "1"); } catch (e) {}
+    try { applyOfficeMode(); } catch (e) {}
+  });
+  const si = $("swIntake");
+  if (si) si.addEventListener("click", () => { try { localStorage.setItem("ss_notifyIntake", intakeNotifyOn() ? "0" : "1"); } catch (e) {} syncSettingSwitches(); });
+  const ss = $("swSound");
+  if (ss) ss.addEventListener("click", () => { try { localStorage.setItem("ss_sound", soundOn() ? "0" : "1"); } catch (e) {} syncSettingSwitches(); });
+  const bp = $("btnSetPush");
+  if (bp) bp.addEventListener("click", async () => {
+    if (!(window.Cloud && typeof window.Cloud.enablePush === "function")) { uiAlert("通知はこの環境では使えません。"); return; }
+    bp.disabled = true; bp.textContent = "設定中…";
+    try { const r = await window.Cloud.enablePush(); uiAlert(r && r.msg); } catch (e) {}
+    finally { bp.disabled = false; bp.textContent = "許可する（1回だけ）"; renderSetAccount(); try { window.syncPushBtn && window.syncPushBtn(); } catch (e) {} }
+  });
+  try { applyFontScale(); syncSettingSwitches(); } catch (e) {}
+})();
 /* 設定の各項目を「アイコン＋名前＋説明」の行にする(案C)。中の操作は変えない。 */
 const SET_ROWS = {
   secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り" },
@@ -8304,7 +8378,7 @@ function switchView(name) {
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  if (name === "settings") { try { decorateSettingRows(); syncSettingGroups(); } catch (e) {} }
+  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
@@ -8572,7 +8646,7 @@ function playChime() {
 }
 /* 画面内の注意ポップアップ(音付き)。onOpenで詳細画面へ誘導できる */
 function notifyAttention(title, body, onOpen) {
-  playChime();
+  if (soundOn()) playChime();
   if (navigator.vibrate) { try { navigator.vibrate([120, 60, 120]); } catch (e) {} }
   let m = document.getElementById("notifyPop");
   if (!m) {

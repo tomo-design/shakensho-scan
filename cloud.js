@@ -1067,6 +1067,12 @@
     aiPlanName() { return tierName(); },
     // 店舗メンバー名簿(uid/name)。カルテ担当者の候補表示などに使用。
     tenantMembers() { return tenantMembers.map(m => ({ uid: m.uid, name: m.name })); },
+    /* ここから下は表示専用(設定の先頭カード)。ログイン・認証の処理には関係しない。 */
+    tenantName() { return (tenantDoc && tenantDoc.name) || (profile && profile.tenantId) || ""; },
+    planTier() { return tierCode(); },
+    planTierName() { return tierName(); },
+    deviceInfo() { return { used: (profile && Array.isArray(profile.devices)) ? profile.devices.length : 0, limit: deviceLimitOf() }; },
+    memberCount() { return tenantMembers.length; },
     // カルテ担当者テキスト→メンバー特定({uid,name} or null)。苗字/名前・漢字/カナ/かな/ローマ字で照合。
     resolveMember(text) { return resolveMember(text); },
     // Functions呼び出し(mecha/visionOcr/createCheckout)を通常HTTP+IDトークンで実行(callableは使わない)。
