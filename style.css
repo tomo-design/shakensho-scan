@@ -1490,10 +1490,10 @@ body.gated{overflow:hidden}
 .agEd.ed-works{background:#3D6184;color:#fff}
 .agEd.ed-pocket{background:#4A7A6B;color:#fff}
 /* Pocketの主ボタン=ログイン。薄い青の塗り(青文字)。詳細度を上げて.agBtnに勝たせる。 */
-.agBtn.agPocketLoginBtn{background:#EAEFF4;color:#3D6184;border-color:#C9D6E2;font-weight:800}
+.agBtn.agPocketLoginBtn{background:#3D6184;color:#fff;border-color:#3D6184;font-weight:700}
 .agBtn.agPocketLoginBtn:active{filter:brightness(.97)}
 /* Worksの主ボタン=ログイン。青ベタをやめてPocketと同じ薄い青の塗りに揃える。 */
-.agBtn.agWorksLoginBtn{background:#EAEFF4;color:#3D6184;border-color:#C9D6E2;font-weight:800}
+.agBtn.agWorksLoginBtn{background:#3D6184;color:#fff;border-color:#3D6184;font-weight:700}
 .agBtn.agWorksLoginBtn:active{filter:brightness(.97)}
 /* 「会社を新規登録 / 参加」は必ず1行に収める(はみ出す端末では自動で少し縮小) */
 .agBtn.agNewBtn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
