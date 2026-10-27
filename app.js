@@ -2165,7 +2165,6 @@ function showResult(d, opt = {}) {
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   toggle("fallbackLinks", false);   // 車両表示中はホームの入口を出さない
-  toggle("vehEmpty", false);
   scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
@@ -4952,7 +4951,11 @@ function applyOfficeMode() {
 let _hiAll = false;   // ホームの入庫状況を全件表示するか
 function renderHomeIntake() {
   const sec = $("homeIntake"), box = $("hiList"); if (!sec || !box) return;
-  const onHome = !$("mechaHero") || !$("mechaHero").classList.contains("hidden");
+  // ホーム = スキャン画面で、メカ君ヒーローが出ていて、車両カードを開いていない時だけ
+  const _res = $("result"), _hero = $("mechaHero");
+  const onHome = (typeof curView === "undefined" || curView === "scan") &&
+                 (!_hero || !_hero.classList.contains("hidden")) &&
+                 (!_res || _res.classList.contains("hidden"));
   const isDemoNow = (typeof isDemo === "function" && isDemo());
   // デモ版では実データの入庫状況を出さない。ログイン中の管理者のみ表示
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
@@ -8325,7 +8328,6 @@ function renderSetAccount() {
   });
   try { applyFontScale(); syncSettingSwitches(); } catch (e) {}
 })();
-(() => { const b = $("btnVehEmptyScan"); if (b) b.addEventListener("click", () => goHome()); })();
 /* 設定の各項目を「アイコン＋名前＋説明」の行にする(案C)。中の操作は変えない。 */
 const SET_ROWS = {
   secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り",
@@ -8370,11 +8372,10 @@ function syncSettingGroups() {
 }
 function syncTabHighlight() {
   try { setPageTitles(); } catch (e) {}
+  try { renderHomeIntake(); } catch (e) {}   // 入庫状況はホームでだけ出す
   const res = $("result");
-  const emp = $("vehEmpty");
   const onVeh = ["maint", "diag", "parts", "karte"].includes(curView) ||
-                (curView === "scan" && ((res && !res.classList.contains("hidden")) ||
-                                        (emp && !emp.classList.contains("hidden"))));
+                (curView === "scan" && res && !res.classList.contains("hidden"));
   const tabName = onVeh ? "vehicle" : curView;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
 }
@@ -8407,15 +8408,23 @@ document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => {
     // 「スキャン」はいつでもホーム(車検証を読み取る画面)へ
     if (b.dataset.view === "scan") { goHome(); return; }
-    // 「車両」は、いま読み込んでいる車両へ戻る(最後に開いていたページのまま)。
-    //  車両が未読込でもホームには戻さない(ホームの「現在の入庫状況」を車両タブに出さないため)。
+    // 「車両」は、いま読み込んでいる車両へ戻る(最後に開いていたページのまま)
     if (b.dataset.view === "vehicle") {
-      const vehLoaded = !!(current && (current.type || current.vin || current.kataShitei));
-      switchView(vehLoaded && ["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
-      toggle("mechaHero", false);
-      toggle("fallbackLinks", false);
-      toggle("result", vehLoaded);
-      toggle("vehEmpty", !vehLoaded);
+      const vehLoaded = current && (current.type || current.vin || current.kataShitei);
+      // ホームへ戻ると current は空になる。その時は「前回の車両」をそのまま開く(ホームには戻さない)。
+      if (!vehLoaded) {
+        let recent = [];
+        try { recent = JSON.parse(localStorage.getItem("ss_recentVeh") || "[]"); } catch (e) {}
+        const last = recent[0];
+        if (last) {
+          const e2 = findHistEntry(getHistory(), last);
+          showResult(e2 ? histToResult(e2) : last, { fromScan: false });
+          return;
+        }
+        goHome(); showToast("車検証をスキャンすると、ここに車両が出ます"); return;
+      }
+      switchView(["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
+      toggle("mechaHero", false); toggle("fallbackLinks", false); toggle("result", true);
       toggle("lastVehicle", false);   // 「前回の車両」はホームだけに出す
       try { renderHomeIntake(); } catch (e) {}   // 車両を見ている間は「現在の入庫状況」を出さない
       syncTabHighlight();
@@ -8432,7 +8441,6 @@ function goHome() {
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
   toggle("result", false);
-  toggle("vehEmpty", false);
   toggle("mechaHero", true);
   foldEntryAreas();
   toggle("scanWrap", false); toggle("scanCtrls", false);

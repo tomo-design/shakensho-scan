@@ -2540,10 +2540,3 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
 .pcFootBtn.pcCancel{border-color:#E8CFC9;color:#8A3A2E}
 .pcNote{margin:13px 2px 0;font-size:10px;color:#A8A299;line-height:1.7}
 
-/* 車両タブ: まだ車両を開いていない時 */
-.vehEmpty{margin:24px 0;padding:26px 18px;background:var(--panel);border:1px solid var(--line);border-radius:13px;text-align:center}
-.veIco{font-size:30px;line-height:1;display:block;margin-bottom:10px}
-.veTtl{margin:0 0 6px;font-size:14px;font-weight:700}
-.veSub{margin:0 0 14px;font-size:12px;line-height:1.7;color:#767168}
-.veBtn{min-height:44px;padding:0 16px;border-radius:11px;border:1px solid var(--line);background:var(--panel);
-  font-size:13px;font-weight:600;color:#44443F;cursor:pointer;font-family:inherit}
