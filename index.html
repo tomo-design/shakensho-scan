@@ -346,16 +346,22 @@
   </nav>
 
   <section id="secKarte" style="margin-top:6px">
-    <h2 class="kHead2"><span class="tag cy">KARTE</span>整備カルテ（作業記録）
+    <h2 class="kHead2">整備カルテ（作業記録）
       <span class="kHeadIcons">
-        <button class="karteAddImg" id="btnKarteAdd" aria-label="記録を追加"><img src="img/karte-add.png" alt="記録を追加"></button>
-        <button class="karteAddImg" id="btnKartePhoto" aria-label="写真で入力"><img src="img/karte-cam.png" alt="写真で入力"></button>
-        <button class="karteAddImg" id="btnKartePick" aria-label="写真フォルダから入力"><img src="img/ic-photo.png" alt="写真フォルダから入力"></button>
+        <button class="kAddBtn" id="btnKarteAdd" type="button">＋ 記録を追加</button>
       </span>
     </h2>
     <div class="sec-body">
       <input type="file" id="kPhotoIn" accept="image/*" capture="environment" class="hidden">
       <input type="file" id="kPhotoPick" accept="image/*" multiple class="hidden">
+      <div class="kImport">
+        <div class="kImpTtl">紙の伝票・手書きメモから取り込む</div>
+        <div class="kImpBtns">
+          <button type="button" class="kImpBtn" id="btnKartePhoto"><span class="kImpIco" aria-hidden="true">📷</span>写真で入力</button>
+          <button type="button" class="kImpBtn" id="btnKartePick"><span class="kImpIco" aria-hidden="true">📁</span>写真フォルダ</button>
+        </div>
+        <div class="kImpHint"><img src="img/mecha.png" alt=""><span>何枚でも追加できます（自動圧縮）。メカ君が手書きを読み取り、下の欄に振り分けます。</span></div>
+      </div>
       <button type="button" class="btn btn-ghost btn-sm hidden" id="btnTensu" style="margin-bottom:8px">📐 作業点数ツールを開く</button>
       <div id="kPhotoStatus" class="hint hidden" style="margin-bottom:8px"></div>
       <div id="karteList"></div>
