@@ -228,6 +228,20 @@
       '<div id="signupStat" class="planNote"></div>' +
       '<p class="pcNote">「裏取り検索」はGoogle検索で実データを確認して精度を上げる機能です（診断・修理で有効）。支払いは月額または年契約。</p>';
 
+    // 無料お試しが残りわずか/終了なら、画面上にお支払いの案内を出す
+    let bannerBlock = "";
+    if (tenantDoc && tenantDoc.plan === "trial" && paidUntil) {
+      const dleft = Math.ceil((paidUntil - Date.now()) / 86400000);
+      const ended = paidUntil <= Date.now();
+      if (ended || dleft <= 2) {
+        bannerBlock = '<div class="pcBanner' + (ended ? " ended" : "") + '">' +
+          (ended
+            ? '⏰ <b>無料お試し期間が終了しました。</b>続けてご利用いただくには、お支払いのお手続きをお願いします。'
+            : '🎁 無料お試しは<b>残り' + Math.max(dleft, 0) + '日</b>です。期間終了（8日目）に、お支払いのご案内（請求書）をご登録のメールへお送りします。') +
+          '<button type="button" class="pcBannerBtn" id="btnPayNow">お支払いへ進む</button>' +
+          '<div id="payNowStat" class="planNote"></div></div>';
+      }
+    }
     const body = '<div class="sec-body pcBody">' + bannerBlock + cycleBar + statusCard + cards + seatCard + hidden + foot + '</div>';
     box.innerHTML = '<section><details><summary class="secSummary">契約・プラン</summary>' + body + '</details></section>';
     // 支払い間隔の切替
