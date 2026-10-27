@@ -2264,11 +2264,11 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .lvArr{font-size:14px;color:#A8A299;flex-shrink:0}
 .hiHead{display:flex;align-items:center;gap:9px;margin-bottom:11px}
 .hiHead h2{margin:0 0 0 2px;font-size:11px;font-weight:700;color:#8C877D;letter-spacing:.07em;border:0;padding:0}
-.hiHead .hiCalBtn{margin-left:auto;width:30px;height:30px;min-height:0;padding:0;border-radius:9px;border:1px solid var(--line);
+.hiHead .hiCalBtn{width:30px;height:30px;min-height:0;padding:0;border-radius:9px;border:1px solid var(--line);
   background:var(--panel);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
-.hiFilter{display:flex;justify-content:flex-end;margin:0 2px 9px}
-.hiMore{min-height:30px;padding:0 12px;font-size:12px;font-weight:600;border-radius:15px;border:1px solid var(--line);
-  background:var(--panel);cursor:pointer;color:#44443F;white-space:nowrap;font-family:inherit}
+.hiMore{margin-left:auto;min-height:30px;padding:0 12px;font-size:12px;font-weight:600;border-radius:15px;
+  border:1px solid var(--line);background:var(--panel);cursor:pointer;color:#44443F;white-space:nowrap;font-family:inherit}
+.hiMore.hidden+.hiCalBtn{margin-left:auto}
 .hiList{display:flex;flex-direction:column;gap:8px}
 .hiRow{border-left:0;border:1px solid var(--line);background:var(--panel);border-radius:12px}
 .hiTag{border-radius:7px;padding:4px 8px;font-size:11px;font-weight:600;color:#44443F;background:#F1EFEA}

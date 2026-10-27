@@ -4972,7 +4972,7 @@ function renderHomeIntake() {
   box.innerHTML = "";
   toggle("homeIntake", true);
   // 台数が多い時は上位5台だけ出し、チップで全件に切り替える
-  toggle("hiFilterRow", list.length > 5);
+  toggle("hiMore", list.length > 5);
   const more = $("hiMore");
   if (more) { more.textContent = _hiAll ? "上位5台" : "すべて"; more.onclick = () => { _hiAll = !_hiAll; renderHomeIntake(); }; }
   (list.length > 5 && !_hiAll ? list.slice(0, 5) : list).forEach(h => {
