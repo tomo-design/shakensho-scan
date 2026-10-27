@@ -2165,6 +2165,7 @@ function showResult(d, opt = {}) {
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   toggle("fallbackLinks", false);   // 車両表示中はホームの入口を出さない
+  toggle("vehEmpty", false);
   scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
@@ -8324,9 +8325,11 @@ function renderSetAccount() {
   });
   try { applyFontScale(); syncSettingSwitches(); } catch (e) {}
 })();
+(() => { const b = $("btnVehEmptyScan"); if (b) b.addEventListener("click", () => goHome()); })();
 /* 設定の各項目を「アイコン＋名前＋説明」の行にする(案C)。中の操作は変えない。 */
 const SET_ROWS = {
-  secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り" },
+  secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り",
+                  val: () => (BUILTIN_DB.length + CUSTOM_DB.length) + "車種", go: "db" },
   secCloudSync: { ico: "☁",  tint: "blue",   desc: "会社の共有・メンバー管理・契約・この端末の登録" },
   secAiKey:     { ico: "🤖", tint: "blue",   desc: "契約店舗は登録不要。個人はGeminiの無料キーを登録" },
   secVisionKey: { ico: "🔍", tint: "amber",  desc: "車検証の写真読み取りを高精度にする(月1,000枚まで無料)" },
@@ -8346,8 +8349,12 @@ function decorateSettingRows() {
     const title = (cl.textContent || "").trim();
     head.dataset.setRow = "1";
     head.classList.add("setRow");
+    let valHtml = "";
+    try { if (info.val) valHtml = '<span class="setVal">' + esc(info.val()) + '</span>'; } catch (e) {}
     head.innerHTML = '<span class="setIco ' + info.tint + '" aria-hidden="true">' + info.ico + '</span>' +
-      '<span class="setTx"><b>' + esc(title) + '</b><span>' + esc(info.desc) + '</span></span>';
+      '<span class="setTx"><b>' + esc(title) + '</b><span>' + esc(info.desc) + '</span></span>' + valHtml;
+    // 行そのものをタップで別画面へ(折り畳みではない項目)
+    if (info.go) head.addEventListener("click", e => { e.preventDefault(); switchView(info.go); });
   });
 }
 /* 設定のグループ見出し: 中身が全部隠れているグループは見出しも出さない */
@@ -8364,8 +8371,10 @@ function syncSettingGroups() {
 function syncTabHighlight() {
   try { setPageTitles(); } catch (e) {}
   const res = $("result");
+  const emp = $("vehEmpty");
   const onVeh = ["maint", "diag", "parts", "karte"].includes(curView) ||
-                (curView === "scan" && res && !res.classList.contains("hidden"));
+                (curView === "scan" && ((res && !res.classList.contains("hidden")) ||
+                                        (emp && !emp.classList.contains("hidden"))));
   const tabName = onVeh ? "vehicle" : curView;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tabName));
 }
@@ -8398,12 +8407,18 @@ document.querySelectorAll("#tabs button").forEach(b =>
   b.addEventListener("click", () => {
     // 「スキャン」はいつでもホーム(車検証を読み取る画面)へ
     if (b.dataset.view === "scan") { goHome(); return; }
-    // 「車両」は、いま読み込んでいる車両へ戻る(最後に開いていたページのまま)
+    // 「車両」は、いま読み込んでいる車両へ戻る(最後に開いていたページのまま)。
+    //  車両が未読込でもホームには戻さない(ホームの「現在の入庫状況」を車両タブに出さないため)。
     if (b.dataset.view === "vehicle") {
-      const vehLoaded = current && (current.type || current.vin || current.kataShitei);
-      if (!vehLoaded) { goHome(); showToast("車検証をスキャンすると、ここに車両が出ます"); return; }
-      switchView(["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
-      toggle("mechaHero", false); toggle("result", true);
+      const vehLoaded = !!(current && (current.type || current.vin || current.kataShitei));
+      switchView(vehLoaded && ["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
+      toggle("mechaHero", false);
+      toggle("fallbackLinks", false);
+      toggle("result", vehLoaded);
+      toggle("vehEmpty", !vehLoaded);
+      toggle("lastVehicle", false);   // 「前回の車両」はホームだけに出す
+      try { renderHomeIntake(); } catch (e) {}   // 車両を見ている間は「現在の入庫状況」を出さない
+      syncTabHighlight();
       return;
     }
     switchView(b.dataset.view);
@@ -8417,6 +8432,7 @@ function goHome() {
   if (typeof scanning !== "undefined" && scanning) stopLiveScan(false);
   switchView("scan");
   toggle("result", false);
+  toggle("vehEmpty", false);
   toggle("mechaHero", true);
   foldEntryAreas();
   toggle("scanWrap", false); toggle("scanCtrls", false);
