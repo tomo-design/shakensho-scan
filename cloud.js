@@ -180,7 +180,9 @@
             (paidUntil ? '<span class="pcNext">次回更新 ' + (new Date(paidUntil).getMonth() + 1) + "/" + new Date(paidUntil).getDate() + '</span>' : "") +
           '</div>' +
           '<div class="pcTiles">' +
-            '<span class="pcTile"><b id="pcSearch">—</b><span>今月の検索' + (code === "turbo" ? " / 500" : code === "twinturbo" ? " / 無制限" : "") + '</span></span>' +
+            (code === "na"
+              ? '<span class="pcTile"><b>—</b><span>裏取り検索なし</span></span>'
+              : '<span class="pcTile"><b id="pcSearch">—</b><span>今月の検索' + (code === "turbo" ? " / 500" : " / 無制限") + '</span></span>') +
             '<span class="pcTile"><b>' + tenantMembers.length + '</b><span>メンバー</span></span>' +
             '<span class="pcTile"><b>' + ((profile && Array.isArray(profile.devices)) ? profile.devices.length : 0) + " / " + deviceLimitOf() + '</b><span>この端末の枠</span></span>' +
           '</div>' +
@@ -256,7 +258,7 @@
       const send = $("btnSignupSend"); if (send) send.click();
     });
     // 今月の検索回数(代表管理者のみ閲覧可。読めない時は「—」のまま)
-    if (active && profile && profile.tenantId) {
+    if (active && code !== "na" && profile && profile.tenantId) {
       (async () => {
         try {
           const jst = new Date(Date.now() + 9 * 3600 * 1000);
@@ -954,6 +956,9 @@
         const list = [];
         snap.forEach(d => { const u = d.data() || {}; if (u.active === true && (u.name || u.email)) list.push({ uid: d.id, name: u.name || "", nameKana: u.nameKana || "", nameRoma: u.nameRoma || "", email: u.email || "" }); });
         tenantMembers = list;
+        // 名簿は少し遅れて届く。人数を出している画面を描き直す(契約・プランの「メンバー」/設定のアカウント欄)
+        try { renderPlan(); } catch (e) {}
+        try { if (typeof window.renderSetAccount === "function") window.renderSetAccount(); } catch (e) {}
       }, () => {});
     } catch (e) {}
   }
