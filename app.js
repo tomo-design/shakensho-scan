@@ -4964,7 +4964,8 @@ function renderHomeIntake() {
   // デモ版では実データの入庫状況を出さない。ログイン中の管理者のみ表示
   const loggedInMgr = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn() && typeof window.Cloud.isManager === "function" && window.Cloud.isManager());
   // 車両検索を開いている間は入庫状況ボードを閉じる(重なり防止・検索に集中)
-  const searchOpen = $("plateArea") && !$("plateArea").classList.contains("hidden");
+  // 車両検索を開いている間は入庫状況を畳む(スマホは重なるため)。横に並べられるPCでは出したままにする。
+  const searchOpen = window.innerWidth < 1024 && $("plateArea") && !$("plateArea").classList.contains("hidden");
   // 「現在の入庫状況」＋カレンダー(社内共有)は会社メンバー全員が閲覧可。
   // ただし出庫・担当変更などの操作は管理者のみ(メンバーは閲覧のみ)。
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());

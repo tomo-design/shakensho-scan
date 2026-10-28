@@ -2105,6 +2105,10 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
   /* 入庫状況は右側いっぱいに。上はスキャンのカードとそろえる */
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #homeIntake{grid-column:2;grid-row:1 / 6;margin-top:0}
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #homeIntake .hiHead{margin-top:0}
+  /* 入庫状況が出ない時(個人版・未ログイン)は、開いたフォームを全幅に広げて右側を空けない */
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):not(:has(> #homeIntake:not(.hidden))) > #plateArea,
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):not(:has(> #homeIntake:not(.hidden))) > #manualArea,
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)):not(:has(> #homeIntake:not(.hidden))) > #ocrArea{grid-column:1 / -1}
   /* 下の注記・リンクは必ず一番下に(検索や手入力を開いても途中に割り込ませない) */
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #appFoot{grid-column:1 / -1;grid-row:6;margin-top:18px}
 
