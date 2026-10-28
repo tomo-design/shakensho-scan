@@ -2091,18 +2091,20 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
   body:not(.officeMode) #assignBar{bottom:0;max-width:none;margin:0;
     left:calc(max(0px, (100vw - 1360px) / 2) + var(--railW));right:max(0px, (100vw - 1360px) / 2)}
 
-  /* ホーム: 左=読み取りの入口(2枚カード＋車両検索/手入力＋開いたフォーム) / 右=前回の車両・現在の入庫状況 */
+  /* ホーム: 左=読み取りの入口(2枚カード・検索/手入力・前回の車両) / 右=現在の入庫状況 */
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)){
-    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto auto 1fr;
-    column-gap:36px;align-items:start}
+    display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-rows:auto auto auto auto 1fr;
+    column-gap:32px;align-items:start}
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > *{grid-column:1 / -1;min-width:0}
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #mechaHero{grid-column:1;grid-row:1}
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #fallbackLinks{grid-column:1;grid-row:2}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #lastVehicle{grid-column:1;grid-row:3;margin:14px 0 0}
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #plateArea,
   body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #manualArea,
-  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #ocrArea{grid-column:1;grid-row:3;max-width:none;margin-left:0;margin-right:0}
-  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #lastVehicle{grid-column:2;grid-row:1;margin-top:0}
-  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #homeIntake{grid-column:2;grid-row:2 / 5;margin-top:0}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #ocrArea{grid-column:1;grid-row:4;max-width:none;margin-left:0;margin-right:0}
+  /* 入庫状況は右側いっぱいに。上はスキャンのカードとそろえる */
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #homeIntake{grid-column:2;grid-row:1 / 6;margin-top:0}
+  body:not(.officeMode):not(.scanningNow) #view-scan.active:has(> #result.hidden):has(> #mechaHero:not(.hidden)) > #homeIntake .hiHead{margin-top:0}
 
   /* 車両を読み込んだ後: 左=車両情報カード / 右=この車両で何をするか */
   body:not(.officeMode) #result:not(.hidden){display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);

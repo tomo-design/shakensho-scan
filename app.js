@@ -4980,11 +4980,12 @@ function renderHomeIntake() {
   const cnt = $("hiCount"); if (cnt) cnt.textContent = list.length ? "（" + list.length + "台）" : "";
   box.innerHTML = "";
   toggle("homeIntake", true);
-  // 台数が多い時は上位5台だけ出し、チップで全件に切り替える
-  toggle("hiMore", list.length > 5);
+  // 台数が多い時は先頭だけ出し、チップで全件に切り替える(画面が広いPCは多めに出す)
+  const hiMax = (window.innerWidth >= 1024) ? 10 : 5;
+  toggle("hiMore", list.length > hiMax);
   const more = $("hiMore");
-  if (more) { more.textContent = _hiAll ? "上位5台" : "すべて"; more.onclick = () => { _hiAll = !_hiAll; renderHomeIntake(); }; }
-  (list.length > 5 && !_hiAll ? list.slice(0, 5) : list).forEach(h => {
+  if (more) { more.textContent = _hiAll ? ("上位" + hiMax + "台") : "すべて"; more.onclick = () => { _hiAll = !_hiAll; renderHomeIntake(); }; }
+  (list.length > hiMax && !_hiAll ? list.slice(0, hiMax) : list).forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
     const no4 = plateLast4(dispText(h.plate));
     const owner = dispText(h.name) || "";
