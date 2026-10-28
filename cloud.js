@@ -249,8 +249,18 @@
     const wasOpen = !!box.querySelector("details[open]");
     box.innerHTML = '<section><details' + (wasOpen ? " open" : "") + '><summary class="secSummary">契約・プラン</summary>' +
       body + '</details></section>';
-    // 支払い間隔の切替
-    box.querySelectorAll(".pcCycBtn").forEach(b => b.onclick = () => { planCycle = b.dataset.cyc === "year" ? "year" : "month"; renderPlan(); });
+    // 支払い間隔の切替。描き直すと折り畳みが閉じるので、値段と選択状態だけその場で書き換える。
+    box.querySelectorAll(".pcCycBtn").forEach(b => b.onclick = () => {
+      planCycle = b.dataset.cyc === "year" ? "year" : "month";
+      const yearly = planCycle === "year";
+      box.querySelectorAll(".pcCycBtn").forEach(x => x.classList.toggle("on", x.dataset.cyc === planCycle));
+      box.querySelectorAll(".pcCard").forEach((card, i) => {
+        const p = PLANS[i], el = card.querySelector(".pcPrice");
+        if (p && el) el.innerHTML = (yearly ? p.year : p.month) + '<span class="pcPer"> /' + (yearly ? "年" : "月") + '</span>';
+      });
+      const r = box.querySelector('input[name="signupPlan"][value="' + (yearly ? "yearly" : "monthly") + '"]');
+      if (r) r.checked = true;
+    });
     // プランのボタン → 既存の申し込み処理へ(隠しラジオを合わせてから実行)
     box.querySelectorAll(".pcBtnGo").forEach(b => b.onclick = () => {
       const t = box.querySelector('input[name="signupTier"][value="' + b.dataset.tier + '"]'); if (t) t.checked = true;
