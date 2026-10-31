@@ -7044,29 +7044,31 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
   opts = opts || {};
   const kind = (opts.kind === "repair") ? "repair" : "diag";
   const wrap = document.createElement("div");
-  wrap.style.marginTop = "12px"; wrap.style.paddingTop = "12px"; wrap.style.borderTop = "1px dashed var(--line)";
-  const lab = document.createElement("div");
-  lab.className = "hint"; lab.style.marginBottom = "6px";
-  lab.textContent = (kind === "repair")
-    ? "追加で質問したい場合 — 作業の続き・別の箇所・トルクや手順などを書く／写真・動画を添付して、メカ君にもう一度相談できます。"
-    : "解決しない・追加で相談したい場合 — 実施内容や追加の症状を書く／写真・動画を添付して、メカ君にもう一度相談できます。";
+  wrap.className = "qCard fuCard";
+  const lab = document.createElement("label");
+  lab.className = "qLbl";
+  lab.textContent = (kind === "repair") ? "追加で質問する（作業の続き・別の箇所・トルクなど）" : "追加で相談する（実施したこと・残っている症状）";
   const ta = document.createElement("textarea");
+  ta.className = "qTa";
   ta.placeholder = (kind === "repair")
     ? "例: 次にラジエーターを外す手順は？ タイミングチェーンのボルト締め付けトルクは？ — 写真や動画も添付できます。"
     : "例: EGRを清掃したが まだ白煙が出る。圧縮圧は正常。— 写真や動画も添付できます。";
-  ta.style.minHeight = "64px";
+
 
   // 追加相談用の添付(音声入力/写真/写真撮影/動画/動画撮影)
   const atts = [];
-  const icons = document.createElement("div"); icons.className = "fuIcons";
+  const toolLbl = document.createElement("span"); toolLbl.className = "qLbl"; toolLbl.textContent = "音声・写真・動画";
+  const icons = document.createElement("div"); icons.className = "qTools qTools5";
   // 音声入力ボタン
-  const micBtn = document.createElement("button"); micBtn.type = "button"; micBtn.className = "diagIco txt"; micBtn.title = "音声で入力"; micBtn.textContent = "🎤";
+  const micBtn = document.createElement("button"); micBtn.type = "button"; micBtn.className = "diagIco txt qTool"; micBtn.title = "音声で入力";
+  micBtn.innerHTML = '<span class="qIco">🎤</span><span class="qCap">音声</span>';
+  const setMicIcon = t => { const i = micBtn.querySelector(".qIco"); if (i) i.textContent = t; };
   let fuRec = null, fuListening = false, fuAccum = "";
   micBtn.addEventListener("click", () => {
-    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); return; }
+    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } setMicIcon("🎤"); micBtn.classList.remove("sel"); return; }
     if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
     const base = ta.value ? ta.value + " " : "";
-    fuAccum = ""; fuListening = true; micBtn.textContent = "●"; micBtn.classList.add("sel");
+    fuAccum = ""; fuListening = true; setMicIcon("●"); micBtn.classList.add("sel");
     const startFu = () => {
       const rec = getSpeechRecognition(); if (!rec) { fuListening = false; return; }
       rec.continuous = true; rec.interimResults = true; fuRec = rec;
@@ -7077,9 +7079,9 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
         fuAccum += sf; sf = ""; fuRec = null; ta.value = base + dedupRepeats(fuAccum);
         // 無音で切れても停止を押すまで自動再開(喋るたびに押す不便を解消)
         if (fuListening && !fatal) { setTimeout(() => { if (fuListening) startFu(); }, 120); return; }
-        fuListening = false; micBtn.textContent = "🎤"; micBtn.classList.remove("sel");
+        fuListening = false; setMicIcon("🎤"); micBtn.classList.remove("sel");
       };
-      try { rec.start(); } catch (e) { fuListening = false; micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+      try { rec.start(); } catch (e) { fuListening = false; setMicIcon("🎤"); micBtn.classList.remove("sel"); }
     };
     startFu();
   });
@@ -7096,14 +7098,17 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
     });
   }
   const defs = [
-    ["img/ic-photo.png", "写真を添付", "image/*", false],
-    ["img/ic-photo-cam.png", "写真を撮って添付", "image/*", true],
-    ["img/ic-video.png", "動画を添付", "video/*", false],
-    ["img/ic-video-cam.png", "動画を撮って添付", "video/*", true],
+    ["img/ic-photo.png", "写真を添付", "写真フォルダ", "image/*", false],
+    ["img/ic-photo-cam.png", "写真を撮って添付", "写真撮影", "image/*", true],
+    ["img/ic-video.png", "動画を添付", "動画ファイル", "video/*", false],
+    ["img/ic-video-cam.png", "動画を撮って添付", "動画撮影", "video/*", true],
   ];
-  defs.forEach(([src, title, accept, cap]) => {
-    const b = document.createElement("button"); b.type = "button"; b.className = "diagIco"; b.title = title;
-    const im = document.createElement("img"); im.src = src; b.appendChild(im);
+  defs.forEach(([src, title, capLabel, accept, cap]) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "diagIco qTool"; b.title = title;
+    const ic = document.createElement("span"); ic.className = "qIco";
+    const im = document.createElement("img"); im.src = src; ic.appendChild(im);
+    const cp = document.createElement("span"); cp.className = "qCap"; cp.textContent = capLabel;
+    b.append(ic, cp);
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = accept; if (cap) inp.capture = "environment"; inp.className = "hidden";
     b.addEventListener("click", () => inp.click());
     inp.addEventListener("change", async e => {
@@ -7116,12 +7121,12 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
   });
 
   const btn = document.createElement("button");
-  btn.type = "button"; btn.className = "btn btn-ghost btn-sm"; btn.style.marginTop = "8px";
+  btn.type = "button"; btn.className = "qAsk fuAsk";
   btn.innerHTML = '<img src="img/kangae.png" class="btnMecha" alt="">メカ君に追加で相談';
   const ans = document.createElement("div"); ans.className = "ai-answer hidden"; ans.style.marginTop = "10px";
   btn.addEventListener("click", async () => {
     // マイクがオンのまま押されたら自動でオフにする(録りっぱなし防止)
-    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } micBtn.textContent = "🎤"; micBtn.classList.remove("sel"); }
+    if (fuListening) { fuListening = false; if (fuRec) { try { fuRec.stop(); } catch (e) {} } setMicIcon("🎤"); micBtn.classList.remove("sel"); }
     stopFieldMic();
     const tried = ta.value.trim();
     if (!tried && !atts.length) { ta.focus(); return; }
@@ -7210,7 +7215,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
         }
       }
       // この相談欄は使い終わったので入力部を畳み、質問内容だけ残す(入力枠が重複して並ぶのを防ぐ)
-      [lab, ta, icons, preview, btn].forEach(el => { try { el.remove(); } catch (e) {} });
+      [lab, ta, toolLbl, icons, preview, btn].forEach(el => { try { el.remove(); } catch (e) {} });
       const asked = document.createElement("div"); asked.className = "hint"; asked.style.marginBottom = "6px";
       asked.textContent = (kind === "repair" ? "🔧 追加質問: " : "🔧 追加相談: ") + (tried || "(添付のみ)");
       wrap.insertBefore(asked, ans);
@@ -7223,7 +7228,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
       diagAiBusy = false; setBtnLoading(btn, false);
     }
   });
-  wrap.append(lab, ta, icons, preview, btn, ans);
+  wrap.append(lab, ta, toolLbl, icons, preview, btn, ans);
   body.appendChild(wrap);
 }
 

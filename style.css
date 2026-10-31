@@ -2563,3 +2563,8 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
   font-size:12px;font-weight:700;letter-spacing:.04em}
 .ai-rank .manualPane .ai-h:first-child{margin-top:0}
 .ai-rank .manualPane .hint{margin:0;font-size:12px;line-height:1.7}
+/* 追加相談: 診断・修理の質問カードと同じ形にそろえる */
+.fuCard{margin-top:14px}
+.fuCard .qTa{min-height:76px}
+.fuCard .attachThumb{margin-top:0}
+.fuAsk{width:100%;margin-top:2px}
