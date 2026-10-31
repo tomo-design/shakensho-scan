@@ -435,9 +435,17 @@ async function checkPaid(uid) {
 }
 
 /* 指定キーでGeminiを呼ぶ。成功={text,truncated} / 枠切れ={failed,quota:true} / その他失敗={failed}/{httpErr} */
-async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget, temperature) {
+/* 1回のGemini呼び出しに待てる上限(ms)。締め切りが近ければそれに合わせて短くする。 */
+function aiTimeoutMs(mode, search, deadline) {
+  let ms = search ? 55000 : (mode === "pro" ? 40000 : 25000);
+  if (deadline) ms = Math.min(ms, Math.max(3000, deadline - Date.now()));
+  return ms;
+}
+const pastDeadline = (deadline) => !!deadline && Date.now() > deadline;
+async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget, temperature, deadline) {
   let lastErr = "", quota = false;
   for (const model of models) {
+    if (pastDeadline(deadline)) { lastErr = lastErr || "deadline"; break; }   // 全体の締め切りを超えたら打ち切る
     const gc = { temperature: (typeof temperature === "number" ? temperature : 0.2), maxOutputTokens: maxTokens || 16384 };
     // 思考トークン制御(2.5系・3系・-latest)。flash=512(3系は0が400・128だと空応答になり得るため余裕を持たせる)、pro=-1(動的)。2.0系は非対応。
     // thinkingBudget が数値で渡された場合はそれを使い、思考を短く切り上げて待機時間を短縮する。
@@ -454,8 +462,9 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens, thi
       try {
         r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
+          signal: AbortSignal.timeout(aiTimeoutMs(mode, search, deadline)),
         });
-      } catch (e) { lastErr = "network"; r = null; break; }
+      } catch (e) { lastErr = (e && e.name === "TimeoutError") ? "timeout" : "network"; r = null; break; }
       if ((r.status === 503 || r.status === 500) && attempt < 1) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 400)); continue; }
       break;
     }
@@ -481,9 +490,10 @@ function clampThinking(v) {
 /* ストリーミング版: GeminiのstreamGenerateContent(SSE)を受け、本文deltaだけをresへ逐次書き出す。
    実テキストが出た時に初めてSSEヘッダを送る(=それまでは別モデル/別キーへフォールバック可能)。
    成功(=本文を1文字でも流した)={started:true,truncated} / 失敗(未送信)={failed,quota,lastErr}。 */
-async function callGeminiStream(key, models, parts, mode, search, maxTokens, thinkingBudget, res) {
+async function callGeminiStream(key, models, parts, mode, search, maxTokens, thinkingBudget, res, deadline) {
   let lastErr = "", quota = false;
   for (const model of models) {
+    if (pastDeadline(deadline)) { lastErr = lastErr || "deadline"; break; }   // 全体の締め切りを超えたら打ち切る
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
     if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
       gc.thinkingConfig = { thinkingBudget: (typeof thinkingBudget === "number") ? thinkingBudget : (mode === "pro" ? -1 : 512) };
@@ -494,8 +504,9 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
     try {
       r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key), {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
+        signal: AbortSignal.timeout(aiTimeoutMs(mode, search, deadline)),
       });
-    } catch (e) { lastErr = "network"; continue; }
+    } catch (e) { lastErr = (e && e.name === "TimeoutError") ? "timeout" : "network"; continue; }
     if (r.status === 429) { quota = true; lastErr = "quota 429"; continue; }
     if (r.status === 404 || r.status === 503 || r.status === 500) { lastErr = "model " + model + " " + r.status; continue; }
     if (!r.ok || !r.body) { lastErr = "http " + r.status; continue; }
@@ -592,7 +603,7 @@ async function latestModels(key) {
   const now = Date.now();
   if (_modelCache.flash && (now - _modelCache.at) < 3600e3) return _modelCache;
   try {
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(key) + "&pageSize=200");
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(key) + "&pageSize=200", { signal: AbortSignal.timeout(8000) });
     const j = await r.json();
     const names = (j.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
@@ -649,20 +660,23 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す(新バージョンへ自動移行)。未対応時は固定版へフォールバック。
   // モデルは2つまで(先頭=最新の-latest / 予備1つ)。試行回数を絞ってタイムアウトを防ぐ。
   // 常に最新を先頭に。動的に取得した最新flash/pro(例 gemini-3.6-flash)→ -latest別名 → 安定版の順。
+  // 全体の締め切り。関数そのものが120秒で強制終了する前に、こちらから打ち切って案内を返す。
+  const deadline = Date.now() + 75000;
   const latest = await latestModels(freeKeys[0]);
+  // 予備のモデルは絞る(多く並べるほど、落ちた時の総待ち時間が伸びるため)
   const models = mode === "pro"
-    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 実働の速いFlashを優先。2.5系(404)/過負荷503は後段に回す
+    ? uniq([latest.pro, "gemini-pro-latest", latest.flash])
+    : uniq([latest.flash, "gemini-flash-latest", "gemini-flash-lite-latest"]);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
   let tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
   // ★NAは無料Flashで動くため、大きな思考予算(診断3072/2048等)は最初のトークンまで長くかかり遅くなる。
   //   NAは思考を1024にキャップして高速化(検索/Proの差別化はそのまま。品質より応答速度を優先)。
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 1024) : 1024;
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
-  const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)。実working&高速なモデルを優先
+  const freeModels = uniq([latest.flash, "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)
 
   // 検索(裏取り)を実際に使えるか: 検索対応プラン && 今月上限内 && 席内。不可なら検索なしに落として必ず回答を返す。
   let effSearch = false;
@@ -683,7 +697,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
 
   // ① 有料キー(検索付き or Pro)。検索は無料枠では通らないので契約店舗のみここを通る。
   if (usePaid) {
-    out = await callGeminiModels(paidKey, models, parts, mode, effSearch, maxTokens, tb);
+    out = await callGeminiModels(paidKey, models, parts, mode, effSearch, maxTokens, tb, undefined, deadline);
     if (out.httpErr) return res.status(502).json({ error: "AI応答エラー (" + out.httpErr + ")" });
     if (!out.failed) { tier = "paid"; if (effSearch) await bumpPaidUsage(g.tid); }   // 課金カウントは検索のみ
     // 失敗しても下の無料Flashにフォールバックして回答を返す(out.failedのまま)。
@@ -703,11 +717,12 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
     const start = _freeStart % freeKeys.length;   // 前回成功キーから開始(枠切れキーの無駄な巡回を減らす)
     for (let i = 0; i < freeKeys.length; i++) {
       const idx = (start + i) % freeKeys.length;
-      out = await callGeminiModels(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb);
+      if (pastDeadline(deadline)) break;   // 締め切りを超えたら次のキーへ行かない
+      out = await callGeminiModels(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb, undefined, deadline);
       if (!out.failed) { _freeStart = idx; break; }   // 成功で終了＋次回の開始位置を記憶。404/429等は次のキーへ
     }
     // 全無料キーで失敗 → 有料キーがあれば最後の砦として試す(モデル未提供の穴埋め)
-    if (out.failed && paidKey) { const o = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens, tb); if (!o.failed) { out = o; tier = "paid"; } }
+    if (out.failed && paidKey && !pastDeadline(deadline)) { const o = await callGeminiModels(paidKey, freeModels, parts, "flash", false, maxTokens, tb, undefined, deadline); if (!o.failed) { out = o; tier = "paid"; } }
     if (out.failed) {
       if (out.quota) { freeExhausted = true; await markFreeExhausted(g.tid); return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。", freeExhausted: true }); }
       return res.status(502).json({ error: "AIから回答が得られませんでした (" + out.lastErr + ")" });
@@ -735,17 +750,18 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const pc = planConfig(g.t);
   // ★プラン準拠でPro可否を上限管理: NAはProを使わせず標準Flash。ターボ/ツインターボはPro(写真・動画も)。
   const mode = (data.mode === "pro" && pc.plan !== "na") ? "pro" : "flash";
+  const deadline = Date.now() + 120000;   // ストリームは最大300秒だが、待たせすぎない所で打ち切る
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
-    ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"])
-    : uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+    ? uniq([latest.pro, "gemini-pro-latest", latest.flash])
+    : uniq([latest.flash, "gemini-flash-latest", "gemini-flash-lite-latest"]);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   let tb = clampThinking(data.thinkingBudget);
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 1024) : 1024;   // NAは思考を1024にキャップして高速化
+  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;   // NAは思考を512にキャップして高速化
   const paidCapable = pc.plan !== "na" && !!paidKey;
-  const freeModels = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const freeModels = uniq([latest.flash, "gemini-flash-latest"]);
   let effSearch = false;
   if (data.search && paidCapable && pc.searchCap !== 0) {
     const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;
@@ -757,7 +773,7 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
 
   // ① 有料キー(Pro/検索)
   if (usePaid) {
-    const out = await callGeminiStream(paidKey, models, parts, mode, effSearch, maxTokens, tb, res);
+    const out = await callGeminiStream(paidKey, models, parts, mode, effSearch, maxTokens, tb, res, deadline);
     if (out.started) { if (effSearch) await bumpPaidUsage(g.tid); finish(out.truncated, "paid", out.model); return; }
   }
   // ② 無料キー(Flash) → ①失敗のフォールバック。★全キーを必ず試す(1キーの404/429で諦めない)。
@@ -765,12 +781,13 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   let quotaAll = true;
   for (let i = 0; i < freeKeys.length; i++) {
     const idx = (start + i) % freeKeys.length;
-    const out = await callGeminiStream(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb, res);
+    if (pastDeadline(deadline)) break;
+    const out = await callGeminiStream(freeKeys[idx], freeModels, parts, "flash", false, maxTokens, tb, res, deadline);
     if (out.started) { _freeStart = idx; clearFreeExhausted(g.tid); finish(out.truncated, "free", out.model); return; }
     if (!out.quota) quotaAll = false;   // 実エラー(404等)があった。それでも次のキーを試す
   }
   // 全無料キーで失敗 → 有料キーを最後の砦に
-  if (paidKey) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res); if (out.started) { finish(out.truncated, "paid", out.model); return; } }
+  if (paidKey && !pastDeadline(deadline)) { const out = await callGeminiStream(paidKey, freeModels, parts, "flash", false, maxTokens, tb, res, deadline); if (out.started) { finish(out.truncated, "paid", out.model); return; } }
   if (quotaAll) { await markFreeExhausted(g.tid); }
   // 一度も本文を送れていない(ヘッダ未送信) → JSONエラーで返す
   if (!res.headersSent) return res.status(429).json({ error: "ただいまAIが混み合っています。時間をおいて再度お試しください。" });

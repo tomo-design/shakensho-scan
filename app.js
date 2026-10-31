@@ -1179,6 +1179,26 @@ function parseRepairText(text) {
   }
   return { obj, partial };
 }
+/* 修理の回答を、届いたところから順に表示する。JSONが途中でも、読める項目だけ先に描く。
+   (取り付け位置 → 所要時間 → 部品 → 工具 → 手順 … の順に埋まっていく) */
+function onRepairChunk(box, q, stopTimer) {
+  let last = 0, score = 0;
+  const sc = o => (o.location ? 1 : 0) + (o.time ? 1 : 0) + (o.torque ? 1 : 0) +
+    ((o.order || []).length) + ((o.specialTools || []).length) + ((o.steps || []).length);
+  return (acc, done) => {
+    if (done) return;                      // 完了後は呼び出し側が最終描画する
+    if (Date.now() - last < 700) return;   // 描き直しは0.7秒おき
+    try {
+      const p = parseRepairText(acc);
+      if (!p.obj) return;
+      const n = sc(p.obj);
+      if (n <= score) return;              // 中身が増えていなければ描き直さない
+      score = n; last = Date.now();
+      if (stopTimer) { try { stopTimer(); } catch (e) {} }
+      renderRepairResult(box, p.obj, acc, q);
+    } catch (e) {}
+  };
+}
 /* 修理の結果を描画し、保存用オブジェクトを返す(描画できなかった時は null)。生のJSONは画面に出さない。 */
 function renderRepairResult(box, obj, text, q) {
   const hasBody = o => o.location || (Array.isArray(o.order) && o.order.length) || (Array.isArray(o.steps) && o.steps.length);
@@ -1792,7 +1812,10 @@ async function runVehAsk() {
     // 写真なし: 有料店舗はPro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料はFlash・検索なし。
     const ask = retry => media
       ? geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null)
-      : geminiAsk(buildRepairPrompt(qFull), Object.assign(accurate ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false }, retry ? { noCache: true } : {}));
+      : geminiAskStream(buildRepairPrompt(qFull),
+          Object.assign(accurate ? { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048 }
+                                 : { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 },
+            retry ? { noCache: true } : {}), onRepairChunk(box, qFull, stopTimer));
     r = await ask(false);
     let parsed = parseRepairText(r.text);
     // JSONが崩れた/途中で切れた時は、利用者に押し直してもらわず1回だけ自動で聞き直す
@@ -5833,6 +5856,29 @@ function aiCacheSet(k, v) {
   } catch (e) {}
 }
 function getAiMode() { return localStorage.getItem(LS.aimode) === "pro" ? "pro" : "flash"; }
+/* 1回のAI呼び出しに待てる上限(ミリ秒)。検索(裏取り)やProは長めに取る。 */
+function aiWaitMs(mode, search) { return search ? 60000 : (mode === "pro" ? 45000 : 30000); }
+/* 時間制限つきfetch。利用者の「クリア」(aiAbort)と時間切れを区別する。 */
+function aiFetch(url, init, ms) {
+  const ctl = new AbortController();
+  let timedOut = false;
+  const to = setTimeout(() => { timedOut = true; ctl.abort(); }, ms);
+  const onAbort = () => ctl.abort();
+  const sig = aiAbort && aiAbort.signal;
+  if (sig) sig.addEventListener("abort", onAbort);
+  const done = () => { clearTimeout(to); if (sig) sig.removeEventListener("abort", onAbort); };
+  return fetch(url, Object.assign({}, init, { signal: ctl.signal }))
+    .then(r => { done(); return r; })
+    .catch(e => { done(); if (timedOut) throw new Error("__timeout__"); throw e; });
+}
+/* 時間制限つきの待ち受け(サーバー経由の呼び出し用)。中身は走り続けるが、画面は待たない。 */
+function aiRace(p, ms) {
+  let t = null;
+  return Promise.race([
+    p.then(v => { clearTimeout(t); return v; }, e => { clearTimeout(t); throw e; }),
+    new Promise((_, rej) => { t = setTimeout(() => rej(new Error("__timeout__")), ms); }),
+  ]);
+}
 /* 契約店舗(自分の鍵なし)の実効AIモード: 契約プランに合わせてProの利用可否を上限管理。
    NAプランはProを使わせない(標準Flash)。ターボ/ツインターボはProのまま。トライアル中も“選んだプラン”準拠。 */
 function capModeByPlan(mode) {
@@ -6039,7 +6085,8 @@ async function geminiAsk(prompt, opts) {
   }
   // 契約店舗はサーバー(mecha)経由=プラン準拠を最優先(個人キーが残っていてもプランゲートを効かせる)。非契約+自前キーのみローカル。
   if (contractAi()) {
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget });
+    const d = await aiRace(window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }),
+      aiWaitMs(mode, opts.search));
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;
@@ -6060,17 +6107,16 @@ async function geminiAsk(prompt, opts) {
           const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? -1 : 512);
           genCfg.thinkingConfig = { thinkingBudget: tb };
         }
-        const res = await fetch(
+        const res = await aiFetch(
           "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            signal: aiAbort.signal,
             body: JSON.stringify(Object.assign({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: genCfg
             }, opts.search ? { tools: [{ google_search: {} }] } : {}))
-          });
+          }, aiWaitMs(mode, opts.search));
         if (res.status === 404) { lastErr = new Error(model + " は利用不可"); break; }   // 次のモデルへ
         if (res.status === 503 || res.status === 500) {
           lastErr = new Error("AIが混雑しています (" + res.status + ")。");
@@ -6097,6 +6143,7 @@ async function geminiAsk(prompt, opts) {
         aiCacheSet(ck, { text: r.text, truncated: r.truncated });
         return r;
       } catch (e) {
+        if (e && e.message === "__timeout__") { lastErr = new Error("AIの応答が遅いため打ち切りました。"); dropToNext = true; continue; }
         if (e && e.name === "AbortError") throw new Error("__cancelled__");   // クリアで中断
         if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
         lastErr = e; dropToNext = true;   // 例外は次のモデルへ
@@ -6119,9 +6166,18 @@ async function geminiAskStream(prompt, opts, onChunk) {
   if (!key || contractAi()) {
     // 契約店舗はプラン準拠のサーバー経路を最優先(個人キーが残っていてもゲートを効かせる)。未対応時は従来のgeminiAsk(mecha)へ。
     if (contractAi() && typeof window.Cloud.callFnStream === "function") {
+      // 同じ問い合わせは保存しておいた回答をすぐ返す(無料枠も待ち時間も使わない)
+      const sm = capModeByPlan(opts.mode || getAiMode());
+      const sk = sm + (opts.search ? ":s" : "") + ":" + hashStr(prompt);
+      if (!opts.noCache) {
+        const hit = aiCacheGet(sk);
+        if (hit) { if (onChunk) onChunk(hit.text, true); return { text: hit.text, truncated: hit.truncated, model: "cache" }; }
+      }
       try {
-        return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: capModeByPlan(opts.mode || getAiMode()), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
+        const r = await window.Cloud.callFnStream("mechaStream",
+          { prompt, mode: sm, search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }, onChunk);
+        if (r && r.text) aiCacheSet(sk, { text: r.text, truncated: r.truncated });
+        return r;
       } catch (e) { if (e && e.message === "__cancelled__") throw e; /* それ以外は従来経路へ */ }
     }
     if (!key) return geminiAsk(prompt, opts);
@@ -6654,7 +6710,7 @@ async function runDiagAI(text) {
     // 「改善の見込み」の裏取り検索は有料プランのみ(検索裏取りは契約特典。NAは一般知識ベースの目安のみ)。
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const dp = buildDiagPrompt(text, accurate);
-    let r = await geminiAskStream(dp, { mode: "pro", search: accurate, thinkingBudget: 3072 }, (acc, done) => {
+    let r = await geminiAskStream(dp, { mode: "pro", search: accurate, thinkingBudget: accurate ? 2048 : 768 }, (acc, done) => {
       if (done) return;
       if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
       p.textContent = acc;   // 生成されたぶんから先に読める
@@ -7086,7 +7142,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           for (const a of atts) media.push(await attachToMedia(a));
           r = await geminiAskMediaStream(buildRepairPrompt(q, true), media, { thinkingBudget: fbBudget }, null);
         } else {
-          r = await geminiAsk(buildRepairPrompt(q), paidOn ? { mode: "pro", search: true, maxTokens: 8192, thinkingBudget: 3072 } : { mode: "flash", search: false });
+          r = await geminiAsk(buildRepairPrompt(q), paidOn ? { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048 } : { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 });
         }
         stopFbTimer(); ans.classList.remove("streaming");
         const parsed = parseRepairText(r.text);
