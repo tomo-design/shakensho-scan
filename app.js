@@ -6085,8 +6085,14 @@ async function geminiAsk(prompt, opts) {
   }
   // 契約店舗はサーバー(mecha)経由=プラン準拠を最優先(個人キーが残っていてもプランゲートを効かせる)。非契約+自前キーのみローカル。
   if (contractAi()) {
-    const d = await aiRace(window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }),
-      aiWaitMs(mode, opts.search));
+    let d;
+    try {
+      d = await aiRace(window.Cloud.callFn("mecha", { prompt, mode: capModeByPlan(mode), search: !!opts.search, maxTokens: opts.maxTokens || 0, thinkingBudget: opts.thinkingBudget }),
+        aiWaitMs(mode, opts.search));
+    } catch (e) {
+      if (e && e.message === "__timeout__") throw new Error("AIの応答に時間がかかっています。少し待ってからもう一度お試しください。");
+      throw e;
+    }
     const r = { text: (d && d.text) || "", truncated: !!(d && d.truncated), model: (d && d.model) || "" };
     if (!r.text) throw new Error("AIから回答が得られませんでした");
     aiCacheSet(ck, { text: r.text, truncated: r.truncated }); return r;

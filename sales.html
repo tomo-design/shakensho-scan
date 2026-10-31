@@ -311,7 +311,15 @@
             <option value="ask">問いかけ（見てる人に質問 → リプ・投票を誘う）</option>
             <option value="campaign">告知（7日間無料 など）</option>
           </select></div>
-          <div class="field"><label>文量</label><select id="snsLen">
+          <div class="field hidden" id="fldNoteType"><label>記事の型（note）</label><select id="snsNoteType">
+            <option value="">おまかせ（毎回ランダムに選ぶ）</option>
+            <option value="howto">ハウツー型（手順を追って解説）</option>
+            <option value="beforeafter">ビフォー/アフター型（変化を見せる）</option>
+            <option value="check">チェックリスト型（読者に自己診断させる）</option>
+            <option value="casestudy">ケーススタディ型（1件の入庫を追う）</option>
+            <option value="framework">フレームワーク型（考え方の型を渡す）</option>
+          </select></div>
+          <div class="field" id="fldSnsLen"><label>文量</label><select id="snsLen">
             <option value="short">短め（ひと言・目安120〜200字）</option>
             <option value="medium" selected>標準（目安300〜500字）</option>
             <option value="long">長め（じっくり・目安800〜1500字）</option>

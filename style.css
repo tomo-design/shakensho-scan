@@ -2419,9 +2419,8 @@ ol.guide-steps.ai-rank li{background:var(--panel);border:1px solid var(--line);b
 .ai-rank .ai-reason-body{margin:8px 0 0;padding:10px 11px;background:#F9F8F6;border-left:3px solid #3D6184;
   border-radius:0 9px 9px 0;font-size:12px;line-height:1.7;color:#44443F}
 /* 切り分け: ラベル付きの囲み */
-.ai-rank .ai-check{margin:9px 0 0;padding:9px 10px;background:#F9F8F6;border-left:0;border-radius:9px;
-  font-size:12px;line-height:1.6;color:#44443F;display:flex;gap:8px}
-.ai-rank .ai-check::before{content:"切り分け";font-size:10px;font-weight:700;color:#8C877D;flex-shrink:0;padding-top:2px}
+.ai-rank .ai-check{display:block;margin:9px 0 0;padding:11px 13px;background:#F9F8F6;border-left:0;border-radius:10px;
+  font-size:12.5px;line-height:1.8;color:#44443F}
 /* 点検手引書: 候補カードの中の控えめなボタン */
 .ai-rank .manualWrap{margin-top:10px}
 .ai-rank .manualBtn{border-top:0;border:1px solid var(--line);border-radius:9px;padding:9px 11px;
@@ -2558,3 +2557,9 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
 .pcBanner.ended{background:#F6E9E6;border-color:#E8CFC9;color:#8A3A2E}
 .pcBannerBtn{display:block;width:100%;min-height:44px;margin-top:10px;border-radius:10px;border:1px solid #9A6B3C;
   background:#9A6B3C;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+/* 点検手引書のパネル: 候補カードの中にきちんと収める(旧レイアウト用の負のマージンを打ち消す) */
+.ai-rank .manualPane{margin:10px 0 0;border-radius:11px;padding:12px 13px 13px}
+.ai-rank .manualPane .ai-h{margin:12px -13px 10px;padding:9px 13px;background:#EAEFF4;color:#2E4A66;
+  font-size:12px;font-weight:700;letter-spacing:.04em}
+.ai-rank .manualPane .ai-h:first-child{margin-top:0}
+.ai-rank .manualPane .hint{margin:0;font-size:12px;line-height:1.7}
