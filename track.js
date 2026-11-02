@@ -36,9 +36,13 @@
   window.mechaTrack = function (ev) { once(ev); };
 
   /* ---- 整備メモ(guide/) ---- */
-  var g = /\/guide\/(?:(tebiki|symptom|dtc)\/([\w-]+)\.html|index\.html)?$/.exec(location.pathname);
+  // 整備メモのページ名を決める。系統別まとめ(/guide/dtc/<系統>/)も数える(2026-11-02に追加)
+  var pth = location.pathname, g = null, m;
+  if ((m = /\/guide\/(tebiki|symptom|dtc)\/([\w-]+)\.html$/.exec(pth))) g = m[1] + "_" + m[2];
+  else if ((m = /\/guide\/dtc\/([\w-]+)\/(?:index\.html)?$/.exec(pth))) g = "dtchub_" + m[1];
+  else if (/\/guide\/(?:index\.html)?$/.test(pth)) g = "index";
   if (g) {
-    send("guide_view", g[1] ? g[1] + "_" + g[2] : "index");
+    send("guide_view", g);
     // 端末数の目安: 同じ端末は1日1回だけ数える
     try {
       var d = new Date(), today = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!-- このファイルは tools/build-guide.js が db/*.json から自動生成します。直接編集しないでください。 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点火・失火系の故障コード一覧｜原因と確認の順番｜メカノAI</title>
+<meta name="description" content="点火・失火系の故障コード5件（P0300・P0335・P0340・P0335,P0340・P0380など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/">
+<meta property="og:title" content="点火・失火系の故障コード一覧｜原因と確認の順番｜メカノAI">
+<meta property="og:description" content="点火・失火系の故障コード5件（P0300・P0335・P0340・P0335,P0340・P0380など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/">
+<meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="../../../icons/icon-192.png">
+<link rel="stylesheet" href="../../guide.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"メカノAI 整備メモ","item":"https://mechanoai-cablueie.com/guide/"},{"@type":"ListItem","position":2,"name":"故障コードから調べる","item":"https://mechanoai-cablueie.com/guide/#dtc"},{"@type":"ListItem","position":3,"name":"点火・失火系","item":"https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/"}]}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../../"><img src="../../../icons/icon-192.png" alt="" width="28" height="28">メカノAI <span>整備メモ</span></a></header>
+<main>
+<nav class="crumbs"><a href="../../">メカノAI 整備メモ</a> › <a href="../../#dtc">故障コードから調べる</a> › <span>点火・失火系</span></nav>
+<h1>点火・失火系の故障コード一覧</h1>
+<p class="lead">失火検出、プラグ・コイル、クランク角/カム角センサまわりで出るコードです。全5件。考えられる原因と、現場で確認する順番の目安です。</p>
+<section class="codeBlock"><h3 id="p0300">P0300 ランダム失火検出 ※P0301〜P0312は気筒別</h3><p><b>考えられる原因</b>: プラグ・コイル劣化、インジェクタ不調、圧縮低下、吸気漏れ</p><p><b>確認する順番</b>: 1. 失火カウントで気筒特定 → 2. コイル/プラグ入れ替えテスト → 3. 圧縮測定</p><p class="more"><a href="../../dtc/p0300.html">P0300の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0335">P0335 クランク角センサ系統異常</h3><p><b>考えられる原因</b>: センサ不良・取付ギャップ、シグナルプレート損傷、配線・ノイズ</p><p><b>確認する順番</b>: 1. センサ波形 → 2. コネクタ・配線 → 3. 始動不能ならまずここ</p><p class="more"><a href="../../dtc/p0335.html">P0335の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0340">P0340 カム角センサ系統異常</h3><p><b>考えられる原因</b>: センサ不良、配線、タイミングずれ</p><p><b>確認する順番</b>: 1. 波形確認 → 2. P0016併発でチェーン疑い</p><p class="more"><a href="../../dtc/p0340.html">P0340の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0335-p0340">P0335・P0340 (同時検出) クランク/カム両方</h3><p><b>考えられる原因</b>: タイミング機構のずれ、共通電源・アース不良</p><p><b>確認する順番</b>: 1. 電源系統図でセンサ共通電源を確認</p><p class="more"><a href="../../dtc/p0335-p0340.html">P0335・P0340の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0380">P0380 グロープラグ/ヒーター回路異常</h3><p><b>考えられる原因</b>: グロープラグ断線(1本〜複数)、グローリレー・コントローラ、配線</p><p><b>確認する順番</b>: 1. 各プラグ抵抗測定 → 2. リレー作動音・電圧 → 3. 冷間始動性</p><p class="more"><a href="../../dtc/p0380.html">P0380の詳しいページ</a></p></section>
+<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li></ul></section>
+<aside class="cta">
+  <div class="ctaH">この車両ではどうか、まで調べるなら</div>
+  <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
+  <a class="btn" href="../../../?pocket=start">7日間無料ではじめる</a>
+  <p class="ctaNote">登録はメールアドレスだけ。カード登録はいりません。IDと初期パスワードがすぐ届きます。</p>
+  <a class="btn btnLine" href="../../../?demo=1">先に登録なしで試す</a>
+  <a class="btnSub" href="../../../biz.html">会社・チームで使う（法人版）</a>
+</aside>
+<p class="note">このページは現場での点検の進め方をまとめた参考情報です。数値や手順は車種・年式で異なるため、作業前に必ず整備要領書・メーカー資料で確認してください。</p>
+<p class="upd">最終更新: 2026-11-02</p>
+</main>
+<script src="../../../track.js" defer></script>
+<footer><a href="../../../terms.html">利用規約</a> ・ <a href="../../../privacy.html">プライバシーポリシー</a> ・ <a href="../../../tokushoho.html">特定商取引法に基づく表記</a><br>© 2026 Cablueie</footer>
+</body>
+</html>
