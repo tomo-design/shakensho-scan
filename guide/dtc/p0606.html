@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P0606 ECU内部異常｜原因と点検手順｜メカノAI</title>
-<meta name="description" content="故障コード P0606（ECU内部異常）の主な原因はECU故障、電源・アース不良による誤検出。現場で確認する順番と、関連する点検の手引きをまとめました。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="故障コード P0606（ECU内部異常）の主な原因はECU本体の内部故障、電源・アース不良による誤検出(こちらが原因のことも多い)、ECUへの浸水・端子腐食、バッテリー電圧の極端な低下、ジャンピングや溶接作業による電気的ダメージ。現場で確…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/p0606.html">
 <meta property="og:title" content="P0606 ECU内部異常｜原因と点検手順｜メカノAI">
-<meta property="og:description" content="故障コード P0606（ECU内部異常）の主な原因はECU故障、電源・アース不良による誤検出。現場で確認する順番と、関連する点検の手引きをまとめました。">
+<meta property="og:description" content="故障コード P0606（ECU内部異常）の主な原因はECU本体の内部故障、電源・アース不良による誤検出(こちらが原因のことも多い)、ECUへの浸水・端子腐食、バッテリー電圧の極端な低下、ジャンピングや溶接作業による電気的ダメージ。現場で確…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/p0606.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,11 +23,11 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/idle-ecu/">アイドル・車速・ECU系</a> › <span>P0606</span></nav>
 <h1>P0606 ECU内部異常</h1>
 <p class="lead">系統: ECU・出力回路系。考えられる原因と、確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>ECU故障</li><li>電源・アース不良による誤検出</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>電源・アース電圧降下試験</li><li>再発確認後にECU</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>ECU本体の内部故障</li><li>電源・アース不良による誤検出(こちらが原因のことも多い)</li><li>ECUへの浸水・端子腐食</li><li>バッテリー電圧の極端な低下</li><li>ジャンピングや溶接作業による電気的ダメージ</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>いきなりECU交換としない。まず電源とアースを電圧降下試験で確認する</li><li>バッテリー・充電系に異常がないか先に確認する(P0562等の併発を見る)</li><li>ECUコネクタを外し、端子の腐食・水の侵入跡を目視する</li><li>ECU設置場所の浸水・結露の痕跡を確認する</li><li>コードを消去し、再発するかを走行して確認する</li><li>ECU交換が必要な場合はイモビライザー等の登録作業が伴うので、事前に手順と費用を確認しておく</li></ol></section>
 
 
-<section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/p0500.html">P0500 車速センサ系統異常</a></li><li><a href="../dtc/p0504.html">P0504 ブレーキスイッチ相関異常</a></li><li><a href="../dtc/p0562.html">P0562 システム電圧低</a></li><li><a href="../dtc/p0563.html">P0563 システム電圧高</a></li><li><a href="../dtc/p0627.html">P0627 燃料ポンプ制御回路異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul><p class="more"><a href="idle-ecu/">アイドル・車速・ECU系の一覧をまとめて見る</a></p></section>
+<section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/p0500.html">P0500 車速センサ系統異常</a></li><li><a href="../dtc/p0504.html">P0504 ブレーキスイッチ相関異常</a></li><li><a href="../dtc/p0507.html">P0507 アイドル回転が規定より高い</a></li><li><a href="../dtc/p0562.html">P0562 システム電圧低</a></li><li><a href="../dtc/p0563.html">P0563 システム電圧高</a></li><li><a href="../dtc/p0627.html">P0627 燃料ポンプ制御回路異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul><p class="more"><a href="idle-ecu/">アイドル・車速・ECU系の一覧をまとめて見る</a></p></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>

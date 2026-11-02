@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>U0101 TCM(AT/CVT)との通信途絶｜原因と点検手順｜メカノAI</title>
-<meta name="description" content="故障コード U0101（TCM(AT/CVT)との通信途絶）の主な原因はCAN配線、TCM電源、TCM本体。現場で確認する順番と、関連する点検の手引きをまとめました。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="故障コード U0101（TCM(AT/CVT)との通信途絶）の主な原因はCAN配線の断線・短絡、TCM(AT/CVT制御ユニット)の電源・アース不良、TCM本体の不良、コネクタへの水・オイル侵入(ミッション周りは環境が厳しい)、ハーネスの…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/u0101.html">
 <meta property="og:title" content="U0101 TCM(AT/CVT)との通信途絶｜原因と点検手順｜メカノAI">
-<meta property="og:description" content="故障コード U0101（TCM(AT/CVT)との通信途絶）の主な原因はCAN配線、TCM電源、TCM本体。現場で確認する順番と、関連する点検の手引きをまとめました。">
+<meta property="og:description" content="故障コード U0101（TCM(AT/CVT)との通信途絶）の主な原因はCAN配線の断線・短絡、TCM(AT/CVT制御ユニット)の電源・アース不良、TCM本体の不良、コネクタへの水・オイル侵入(ミッション周りは環境が厳しい)、ハーネスの…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/u0101.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,8 +23,8 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a> › <span>U0101</span></nav>
 <h1>U0101 TCM(AT/CVT)との通信途絶</h1>
 <p class="lead">系統: ネットワーク系(CAN通信・ユニット間)。考えられる原因と、確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>CAN配線</li><li>TCM電源</li><li>TCM本体</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>CANライン</li><li>TCM電源系</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>CAN配線の断線・短絡</li><li>TCM(AT/CVT制御ユニット)の電源・アース不良</li><li>TCM本体の不良</li><li>コネクタへの水・オイル侵入(ミッション周りは環境が厳しい)</li><li>ハーネスの熱害・擦れ</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>DLCでのCAN抵抗を確認する(目安 約60Ω)</li><li>TCMの電源ヒューズとアースを確認する</li><li>TCMコネクタを外し、端子の腐食・オイル侵入を目視する</li><li>ミッション周りのハーネスの擦れ・熱害を確認する</li><li>他のユニットが正常に通信できているか全システムスキャンで比較する</li><li>TCM交換時は学習値の初期化や適合作業が必要な車種があるので整備要領書を確認する</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/can.html">CAN通信系統点検の手引き</a></li></ul></section>
 
 <section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/u0100.html">U0100 エンジンECUとの通信途絶</a></li><li><a href="../dtc/u0073.html">U0073 CANバス通信オフ</a></li><li><a href="../dtc/u0155.html">U0155 メーターとの通信途絶</a></li><li><a href="../dtc/c1201.html">C1201 エンジン制御系異常(ABS/VSC連動)</a></li><li><a href="../dtc/c0200.html">C0200 ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後</a></li><li><a href="../dtc/b1000.html">B1000 ボディ系コード(B)</a></li></ul><p class="more"><a href="chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）の一覧をまとめて見る</a></p></section>

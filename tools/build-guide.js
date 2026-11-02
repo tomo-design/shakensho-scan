@@ -84,7 +84,7 @@ function hashStr(s) {
 
 const guideUrl = g => "tebiki/" + g.id + ".html";
 const symptomUrl = s => "symptom/" + (SYMPTOM_SLUG[s.name] || "s-" + hashStr(s.name)) + ".html";
-const codeUrl = c => "dtc/" + c.code.toLowerCase().replace(/,/g, "-") + ".html";
+const codeUrl = c => "dtc/" + c.code.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".html";
 const hubUrl = h => "dtc/" + h.slug + "/index.html";
 
 /* ---------- 故障コードの系統別まとめ ----------
@@ -103,7 +103,33 @@ const HUBS = [
   { slug: "chassis-body-network", name: "シャシ・ボディ・通信系（ABS・エアバッグ・CAN）", prefixes: ["C", "B", "U"],
     lead: "ABS・ブレーキ・ステアリング(C)、エアバッグ・電装(B)、CAN通信(U)で出るコードです。" },
   { slug: "maker", name: "メーカー固有コード", prefixes: ["P1"],
-    lead: "メーカー独自のコードです。定義は車種別資料での照会が必要になります。" }
+    lead: "メーカー独自のコードです。定義は車種別資料での照会が必要になります。" },
+  { slug: "j1939-spn", name: "大型車のJ1939(SPN/FMI)", prefixes: ["SPN"],
+    lead: "日野・いすゞ・ふそう・UDなどの大型車で使われるJ1939のコードです。SPNが「どの部位・どの値の話か」を表し、"
+        + "実際の不具合の種類は後ろに付くFMIで決まります。番号の意味はSAE J1939で共通ですが、しきい値や対応手順はメーカーごとに違うため、最終確認は各社の整備要領書で行ってください。",
+    extra: '<section><h2>FMI(故障の種類)の読み方</h2>'
+      + '<p>同じSPNでもFMIが変われば原因がまったく変わります。配線を疑うのか、実際の値を疑うのかは、ここで決まります。</p>'
+      + '<ul>'
+      + '<li><b>0 / 16</b> 値が規定より高い(16は中程度、0は重度)</li>'
+      + '<li><b>1 / 18</b> 値が規定より低い(18は中程度、1は重度)</li>'
+      + '<li><b>2</b> 値が不安定・断続的におかしい</li>'
+      + '<li><b>3</b> 電圧が高い、または電源側へ短絡 — 配線を疑う</li>'
+      + '<li><b>4</b> 電圧が低い、またはアース側へ短絡 — 配線を疑う</li>'
+      + '<li><b>5</b> 電流が低い、または断線</li>'
+      + '<li><b>6</b> 電流が高い、またはアースへ短絡</li>'
+      + '<li><b>7</b> 指示どおりに機械が動いていない — 固着を疑う</li>'
+      + '<li><b>8</b> 周波数・パルス幅が異常</li>'
+      + '<li><b>9</b> 更新が来ない(通信の異常)</li>'
+      + '<li><b>10</b> 値の変化の仕方が異常</li>'
+      + '<li><b>11</b> 原因不明</li>'
+      + '<li><b>12</b> 部品・ユニットの不良</li>'
+      + '<li><b>13</b> 校正・学習が必要</li>'
+      + '<li><b>14</b> メーカー指定の特別な手順が必要</li>'
+      + '<li><b>19</b> 受信したネットワークデータが異常</li>'
+      + '<li><b>31</b> 条件が成立している(状態の通知)</li>'
+      + '</ul>'
+      + '<p>まず3・4・5・6なら配線とコネクタから、0・1・16・18なら実際の値から、7なら機械的な固着から当たると早く進みます。</p>'
+      + '</section>' }
 ];
 const HUB_PREFIXES = [];
 HUBS.forEach(h => h.prefixes.forEach(p => HUB_PREFIXES.push({ p: p, hub: h })));
@@ -309,6 +335,7 @@ HUBS.forEach(h => {
     crumbs: [{ name: "故障コードから調べる", url: SITE + "/guide/#dtc" }, { name: h.name }],
     body: [
       '<p class="lead">' + esc(h.lead) + "全" + mine.length + "件。考えられる原因と、現場で確認する順番の目安です。</p>",
+      h.extra || "",
       blocks.join("\n"),
       section("ほかの系統から調べる", linkList(rel, hubLinks(HUBS.filter(x => x !== h))))
     ].join("\n")

@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>C1201 エンジン制御系異常(ABS/VSC連動)｜原因と点検手順｜メカノAI</title>
-<meta name="description" content="故障コード C1201（エンジン制御系異常(ABS/VSC連動)）の主な原因はエンジン側DTCが原因でABS/VSC警告も点灯(トヨタ系)。現場で確認する順番と、関連する点検の手引きをまとめました。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="故障コード C1201（エンジン制御系異常(ABS/VSC連動)）の主な原因はエンジン側にDTCがあり、その影響でABS/VSC側も警告を出している(トヨタ系で多い)、エンジンECUとの通信異常、エンジン制御のフェイルセーフ作動中、ABS…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/c1201.html">
 <meta property="og:title" content="C1201 エンジン制御系異常(ABS/VSC連動)｜原因と点検手順｜メカノAI">
-<meta property="og:description" content="故障コード C1201（エンジン制御系異常(ABS/VSC連動)）の主な原因はエンジン側DTCが原因でABS/VSC警告も点灯(トヨタ系)。現場で確認する順番と、関連する点検の手引きをまとめました。">
+<meta property="og:description" content="故障コード C1201（エンジン制御系異常(ABS/VSC連動)）の主な原因はエンジン側にDTCがあり、その影響でABS/VSC側も警告を出している(トヨタ系で多い)、エンジンECUとの通信異常、エンジン制御のフェイルセーフ作動中、ABS…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/c1201.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,8 +23,8 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a> › <span>C1201</span></nav>
 <h1>C1201 エンジン制御系異常(ABS/VSC連動)</h1>
 <p class="lead">系統: シャシ系(ABS/ブレーキ/ステアリング/サス)。考えられる原因と、確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>エンジン側DTCが原因でABS/VSC警告も点灯(トヨタ系)</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>エンジン側コードを先に修理→本コードは追従消灯</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>エンジン側にDTCがあり、その影響でABS/VSC側も警告を出している(トヨタ系で多い)</li><li>エンジンECUとの通信異常</li><li>エンジン制御のフェイルセーフ作動中</li><li>ABS/VSC側のセンサ異常との併発</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>先にエンジン側のDTCを全部読み出す。このコードは単独では原因にならない</li><li>エンジン側のコードを修理してから、本コードを消去して再発するか確認する</li><li>エンジン側に何も出ていない場合は、通信系(U系コード)を確認する</li><li>ABS/VSC側に固有のコードが併発していないか確認する</li><li>警告灯が複数点いている時は、点灯の順番や条件を顧客から聞き取ると切り分けが早い</li></ol></section>
 
 
 <section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/u0100.html">U0100 エンジンECUとの通信途絶</a></li><li><a href="../dtc/u0101.html">U0101 TCM(AT/CVT)との通信途絶</a></li><li><a href="../dtc/u0073.html">U0073 CANバス通信オフ</a></li><li><a href="../dtc/u0155.html">U0155 メーターとの通信途絶</a></li><li><a href="../dtc/c0200.html">C0200 ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後</a></li><li><a href="../dtc/b1000.html">B1000 ボディ系コード(B)</a></li></ul><p class="more"><a href="chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）の一覧をまとめて見る</a></p></section>

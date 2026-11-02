@@ -1,32 +1,129 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://mechanoai-cablueie.com/</loc><lastmod>2026-10-28</lastmod></url>
-  <url><loc>https://mechanoai-cablueie.com/biz.html</loc><lastmod>2026-08-27</lastmod></url>
-  <url><loc>https://mechanoai-cablueie.com/faq.html</loc><lastmod>2026-08-24</lastmod></url>
-  <url><loc>https://mechanoai-cablueie.com/manual.html</loc><lastmod>2026-08-04</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/biz.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/faq.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/manual.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/b1000.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/c0200.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/c1201.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/chassis-body-network/</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/engine-fuel/</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/exhaust-dpf-egr/</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/idle-ecu/</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/j1939-spn/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/maker/</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0011.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0016.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0045.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0087.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0088.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0093.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0101.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0102.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0113.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0117.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0118.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0120.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0122.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0123.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0128.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0130.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0131.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0133.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0135.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0141.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0171.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0172.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0174.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0191.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0201.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0234.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0299.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0300.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0325.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0335-p0340.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0335.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0340.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0380.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0401.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0402.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0404.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0420.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0430.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0441.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0442.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0455.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0471.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0500.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0504.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0507.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0545.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0562.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0563.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0606.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0627.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0700.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0705.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0720.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p0741.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p1000.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2002.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p204f.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p207f.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2096.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p20ee.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2101.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2122.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2138.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2146.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2196.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2227.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2263.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2453.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2457.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/p2463.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-100.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-102.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-110.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-157.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-168.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-1761.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-27.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3216.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3226.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3251.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3364.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3719.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-3936.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-4094.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-411.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-4334.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-629.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/spn-639.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/dtc/transmission/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/u0073.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/u0100.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/u0101.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/dtc/u0155.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/air-conditioner.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/air-system.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/alignment.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/battery.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/black-smoke.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/blue-smoke.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/brake-lamp-stopper.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/brake-squeal.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/brake-weak.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/coolant-leak.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/dpf-trouble.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/fuel-economy.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/hard-start.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/hesitation.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/hum-noise.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/knock-noise.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/low-power.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/no-crank.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/noise.html</loc><lastmod>2026-11-02</lastmod></url>
@@ -36,9 +133,11 @@
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/rough-idle.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/scr-warning.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/shift-cable-bush.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/squeal-noise.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/stall.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/transmission.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/vibration.html</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://mechanoai-cablueie.com/guide/symptom/warning-light.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/symptom/white-smoke.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/tebiki/air-brake.html</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://mechanoai-cablueie.com/guide/tebiki/at-cvt.html</loc><lastmod>2026-11-02</lastmod></url>

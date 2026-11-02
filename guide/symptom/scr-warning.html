@@ -5,10 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>尿素SCR系警告の原因と点検の順番｜整備士向け｜メカノAI</title>
-<meta name="description" content="尿素SCR系警告で考えられる原因は4つ（尿素水不足・品質不良、尿素ポンプ・インジェクタ結晶詰まり、NOxセンサ劣化など）。現場で確認する順番は「残量・濃度(屈折計)」から。整備士向けの点検メモです。">
+<meta name="description" content="尿素SCR系警告で考えられる原因は8つ（尿素水(AdBlue)の残量不足、規格外・希釈された尿素水の使用、ドージングバルブ・配管の結晶による詰まりなど）。現場で確認する順番は「まず尿素水の残量を確認する。単なる補充忘れのことも多い」から。…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/symptom/scr-warning.html">
 <meta property="og:title" content="尿素SCR系警告の原因と点検の順番｜整備士向け｜メカノAI">
-<meta property="og:description" content="尿素SCR系警告で考えられる原因は4つ（尿素水不足・品質不良、尿素ポンプ・インジェクタ結晶詰まり、NOxセンサ劣化など）。現場で確認する順番は「残量・濃度(屈折計)」から。整備士向けの点検メモです。">
+<meta property="og:description" content="尿素SCR系警告で考えられる原因は8つ（尿素水(AdBlue)の残量不足、規格外・希釈された尿素水の使用、ドージングバルブ・配管の結晶による詰まりなど）。現場で確認する順番は「まず尿素水の残量を確認する。単なる補充忘れのことも多い」から。…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/symptom/scr-warning.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -23,10 +23,10 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#symptom">症状から調べる</a> › <span>尿素SCR系警告</span></nav>
 <h1>尿素SCR系警告の原因と点検ポイント</h1>
 <p class="lead">考えられる原因と、現場で確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>尿素水不足・品質不良</li><li>尿素ポンプ・インジェクタ結晶詰まり</li><li>NOxセンサ劣化</li><li>DCU不良</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>残量・濃度(屈折計)</li><li>配管の結晶</li><li>NOxセンサデータ</li><li>※放置でエンジン再始動制限あり、早期対応</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>尿素水(AdBlue)の残量不足</li><li>規格外・希釈された尿素水の使用</li><li>ドージングバルブ・配管の結晶による詰まり</li><li>NOxセンサの劣化</li><li>尿素ポンプの圧力不足</li><li>SCR触媒の劣化</li><li>寒冷地での凍結、配管ヒーターの不良</li><li>警告を放置すると出力制限・始動制限がかかる車種がある</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>まず尿素水の残量を確認する。単なる補充忘れのことも多い</li><li>屈折計で濃度を測る(規格は約32.5%)。水で薄められていないか確認する</li><li>タンク内の濁り・異物・異臭を確認する</li><li>DTCを読み、P20EE・P207F・P204Fなどどのコードが出ているか確認する</li><li>ドージングバルブ先端の白い結晶を確認する</li><li>前後NOxセンサの値を比べる</li><li>尿素ライン圧力と噴射テストを実施する</li><li>出力制限までの猶予距離が表示される車種では、顧客にその旨と期限を伝える</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/scr.html">尿素SCR系統点検の手引き</a></li></ul></section>
-<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p20ee.html">P20EE SCR NOx触媒効率低下</a></li><li><a href="../dtc/p207f.html">P207F 尿素水品質異常</a></li><li><a href="../dtc/p204f.html">P204F SCRシステム性能異常</a></li></ul></section>
+<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p20ee.html">P20EE SCR NOx触媒効率低下</a></li><li><a href="../dtc/p207f.html">P207F 尿素水品質異常</a></li><li><a href="../dtc/p204f.html">P204F SCRシステム性能異常</a></li><li><a href="../dtc/spn-1761.html">SPN 1761 尿素(AdBlue)タンク残量【大型・J1939】</a></li><li><a href="../dtc/spn-3216.html">SPN 3216 SCR上流NOxセンサ【大型・J1939】</a></li><li><a href="../dtc/spn-3226.html">SPN 3226 SCR下流NOxセンサ【大型・J1939】</a></li><li><a href="../dtc/spn-3364.html">SPN 3364 尿素(AdBlue)品質【大型・J1939】</a></li><li><a href="../dtc/spn-4094.html">SPN 4094 SCR出力制限(インデュースメント)【大型・J1939】</a></li><li><a href="../dtc/spn-4334.html">SPN 4334 尿素ドージング圧【大型・J1939】</a></li></ul></section>
 <section><h2>ほかの症状から調べる</h2><ul class="links"><li><a href="../symptom/white-smoke.html">白煙</a></li><li><a href="../symptom/black-smoke.html">黒煙</a></li><li><a href="../symptom/blue-smoke.html">青白い煙・オイル臭</a></li><li><a href="../symptom/hard-start.html">始動不良</a></li><li><a href="../symptom/no-crank.html">セルが回らない</a></li><li><a href="../symptom/rough-idle.html">アイドリング不調・ハンチング</a></li><li><a href="../symptom/stall.html">エンスト</a></li><li><a href="../symptom/low-power.html">加速不良・出力不足</a></li><li><a href="../symptom/hesitation.html">息つき・ギクシャク</a></li><li><a href="../symptom/warning-light.html">警告灯点灯</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>

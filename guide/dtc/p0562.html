@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P0562 システム電圧低｜原因と点検手順｜メカノAI</title>
-<meta name="description" content="故障コード P0562（システム電圧低）の主な原因はオルタネータ発電不良、バッテリー劣化、B端子・アース接触不良。現場で確認する順番と、関連する点検の手引きをまとめました。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="故障コード P0562（システム電圧低）の主な原因はオルタネータの発電不良(レギュレータ・ダイオード・ブラシ摩耗)、ベルトの滑り・張り不足、バッテリーの劣化・内部抵抗増大、B端子やアースの緩み・腐食による電圧降下、暗電流過大で充電が追いつ…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/p0562.html">
 <meta property="og:title" content="P0562 システム電圧低｜原因と点検手順｜メカノAI">
-<meta property="og:description" content="故障コード P0562（システム電圧低）の主な原因はオルタネータ発電不良、バッテリー劣化、B端子・アース接触不良。現場で確認する順番と、関連する点検の手引きをまとめました。">
+<meta property="og:description" content="故障コード P0562（システム電圧低）の主な原因はオルタネータの発電不良(レギュレータ・ダイオード・ブラシ摩耗)、ベルトの滑り・張り不足、バッテリーの劣化・内部抵抗増大、B端子やアースの緩み・腐食による電圧降下、暗電流過大で充電が追いつ…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/p0562.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,11 +23,11 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/idle-ecu/">アイドル・車速・ECU系</a> › <span>P0562</span></nav>
 <h1>P0562 システム電圧低</h1>
 <p class="lead">系統: 車速・アイドル制御・補機系。考えられる原因と、確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>オルタネータ発電不良</li><li>バッテリー劣化</li><li>B端子・アース接触不良</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>充電電圧(13.5-14.5V目安)</li><li>暗電流</li><li>端子の緩み・腐食</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>オルタネータの発電不良(レギュレータ・ダイオード・ブラシ摩耗)</li><li>ベルトの滑り・張り不足</li><li>バッテリーの劣化・内部抵抗増大</li><li>B端子やアースの緩み・腐食による電圧降下</li><li>暗電流過大で充電が追いついていない</li><li>【大型】24V系では直列接続のバッテリー1個の劣化でも全体が崩れる</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>エンジン始動後の充電電圧を測る(一般的な12V系の目安は13.5〜14.5V)</li><li>ベルトの張りと滑り音、ベルト面の摩耗を確認する</li><li>バッテリー端子・B端子・アースポイントの緩みと腐食を確認する</li><li>バッテリーテスターで劣化具合を確認する</li><li>暗電流を測り、過大なら回路を順に切り離して特定する</li><li>24V系はバッテリー2個それぞれの電圧を個別に測り、ばらつきを確認する</li><li>電圧低下は他の制御にも誤作動を起こすため、他のコードを消す前にここを直す</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/charge.html">充電系・電源点検の手引き</a></li></ul></section>
 <section><h2>関連する症状</h2><ul class="links"><li><a href="../symptom/battery.html">充電系・バッテリー上がり</a></li><li><a href="../symptom/brake-lamp-stopper.html">ブレーキランプ点灯しっぱなし→バッテリー上がり(ペダルストッパーゴム欠落)</a></li></ul></section>
-<section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/p0500.html">P0500 車速センサ系統異常</a></li><li><a href="../dtc/p0504.html">P0504 ブレーキスイッチ相関異常</a></li><li><a href="../dtc/p0563.html">P0563 システム電圧高</a></li><li><a href="../dtc/p0606.html">P0606 ECU内部異常</a></li><li><a href="../dtc/p0627.html">P0627 燃料ポンプ制御回路異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul><p class="more"><a href="idle-ecu/">アイドル・車速・ECU系の一覧をまとめて見る</a></p></section>
+<section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/p0500.html">P0500 車速センサ系統異常</a></li><li><a href="../dtc/p0504.html">P0504 ブレーキスイッチ相関異常</a></li><li><a href="../dtc/p0507.html">P0507 アイドル回転が規定より高い</a></li><li><a href="../dtc/p0563.html">P0563 システム電圧高</a></li><li><a href="../dtc/p0606.html">P0606 ECU内部異常</a></li><li><a href="../dtc/p0627.html">P0627 燃料ポンプ制御回路異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul><p class="more"><a href="idle-ecu/">アイドル・車速・ECU系の一覧をまとめて見る</a></p></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>

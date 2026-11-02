@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<!-- このファイルは tools/build-guide.js が db/*.json から自動生成します。直接編集しないでください。 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大型車のJ1939(SPN/FMI)の故障コード一覧｜原因と確認の順番｜メカノAI</title>
+<meta name="description" content="大型車のJ1939(SPN/FMI)の故障コード18件（SPN 27・SPN 100・SPN 102・SPN 110・SPN 157など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/j1939-spn/">
+<meta property="og:title" content="大型車のJ1939(SPN/FMI)の故障コード一覧｜原因と確認の順番｜メカノAI">
+<meta property="og:description" content="大型車のJ1939(SPN/FMI)の故障コード18件（SPN 27・SPN 100・SPN 102・SPN 110・SPN 157など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/j1939-spn/">
+<meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="../../../icons/icon-192.png">
+<link rel="stylesheet" href="../../guide.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"メカノAI 整備メモ","item":"https://mechanoai-cablueie.com/guide/"},{"@type":"ListItem","position":2,"name":"故障コードから調べる","item":"https://mechanoai-cablueie.com/guide/#dtc"},{"@type":"ListItem","position":3,"name":"大型車のJ1939(SPN/FMI)","item":"https://mechanoai-cablueie.com/guide/dtc/j1939-spn/"}]}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../../"><img src="../../../icons/icon-192.png" alt="" width="28" height="28">メカノAI <span>整備メモ</span></a></header>
+<main>
+<nav class="crumbs"><a href="../../">メカノAI 整備メモ</a> › <a href="../../#dtc">故障コードから調べる</a> › <span>大型車のJ1939(SPN/FMI)</span></nav>
+<h1>大型車のJ1939(SPN/FMI)の故障コード一覧</h1>
+<p class="lead">日野・いすゞ・ふそう・UDなどの大型車で使われるJ1939のコードです。SPNが「どの部位・どの値の話か」を表し、実際の不具合の種類は後ろに付くFMIで決まります。番号の意味はSAE J1939で共通ですが、しきい値や対応手順はメーカーごとに違うため、最終確認は各社の整備要領書で行ってください。全18件。考えられる原因と、現場で確認する順番の目安です。</p>
+<section><h2>FMI(故障の種類)の読み方</h2><p>同じSPNでもFMIが変われば原因がまったく変わります。配線を疑うのか、実際の値を疑うのかは、ここで決まります。</p><ul><li><b>0 / 16</b> 値が規定より高い(16は中程度、0は重度)</li><li><b>1 / 18</b> 値が規定より低い(18は中程度、1は重度)</li><li><b>2</b> 値が不安定・断続的におかしい</li><li><b>3</b> 電圧が高い、または電源側へ短絡 — 配線を疑う</li><li><b>4</b> 電圧が低い、またはアース側へ短絡 — 配線を疑う</li><li><b>5</b> 電流が低い、または断線</li><li><b>6</b> 電流が高い、またはアースへ短絡</li><li><b>7</b> 指示どおりに機械が動いていない — 固着を疑う</li><li><b>8</b> 周波数・パルス幅が異常</li><li><b>9</b> 更新が来ない(通信の異常)</li><li><b>10</b> 値の変化の仕方が異常</li><li><b>11</b> 原因不明</li><li><b>12</b> 部品・ユニットの不良</li><li><b>13</b> 校正・学習が必要</li><li><b>14</b> メーカー指定の特別な手順が必要</li><li><b>19</b> 受信したネットワークデータが異常</li><li><b>31</b> 条件が成立している(状態の通知)</li></ul><p>まず3・4・5・6なら配線とコネクタから、0・1・16・18なら実際の値から、7なら機械的な固着から当たると早く進みます。</p></section>
+<section class="codeBlock"><h3 id="spn 27">SPN 27 EGRバルブ位置【大型・J1939】</h3><p>煤によるバルブの固着、ポジションセンサの不良、モーター・アクチュエータの不良、配線・コネクタの接触不良、清掃後の学習値…</p><p class="more"><a href="../../dtc/spn-27.html">SPN 27の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 100">SPN 100 エンジン油圧【大型・J1939】</h3><p>実際の油圧低下(オイル量不足・オイルポンプ摩耗・メタルクリアランス過大)、油圧センサの不良、センサ配線の断線・短絡、オ…</p><p class="more"><a href="../../dtc/spn-100.html">SPN 100の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 102">SPN 102 過給圧(ブースト)【大型・J1939】</h3><p>インタークーラー配管の抜け・クランプ緩み、ブーストセンサの不良・配線不良、ターボの性能低下、VNT固着、吸気系の詰まり…</p><p class="more"><a href="../../dtc/spn-102.html">SPN 102の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 110">SPN 110 エンジン冷却水温【大型・J1939】</h3><p>実際のオーバーヒート(冷却水不足・ファン不良・ラジエーター詰まり)、水温センサの不良、配線の断線・短絡、サーモスタット…</p><p class="more"><a href="../../dtc/spn-110.html">SPN 110の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 157">SPN 157 コモンレール圧【大型・J1939】</h3><p>燃料フィルタの詰まり、サプライポンプの能力低下、SCV(吸入調量弁)の不良、レール圧センサの不良、インジェクタのリター…</p><p class="more"><a href="../../dtc/spn-157.html">SPN 157の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 168">SPN 168 電源電圧(バッテリー)【大型・J1939】</h3><p>オルタネータの発電不良、バッテリーの劣化(24V系は直列2個のうち片方だけ劣化することがある)、ベルトの滑り、端子・ア…</p><p class="more"><a href="../../dtc/spn-168.html">SPN 168の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 411">SPN 411 EGR差圧【大型・J1939】</h3><p>差圧取り出し配管の煤詰まり、配管の抜け・折れ、差圧センサの不良、EGR通路・クーラーの詰まり、凝縮水の凍結(冬季)</p><p class="more"><a href="../../dtc/spn-411.html">SPN 411の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 629">SPN 629 ECU内部異常【大型・J1939】</h3><p>ECU本体の内部故障、電源・アース不良による誤検出、ECUへの浸水・端子腐食、電圧低下、ジャンピングや溶接作業による電…</p><p class="more"><a href="../../dtc/spn-629.html">SPN 629の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 639">SPN 639 J1939通信(CAN)【大型・J1939】</h3><p>CAN配線の断線・短絡、コネクタの水入り・接触不良、終端抵抗の異常、いずれかのユニットの不良でバス全体がダウン、後付け…</p><p class="more"><a href="../../dtc/spn-639.html">SPN 639の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 1761">SPN 1761 尿素(AdBlue)タンク残量【大型・J1939】</h3><p>尿素水の残量不足(補充忘れ)、タンク内レベルセンサの不良、センサ配線の断線・短絡、センサ部への結晶付着、尿素水の凍結(…</p><p class="more"><a href="../../dtc/spn-1761.html">SPN 1761の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3216">SPN 3216 SCR上流NOxセンサ【大型・J1939】</h3><p>NOxセンサ素子の劣化、センサ配線・コネクタの不良(排気近くで熱害を受ける)、センサ制御ユニットの不良、排気漏れによる…</p><p class="more"><a href="../../dtc/spn-3216.html">SPN 3216の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3226">SPN 3226 SCR下流NOxセンサ【大型・J1939】</h3><p>NOxセンサ素子の劣化、配線・コネクタの熱害、SCR触媒の性能低下で実際に下流のNOxが下がっていない、尿素噴射量の不…</p><p class="more"><a href="../../dtc/spn-3226.html">SPN 3226の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3251">SPN 3251 DPF差圧【大型・J1939】</h3><p>差圧センサ配管の煤詰まり、DPFへの煤・灰分の堆積、差圧センサの不良、配管の抜け・破れ、DPF担体の割れ・溶損、凍結(…</p><p class="more"><a href="../../dtc/spn-3251.html">SPN 3251の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3364">SPN 3364 尿素(AdBlue)品質【大型・J1939】</h3><p>規格外・希釈された尿素水、水や軽油の誤投入、長期保管・高温による変質、品質センサの不良、NOxセンサの誤検出</p><p class="more"><a href="../../dtc/spn-3364.html">SPN 3364の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3719">SPN 3719 DPF煤堆積率【大型・J1939】</h3><p>短距離走行・アイドリング中心で自動再生が完了していない、再生途中でのエンジン停止の繰り返し、インジェクタ不調による煤の…</p><p class="more"><a href="../../dtc/spn-3719.html">SPN 3719の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 3936">SPN 3936 DPFシステム【大型・J1939】</h3><p>DPFシステム全体としての異常を示すため、単独では原因を特定できない、煤の過剰堆積、再生の失敗が続いている、関連センサ…</p><p class="more"><a href="../../dtc/spn-3936.html">SPN 3936の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 4094">SPN 4094 SCR出力制限(インデュースメント)【大型・J1939】</h3><p>尿素水の残量不足・品質不良が解消されていない、SCRシステムの異常が一定時間続いた、尿素噴射系の詰まり、NOxセンサの…</p><p class="more"><a href="../../dtc/spn-4094.html">SPN 4094の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="spn 4334">SPN 4334 尿素ドージング圧【大型・J1939】</h3><p>尿素ポンプの圧力不足、配管・フィルタの結晶による詰まり、ドージングバルブの詰まり・固着、圧力センサの不良、配管ヒーター…</p><p class="more"><a href="../../dtc/spn-4334.html">SPN 4334の詳しいページ</a></p></section>
+<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/ignition-misfire/index.html">点火・失火系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li></ul></section>
+<aside class="cta">
+  <div class="ctaH">この車両ではどうか、まで調べるなら</div>
+  <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
+  <a class="btn" href="../../../?pocket=start">7日間無料ではじめる</a>
+  <p class="ctaNote">登録はメールアドレスだけ。カード登録はいりません。IDと初期パスワードがすぐ届きます。</p>
+  <a class="btn btnLine" href="../../../?demo=1">先に登録なしで試す</a>
+  <a class="btnSub" href="../../../biz.html">会社・チームで使う（法人版）</a>
+</aside>
+<p class="note">このページは現場での点検の進め方をまとめた参考情報です。数値や手順は車種・年式で異なるため、作業前に必ず整備要領書・メーカー資料で確認してください。</p>
+<p class="upd">最終更新: 2026-11-02</p>
+</main>
+<script src="../../../track.js" defer></script>
+<footer><a href="../../../terms.html">利用規約</a> ・ <a href="../../../privacy.html">プライバシーポリシー</a> ・ <a href="../../../tokushoho.html">特定商取引法に基づく表記</a><br>© 2026 Cablueie</footer>
+</body>
+</html>

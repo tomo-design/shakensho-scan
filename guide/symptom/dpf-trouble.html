@@ -5,10 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DPF系不調の原因と点検の順番｜整備士向け｜メカノAI</title>
-<meta name="description" content="DPF系不調で考えられる原因は4つ（短距離走行による再生不足、差圧センサ・配管詰まり、インジェクタ劣化で煤増加など）。現場で確認する順番は「差圧・再生履歴・インターバル」から。整備士向けの点検メモです。">
+<meta name="description" content="DPF系不調で考えられる原因は7つ（短距離走行・アイドリング中心で自動再生が完了していない、再生途中でのエンジン停止の繰り返し、差圧センサ・配管の煤詰まりなど）。現場で確認する順番は「煤堆積量と再生履歴をデータモニタで確認する」から。整備…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/symptom/dpf-trouble.html">
 <meta property="og:title" content="DPF系不調の原因と点検の順番｜整備士向け｜メカノAI">
-<meta property="og:description" content="DPF系不調で考えられる原因は4つ（短距離走行による再生不足、差圧センサ・配管詰まり、インジェクタ劣化で煤増加など）。現場で確認する順番は「差圧・再生履歴・インターバル」から。整備士向けの点検メモです。">
+<meta property="og:description" content="DPF系不調で考えられる原因は7つ（短距離走行・アイドリング中心で自動再生が完了していない、再生途中でのエンジン停止の繰り返し、差圧センサ・配管の煤詰まりなど）。現場で確認する順番は「煤堆積量と再生履歴をデータモニタで確認する」から。整備…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/symptom/dpf-trouble.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -23,10 +23,10 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#symptom">症状から調べる</a> › <span>DPF系不調</span></nav>
 <h1>DPF系不調の原因と点検ポイント</h1>
 <p class="lead">考えられる原因と、現場で確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>短距離走行による再生不足</li><li>差圧センサ・配管詰まり</li><li>インジェクタ劣化で煤増加</li><li>灰分満杯(走行距離過多)</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>差圧・再生履歴・インターバル</li><li>強制再生の可否と再生後差圧</li><li>灰分蓄積→洗浄/交換判断</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>短距離走行・アイドリング中心で自動再生が完了していない</li><li>再生途中でのエンジン停止の繰り返し</li><li>差圧センサ・配管の煤詰まり</li><li>排気温センサの不良</li><li>インジェクタ不調・EGR過多による煤の過剰発生</li><li>灰分(アッシュ)の蓄積による寿命</li><li>エンジンオイルが燃料で希釈され増えている</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>煤堆積量と再生履歴をデータモニタで確認する</li><li>アイドルと空ぶかしでの差圧を記録する</li><li>差圧センサの配管を外し、煤の詰まりを確認して清掃する</li><li>強制再生を実施し、再生後に堆積量と差圧が下がるか確認する</li><li>再生の間隔が短い場合は、インジェクタ・EGR・過給を順に診断する</li><li>オイルレベルの増加と燃料臭を確認する(再生の繰り返しで希釈が進む)</li><li>走行距離と再生回数から、洗浄で戻るか交換かを判断する</li><li>強制再生は高温の排気が出るので、可燃物のない屋外で行う</li><li>使い方が原因なら、定期的にある程度の速度で走る時間が必要だと説明する</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/dpf.html">DPF/DPD/DPR点検の手引き</a></li></ul></section>
-<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p2002.html">P2002 DPF/DPR/DPD 捕集効率低下(バンク1)</a></li><li><a href="../dtc/p2453.html">P2453 DPF差圧センサ性能異常</a></li><li><a href="../dtc/p2463.html">P2463 DPF煤過剰堆積</a></li><li><a href="../dtc/p0471.html">P0471 排気圧センサ性能異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul></section>
+<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p2002.html">P2002 DPF/DPR/DPD 捕集効率低下(バンク1)</a></li><li><a href="../dtc/p2453.html">P2453 DPF差圧センサ性能異常</a></li><li><a href="../dtc/p2457.html">P2457 EGRクーラー性能異常</a></li><li><a href="../dtc/p2463.html">P2463 DPF煤過剰堆積</a></li><li><a href="../dtc/p0471.html">P0471 排気圧センサ性能異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li><li><a href="../dtc/spn-3251.html">SPN 3251 DPF差圧【大型・J1939】</a></li><li><a href="../dtc/spn-3719.html">SPN 3719 DPF煤堆積率【大型・J1939】</a></li><li><a href="../dtc/spn-3936.html">SPN 3936 DPFシステム【大型・J1939】</a></li></ul></section>
 <section><h2>ほかの症状から調べる</h2><ul class="links"><li><a href="../symptom/white-smoke.html">白煙</a></li><li><a href="../symptom/black-smoke.html">黒煙</a></li><li><a href="../symptom/blue-smoke.html">青白い煙・オイル臭</a></li><li><a href="../symptom/hard-start.html">始動不良</a></li><li><a href="../symptom/no-crank.html">セルが回らない</a></li><li><a href="../symptom/rough-idle.html">アイドリング不調・ハンチング</a></li><li><a href="../symptom/stall.html">エンスト</a></li><li><a href="../symptom/low-power.html">加速不良・出力不足</a></li><li><a href="../symptom/hesitation.html">息つき・ギクシャク</a></li><li><a href="../symptom/warning-light.html">警告灯点灯</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>

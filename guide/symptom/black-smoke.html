@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>黒煙の原因と点検の順番｜整備士向け｜メカノAI</title>
-<meta name="description" content="黒煙で考えられる原因は4つ（エアクリ詰まり・吸気不足、インジェクタ噴射過多・霧化不良、EGR過大など）。現場で確認する順番は「エアクリ・吸気系」から。整備士向けの点検メモです。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="黒煙で考えられる原因は7つ（エアクリーナーの詰まりによる空気不足、インジェクタの噴射不良(霧化不良・後垂れ)、過給不足(ブーストリーク・タービン不良・VNT固着)など）。現場で確認する順番は「エアクリーナーを外して詰まりを目視する。ここが…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/symptom/black-smoke.html">
 <meta property="og:title" content="黒煙の原因と点検の順番｜整備士向け｜メカノAI">
-<meta property="og:description" content="黒煙で考えられる原因は4つ（エアクリ詰まり・吸気不足、インジェクタ噴射過多・霧化不良、EGR過大など）。現場で確認する順番は「エアクリ・吸気系」から。整備士向けの点検メモです。">
+<meta property="og:description" content="黒煙で考えられる原因は7つ（エアクリーナーの詰まりによる空気不足、インジェクタの噴射不良(霧化不良・後垂れ)、過給不足(ブーストリーク・タービン不良・VNT固着)など）。現場で確認する順番は「エアクリーナーを外して詰まりを目視する。ここが…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/symptom/black-smoke.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,10 +23,10 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#symptom">症状から調べる</a> › <span>黒煙</span></nav>
 <h1>黒煙の原因と点検ポイント</h1>
 <p class="lead">考えられる原因と、現場で確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>エアクリ詰まり・吸気不足</li><li>インジェクタ噴射過多・霧化不良</li><li>EGR過大</li><li>過給圧不足</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>エアクリ・吸気系</li><li>ブースト圧データ</li><li>EGR作動</li><li>インジェクタ補正値</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>エアクリーナーの詰まりによる空気不足</li><li>インジェクタの噴射不良(霧化不良・後垂れ)</li><li>過給不足(ブーストリーク・タービン不良・VNT固着)</li><li>EGRの過剰流入</li><li>燃料噴射量の過多(ポンプ・制御の異常)</li><li>【大型】DPFや排気の詰まりで排圧が上がっている</li><li>過積載・長い登坂など、使い方による一時的なもの</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>エアクリーナーを外して詰まりを目視する。ここが一番多く、費用も安い</li><li>どの条件で出るか聞き取る(発進時・登坂・加速時)。条件で原因の絞り込みができる</li><li>吸気系に加圧テストをかけてブーストリークを探す</li><li>データモニタで目標ブーストと実ブーストの差を確認する</li><li>EGRバルブの固着・閉じ不良を点検する</li><li>インジェクタのリターン量と噴射状態を確認する</li><li>DPFの差圧を確認し、排気の詰まりを除外する</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/dpf.html">DPF/DPD/DPR点検の手引き</a></li></ul></section>
-<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p2002.html">P2002 DPF/DPR/DPD 捕集効率低下(バンク1)</a></li><li><a href="../dtc/p2453.html">P2453 DPF差圧センサ性能異常</a></li><li><a href="../dtc/p2463.html">P2463 DPF煤過剰堆積</a></li><li><a href="../dtc/p0471.html">P0471 排気圧センサ性能異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li></ul></section>
+<section><h2>この症状で出ることがある故障コード</h2><ul class="links"><li><a href="../dtc/p2002.html">P2002 DPF/DPR/DPD 捕集効率低下(バンク1)</a></li><li><a href="../dtc/p2453.html">P2453 DPF差圧センサ性能異常</a></li><li><a href="../dtc/p2457.html">P2457 EGRクーラー性能異常</a></li><li><a href="../dtc/p2463.html">P2463 DPF煤過剰堆積</a></li><li><a href="../dtc/p0471.html">P0471 排気圧センサ性能異常</a></li><li><a href="../dtc/p0545.html">P0545 排気温センサ回路異常(低)</a></li><li><a href="../dtc/spn-3251.html">SPN 3251 DPF差圧【大型・J1939】</a></li><li><a href="../dtc/spn-3719.html">SPN 3719 DPF煤堆積率【大型・J1939】</a></li><li><a href="../dtc/spn-3936.html">SPN 3936 DPFシステム【大型・J1939】</a></li></ul></section>
 <section><h2>ほかの症状から調べる</h2><ul class="links"><li><a href="../symptom/white-smoke.html">白煙</a></li><li><a href="../symptom/blue-smoke.html">青白い煙・オイル臭</a></li><li><a href="../symptom/hard-start.html">始動不良</a></li><li><a href="../symptom/no-crank.html">セルが回らない</a></li><li><a href="../symptom/rough-idle.html">アイドリング不調・ハンチング</a></li><li><a href="../symptom/stall.html">エンスト</a></li><li><a href="../symptom/low-power.html">加速不良・出力不足</a></li><li><a href="../symptom/hesitation.html">息つき・ギクシャク</a></li><li><a href="../symptom/warning-light.html">警告灯点灯</a></li><li><a href="../symptom/overheat.html">オーバーヒート・水温異常</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>

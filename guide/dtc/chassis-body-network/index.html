@@ -23,14 +23,15 @@
 <nav class="crumbs"><a href="../../">メカノAI 整備メモ</a> › <a href="../../#dtc">故障コードから調べる</a> › <span>シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</span></nav>
 <h1>シャシ・ボディ・通信系（ABS・エアバッグ・CAN）の故障コード一覧</h1>
 <p class="lead">ABS・ブレーキ・ステアリング(C)、エアバッグ・電装(B)、CAN通信(U)で出るコードです。全7件。考えられる原因と、現場で確認する順番の目安です。</p>
-<section class="codeBlock"><h3 id="u0100">U0100 エンジンECUとの通信途絶</h3><p><b>考えられる原因</b>: CAN配線断線・短絡、ECU電源・アース、終端抵抗系</p><p><b>確認する順番</b>: 1. CAN H/L抵抗(約60Ω) → 2. ECU電源ヒューズ → 3. コネクタ</p><p class="more"><a href="../../dtc/u0100.html">U0100の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="u0101">U0101 TCM(AT/CVT)との通信途絶</h3><p><b>考えられる原因</b>: CAN配線、TCM電源、TCM本体</p><p><b>確認する順番</b>: 1. CANライン → 2. TCM電源系</p><p class="more"><a href="../../dtc/u0101.html">U0101の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="u0073">U0073 CANバス通信オフ</h3><p><b>考えられる原因</b>: CANライン短絡(電源/アース/相互)、ノイズ、ユニット1つの不良で全体ダウンの場合あり</p><p><b>確認する順番</b>: 1. バス抵抗測定 → 2. ユニット切り離し法で犯人特定</p><p class="more"><a href="../../dtc/u0073.html">U0073の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="u0155">U0155 メーターとの通信途絶</h3><p><b>考えられる原因</b>: CAN配線、メーター電源</p><p><b>確認する順番</b>: 1. CANライン → 2. メーター裏コネクタ</p><p class="more"><a href="../../dtc/u0155.html">U0155の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="c1201">C1201 エンジン制御系異常(ABS/VSC連動)</h3><p><b>考えられる原因</b>: エンジン側DTCが原因でABS/VSC警告も点灯(トヨタ系)</p><p><b>確認する順番</b>: 1. エンジン側コードを先に修理→本コードは追従消灯</p><p class="more"><a href="../../dtc/c1201.html">C1201の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="c0200">C0200 ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後</h3><p><b>考えられる原因</b>: センサ・ローター汚損/損傷、ハブベアリングガタ、配線</p><p><b>確認する順番</b>: 1. センサ波形・各輪速度データ比較 → 2. ローターの錆・欠け → 3. ハブのガタ</p><p class="more"><a href="../../dtc/c0200.html">C0200の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="b1000">B1000 ボディ系コード(B)</h3><p><b>考えられる原因</b>: エアバッグ・エアコン・ボディ電装系。車種別定義</p><p><b>確認する順番</b>: 1. 車種別資料で照会 → 2. エアバッグ系は取扱注意(電源遮断後作業)</p><p class="more"><a href="../../dtc/b1000.html">B1000の詳しいページ</a></p></section>
-<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/ignition-misfire/index.html">点火・失火系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li></ul></section>
+
+<section class="codeBlock"><h3 id="u0100">U0100 エンジンECUとの通信途絶</h3><p>CAN配線の断線・短絡、エンジンECUの電源・アース不良、コネクタの接触不良・水入り、終端抵抗の異常、ECU本体の不良…</p><p class="more"><a href="../../dtc/u0100.html">U0100の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="u0101">U0101 TCM(AT/CVT)との通信途絶</h3><p>CAN配線の断線・短絡、TCM(AT/CVT制御ユニット)の電源・アース不良、TCM本体の不良、コネクタへの水・オイル…</p><p class="more"><a href="../../dtc/u0101.html">U0101の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="u0073">U0073 CANバス通信オフ</h3><p>CANラインの電源側・アース側への短絡、またはH-L間の短絡、1つのユニットの故障でバス全体がダウンしている、コネクタ…</p><p class="more"><a href="../../dtc/u0073.html">U0073の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="u0155">U0155 メーターとの通信途絶</h3><p>CAN配線の断線・短絡、メーター(コンビネーションメーター)の電源・アース不良、メーター裏コネクタの接触不良、メーター…</p><p class="more"><a href="../../dtc/u0155.html">U0155の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="c1201">C1201 エンジン制御系異常(ABS/VSC連動)</h3><p>エンジン側にDTCがあり、その影響でABS/VSC側も警告を出している(トヨタ系で多い)、エンジンECUとの通信異常、…</p><p class="more"><a href="../../dtc/c1201.html">C1201の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="c0200">C0200 ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後</h3><p>ホイールスピードセンサの不良、センサ先端への鉄粉付着・汚損、センサローター(トーンホイール)の錆・欠け、ハブベアリング…</p><p class="more"><a href="../../dtc/c0200.html">C0200の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="b1000">B1000 ボディ系コード(B)</h3><p>エアバッグ(SRS)・エアコン・ボディ電装系のいずれかの異常、コードの定義はメーカー・車種ごとに異なる、コネクタの接触…</p><p class="more"><a href="../../dtc/b1000.html">B1000の詳しいページ</a></p></section>
+<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/ignition-misfire/index.html">点火・失火系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li><li><a href="../../dtc/j1939-spn/index.html">大型車のJ1939(SPN/FMI)</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>

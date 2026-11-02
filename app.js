@@ -5683,7 +5683,10 @@ function extractDTCs(text) {
     .replace(/[PCBU]\s*([0-9A-FO]{4})/g, (m, d) => m[0] + d) // "P 0401"対策
     .replace(/([PCBU])([O])/g, "$10"); // OCRのO→0誤読(先頭桁)
   const found = norm.match(/\b[PCBU][0-9][0-9A-F]{3}\b/g) || [];
-  return [...new Set(found)];
+  // 大型車(J1939)の SPN。"SPN3251" "SPN 3251" "SPN3251 FMI3" のどれでも拾う。
+  // FMI番号は不具合の種類を表すだけで、引くページはSPNごとに1つなので、ここではSPN番号だけ取る。
+  const spn = [...norm.matchAll(/\bSPN\s*([0-9]{1,6})\b/g)].map(m => "SPN " + m[1]);
+  return [...new Set(found.concat(spn))];
 }
 
 function lookupDTC(code) {

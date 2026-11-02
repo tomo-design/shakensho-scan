@@ -5,11 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>U0100 エンジンECUとの通信途絶｜原因と点検手順｜メカノAI</title>
-<meta name="description" content="故障コード U0100（エンジンECUとの通信途絶）の主な原因はCAN配線断線・短絡、ECU電源・アース、終端抵抗系。現場で確認する順番と、関連する点検の手引きをまとめました。">
-<meta name="robots" content="noindex,follow">
+<meta name="description" content="故障コード U0100（エンジンECUとの通信途絶）の主な原因はCAN配線の断線・短絡、エンジンECUの電源・アース不良、コネクタの接触不良・水入り、終端抵抗の異常、ECU本体の不良、後付け電装品の割り込み配線による通信妨害。現場で確認す…">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/u0100.html">
 <meta property="og:title" content="U0100 エンジンECUとの通信途絶｜原因と点検手順｜メカノAI">
-<meta property="og:description" content="故障コード U0100（エンジンECUとの通信途絶）の主な原因はCAN配線断線・短絡、ECU電源・アース、終端抵抗系。現場で確認する順番と、関連する点検の手引きをまとめました。">
+<meta property="og:description" content="故障コード U0100（エンジンECUとの通信途絶）の主な原因はCAN配線の断線・短絡、エンジンECUの電源・アース不良、コネクタの接触不良・水入り、終端抵抗の異常、ECU本体の不良、後付け電装品の割り込み配線による通信妨害。現場で確認す…">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/u0100.html">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -24,8 +23,8 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a> › <span>U0100</span></nav>
 <h1>U0100 エンジンECUとの通信途絶</h1>
 <p class="lead">系統: ネットワーク系(CAN通信・ユニット間)。考えられる原因と、確認する順番の目安です。</p>
-<section><h2>考えられる原因</h2><ul><li>CAN配線断線・短絡</li><li>ECU電源・アース</li><li>終端抵抗系</li></ul></section>
-<section><h2>点検・確認すること</h2><ol><li>CAN H/L抵抗(約60Ω)</li><li>ECU電源ヒューズ</li><li>コネクタ</li></ol></section>
+<section><h2>考えられる原因</h2><ul><li>CAN配線の断線・短絡</li><li>エンジンECUの電源・アース不良</li><li>コネクタの接触不良・水入り</li><li>終端抵抗の異常</li><li>ECU本体の不良</li><li>後付け電装品の割り込み配線による通信妨害</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>IG OFFでDLCのCAN H-L間抵抗を測る。終端抵抗2個が並列なので約60Ωが目安(約120Ωなら片方の経路が切れている)</li><li>エンジンECUの電源ヒューズとアースを確認する</li><li>ECUコネクタの端子・水の侵入を目視する</li><li>後付け電装品(ドラレコ・セキュリティ等)の配線を確認し、疑わしければ外して再確認する</li><li>他のユニットとも通信が途絶えていないか、全システムスキャンで確認する</li><li>配線を揺すりながら通信の切れを再現させる</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/can.html">CAN通信系統点検の手引き</a></li></ul></section>
 
 <section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/u0101.html">U0101 TCM(AT/CVT)との通信途絶</a></li><li><a href="../dtc/u0073.html">U0073 CANバス通信オフ</a></li><li><a href="../dtc/u0155.html">U0155 メーターとの通信途絶</a></li><li><a href="../dtc/c1201.html">C1201 エンジン制御系異常(ABS/VSC連動)</a></li><li><a href="../dtc/c0200.html">C0200 ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後</a></li><li><a href="../dtc/b1000.html">B1000 ボディ系コード(B)</a></li></ul><p class="more"><a href="chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）の一覧をまとめて見る</a></p></section>

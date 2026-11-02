@@ -5,10 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>点火・失火系の故障コード一覧｜原因と確認の順番｜メカノAI</title>
-<meta name="description" content="点火・失火系の故障コード5件（P0300・P0335・P0340・P0335,P0340・P0380など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<meta name="description" content="点火・失火系の故障コード6件（P0300・P0325・P0335・P0340・P0335,P0340など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
 <link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/">
 <meta property="og:title" content="点火・失火系の故障コード一覧｜原因と確認の順番｜メカノAI">
-<meta property="og:description" content="点火・失火系の故障コード5件（P0300・P0335・P0340・P0335,P0340・P0380など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
+<meta property="og:description" content="点火・失火系の故障コード6件（P0300・P0325・P0335・P0340・P0335,P0340など）について、考えられる原因と現場で確認する順番をまとめました。整備士向けの点検メモです。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/ignition-misfire/">
 <meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
@@ -22,13 +22,15 @@
 <main>
 <nav class="crumbs"><a href="../../">メカノAI 整備メモ</a> › <a href="../../#dtc">故障コードから調べる</a> › <span>点火・失火系</span></nav>
 <h1>点火・失火系の故障コード一覧</h1>
-<p class="lead">失火検出、プラグ・コイル、クランク角/カム角センサまわりで出るコードです。全5件。考えられる原因と、現場で確認する順番の目安です。</p>
-<section class="codeBlock"><h3 id="p0300">P0300 ランダム失火検出 ※P0301〜P0312は気筒別</h3><p><b>考えられる原因</b>: プラグ・コイル劣化、インジェクタ不調、圧縮低下、吸気漏れ</p><p><b>確認する順番</b>: 1. 失火カウントで気筒特定 → 2. コイル/プラグ入れ替えテスト → 3. 圧縮測定</p><p class="more"><a href="../../dtc/p0300.html">P0300の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0335">P0335 クランク角センサ系統異常</h3><p><b>考えられる原因</b>: センサ不良・取付ギャップ、シグナルプレート損傷、配線・ノイズ</p><p><b>確認する順番</b>: 1. センサ波形 → 2. コネクタ・配線 → 3. 始動不能ならまずここ</p><p class="more"><a href="../../dtc/p0335.html">P0335の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0340">P0340 カム角センサ系統異常</h3><p><b>考えられる原因</b>: センサ不良、配線、タイミングずれ</p><p><b>確認する順番</b>: 1. 波形確認 → 2. P0016併発でチェーン疑い</p><p class="more"><a href="../../dtc/p0340.html">P0340の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0335-p0340">P0335・P0340 (同時検出) クランク/カム両方</h3><p><b>考えられる原因</b>: タイミング機構のずれ、共通電源・アース不良</p><p><b>確認する順番</b>: 1. 電源系統図でセンサ共通電源を確認</p><p class="more"><a href="../../dtc/p0335-p0340.html">P0335・P0340の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0380">P0380 グロープラグ/ヒーター回路異常</h3><p><b>考えられる原因</b>: グロープラグ断線(1本〜複数)、グローリレー・コントローラ、配線</p><p><b>確認する順番</b>: 1. 各プラグ抵抗測定 → 2. リレー作動音・電圧 → 3. 冷間始動性</p><p class="more"><a href="../../dtc/p0380.html">P0380の詳しいページ</a></p></section>
-<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li></ul></section>
+<p class="lead">失火検出、プラグ・コイル、クランク角/カム角センサまわりで出るコードです。全6件。考えられる原因と、現場で確認する順番の目安です。</p>
+
+<section class="codeBlock"><h3 id="p0300">P0300 ランダム失火検出 ※P0301〜P0312は気筒別</h3><p>スパークプラグの消耗・ギャップ過大(ガソリン)、イグニッションコイルの劣化・リーク、インジェクタの噴射不良・詰まり、圧…</p><p class="more"><a href="../../dtc/p0300.html">P0300の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0325">P0325 ノックセンサ系統異常</h3><p>ノックセンサ本体の不良、取付ボルトの緩み(規定トルクでないと正しく検出しない)、ハーネス・コネクタの接触不良、シールド…</p><p class="more"><a href="../../dtc/p0325.html">P0325の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0335">P0335 クランク角センサ系統異常</h3><p>クランク角センサ本体の不良(熱で症状が出る場合がある)、センサ取付部のギャップ不良・取付ボルトの緩み、シグナルプレート…</p><p class="more"><a href="../../dtc/p0335.html">P0335の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0340">P0340 カム角センサ系統異常</h3><p>カム角センサの不良、配線・コネクタの接触不良、タイミングのずれ(P0016と併発しやすい)、センサ先端への金属粉付着、…</p><p class="more"><a href="../../dtc/p0340.html">P0340の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0335-p0340">P0335・P0340 (同時検出) クランク/カム両方</h3><p>タイミングチェーン/ベルトの大きなずれ、または飛び、両センサに共通する電源・アースの不良、共通のコネクタ・ハーネス部で…</p><p class="more"><a href="../../dtc/p0335-p0340.html">P0335・P0340の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0380">P0380 グロープラグ/ヒーター回路異常</h3><p>グロープラグの断線(1本または複数)、グローリレー・グローコントローラの不良、配線・接続端子の緩み、腐食、バッテリー電…</p><p class="more"><a href="../../dtc/p0380.html">P0380の詳しいページ</a></p></section>
+<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/transmission/index.html">トランスミッション系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li><li><a href="../../dtc/j1939-spn/index.html">大型車のJ1939(SPN/FMI)</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>

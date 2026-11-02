@@ -23,11 +23,12 @@
 <nav class="crumbs"><a href="../../">メカノAI 整備メモ</a> › <a href="../../#dtc">故障コードから調べる</a> › <span>トランスミッション系</span></nav>
 <h1>トランスミッション系の故障コード一覧</h1>
 <p class="lead">AT/CVT/AMTの制御・センサ・ソレノイドまわりで出るコードです。全4件。考えられる原因と、現場で確認する順番の目安です。</p>
-<section class="codeBlock"><h3 id="p0700">P0700 AT/CVT制御系異常(詳細はTM側コード参照)</h3><p><b>考えられる原因</b>: 変速機側に別コードあり</p><p><b>確認する順番</b>: 1. TM系統のDTCを読む(P07xx-P09xx)</p><p class="more"><a href="../../dtc/p0700.html">P0700の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0705">P0705 インヒビタスイッチ(レンジセンサ)異常</h3><p><b>考えられる原因</b>: スイッチ不良・調整ずれ、リンケージ、配線</p><p><b>確認する順番</b>: 1. 各レンジの信号 → 2. シフトリンケージ調整</p><p class="more"><a href="../../dtc/p0705.html">P0705の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0720">P0720 アウトプットスピードセンサ異常</h3><p><b>考えられる原因</b>: センサ不良、配線、ローター損傷</p><p><b>確認する順番</b>: 1. センサ抵抗・波形 → 2. 変速ショックとの関連</p><p class="more"><a href="../../dtc/p0720.html">P0720の詳しいページ</a></p></section>
-<section class="codeBlock"><h3 id="p0741">P0741 トルコンロックアップ系統異常</h3><p><b>考えられる原因</b>: ロックアップソレノイド、トルコン内部不良、フルード劣化</p><p><b>確認する順番</b>: 1. フルード状態 → 2. ソレノイド作動 → 3. ロックアップ時のスリップ量</p><p class="more"><a href="../../dtc/p0741.html">P0741の詳しいページ</a></p></section>
-<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/ignition-misfire/index.html">点火・失火系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li></ul></section>
+
+<section class="codeBlock"><h3 id="p0700">P0700 AT/CVT制御系異常(詳細はTM側コード参照)</h3><p>変速機側の制御ユニットに別のコードが記録されている(このコードはその通知)、TCM(AT/CVT制御ユニット)の異常、…</p><p class="more"><a href="../../dtc/p0700.html">P0700の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0705">P0705 インヒビタスイッチ(レンジセンサ)異常</h3><p>インヒビタスイッチ(レンジセンサ)の内部接点劣化、スイッチの取付位置ずれ、シフトリンケージ・ケーブルの伸び・調整不良、…</p><p class="more"><a href="../../dtc/p0705.html">P0705の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0720">P0720 アウトプットスピードセンサ異常</h3><p>アウトプットスピードセンサの不良、センサ先端への鉄粉付着、ローターの欠け・損傷、配線・コネクタの接触不良、ATF劣化に…</p><p class="more"><a href="../../dtc/p0720.html">P0720の詳しいページ</a></p></section>
+<section class="codeBlock"><h3 id="p0741">P0741 トルコンロックアップ系統異常</h3><p>ロックアップソレノイドの不良・固着、トルクコンバータ内部のクラッチフェーシング摩耗、ATF劣化・量不足による油圧不足、…</p><p class="more"><a href="../../dtc/p0741.html">P0741の詳しいページ</a></p></section>
+<section><h2>ほかの系統から調べる</h2><ul class="links"><li><a href="../../dtc/engine-fuel/index.html">エンジン・燃料・空気量系</a></li><li><a href="../../dtc/ignition-misfire/index.html">点火・失火系</a></li><li><a href="../../dtc/exhaust-dpf-egr/index.html">排気・後処理系（EGR・触媒・DPF・尿素SCR）</a></li><li><a href="../../dtc/idle-ecu/index.html">アイドル・車速・ECU系</a></li><li><a href="../../dtc/chassis-body-network/index.html">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a></li><li><a href="../../dtc/maker/index.html">メーカー固有コード</a></li><li><a href="../../dtc/j1939-spn/index.html">大型車のJ1939(SPN/FMI)</a></li></ul></section>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>

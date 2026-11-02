@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!-- このファイルは tools/build-guide.js が db/*.json から自動生成します。直接編集しないでください。 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPN 168 電源電圧(バッテリー)【大型・J1939】｜原因と点検手順｜メカノAI</title>
+<meta name="description" content="故障コード SPN 168（電源電圧(バッテリー)【大型・J1939】）の主な原因はオルタネータの発電不良、バッテリーの劣化(24V系は直列2個のうち片方だけ劣化することがある)、ベルトの滑り、端子・アースの緩みや腐食、暗電流の過大。現場…">
+<link rel="canonical" href="https://mechanoai-cablueie.com/guide/dtc/spn-168.html">
+<meta property="og:title" content="SPN 168 電源電圧(バッテリー)【大型・J1939】｜原因と点検手順｜メカノAI">
+<meta property="og:description" content="故障コード SPN 168（電源電圧(バッテリー)【大型・J1939】）の主な原因はオルタネータの発電不良、バッテリーの劣化(24V系は直列2個のうち片方だけ劣化することがある)、ベルトの滑り、端子・アースの緩みや腐食、暗電流の過大。現場…">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mechanoai-cablueie.com/guide/dtc/spn-168.html">
+<meta property="og:image" content="https://mechanoai-cablueie.com/icons/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="../../icons/icon-192.png">
+<link rel="stylesheet" href="../guide.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"メカノAI 整備メモ","item":"https://mechanoai-cablueie.com/guide/"},{"@type":"ListItem","position":2,"name":"故障コードから調べる","item":"https://mechanoai-cablueie.com/guide/#dtc"},{"@type":"ListItem","position":3,"name":"大型車のJ1939(SPN/FMI)","item":"https://mechanoai-cablueie.com/guide/dtc/j1939-spn/"},{"@type":"ListItem","position":4,"name":"SPN 168","item":"https://mechanoai-cablueie.com/guide/dtc/spn-168.html"}]}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../"><img src="../../icons/icon-192.png" alt="" width="28" height="28">メカノAI <span>整備メモ</span></a></header>
+<main>
+<nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/j1939-spn/">大型車のJ1939(SPN/FMI)</a> › <span>SPN 168</span></nav>
+<h1>SPN 168 電源電圧(バッテリー)【大型・J1939】</h1>
+<p class="lead">系統: 大型車 J1939(SPN/FMI)。考えられる原因と、確認する順番の目安です。</p>
+<section><h2>考えられる原因</h2><ul><li>オルタネータの発電不良</li><li>バッテリーの劣化(24V系は直列2個のうち片方だけ劣化することがある)</li><li>ベルトの滑り</li><li>端子・アースの緩みや腐食</li><li>暗電流の過大</li></ul></section>
+<section><h2>点検・確認すること</h2><ol><li>FMIを確認する。1/18は電圧低下、0/16は過充電の傾向</li><li>バッテリー2個をそれぞれ個別に測り、電圧のばらつきを確認する</li><li>始動後の充電電圧を測る</li><li>端子・アースポイントの緩みと腐食を点検する</li><li>ベルトの張りと滑りを確認する</li><li>電圧異常は他のユニットの誤作動も招くため、他のコードを消す前にここを直す</li></ol></section>
+
+
+<section><h2>同じ系統の故障コード</h2><ul class="links"><li><a href="../dtc/spn-27.html">SPN 27 EGRバルブ位置【大型・J1939】</a></li><li><a href="../dtc/spn-100.html">SPN 100 エンジン油圧【大型・J1939】</a></li><li><a href="../dtc/spn-102.html">SPN 102 過給圧(ブースト)【大型・J1939】</a></li><li><a href="../dtc/spn-110.html">SPN 110 エンジン冷却水温【大型・J1939】</a></li><li><a href="../dtc/spn-157.html">SPN 157 コモンレール圧【大型・J1939】</a></li><li><a href="../dtc/spn-411.html">SPN 411 EGR差圧【大型・J1939】</a></li><li><a href="../dtc/spn-629.html">SPN 629 ECU内部異常【大型・J1939】</a></li><li><a href="../dtc/spn-639.html">SPN 639 J1939通信(CAN)【大型・J1939】</a></li><li><a href="../dtc/spn-1761.html">SPN 1761 尿素(AdBlue)タンク残量【大型・J1939】</a></li><li><a href="../dtc/spn-3216.html">SPN 3216 SCR上流NOxセンサ【大型・J1939】</a></li><li><a href="../dtc/spn-3226.html">SPN 3226 SCR下流NOxセンサ【大型・J1939】</a></li><li><a href="../dtc/spn-3251.html">SPN 3251 DPF差圧【大型・J1939】</a></li></ul><p class="more"><a href="j1939-spn/">大型車のJ1939(SPN/FMI)の一覧をまとめて見る</a></p></section>
+<aside class="cta">
+  <div class="ctaH">この車両ではどうか、まで調べるなら</div>
+  <p>メカノAIは、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
+  <a class="btn" href="../../?pocket=start">7日間無料ではじめる</a>
+  <p class="ctaNote">登録はメールアドレスだけ。カード登録はいりません。IDと初期パスワードがすぐ届きます。</p>
+  <a class="btn btnLine" href="../../?demo=1">先に登録なしで試す</a>
+  <a class="btnSub" href="../../biz.html">会社・チームで使う（法人版）</a>
+</aside>
+<p class="note">このページは現場での点検の進め方をまとめた参考情報です。数値や手順は車種・年式で異なるため、作業前に必ず整備要領書・メーカー資料で確認してください。</p>
+<p class="upd">最終更新: 2026-11-02</p>
+</main>
+<script src="../../track.js" defer></script>
+<footer><a href="../../terms.html">利用規約</a> ・ <a href="../../privacy.html">プライバシーポリシー</a> ・ <a href="../../tokushoho.html">特定商取引法に基づく表記</a><br>© 2026 Cablueie</footer>
+</body>
+</html>
