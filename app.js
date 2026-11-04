@@ -3238,16 +3238,18 @@ function saveVehicleAiData(specs, faults, recalls, extra) {
 function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).join("\n"); }
 
 /* 油脂類の種別グループ(カルテ部品名・諸元項目名の両方をこのキーワードで判定) */
+/* ★並び順が優先順位。「フルード」だけの広いキーワードを持つブレーキは最後に置く
+      (CVTフルード・パワステフルードがブレーキ扱いになるのを防ぐ)。 */
 const FLUID_GROUPS = [
   { canon: "エンジンオイル", kw: ["エンジンオイル", "エンジン油", "eo", "e/o"] },
+  { canon: "CVTフルード", kw: ["cvt"] },
+  { canon: "ATF", kw: ["atf", "オートマオイル", "オートマチックオイル", "a/t"] },
+  { canon: "パワステフルード", kw: ["パワステ", "パワーステアリング", "psf", "p/s"] },
   { canon: "ミッションオイル", kw: ["ミッションオイル", "ミッション", "トランスミッション", "ギヤオイル", "ギアオイル", "m/t", "mtオイル"] },
   { canon: "デフオイル", kw: ["デフオイル", "デフ", "デファレンシャル", "終減速", "ディファレンシャル"] },
-  { canon: "ブレーキフルード", kw: ["ブレーキフルード", "ブレーキ液", "ブレーキオイル", "フルード"] },
-  { canon: "パワステフルード", kw: ["パワステ", "パワーステアリング", "psf", "p/s"] },
   { canon: "クーラント", kw: ["クーラント", "冷却水", "llc", "ロングライフ", "不凍液"] },
-  { canon: "ATF", kw: ["atf", "オートマオイル"] },
-  { canon: "CVTフルード", kw: ["cvt"] },
   { canon: "アドブルー", kw: ["アドブルー", "adblue", "尿素水"] },
+  { canon: "ブレーキフルード", kw: ["ブレーキフルード", "ブレーキ液", "ブレーキオイル", "フルード"] },
 ];
 const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
 function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
@@ -3333,6 +3335,12 @@ function reconcileFluidsFromKarte(entry) {
     let i = specs.findIndex(s => inGroup(s) && parseLiters(s.v) != null);
     if (i < 0) i = specs.findIndex(s => inGroup(s) && /量/.test(s.k));
     if (i < 0) {
+      // 項目名の言い換え(「ミッション（CVTフルード）」と「ミッションオイル量」など)で
+      // 既にある項目を探す。見つかればそれを書き換える(同じ意味の項目を二重に作らない)。
+      const canonNew = canonSpecKey(f.g.canon + "量");
+      i = specs.findIndex(s => canonSpecKey(s.k) === canonNew);
+    }
+    if (i < 0) {
       // 諸元に該当項目が無ければ、カルテ実績から新規追加(緑=手動確定)
       specs.push(manualSpec(f.g.canon + "量", f.qtyStr, f.at || Date.now(), "karte"));
       changes.push({ k: f.g.canon + "量", oldV: "", newV: f.qtyStr });
@@ -3409,8 +3417,8 @@ function normalizeSpecs(specs) {
   (specs || []).forEach(s => {
     // 値に複数の「ラベル:」が含まれる＝固まったデータ → 分解
     const merged = splitSpecText(s.k + ": " + s.v);
-    if (merged.length > 1) out.push(...merged.map(m => s.manual ? manualSpec(m.k, m.v, s.at) : m));
-    else out.push(s.manual ? manualSpec(s.k, s.v, s.at) : { k: s.k, v: s.v });
+    if (merged.length > 1) out.push(...merged.map(m => s.manual ? manualSpec(m.k, m.v, s.at, s.src) : m));
+    else out.push(s.manual ? manualSpec(s.k, s.v, s.at, s.src) : { k: s.k, v: s.v });
   });
   // 値が空 or「（要確認）」だけの項目は非表示(見苦しいため)。ただし手入力項目は残す
   const isEmptyish = v => { const t = String(v || "").replace(/[（）()\s]/g, ""); return t === "" || t === "要確認"; };
