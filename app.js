@@ -3242,17 +3242,30 @@ function specsToText(specs) { return (specs || []).map(s => s.k + ": " + s.v).jo
       (CVTフルード・パワステフルードがブレーキ扱いになるのを防ぐ)。 */
 const FLUID_GROUPS = [
   { canon: "エンジンオイル", kw: ["エンジンオイル", "エンジン油", "eo", "e/o"] },
-  { canon: "CVTフルード", kw: ["cvt"] },
+  { canon: "CVTフルード", kw: ["cvt", "cvt/f"] },
   { canon: "ATF", kw: ["atf", "オートマオイル", "オートマチックオイル", "a/t"] },
   { canon: "パワステフルード", kw: ["パワステ", "パワーステアリング", "psf", "p/s"] },
-  { canon: "ミッションオイル", kw: ["ミッションオイル", "ミッション", "トランスミッション", "ギヤオイル", "ギアオイル", "m/t", "mtオイル"] },
-  { canon: "デフオイル", kw: ["デフオイル", "デフ", "デファレンシャル", "終減速", "ディファレンシャル"] },
-  { canon: "クーラント", kw: ["クーラント", "冷却水", "llc", "ロングライフ", "不凍液"] },
+  { canon: "ミッションオイル", kw: ["ミッションオイル", "ミッション", "トランスミッション", "ギヤオイル", "ギアオイル", "m/t", "mtオイル", "m/o"] },
+  { canon: "デフオイル", kw: ["デフオイル", "デフ", "デファレンシャル", "終減速", "ディファレンシャル", "d/o"] },
+  { canon: "クーラント", kw: ["クーラント", "冷却水", "llc", "l/l", "ロングライフ", "不凍液"] },
   { canon: "アドブルー", kw: ["アドブルー", "adblue", "尿素水"] },
-  { canon: "ブレーキフルード", kw: ["ブレーキフルード", "ブレーキ液", "ブレーキオイル", "フルード"] },
+  { canon: "ブレーキフルード", kw: ["ブレーキフルード", "ブレーキ液", "ブレーキオイル", "b/o", "フルード"] },
 ];
 const fluidNorm = s => String(s || "").toLowerCase().replace(/[\s　]+/g, "");
-function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.find(g => g.kw.some(k => n.includes(fluidNorm(k)))) || null; }
+/* どの油脂にも使われる広い言い方。これだけで決めず、部位を示す言葉(デフ/ミッション/CVT等)があればそちらを優先する。
+   例: 「ギアオイル（デフ）」はデフ、「ギアオイル（ミッション）」はミッション、「CVTフルード」はCVT。 */
+const FLUID_GENERIC_KW = ["ギヤオイル", "ギアオイル", "フルード"];
+function fluidGroupOf(name) {
+  const n = fluidNorm(name);
+  const hits = [];
+  FLUID_GROUPS.forEach(g => {
+    const k = g.kw.find(k => n.includes(fluidNorm(k)));
+    if (k) hits.push({ g, k });
+  });
+  if (!hits.length) return null;
+  const specific = hits.find(h => FLUID_GENERIC_KW.indexOf(h.k) < 0);
+  return (specific || hits[0]).g;
+}
 function parseLiters(v) { const m = han(String(v || "")).replace(/〔[^〕]*〕/g, " ").match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
 /* 手動(緑)の諸元項目。at=手入力した時刻(またはカルテ反映の基準時刻, ms)。
    「カルテ優先だが、そのあとに手入力した値は手入力を優先」の新旧判定に使う(undefinedはFirestoreで弾かれるので無い時は付けない)。 */
