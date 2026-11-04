@@ -1550,15 +1550,16 @@ body.gated{overflow:hidden}
 .hiRow.ikTenken{border-left-color:#4A7A6B}
 .hiRow.ikRepair{border-left-color:#9A6B3C}
 .hiRow.ikJiko{border-left-color:#8A3A2E}
-.hiMain{flex:1;min-width:0;display:flex;align-items:center;gap:8px;cursor:pointer}
+.hiMain{flex:1;min-width:0;display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:2px 0}
 .hiTag{flex:none;font-size:10.5px;font-weight:800;color:#fff;border-radius:4px;padding:2px 7px}
 .hiRow.ikShaken .hiTag{background:#3D6184}
 .hiRow.ikTenken .hiTag{background:#4A7A6B}
 .hiRow.ikRepair .hiTag{background:#9A6B3C}
 .hiRow.ikJiko .hiTag{background:#8A3A2E}
-.hiTitle{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden}
-.hiNo{font-size:15px;font-weight:800;letter-spacing:.02em;color:var(--txt);flex:none}
-.hiOwner{font-size:12.5px;font-weight:600;color:#44443F;overflow:hidden;text-overflow:ellipsis}
+/* ナンバーと使用者名は省略せず、2行に分けて全部見せる */
+.hiTitle{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:13px;font-weight:700;color:var(--txt)}
+.hiNo{font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--txt);line-height:1.3;white-space:normal;word-break:break-word}
+.hiOwner{font-size:12px;font-weight:500;color:#5C574E;line-height:1.45;white-space:normal;word-break:break-word}
 /* 未読コメントの小さな赤丸。他の担当者が新しく残した申し送りがある時だけ表示 */
 .hiUnread{flex:none;width:8px;height:8px;border-radius:50%;background:#8A3A2E;box-shadow:0 0 0 2px rgba(138,58,46,.18)}
 /* 担当ボタン(旧・出庫の位置)。タップで名簿ポップアップ */
@@ -2568,3 +2569,12 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
 .fuCard .qTa{min-height:76px}
 .fuCard .attachThumb{margin-top:0}
 .fuAsk{width:100%;margin-top:2px}
+/* 入庫状況の行: 2行になるぶん、進捗と担当は上端にそろえる */
+.hiRow .hiTag{margin-top:2px}
+.hiRow .hiSt{margin-top:3px}
+.hiRow .hiStaff{align-self:flex-start;margin-top:1px}
+.hiRow .hiUnread{margin-top:6px}
+/* 諸元: 手で訂正した値・カルテの実績量のしるし */
+.specTag{display:inline-block;margin-left:6px;font-size:9.5px;font-weight:700;line-height:1;
+  padding:3px 6px;border-radius:5px;background:#E9F1EE;color:#2A4A41;vertical-align:middle;white-space:nowrap}
+.specTag.karte{background:#EAEFF4;color:#2E4A66}

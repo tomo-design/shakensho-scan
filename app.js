@@ -2382,7 +2382,23 @@ function specGroupOf(k) {
 function buildSpecItem(s) {
   const item = document.createElement("div"); item.className = "specItem";
   if (s.manual) item.classList.add("specManual");
-  const k = document.createElement("div"); k.className = "specK"; k.textContent = cleanCite(han(s.k));
+  const k = document.createElement("div"); k.className = "specK";
+  k.textContent = cleanCite(han(s.k));
+  // 手で直した値・カルテの実績量は、ひと目で分かるようにバッジを付ける
+  if (s.manual) {
+    let fromKarte = s.src === "karte";
+    if (!fromKarte && _karteFluidMap) {
+      try {
+        const g = fluidGroupOf(s.k), f = g && _karteFluidMap.get(g.canon), cur = parseLiters(s.v);
+        fromKarte = !!(f && cur != null && Math.abs(cur - f.liters) < 0.001);
+      } catch (e) {}
+    }
+    const tag = document.createElement("span");
+    tag.className = "specTag" + (fromKarte ? " karte" : "");
+    tag.textContent = fromKarte ? "カルテ実績" : "訂正済み";
+    tag.title = fromKarte ? "整備カルテに書いた実績量を反映しています" : "手で訂正して保存した値です(AIの再取得でも上書きされません)";
+    k.appendChild(tag);
+  }
   const v = document.createElement("div"); v.className = "specV";
   // 引用マーカーを除去し、「／」区切りや改行を行分けして見やすく表示
   // 〔ターボ KF-VET〕のような変種見出し(HKSのNA/ターボ・年式違い)は、キー名と同じ小さな青文字の見出し行にする。
@@ -2395,7 +2411,9 @@ function buildSpecItem(s) {
   item.addEventListener("click", () => { if (!item.classList.contains("editing")) enterSpecItemEdit(item, s.k); });
   return item;
 }
+let _karteFluidMap = null;   // 描画中だけ使う、カルテの最新実績(グループ→量)
 function renderSpecs(specs, source) {
+  try { _karteFluidMap = latestKarteFluids(); } catch (e) { _karteFluidMap = null; }
   shownSpecs = dedupSpecs(normalizeSpecs(specs || []));   // 固まった値は項目ごとに分解し、同義項目の重複は統合して表示
   const realCount = shownSpecs.length;
   // OBD検査対象は初度登録から端末側で判定して必ず表示(未収録なら先頭付近に追加)
@@ -3097,6 +3115,11 @@ async function onKartePhotoFiles(e) {
 }
 $("kPhotoIn") && $("kPhotoIn").addEventListener("change", onKartePhotoFiles);
 $("kPhotoPick") && $("kPhotoPick").addEventListener("change", onKartePhotoFiles);   // 写真フォルダから(複数選択可)
+/* 一時的な失敗(混雑・時間切れ・サーバー側の不調)か。短い待ちの後で試し直す価値があるもの。 */
+function isTransientAiError(e) {
+  const m = String((e && e.message) || "");
+  return /混み|時間|timeout|タイムアウト|サーバーエラー\s*5|50[0234]|回答が得られ/.test(m);
+}
 async function runKartePhotoOCR() {
   if (!kartePhotoMedia.length) return;
   const st = $("kPhotoStatus"); toggle("kPhotoStatus", true);
@@ -3115,7 +3138,19 @@ async function runKartePhotoOCR() {
       "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null}]}",
     ].join("\n");
     // 蓄積した圧縮済み写真をまとめて送信。思考は上限付きで速く(無制限だと数十秒かかっていた)。
-    const r = await geminiAskMedia(prompt, kartePhotoMedia, { thinkingBudget: mediaThinking({}) });
+    // 混雑や時間切れは1回だけ自動で試し直す(そのたびに写真を選び直させない)
+    let r = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { r = await geminiAskMedia(prompt, kartePhotoMedia, { thinkingBudget: mediaThinking({}) }); break; }
+      catch (e) {
+        if (attempt === 0 && isTransientAiError(e)) {
+          st.innerHTML = '<img src="img/kangae.png" class="btnMecha spin" alt=""> 混み合っていたので、もう一度読み取っています…';
+          await new Promise(res => setTimeout(res, 1200));
+          continue;
+        }
+        throw e;
+      }
+    }
     const obj = extractJson(r.text) || {};
     openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
     if (obj.date) $("kDate").value = String(obj.date).trim();
@@ -3135,7 +3170,19 @@ async function runKartePhotoOCR() {
     st.textContent = "✓ 写真" + (nPhotos > 1 ? nPhotos + "枚を統合して" : "を") + "読み取りました。" + (nItems ? "紙に書かれていた作業点数も読み取りました。" : "") + "内容を確認・修正して保存してください。";
     kartePhotoMedia = [];   // 読み取り完了 → 蓄積をクリア
   } catch (err) {
-    st.textContent = "⚠ " + (err.message === "__cancelled__" ? "中断しました" : (err.message || "写真を読み取れませんでした")) + "（手入力・音声入力もできます）";
+    const cancelled = err && err.message === "__cancelled__";
+    const msg = cancelled ? "中断しました"
+      : isTransientAiError(err) ? "いま混み合っていて読み取れませんでした。"
+      : ((err && err.message) || "写真を読み取れませんでした");
+    st.innerHTML = "⚠ " + esc(msg) +
+      '<div class="hint" style="margin-top:4px">写真はそのまま残しています。下のボタンでやり直せます（手入力・音声入力でも記録できます）。</div>';
+    if (!cancelled) {
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "btn btn-ghost btn-sm"; again.style.marginTop = "8px";
+      again.textContent = "🔄 もう一度読み取る";
+      again.addEventListener("click", () => { runKartePhotoOCR(); });
+      st.appendChild(again);
+    }
   }
 }
 
@@ -3207,16 +3254,23 @@ function fluidGroupOf(name) { const n = fluidNorm(name); return FLUID_GROUPS.fin
 function parseLiters(v) { const m = han(String(v || "")).replace(/〔[^〕]*〕/g, " ").match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/); return m ? parseFloat(m[1]) : null; }
 /* 手動(緑)の諸元項目。at=手入力した時刻(またはカルテ反映の基準時刻, ms)。
    「カルテ優先だが、そのあとに手入力した値は手入力を優先」の新旧判定に使う(undefinedはFirestoreで弾かれるので無い時は付けない)。 */
-function manualSpec(k, v, at) { const o = { k, v, manual: true }; if (at) o.at = at; return o; }
+function manualSpec(k, v, at, src) { const o = { k, v, manual: true }; if (at) o.at = at; if (src) o.src = src; return o; }
 /* カルテ1件の記録時刻(ms)。編集・保存のたびに更新される at を使う */
 function karteTs(e) { return (e && (Date.parse(e.at) || Date.parse(e.date))) || 0; }
-/* カルテ1件の部品欄から、油脂類の実績量を抜き出す → [{g, liters, qtyStr}](同一グループは最後の値) */
+/* カルテ1件から油脂類の実績量を抜き出す → [{g, liters, qtyStr}](同一グループは最後の値)。
+   「交換部品・使用材料」欄だけでなく「作業内容」「メモ」も見る(現場は作業欄に『E/O 3.7L』と書くことが多い)。
+   ただし部品欄以外は、数量の誤読を避けるため単位(L/リットル)付きの数字だけを量として採用する。 */
 function fluidsFromKarteEntry(entry) {
-  if (!entry || entry.deleted || !entry.parts) return [];
-  // 行・区切りごとに分解(改行/、/,/・/スペース)。1件ずつ油脂グループと量(L)を判定。
-  const segs = String(entry.parts).split(/[\r\n、,，・]+/).map(s => han(s).trim()).filter(Boolean);
+  if (!entry || entry.deleted) return [];
+  const split = t => String(t || "").split(/[\r\n、,，・]+/).map(x => han(x).trim()).filter(Boolean);
+  const segs = split(entry.parts).map(t => ({ t, strict: false }))
+    .concat(split(entry.work).map(t => ({ t, strict: true })))
+    .concat(split(entry.note).map(t => ({ t, strict: true })));
+  if (!segs.length) return [];
   const found = [];
-  segs.forEach(seg => {
+  segs.forEach(({ t: seg, strict }) => {
+    // 量の話ではない記述(漏れ点検・清掃など)は拾わない
+    if (/漏れ|洩れ|滲み|にじみ|点検|診断|清掃|洗浄|調整/.test(seg)) return;
     if (/補充|追加|足し|増し|トップアップ/.test(seg)) return;                      // 継ぎ足しの量は総量ではないので除外
     if (/フィルタ|エレメント|ストレーナ|ガスケット|パッキン|ドレン|ワッシャ|シール|リング|キャップ|ボルト|ホース|ポンプ|センサ|添加剤|洗浄/.test(seg)) return;   // 油脂そのものでない部品(個数を量と誤認しない)
     const g = fluidGroupOf(seg); if (!g) return;                                  // 油脂類のみ
@@ -3226,8 +3280,8 @@ function fluidsFromKarteEntry(entry) {
     // ① 単位付き(L/ℓ/リットル)を最優先
     let m = cleaned.match(/(\d+(?:\.\d+)?)\s*(?:[lLｌＬℓ]|リットル|ﾘｯﾄﾙ)/);
     if (m) liters = parseFloat(m[1]);
-    // ② 単位が無くても、油脂行に現れる妥当な数量(0.1〜50L想定)を量として拾う
-    if (liters == null) { const m2 = cleaned.match(/(?:^|[^0-9.])(\d+(?:\.\d+)?)(?![0-9.])/); if (m2) { const n = parseFloat(m2[1]); if (n > 0 && n <= 50) liters = n; } }
+    // ② 部品欄に限り、単位が無くても妥当な数量(0.1〜50L想定)を量として拾う
+    if (liters == null && !strict) { const m2 = cleaned.match(/(?:^|[^0-9.])(\d+(?:\.\d+)?)(?![0-9.])/); if (m2) { const n = parseFloat(m2[1]); if (n > 0 && n <= 50) liters = n; } }
     if (liters == null) return;
     found.push({ g, liters, qtyStr: liters + "L", at: karteTs(entry) });
   });
@@ -3259,12 +3313,12 @@ function applyKarteFluids(specs) {
     done.add(g.canon);
     if (Math.abs(cur - f.liters) < 0.001) return s;
     if (s.manual && (s.at || 0) > (f.at || 0)) return s;   // カルテより後の手入力 → 手入力を優先
-    return manualSpec(s.k, f.qtyStr, f.at);                // カルテの記録時刻を持たせる(以後の手入力がこれに勝つ)
+    return manualSpec(s.k, f.qtyStr, f.at, "karte");       // カルテの記録時刻を持たせる(以後の手入力がこれに勝つ)
   });
 }
 /* カルテの油脂類の実績量(L)を諸元(この車両の記憶値)へ反映。相違があれば諸元を実績値で更新して保存。 */
 function reconcileFluidsFromKarte(entry) {
-  if (!entry || entry.deleted || !entry.parts || !current) return;
+  if (!entry || entry.deleted || !current) return;
   // 今回のカルテに載った油脂グループについて、全カルテのうち最新(日付順)の実績量を採用(過去日付で入力しても開き直し時の表示と食い違わない)
   const latest = latestKarteFluids();
   const found = [...new Set(fluidsFromKarteEntry(entry).map(f => f.g.canon))].map(c => latest.get(c)).filter(Boolean);
@@ -3280,7 +3334,7 @@ function reconcileFluidsFromKarte(entry) {
     if (i < 0) i = specs.findIndex(s => inGroup(s) && /量/.test(s.k));
     if (i < 0) {
       // 諸元に該当項目が無ければ、カルテ実績から新規追加(緑=手動確定)
-      specs.push(manualSpec(f.g.canon + "量", f.qtyStr, f.at || Date.now()));
+      specs.push(manualSpec(f.g.canon + "量", f.qtyStr, f.at || Date.now(), "karte"));
       changes.push({ k: f.g.canon + "量", oldV: "", newV: f.qtyStr });
       return;
     }
@@ -3288,17 +3342,41 @@ function reconcileFluidsFromKarte(entry) {
     if (cur != null && Math.abs(cur - f.liters) < 0.001) return;   // 一致していれば変更なし
     if (specs[i].manual && (specs[i].at || 0) > (f.at || 0)) return;   // カルテより後の手入力は手入力を優先
     changes.push({ k: specs[i].k, oldV: specs[i].v, newV: f.qtyStr });
-    specs[i] = manualSpec(specs[i].k, f.qtyStr, f.at || Date.now());   // 実績確定値として緑で固定(AI再読込でも上書きされない)
+    specs[i] = manualSpec(specs[i].k, f.qtyStr, f.at || Date.now(), "karte");   // 実績確定値として緑で固定(AI再読込でも上書きされない)
   });
   if (!changes.length) return;
   saveVehicleAiData(specs);                          // 履歴(DB)＋社内共有へ
   setLearned(vehicleKey(current), { specs });        // この端末の記憶へ
-  // メンテ画面を開いていれば即再描画
-  const mv = document.getElementById("view-maint");
-  if (mv && mv.classList.contains("active") && typeof renderSpecs === "function") renderSpecs(specs, "learned");
+  try { refreshSpecsView(); } catch (e) {}   // メンテを見ていなくても描き直しておく
   // 表示は簡潔に。括弧書き(例:「デフオイル（デファレンシャルオイル）」)や末尾「量」を落として重複を防ぐ
   const shortK = k => String(k).replace(/[（(].*?[）)]/g, "").replace(/量$/, "").trim();
   showToast("諸元を更新しました\n" + changes.map(c => "・" + shortK(c.k) + " " + c.newV).join("\n"));
+}
+/* 記憶している諸元を画面に描き直す。
+   カルテの実績反映や手の訂正のあと、メンテ画面を開き直した時に最新が出るようにする。
+   どれを使うかは車両を開いた時と同じ判定(DB/車両レコード/学習のうち最後に更新されたもの)。 */
+function refreshSpecsView() {
+  if (!current || typeof renderSpecs !== "function") return;
+  let hit = null;
+  try {
+    if (current.type) {
+      const code = current.type.includes("-") ? current.type.split("-")[1] : current.type;
+      hit = findVehicle(code);
+    }
+    if (current.vin) { const byVin = CUSTOM_DB.find(x => x.vin && x.vin === current.vin); if (byVin) hit = byVin; }
+  } catch (e) {}
+  const he = findHistEntry(getHistory(), current) || null;
+  const learned = getLearned(vehicleKey(current)) || null;
+  const learnedAt = learned && learned.at ? (Date.parse(learned.at) || 0) : 0;
+  const cands = [
+    { list: hit && hit.specs, t: (hit && hit.updatedAt) || 0, src: "db" },
+    { list: he && he.specs, t: (he && he.updatedAt) || 0, src: "learned" },
+    { list: learned && learned.specs, t: learnedAt, src: "learned" },
+  ];
+  let best = null;
+  for (const c of cands) if (c.list && c.list.length && (!best || c.t >= best.t)) best = c;
+  const maker = (hit && hit.maker) || (he && he.maker) || (learned && learned.maker) || "";
+  if (best) renderSpecs(withHeavyTorque(applyKarteFluids(best.list), current, maker), best.src);
 }
 function textToSpecs(text) {
   return (text || "").split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
@@ -5011,9 +5089,9 @@ function renderHomeIntake() {
   if (more) { more.textContent = _hiAll ? ("上位" + hiMax + "台") : "すべて"; more.onclick = () => { _hiAll = !_hiAll; renderHomeIntake(); }; }
   (list.length > hiMax && !_hiAll ? list.slice(0, hiMax) : list).forEach(h => {
     const info = INTAKE_KINDS[h.intakeKind] || { label: h.intakeKind, cls: "" };
-    const no4 = plateLast4(dispText(h.plate));
+    const plateAll = dispText(h.plate) || "";   // ナンバーは最初から最後まで出す
     const owner = dispText(h.name) || "";
-    const title = [no4, owner].filter(Boolean).join(" ") || dispText(h.type) || "型式不明";
+    const title = [plateAll, owner].filter(Boolean).join(" ") || dispText(h.type) || "型式不明";
     // 行 = 表示部(横スワイプで動く .hiSlide) + 背後の出庫ボタン(.hiOutWrap)
     const row = document.createElement("div"); row.className = "hiRow " + info.cls;
     const slide = document.createElement("div"); slide.className = "hiSlide";
@@ -5028,7 +5106,7 @@ function renderHomeIntake() {
       ? '<span class="hiTag done" title="完成検査 終了済み">完検済</span>'
       : '<span class="hiTag">' + esc(info.label) + '</span>';
     // 進捗は「入庫」以外の時だけ短く色文字で出す(既定の入庫は余計な表示を出さない)。
-    main.innerHTML = tagHtml + '<span class="hiTitle"><b class="hiNo">' + esc(no4 || title) + '</b>' +
+    main.innerHTML = tagHtml + '<span class="hiTitle"><b class="hiNo">' + esc(plateAll || title) + '</b>' +
       (owner ? '<span class="hiOwner">' + esc(owner) + '</span>' : '') + '</span>' +
       (st !== "入庫" ? '<span class="hiSt ' + stInfo.cls + '">' + esc(stInfo.label) + '</span>' : '') +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
@@ -8463,6 +8541,7 @@ function switchView(name) {
   curView = name;
   if (["scan", "maint", "diag", "parts", "karte"].includes(name)) lastVehPage = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
+  if (name === "maint") { try { refreshSpecsView(); } catch (e) {} }
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
   if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); } catch (e) {} }
   syncTabHighlight();
