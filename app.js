@@ -5107,8 +5107,7 @@ function renderHomeIntake() {
       : '<span class="hiTag">' + esc(info.label) + '</span>';
     // 進捗は「入庫」以外の時だけ短く色文字で出す(既定の入庫は余計な表示を出さない)。
     const noTxt = plateAll || title;
-    const noCls = "hiNo" + (noTxt.replace(/\s/g, "").length >= 10 ? " long" : "");   // 長いナンバーは少し小さく
-    main.innerHTML = tagHtml + '<span class="hiTitle"><b class="' + noCls + '">' + esc(noTxt) + '</b>' +
+    main.innerHTML = tagHtml + '<span class="hiTitle"><b class="hiNo">' + esc(noTxt) + '</b>' +
       (owner ? '<span class="hiOwner">' + esc(owner) + '</span>' : '') + '</span>' +
       (st !== "入庫" ? '<span class="hiSt ' + stInfo.cls + '">' + esc(stInfo.label) + '</span>' : '') +
       (unread ? '<span class="hiUnread" title="未読の申し送りコメントがあります"></span>' : '');
