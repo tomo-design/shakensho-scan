@@ -1097,6 +1097,10 @@ body.pwLocked{ overflow:hidden }
   padding:3px 9px; border-radius:12px; white-space:nowrap }
 .engBadge.pro{ background:#35584D; color:#fff }
 .engBadge.flash{ background:#F1EFEA; color:#767168 }
+.engBadge.fast{ background:#F5EDE4; color:#74512C }
+/* 「高精度Proに切り替える」ボタン(速報の下) */
+.proUpg{ margin-top:10px; width:100%; max-width:420px }
+.proUpg:disabled{ opacity:.6; cursor:default }
 /* 診断ヘッダー右端の共有ボタン(バッジを左に寄せた分の右側スペースへ) */
 .diagHeadShare{ margin-left:auto; flex:0 0 auto; font:inherit; font-size:12px; font-weight:600;
   background:none; color:#2E4A66; border:0; padding:0 2px; text-decoration:underline; cursor:pointer }

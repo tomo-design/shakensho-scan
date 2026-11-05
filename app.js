@@ -1809,13 +1809,12 @@ async function runVehAsk() {
       if (tot * 0.75 > ATTACH_MAX) { stopTimer(); box.textContent = "⚠ 添付が大きすぎます。動画は30秒程度に、写真は枚数を減らしてください。"; vehAskBusy = false; setBtnLoading(btn, false); return; }
     }
     // 写真あり: 思考量に上限を設けて高速化(JSON応答なので逐次表示はしない)。
-    // 写真なし: 有料店舗はPro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料はFlash・検索なし。
+    // 写真なし: まず速報(Flash・思考0・検索なし)で出す。有料店舗は表示後に裏でPro＋検索を用意してボタンで差し替える。
     const ask = retry => media
       ? withAiRetry(() => geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null),
           () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} })
       : geminiAskStream(buildRepairPrompt(qFull),
-          Object.assign(accurate ? { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048 }
-                                 : { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 },
+          Object.assign({ mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 0 },
             retry ? { noCache: true } : {}), onRepairChunk(box, qFull, stopTimer));
     r = await withAiRetry(() => ask(false),
       () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} });
@@ -1834,6 +1833,7 @@ async function runVehAsk() {
     const repairRec = shown ? saveRepairRecord(qFull, shown) : null;
     if (repairRec) addRepairShareBar(box, repairRec);   // 初回の結果にも共有ボタン(過去の点検と同様に)
     appendAiFollowup(box, qFull, r.text, { kind: "repair" });   // 修理にも追加で質問できる欄
+    if (!media && accurate) offerRepairProUpgrade(box, qFull, repairRec);   // 裏で高精度Pro＋検索を用意
   } catch (e) {
     stopTimer();
     if (e.message !== "__cancelled__") {
@@ -6552,7 +6552,8 @@ function attachInspectManual(itemDiv, cause) {
     try {
       const li = itemDiv.parentElement;   // 候補の<li>
       const kirikake = (li && li.dataset && li.dataset.kirikake) || "";
-      const r = await geminiAsk(buildInspectManualPrompt(cause, kirikake), { mode: "pro" });
+      // 思考は512に制限(既定の無制限だと手引書が出てくるまで待たされる)
+      const r = await geminiAsk(buildInspectManualPrompt(cause, kirikake), { mode: "pro", thinkingBudget: 512 });
       diagGuideCache[cause] = r.text;
       if (typeof stashGuideToRecord === "function") stashGuideToRecord(cause, r.text);   // 履歴レコードにも保存
       pane.innerHTML = "";
@@ -6570,7 +6571,11 @@ const AUTO_GUIDE_COUNT = 3;   // 先行生成する候補数
 async function autoGenGuides(causes, rec, statusEl) {
   const clearStatus = () => { if (statusEl && statusEl.parentNode) statusEl.remove(); };
   if (!aiOK() || !Array.isArray(causes)) { clearStatus(); return; }
-  const targets = causes.filter(c => c && !diagGuideCache[c] && inspectPaneReg.some(p => p.cause === c)).slice(0, AUTO_GUIDE_COUNT);
+  // 無料プランは無料キーの回数が限られ、ここで3件続けて作ると次の診断・修理が429で待たされる。
+  // 先読みは1件(第1候補)だけにして、残りは開いたときに作る。
+  const paidPlan = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
+  const limit = paidPlan ? AUTO_GUIDE_COUNT : 1;
+  const targets = causes.filter(c => c && !diagGuideCache[c] && inspectPaneReg.some(p => p.cause === c)).slice(0, limit);
   if (!targets.length) { clearStatus(); return; }
   const setStatus = (done) => { if (statusEl) statusEl.textContent = "🔧 点検手引書を準備中…（" + done + "/" + targets.length + "）"; };
   setStatus(0);
@@ -6840,12 +6845,13 @@ async function runDiagAI(text) {
   box.prepend(sec);
   let streamed = false;
   try {
-    // ストリーミングで逐次表示＋思考量に上限を設けて、結果が出るまでの待ち時間を短縮する。
-    // 「改善の見込み」の裏取り検索は有料プランのみ(検索裏取りは契約特典。NAは一般知識ベースの目安のみ)。
+    // まず「速報」を出す: Flash・思考0・検索なし。
+    // 思考量と裏取り検索は、最初の1文字が出るまでの待ち時間そのもの(答えを作り始める前に終わるのを待つ)。
+    // 有料プランは表示したあと、裏で高精度Pro＋検索を用意してボタンで差し替えられるようにする。
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
-    const dp = buildDiagPrompt(text, accurate);
+    const dp = buildDiagPrompt(text, false);
     let r = await withAiRetry(
-      () => geminiAskStream(dp, { mode: "pro", search: accurate, thinkingBudget: accurate ? 2048 : 768 }, (acc, done) => {
+      () => geminiAskStream(dp, { mode: "flash", search: false, thinkingBudget: 0 }, (acc, done) => {
         if (done) return;
         if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
         p.textContent = acc;   // 生成されたぶんから先に読める
@@ -6856,7 +6862,10 @@ async function runDiagAI(text) {
     stopTimer();
     p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
-    const eb = engineBadge(r.model); if (eb) { const h2 = sec.querySelector("h2"); if (h2) h2.appendChild(eb); }
+    const h2b = sec.querySelector("h2");
+    // 有料プランは「速報」と出す(裏でProを用意中)。無料プランは今まで通り使用エンジンを出す。
+    if (accurate) { if (h2b) h2b.appendChild(fastBadge()); }
+    else { const eb = engineBadge(r.model); if (eb && h2b) h2b.appendChild(eb); }
     const note = document.createElement("div");
     note.className = "hint"; note.style.marginTop = "10px";
     note.textContent = (r.truncated ? "⚠ 回答が長いため一部省略された可能性があります。 " : "")
@@ -6870,6 +6879,7 @@ async function runDiagAI(text) {
     body.appendChild(guideNote);
     const causes = [...p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
     autoGenGuides(causes, rec, guideNote);
+    if (accurate) offerProUpgrade({ text, sec, body, p, rec });   // 裏で高精度Pro＋検索を用意し、できたら差し替えボタンを出す
     appendAiFollowup(body, text, r.text);
   } catch (e) {
     stopTimer();
@@ -6877,6 +6887,72 @@ async function runDiagAI(text) {
   } finally {
     diagAiBusy = false;
   }
+}
+/* 速報バッジ。Flashで先に出した回答であることを示す(高精度Proは裏で準備中)。 */
+function fastBadge() {
+  const b = document.createElement("span");
+  b.className = "engBadge fast"; b.textContent = "速報";
+  b.title = "まず速く出した回答です。高精度Proの回答ができたら下のボタンで差し替えられます。";
+  return b;
+}
+/* 速報を出したあと、裏で高精度Pro＋検索の回答を用意しておく。
+   できたら「詳しい回答に切り替える」ボタンを出すだけで、押すまで表示は変えない(読んでいる途中で入れ替わらない)。 */
+function offerProUpgrade(o) {
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "btn btn-ghost btn-sm proUpg"; btn.disabled = true;
+  btn.textContent = "🔍 高精度Proで裏取り中…";
+  o.body.appendChild(btn);
+  geminiAskStream(buildDiagPrompt(o.text, true),
+    { mode: "pro", search: true, thinkingBudget: 2048, noCache: true }, null)
+    .then(r2 => {
+      if (!r2 || !r2.text || !btn.parentNode) { if (btn.parentNode) btn.remove(); return; }
+      btn.disabled = false;
+      btn.textContent = "🔍 高精度Proの回答に切り替える";
+      btn.addEventListener("click", () => {
+        renderAiAnswer(o.p, r2.text, { linkCauses: true });
+        const h2 = o.sec.querySelector("h2");
+        if (h2) {
+          const old = h2.querySelector(".engBadge"); if (old) old.remove();
+          const eb = engineBadge(r2.model); if (eb) h2.appendChild(eb);
+        }
+        if (o.rec) {
+          o.rec.aiText = r2.text; saveDiagRecordObj(o.rec);
+          try { updateKarteForDiag(o.rec, summarizeDiagText(r2.text)); } catch (e) {}
+        }
+        btn.remove();
+        // 原因候補が組み直されたぶんの手引書を用意し直す
+        const causes = [...o.p.querySelectorAll(".ai-cause")].map(e => e.textContent.trim()).filter(Boolean);
+        let gn = o.body.querySelector(".guidePrep");
+        if (!gn) { gn = document.createElement("div"); gn.className = "hint guidePrep"; o.body.appendChild(gn); }
+        autoGenGuides(causes, o.rec, gn);
+      });
+    })
+    .catch(() => { if (btn.parentNode) btn.remove(); });
+}
+/* 修理も同じ: 速報のあとに高精度Pro＋検索を用意して、ボタンで差し替える。 */
+function offerRepairProUpgrade(box, qFull, rec0) {
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "btn btn-ghost btn-sm proUpg"; btn.disabled = true;
+  btn.textContent = "🔍 高精度Proで裏取り中…";
+  box.appendChild(btn);
+  geminiAskStream(buildRepairPrompt(qFull),
+    { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048, noCache: true }, null)
+    .then(r2 => {
+      const p2 = parseRepairText((r2 && r2.text) || "");
+      if (!p2.obj || p2.partial || !btn.parentNode) { if (btn.parentNode) btn.remove(); return; }
+      btn.disabled = false;
+      btn.textContent = "🔍 高精度Proの回答に切り替える";
+      btn.addEventListener("click", () => {
+        box.innerHTML = "";
+        const shown = renderRepairResult(box, p2.obj, r2.text, qFull);
+        // 履歴は増やさない: 速報の記録を消して、差し替えた回答で保存し直す
+        if (rec0) { try { setDiagHist(getDiagHist().filter(x => x.id !== rec0.id)); } catch (e) {} }
+        const rec = shown ? saveRepairRecord(qFull, shown) : null;
+        if (rec) addRepairShareBar(box, rec);
+        appendAiFollowup(box, qFull, r2.text, { kind: "repair" });
+      });
+    })
+    .catch(() => { if (btn.parentNode) btn.remove(); });
 }
 /* 実際に使われたAIエンジンのバッジ(高精度Pro / 標準Flash)。モデル名にproを含むかで判定。
    店舗版で「Proが使われているか」を現場で目視確認できるようにする。 */
@@ -7266,9 +7342,9 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
     // 追加相談も経過秒を表示(初回と同じ体感)。ストリーム開始 or 応答到着で停止。
     const stopFbTimer = startThinkingTimer(ans, "🔧 メカ君が追加で考え中");
     let streamedFb = false;
-    // 精度優先。NAでも思考量を確保(2048)、有料は4096。
+    // 写真・動画つきの追加相談の思考量。多すぎると答えが出るまで待たされるので抑える。
     const paidOn = !!(window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn());
-    const fbBudget = paidOn ? 4096 : 2048;
+    const fbBudget = paidOn ? 1024 : 512;
     // 会話が続いても対象車両を見失わないよう、毎回プロンプトへ車両情報を固定で入れる。
     const vDesc = (function () { try { return vehicleDesc(); } catch (e) { return "不明"; } })();
     try {
@@ -7283,7 +7359,9 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           for (const a of atts) media.push(await attachToMedia(a));
           r = await geminiAskMediaStream(buildRepairPrompt(q, true), media, { thinkingBudget: fbBudget }, null);
         } else {
-          r = await geminiAsk(buildRepairPrompt(q), paidOn ? { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048 } : { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 });
+          // 初回と同じく速報(Flash・思考0)で出す。JSONが届いたぶんから順に描く。
+          r = await geminiAskStream(buildRepairPrompt(q), { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 0 },
+            onRepairChunk(ans, tried || origText, stopFbTimer));
         }
         stopFbTimer(); ans.classList.remove("streaming");
         const parsed = parseRepairText(r.text);
@@ -7320,7 +7398,12 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
             ans.textContent = acc;
           });
         } else {
-          r = await geminiAsk(prompt, { mode: "pro", search: paidOn, thinkingBudget: fbBudget });
+          // 初回と同じく速報(Flash・思考0)で、生成されたぶんから先に読めるようにする。
+          r = await geminiAskStream(prompt, { mode: "flash", search: false, thinkingBudget: 0 }, (acc, done) => {
+            if (done) return;
+            if (!streamedFb) { streamedFb = true; stopFbTimer(); ans.classList.add("streaming"); }
+            ans.textContent = acc;
+          });
         }
         stopFbTimer(); ans.classList.remove("streaming");
         if (r && r.truncated) { ans.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(prompt, r, { mode: "flash" }, acc => { ans.textContent = acc; }); }
@@ -8236,7 +8319,7 @@ async function diagMediaAnalyze() {
     const mdp = buildMediaDiagPrompt();
     // 故障診断は精度優先。写真・動画・コメントの統合をしっかり推論させるため思考量を引き上げる
     // (NA=Flashでも256→2048、有料=Proは4096)。会話等の軽用途とは別枠で確保。
-    const diagBudget = (mediaModeByPlan() === "pro") ? 2048 : 1024;
+    const diagBudget = (mediaModeByPlan() === "pro") ? 2048 : 512;
     let r = await withAiRetry(
       () => geminiAskMediaStream(mdp, media, { thinkingBudget: diagBudget }, (acc, done) => {
         if (done) return;
