@@ -1811,12 +1811,14 @@ async function runVehAsk() {
     // 写真あり: 思考量に上限を設けて高速化(JSON応答なので逐次表示はしない)。
     // 写真なし: 有料店舗はPro＋検索でトルク等の実値を裏取り(要確認の乱発を防ぐ)。無料はFlash・検索なし。
     const ask = retry => media
-      ? geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null)
+      ? withAiRetry(() => geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null),
+          () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} })
       : geminiAskStream(buildRepairPrompt(qFull),
           Object.assign(accurate ? { mode: "pro", search: true, maxTokens: 4096, thinkingBudget: 2048 }
                                  : { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 },
             retry ? { noCache: true } : {}), onRepairChunk(box, qFull, stopTimer));
-    r = await ask(false);
+    r = await withAiRetry(() => ask(false),
+      () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} });
     let parsed = parseRepairText(r.text);
     // JSONが崩れた/途中で切れた時は、利用者に押し直してもらわず1回だけ自動で聞き直す
     if (!parsed.obj || parsed.partial) {
@@ -1834,7 +1836,16 @@ async function runVehAsk() {
     appendAiFollowup(box, qFull, r.text, { kind: "repair" });   // 修理にも追加で質問できる欄
   } catch (e) {
     stopTimer();
-    if (e.message !== "__cancelled__") box.textContent = "⚠ " + (e.message || "AIへの接続に失敗しました");
+    if (e.message !== "__cancelled__") {
+      const msg = isTransientAiError(e) ? "いま混み合っていて回答を取得できませんでした。" : (e.message || "AIへの接続に失敗しました");
+      box.innerHTML = "⚠ " + esc(msg) +
+        '<div class="hint" style="margin-top:4px">入力と添付はそのまま残しています。下のボタンで聞き直せます。</div>';
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "btn btn-ghost btn-sm"; again.style.marginTop = "8px";
+      again.textContent = "🔄 もう一度聞く";
+      again.addEventListener("click", () => { const b = $("btnVehAsk"); if (b) b.click(); });
+      box.appendChild(again);
+    }
   } finally {
     vehAskBusy = false; setBtnLoading(btn, false);
   }
@@ -3119,6 +3130,20 @@ $("kPhotoPick") && $("kPhotoPick").addEventListener("change", onKartePhotoFiles)
 function isTransientAiError(e) {
   const m = String((e && e.message) || "");
   return /混み|時間|timeout|タイムアウト|サーバーエラー\s*5|50[0234]|回答が得られ/.test(m);
+}
+/* 混雑・時間切れなら1回だけ自動で試し直す。押し直しの手間をなくす。 */
+async function withAiRetry(run, onRetry) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { return await run(); }
+    catch (e) {
+      if (attempt === 0 && isTransientAiError(e)) {
+        if (onRetry) { try { onRetry(); } catch (e2) {} }
+        await new Promise(r => setTimeout(r, 1200));
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 async function runKartePhotoOCR() {
   if (!kartePhotoMedia.length) return;
@@ -6819,11 +6844,13 @@ async function runDiagAI(text) {
     // 「改善の見込み」の裏取り検索は有料プランのみ(検索裏取りは契約特典。NAは一般知識ベースの目安のみ)。
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const dp = buildDiagPrompt(text, accurate);
-    let r = await geminiAskStream(dp, { mode: "pro", search: accurate, thinkingBudget: accurate ? 2048 : 768 }, (acc, done) => {
-      if (done) return;
-      if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
-      p.textContent = acc;   // 生成されたぶんから先に読める
-    });
+    let r = await withAiRetry(
+      () => geminiAskStream(dp, { mode: "pro", search: accurate, thinkingBudget: accurate ? 2048 : 768 }, (acc, done) => {
+        if (done) return;
+        if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
+        p.textContent = acc;   // 生成されたぶんから先に読める
+      }),
+      () => { try { p.textContent = "混み合っていたので、もう一度考えています…"; } catch (e) {} });
     // 途中で切れていたら続きを自動取得して結合(ジェミニのストリーム途中終了対策)
     if (r && r.truncated) { p.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(dp, r, { mode: "flash" }, (acc) => { p.textContent = acc; }); }
     stopTimer();
@@ -7715,8 +7742,15 @@ async function geminiAskMedia(prompt, media, opts) {
   if (contractAi()) {
     // paidScan: 車検証など個人情報(氏名・住所)が写り得る画像の読み取りは、プランに関わらず必ず有料キーで処理させる。
     // 有料枠はGoogleが学習に使わないため、車検証画像が無料キー(学習されうる)に乗るのを防ぐ。
-    const d = await window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media, paidScan: !!opts.paidScan,
-      thinkingBudget: (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : undefined });   // 指定時のみ思考上限(未指定は従来どおり)
+    let d;
+    try {
+      // 写真・動画は処理が重いので待ちは長め。それでも返らなければ打ち切って案内する(固まったままにしない)。
+      d = await aiRace(window.Cloud.callFn("mecha", { prompt, mode: mediaModeByPlan(), media, paidScan: !!opts.paidScan,
+        thinkingBudget: (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : undefined }), 100000);
+    } catch (e) {
+      if (e && e.message === "__timeout__") throw new Error("写真・動画の読み取りに時間がかかっています。少し待ってからもう一度お試しください。");
+      throw e;
+    }
     if (d && d.text) return { text: d.text, truncated: !!d.truncated, model: (d && d.model) || "" };
     throw new Error("AIから回答が得られませんでした");
   }
@@ -8202,12 +8236,14 @@ async function diagMediaAnalyze() {
     const mdp = buildMediaDiagPrompt();
     // 故障診断は精度優先。写真・動画・コメントの統合をしっかり推論させるため思考量を引き上げる
     // (NA=Flashでも256→2048、有料=Proは4096)。会話等の軽用途とは別枠で確保。
-    const diagBudget = (mediaModeByPlan() === "pro") ? 4096 : 2048;
-    let r = await geminiAskMediaStream(mdp, media, { thinkingBudget: diagBudget }, (acc, done) => {
-      if (done) return;
-      if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
-      p.textContent = acc;
-    });
+    const diagBudget = (mediaModeByPlan() === "pro") ? 2048 : 1024;
+    let r = await withAiRetry(
+      () => geminiAskMediaStream(mdp, media, { thinkingBudget: diagBudget }, (acc, done) => {
+        if (done) return;
+        if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
+        p.textContent = acc;
+      }),
+      () => { st.textContent = "混み合っていたので、もう一度解析しています…"; });
     if (r && r.truncated) { p.textContent = (r.text || "") + "\n…続きを取得中…"; r = await continueIfTruncated(mdp, r, { mode: "flash" }, (acc) => { p.textContent = acc; }); }
     stopTimer(); p.classList.remove("streaming");
     renderAiAnswer(p, r.text, { linkCauses: true });
@@ -8224,7 +8260,16 @@ async function diagMediaAnalyze() {
     st.textContent = "✓ 解析が完了しました。下に結果を表示しています。";
   } catch (err) {
     if (stopTimer) stopTimer();
-    if (err.message !== "__cancelled__") st.textContent = "⚠ " + (err.message || "解析に失敗しました");
+    if (err.message !== "__cancelled__") {
+      const msg = isTransientAiError(err) ? "いま混み合っていて解析できませんでした。" : (err.message || "解析に失敗しました");
+      st.innerHTML = "⚠ " + esc(msg) +
+        '<div class="hint" style="margin-top:4px">写真・動画はそのまま残しています。下のボタンでやり直せます。</div>';
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "btn btn-ghost btn-sm"; again.style.marginTop = "8px";
+      again.textContent = "🔄 もう一度解析する";
+      again.addEventListener("click", () => { diagMediaAnalyze(); });
+      st.appendChild(again);
+    }
   } finally {
     diagMediaBusy = false; setBtnLoading(runBtn, false);
   }
