@@ -956,7 +956,7 @@
         const byId = {}; ks.forEach(k => { if (k && k.id) byId[k.id] = k; });
         snap.forEach(dd => { const k = dd.data(); if (!k) return; k.id = dd.id; const l = byId[k.id]; if (!l || (k.updatedAt || 0) >= (l.updatedAt || 0)) byId[k.id] = k; });
         localStorage.setItem("ss_knowhow", JSON.stringify(Object.values(byId).slice(-500)));
-        try { if (typeof window.renderTeachCards === "function") window.renderTeachCards(); } catch (e) {}
+        try { if (typeof window.refreshKnowViews === "function") window.refreshKnowViews(); else if (typeof window.renderTeachCards === "function") window.renderTeachCards(); } catch (e) {}
       } catch (e) {}
     }, err => {});
     unsubPlan = db.collection("tenants").doc(tid).collection("intakePlans").onSnapshot(snap => {

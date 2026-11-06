@@ -6558,7 +6558,15 @@ function knowMatches(k, d) {
   if (!k || k.deleted) return false;
   d = d || current || {};
   if (k.scope === "all") return true;
-  if (k.scope === "vehicle") { const vk = vehicleKey(d); return !!(k.vehKey && vk && k.vehKey === vk); }
+  if (k.scope === "vehicle") {
+    // 個体の識別は車台番号が最優先(vehicleKeyは型式になることが多く、それだけだと同型式の別車にも当たる)
+    const vin = String(d.vin || "").toUpperCase();
+    if (k.vin && vin) return String(k.vin).toUpperCase() === vin;
+    const vk = vehicleKey(d);
+    if (k.vehKey && vk) return k.vehKey === vk;
+    // 画面で範囲を「この車両だけ」に直した古い記録(個体の手がかりが無い)は、せめて同じ型式で拾う
+    return !!(k.type && d.type && String(k.type).toUpperCase() === String(d.type).toUpperCase());
+  }
   const type = String(d.type || "").toUpperCase();
   if (k.type && type && String(k.type).toUpperCase() === type) return true;
   const m = String((currentVehicleFacts().model || "")).trim();
@@ -6749,7 +6757,7 @@ function mountTeachCard(hostId) {
         at: Date.now(), updatedAt: Date.now(),
         by: (window.Cloud && typeof window.Cloud.myName === "function" && window.Cloud.myName()) || "",
         scope: scope,
-        vehKey: vehicleKey(current) || null,
+        vehKey: vehicleKey(current) || null, vin: current.vin || null,
         type: current.type || null, model: f.model || null, engine: current.engine || null,
         title: String(o.title || "").slice(0, 40),
         body: String(o.body || "").slice(0, 400),
@@ -6779,6 +6787,13 @@ function renderTeachCards() {
   ["teachDiag", "teachParts"].forEach(id => { const h = $(id); if (h) { mountTeachCard(id); renderKnowList(h); } });
 }
 window.renderTeachCards = renderTeachCards;   // クラウド同期から呼ぶ
+/* 知見が増減したら、設定の件数と一覧画面も合わせる */
+function refreshKnowViews() {
+  try { renderTeachCards(); } catch (e) {}
+  try { renderKnowAllCount(); } catch (e) {}
+  if (curView === "know") { try { renderKnowAdmin(); } catch (e) {} }
+}
+window.refreshKnowViews = refreshKnowViews;
 
 /* 原因候補に「点検手引書」ボタンを付ける。タップでその候補を確定/除外する点検手順をAIが生成(初回のみ・折り畳み)。
    基本操作の解説ではなく、その原因を解決に導く具体的な点検を出す。 */
@@ -8997,11 +9012,12 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "maint") { try { refreshSpecsView(); } catch (e) {} }
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); } catch (e) {} }
+  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); renderKnowAllCount(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
   if (name === "diag" || name === "parts") { try { renderTeachCards(); } catch (e) {} }   // 「メカ君に教える」を用意
+  if (name === "know") { try { renderKnowAdmin(); } catch (e) {} }
   if (name === "diag") updateDiagVehicleHint();
   if (name === "parts") renderCopyKata();
   if (name === "scan") renderLastVehicle();
@@ -9045,6 +9061,100 @@ document.querySelectorAll("#tabs button").forEach(b =>
 
 /* 設定 → 車種データの編集(DB編集画面。下部タブからは外した) */
 (() => { const b = $("btnOpenDb"); if (b) b.addEventListener("click", () => switchView("db")); })();
+
+/* 設定 → メカ君に教えた内容(全件の見直し・修正・削除) */
+let knowAdminScope = "", knowAdminQ = "";
+function knowAdminRows() {
+  const q = fluidNorm(knowAdminQ);
+  return getKnowAll().filter(k => k && !k.deleted)
+    .filter(k => !knowAdminScope || (k.scope || "all") === knowAdminScope)
+    .filter(k => {
+      if (!q) return true;
+      const hay = fluidNorm([k.title, k.body, (k.tags || []).join(" "), k.type, k.model, k.by].join(" "));
+      return hay.indexOf(q) >= 0;
+    })
+    .sort((a, b) => (b.at || 0) - (a.at || 0));
+}
+function renderKnowAdmin() {
+  const box = $("knowAdminList"); if (!box) return;
+  const rows = knowAdminRows();
+  const all = getKnowAll().filter(k => k && !k.deleted).length;
+  const cnt = $("knowCount"); if (cnt) cnt.textContent = rows.length + "件" + (rows.length !== all ? "／全" + all + "件" : "");
+  const hint = $("knowAdminHint");
+  if (hint) hint.textContent = all
+    ? "見出し・本文・適用範囲はその場で直せます。直すと次の診断・修理からその内容で参考にします。"
+    : "まだ登録がありません。車両を開いて診断タブ・修理タブの「🧠 メカ君に教える」から登録してください。";
+  box.innerHTML = "";
+  rows.forEach(k => {
+    const card = document.createElement("section"); card.className = "knowAdmCard";
+    const top = document.createElement("div"); top.className = "knowAdmTop";
+    const veh = document.createElement("span"); veh.className = "knowAdmVeh";
+    veh.textContent = ([k.model, k.type].filter(Boolean).join(" ") || k.vehKey || "車両不明")
+      + ((k.scope === "vehicle" && k.vin) ? "（車台…" + String(k.vin).slice(-4) + "）" : "");
+    const meta = document.createElement("span"); meta.className = "knowAdmMeta";
+    meta.textContent = (k.by ? k.by + " ／ " : "") + new Date(k.at || Date.now()).toLocaleDateString("ja-JP") + (k.hadMedia ? " ／ 📷" : "");
+    top.append(veh, meta);
+
+    const ti = document.createElement("input"); ti.type = "text"; ti.className = "knowAdmTitle"; ti.value = k.title || "";
+    const bd = document.createElement("textarea"); bd.className = "knowAdmBody"; bd.value = k.body || "";
+    bd.addEventListener("input", () => autoGrow(bd));
+
+    const scRow = document.createElement("div"); scRow.className = "knowAdmScope";
+    const scLbl = document.createElement("span"); scLbl.textContent = "どこまで使う";
+    const sel = document.createElement("select");
+    [["vehicle", "この車両だけ"], ["model", "同じ型式・車種"], ["all", "全車共通"]].forEach(o => {
+      const op = document.createElement("option"); op.value = o[0]; op.textContent = o[1];
+      if ((k.scope || "all") === o[0]) op.selected = true;
+      sel.appendChild(op);
+    });
+    scRow.append(scLbl, sel);
+
+    const tags = document.createElement("div"); tags.className = "knowAdmTags";
+    (k.tags || []).forEach(t => { const sp = document.createElement("span"); sp.className = "knowTag"; sp.textContent = t; tags.appendChild(sp); });
+
+    const btns = document.createElement("div"); btns.className = "knowAdmBtns";
+    const save = document.createElement("button"); save.type = "button"; save.className = "btn btn-amber btn-sm"; save.textContent = "保存";
+    const del = document.createElement("button"); del.type = "button"; del.className = "btn btn-ghost btn-sm knowAdmDel"; del.textContent = "削除";
+    const st = document.createElement("span"); st.className = "knowAdmSt";
+    save.addEventListener("click", () => {
+      const upd = Object.assign({}, k, {
+        title: ti.value.trim().slice(0, 40), body: bd.value.trim().slice(0, 400),
+        scope: sel.value, updatedAt: Date.now(), editedBy: (window.Cloud && typeof window.Cloud.myName === "function" && window.Cloud.myName()) || "",
+      });
+      if (!upd.title && !upd.body) { st.textContent = "⚠ 中身が空です"; return; }
+      putKnow(upd);
+      st.textContent = "✓ 保存しました";
+      setTimeout(() => { st.textContent = ""; }, 2500);
+      try { renderTeachCards(); } catch (e) {}
+    });
+    del.addEventListener("click", async () => {
+      if (!(await uiConfirm("この知見を削除しますか？\n「" + (k.title || "") + "」"))) return;
+      removeKnow(k.id); renderKnowAdmin(); renderKnowAllCount();
+      try { renderTeachCards(); } catch (e) {}
+    });
+    btns.append(save, del, st);
+    card.append(top, ti, bd, scRow);
+    if ((k.tags || []).length) card.appendChild(tags);
+    card.appendChild(btns);
+    box.appendChild(card);
+    requestAnimationFrame(() => autoGrow(bd));
+  });
+}
+/* 設定の入口に件数を出す */
+function renderKnowAllCount() {
+  const el = $("knowAllCnt"); if (!el) return;
+  const n = getKnowAll().filter(k => k && !k.deleted).length;
+  el.textContent = n ? "（" + n + "件）" : "";
+}
+(() => {
+  const b = $("btnOpenKnow"); if (b) b.addEventListener("click", () => switchView("know"));
+  const sr = $("knowSearch");
+  if (sr) sr.addEventListener("input", () => { knowAdminQ = sr.value || ""; renderKnowAdmin(); });
+  document.querySelectorAll(".knowTab").forEach(t => t.addEventListener("click", () => {
+    document.querySelectorAll(".knowTab").forEach(x => x.classList.toggle("knowTabOn", x === t));
+    knowAdminScope = t.dataset.scope || ""; renderKnowAdmin();
+  }));
+})();
 
 /* ホーム(スキャン初期画面)に戻す: 車両表示・進捗を畳み、メカ君ヒーローとスキャンボタンを出す */
 function goHome() {
@@ -9431,7 +9541,7 @@ const SUPPORT_KB = [
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(担当ごとの色。ホームの入庫状況と車両カードで操作)を管理。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫管理だけの画面になりスキャン/AIは非表示。事務用の画面は1台ずつの一覧で、区分(すべて/車検/点検/修理/板金)で絞り込め、行はナンバー下4桁＋使用者名。行をタップで申し送りコメント、担当の設定、費用の状態の切替ができる。進捗(入庫→作業中→完了→引渡待)は整備士が更新するので事務用では表示のみ。出庫も事務用には出さない(ホームの入庫状況で横スワイプ)。メイン画面に移るときはログアウトしてログインし直す。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
-  "【メカ君に教える（現場の知見）】診断タブ・修理タブの『🧠 メカ君に教える（気づき・経験）』から、整備士が気づいたこと・経験した不具合と直し方を、文字・音声・写真・動画で登録できる。登録するとAIが対象車両と突き合わせ、『この車両だけ／同じ型式・車種／全車共通』のどれに当てはまるかを判断して、見出し・本文・照合用キーワードに整理して保存する。以後の故障診断・修理では、関係する知見が自動で添えられ、一般論より優先して検討される(採用された箇所には「（当店の実績）」と付く)。登録済みの知見はカードの下に一覧表示され、不要なものは『削除』。契約店舗は社内の全端末で共有され、他の整備士が登録した知見も使われる(個人版・デモは端末内のみ)。",
+  "【メカ君に教える（現場の知見）】診断タブ・修理タブの『🧠 メカ君に教える（気づき・経験）』から、整備士が気づいたこと・経験した不具合と直し方を、文字・音声・写真・動画で登録できる。登録するとAIが対象車両と突き合わせ、『この車両だけ／同じ型式・車種／全車共通』のどれに当てはまるかを判断して、見出し・本文・照合用キーワードに整理して保存する。以後の故障診断・修理では、関係する知見が自動で添えられ、一般論より優先して検討される(採用された箇所には「（当店の実績）」と付く)。登録済みの知見はカードの下に一覧表示され、不要なものは『削除』。設定タブの『メカ君に教えた内容』→『🧠 登録した知見をひらく』では、車両をまたいで全件を見直せる(車種・型式・キーワードで絞り込み、適用範囲の切替タブ、見出し・本文・適用範囲のその場修正、削除)。契約店舗は社内の全端末で共有され、他の整備士が登録した知見も使われる(個人版・デモは端末内のみ)。",
   "【追加で相談/質問】診断・修理の結果の下に相談欄。実施内容・追加の症状・写真・動画を足して『メカ君に追加で相談/質問』すると、前回の結果と統合して精度高く再回答(対象車両を保持し他メーカーのコードと混同しない)。修理でも追加質問でき、手順やトルクの続きを聞ける。何度でも連鎖可能。",
   "【音声入力】各入力欄の🎤ボタンで声で入力。話の途中で無音になっても自動で認識を続けるので、話すたびに押し直す必要はない。停止はもう一度🎤、または相談/解析ボタンを押すと自動でオフ。",
   "【調べる車両の切替】別の車両を開くと、診断・修理の入力欄に残っていた写真・動画・コメントは自動でクリア(前の車両のものが混ざらない)。保存済みの診断結果は車両ごとに保持。",

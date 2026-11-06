@@ -544,6 +544,27 @@
 </div>
 
 <!-- ============ VIEW: DB EDIT ============ -->
+<div id="view-know" class="view">
+  <nav class="pageNav">
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="settings" aria-label="設定へ戻る">‹</button>
+      <span class="pnTtl pnTtlFixed">メカ君に教えた内容</span>
+      <span class="pnCount" id="knowCount"></span>
+    </div>
+  </nav>
+  <div class="knowFilter">
+    <input type="search" id="knowSearch" placeholder="🔎 車種・型式・キーワードで絞り込む">
+    <div class="knowTabs">
+      <button type="button" class="knowTab knowTabOn" data-scope="">すべて</button>
+      <button type="button" class="knowTab" data-scope="vehicle">車両ごと</button>
+      <button type="button" class="knowTab" data-scope="model">型式・車種</button>
+      <button type="button" class="knowTab" data-scope="all">全車共通</button>
+    </div>
+  </div>
+  <div class="hint" id="knowAdminHint" style="margin-top:10px"></div>
+  <div id="knowAdminList"></div>
+</div>
+
 <div id="view-db" class="view">
   <nav class="pageNav">
     <div class="pnTop">
@@ -759,6 +780,13 @@
     <h2><span class="tag cy">DB</span>車種データの編集</h2>
     <div class="sec-body hidden">
       <button class="btn btn-ghost" id="btnOpenDb" type="button">🔧 登録車種一覧をひらく</button>
+    </div>
+  </section>
+  <section id="secKnowAdmin">
+    <h2><span class="tag cy">知見</span>メカ君に教えた内容</h2>
+    <div class="sec-body hidden">
+      <p class="hint">診断・修理タブで登録した「気づき・経験」を、車両をまたいで見直し・修正・削除できます。</p>
+      <button class="btn btn-ghost" id="btnOpenKnow" type="button">🧠 登録した知見をひらく<span id="knowAllCnt"></span></button>
     </div>
   </section>
   <h2 class="setGrp">AI・キー</h2>
