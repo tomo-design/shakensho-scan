@@ -1,5 +1,5 @@
 "use strict";
-const { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth } = require("./pure");
+const { planConfig, tierFromPriceId, pickHighestModel, pickModelsDesc, FLASH_RE, PRO_RE, jstMonth } = require("./pure");
 
 describe("planConfig", () => {
   test("NA=検索なし", () => {
@@ -39,6 +39,19 @@ describe("tierFromPriceId", () => {
     expect(tierFromPriceId("price_unknown", prices)).toBe("");
     expect(tierFromPriceId("", prices)).toBe("");
     expect(tierFromPriceId("price_na_m", null)).toBe("");
+  });
+});
+
+describe("pickModelsDesc", () => {
+  const names = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-flash-lite-latest"];
+  test("新しい順に3つ(最新が混雑でも1つ前へ下りられる)", () => {
+    expect(pickModelsDesc(names, FLASH_RE, 3)).toEqual(["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]);
+  });
+  test("候補が少なければある分だけ", () => {
+    expect(pickModelsDesc(["gemini-2.5-flash"], FLASH_RE, 3)).toEqual(["gemini-2.5-flash"]);
+  });
+  test("無ければ空", () => {
+    expect(pickModelsDesc(["gemini-flash-lite-latest"], FLASH_RE, 3)).toEqual([]);
   });
 });
 

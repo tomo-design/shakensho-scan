@@ -24,6 +24,16 @@ function tierFromPriceId(pid, prices) {
 
 /* Geminiモデル名リストから、正規表現に一致する中で最も新しいバージョンを選ぶ。
    例: ["gemini-2.5-flash","gemini-3-flash-preview"] → "gemini-3-flash-preview"。 */
+/* 一致するモデルを新しい順に最大n個返す。最新が混雑している時に1つ前へ下りるために使う。 */
+function pickModelsDesc(names, re, n) {
+  const hit = [];
+  for (const name of (names || [])) {
+    const m = String(name).match(re);
+    if (m) hit.push({ name: name, v: parseFloat(m[1]) });
+  }
+  hit.sort((a, b) => b.v - a.v);
+  return hit.slice(0, n || 3).map((x) => x.name);
+}
 function pickHighestModel(names, re) {
   let best = "", bestV = -1;
   for (const n of (names || [])) {
@@ -125,5 +135,5 @@ function monthlyAmountFromSub(sub) {
   return Math.round(yen);
 }
 
-module.exports = { planConfig, tierFromPriceId, pickHighestModel, FLASH_RE, PRO_RE, jstMonth, lifecycleStage,
+module.exports = { planConfig, tierFromPriceId, pickHighestModel, pickModelsDesc, FLASH_RE, PRO_RE, jstMonth, lifecycleStage,
   jstDayRange, jstDay, trialDaysLeft, trialStage, monthlyAmountFromSub };

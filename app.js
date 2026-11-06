@@ -6025,6 +6025,12 @@ function noteModelGood(m, mode) {
   delete h.bad[m]; h.good[mode === "pro" ? "pro" : "flash"] = m;
   try { localStorage.setItem("ss_modelhealth", JSON.stringify(h)); } catch (e) {}
 }
+/* 1回あたりの待ち時間。いつも使えているモデルは長めに待ち、
+   素性の分からないモデルは20秒で見切る(死んでいるモデルに45秒使わない)。 */
+function aiTryMs(model, mode, base) {
+  const good = (modelHealth().good || {})[mode === "pro" ? "pro" : "flash"];
+  return (model && model === good) ? base : Math.min(base, 20000);
+}
 /* 試す順: 直近ダメだったモデルを外し、そのモードで最後に成功したモデルを先頭へ。 */
 function modelOrder(models, mode) {
   const h = modelHealth(), bad = h.bad || {}, now = Date.now();
@@ -6278,7 +6284,7 @@ async function geminiAsk(prompt, opts) {
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: genCfg
             }, opts.search ? { tools: [{ google_search: {} }] } : {}))
-          }, aiWaitMs(mode, opts.search));
+          }, aiTryMs(model, mode, aiWaitMs(mode, opts.search)));
         if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); break; }   // 次のモデルへ
         if (res.status === 503 || res.status === 500) {
           lastErr = new Error("AIが混雑しています (" + res.status + ")。");
@@ -6366,7 +6372,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
         {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(Object.assign({ contents: [{ parts: [{ text: prompt }] }], generationConfig: genCfg }, opts.search ? { tools: [{ google_search: {} }] } : {}))
-        }, aiWaitMs(mode, opts.search));
+        }, aiTryMs(model, mode, aiWaitMs(mode, opts.search)));
       if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); continue; }
       if (res.status === 503 || res.status === 500) { noteModelBad(model); lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか設定で標準モードにしてください。"); continue; }
@@ -7886,7 +7892,7 @@ async function geminiAskMedia(prompt, media, opts) {
         const res = await aiFetch(
           "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
           { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) },
-          mediaHasVideo ? 90000 : 45000);
+          mediaHasVideo ? 90000 : aiTryMs(model, getAiMode(), 45000));
         if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); break; }
         if (res.status === 503 || res.status === 500) {   // 過負荷は少し待って同モデルで再試行(無料版へ落とす前に)
           lastErr = new Error("AIが混雑しています (" + res.status + ")。");
@@ -7956,7 +7962,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
       const res = await aiFetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key),
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) },
-        msHasVideo ? 90000 : 45000);
+        msHasVideo ? 90000 : aiTryMs(model, mode, 45000));
       if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); continue; }
       if (res.status === 503 || res.status === 500) { noteModelBad(model); lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか標準モードにしてください。"); continue; }

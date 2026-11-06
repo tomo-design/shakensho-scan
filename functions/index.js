@@ -479,11 +479,27 @@ function orderModels(models, mode) {
 }
 /* 1回のGemini呼び出しに待てる上限(ms)。締め切りが近ければそれに合わせて短くする。 */
 function aiTimeoutMs(mode, search, deadline) {
-  let ms = search ? 55000 : (mode === "pro" ? 40000 : 20000);
+  let ms = search ? 55000 : (mode === "pro" ? 40000 : 15000);
   if (deadline) ms = Math.min(ms, Math.max(3000, deadline - Date.now()));
   return ms;
 }
 const pastDeadline = (deadline) => !!deadline && Date.now() > deadline;
+function hasVideoPart(parts) {
+  return (parts || []).some((p) => p && p.inlineData && /video/.test(p.inlineData.mimeType || ""));
+}
+/* 1回の呼び出しに待てる上限。
+   ・動画つきは解析自体が長いので90秒
+   ・いつも使えているモデルは長めに待つ(長い回答を途中で切らない)
+   ・素性の分からないモデルは短めに見切る(死んでいるモデルに何十秒も使わない)
+   ・Pro/検索つきは従来どおり(aiTimeoutMs) */
+function callTimeoutMs(parts, mode, search, deadline, model, streaming) {
+  const left = deadline ? Math.max(3000, deadline - Date.now()) : 1e9;
+  if (hasVideoPart(parts)) return Math.min(90000, left);
+  if (mode === "pro" || search) return aiTimeoutMs(mode, search, deadline);
+  const known = !!model && _mh.good[mode === "pro" ? "pro" : "flash"] === model;
+  const ms = streaming ? (known ? 20000 : 12000) : (known ? 40000 : 20000);
+  return Math.min(ms, left);
+}
 async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget, temperature, deadline) {
   let lastErr = "", quota = false;
   await modelHealth();
@@ -505,14 +521,17 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens, thi
       try {
         r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
-          signal: AbortSignal.timeout(aiTimeoutMs(mode, search, deadline)),
+          signal: AbortSignal.timeout(callTimeoutMs(parts, mode, search, deadline, model, false)),
         });
       } catch (e) {
         lastErr = (e && e.name === "TimeoutError") ? "timeout" : "network";
         if (e && e.name === "TimeoutError") markModelBad(model);   // 無反応のモデルはしばらく使わない
         r = null; break;
       }
-      if ((r.status === 503 || r.status === 500) && attempt < 1) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 400)); continue; }
+      // 混雑(503/500)でもう一度試すのは「いつも使えているモデル」だけ。
+      // 素性の分からないモデルで粘ると、最初の1回の待ち時間がそのぶん伸びる。
+      const knownGood = _mh.good[mode === "pro" ? "pro" : "flash"] === model;
+      if ((r.status === 503 || r.status === 500) && attempt < 1 && knownGood) { lastErr = "busy " + r.status; await new Promise((rs) => setTimeout(rs, 400)); continue; }
       break;
     }
     if (!r) continue;                                  // network例外は次のモデルへ
@@ -553,7 +572,7 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
     try {
       r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key), {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
-        signal: AbortSignal.timeout(aiTimeoutMs(mode, search, deadline)),
+        signal: AbortSignal.timeout(callTimeoutMs(parts, mode, search, deadline, model, true)),
       });
     } catch (e) {
       lastErr = (e && e.name === "TimeoutError") ? "timeout" : "network";
@@ -665,11 +684,20 @@ async function latestModels(key) {
     // (3系flashは現状 gemini-3-flash-preview のみ提供。previewを除外すると旧2.5系(404)を掴むため許可する)。
     const flash = pure.pickHighestModel(names, pure.FLASH_RE);
     const pro = pure.pickHighestModel(names, pure.PRO_RE);
-    if (flash || pro) _modelCache = { at: now, flash: flash, pro: pro };
+    // 無料枠では最新Flashが混雑して使えないことがあるため、1つ前・2つ前も候補に持つ
+    const flashList = pure.pickModelsDesc(names, pure.FLASH_RE, 3);
+    if (flash || pro) _modelCache = { at: now, flash: flash, pro: pro, flashList: flashList };
   } catch (e) {}
   return _modelCache;
 }
 const uniq = (a) => a.filter((x, i) => x && a.indexOf(x) === i);
+/* 無料キーで試すモデルの順。最新Flash → lite(無料枠が空いていて速い) → 1つ前・2つ前 → 予備。
+   最新が無料枠の混雑で使えない時期は、使えるものを見つけた時点でそれを覚えて先頭から使う。 */
+function freeModelList(latest) {
+  const fl = (latest && latest.flashList) || [(latest && latest.flash)] || [];
+  // liteは速いが回答が薄い。本流のFlash(最新→1つ前→2つ前)を先に試し、全部ダメな時だけliteに落ちる。
+  return uniq([fl[0], fl[1], fl[2], "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+}
 
 /* 店舗のAIプラン設定を返す。aiPlan: "na"|"turbo"|"twinturbo"(旧 aiPaidFallback も互換解釈)。
    searchCap: 0=検索なし / 500=月上限 / -1=無制限。 seats: 0=人数制限なし / N=検索を使える人数(月内)。 */
@@ -719,7 +747,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   // 予備のモデルは絞る(多く並べるほど、落ちた時の総待ち時間が伸びるため)
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-lite-latest"])
-    : uniq([latest.flash, "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-flash-latest"]);
+    : freeModelList(latest);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);   // 諸元など長いJSONの途中切れ防止(上限32k)
@@ -729,7 +757,7 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
-  const freeModels = uniq([latest.flash, "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-flash-latest"]);   // 無料キーはFlashのみ(Proは無料枠429)
+  const freeModels = freeModelList(latest);   // 無料キーはFlashのみ(Proは無料枠429)
 
   // 検索(裏取り)を実際に使えるか: 検索対応プラン && 今月上限内 && 席内。不可なら検索なしに落として必ず回答を返す。
   let effSearch = false;
@@ -807,14 +835,14 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   const latest = await latestModels(freeKeys[0]);
   const models = mode === "pro"
     ? uniq([latest.pro, "gemini-pro-latest", latest.flash, "gemini-flash-lite-latest"])
-    : uniq([latest.flash, "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-flash-latest"]);
+    : freeModelList(latest);
   const parts = [{ text: String(data.prompt || "") }];
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   let tb = clampThinking(data.thinkingBudget);
   if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;   // NAは思考を512にキャップして高速化
   const paidCapable = pc.plan !== "na" && !!paidKey;
-  const freeModels = uniq([latest.flash, "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-flash-latest"]);
+  const freeModels = freeModelList(latest);
   let effSearch = false;
   if (data.search && paidCapable && pc.searchCap !== 0) {
     const overCap = pc.searchCap > 0 && (await paidCountThisMonth(g.tid)) >= pc.searchCap;
@@ -1982,7 +2010,7 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.log("drip: Geminiキー未設定"); return null; }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+    const models = freeModelList(latest);
     // 対象候補(見込み・メール有)を古い順に多めに取得(スキップ分の余裕を持たせる)
     const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 4).get();
     let sent = 0;
@@ -2059,7 +2087,7 @@ exports.faxSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memory
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.log("fax: Geminiキー未設定"); return null; }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+    const models = freeModelList(latest);
     const snap = await db.collection("salesLeads").where("status", "==", "見込み").orderBy("createdAt", "asc").limit(perDay * 6).get();
     let sent = 0;
     for (const doc of snap.docs) {
@@ -2168,7 +2196,7 @@ exports.inboundMail = functions.region(REGION).runWith({ timeoutSeconds: 120, me
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.error("inbound: Geminiキー未設定"); return res.status(200).send("ok"); }
     const latest = await latestModels(freeKeys[0]);
-    const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+    const models = freeModelList(latest);
     const staff = SALES_STAFF.cs;
 
     // ★パスワード再設定の依頼を検知したら、実際の再設定リンクを発行して返信本文へ差し込む
@@ -2475,7 +2503,7 @@ async function toFluxPrompt(promptText, aspectRatio) {
     String(promptText || "").slice(0, 4000),
   ].filter(Boolean).join("\n");
   const latest = await latestModels(freeKeys[0]);
-  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const models = freeModelList(latest);
   const start = Math.floor(Math.random() * freeKeys.length);
   for (let i = 0; i < freeKeys.length; i++) {
     // 思考量は既定(512)のまま。0や128を指定すると3系モデルが400や空応答を返すことがあるため触らない
@@ -2603,7 +2631,7 @@ async function researchCandidates(area, kind, count, excludeNames) {
   //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
   if (!freeKeys.length) throw new Error("サーバーのGeminiキーが未設定です。");
   const latest = await latestModels(freeKeys[0]);
-  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const models = freeModelList(latest);
   const rnorm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
   const exclude = Array.isArray(excludeNames) ? excludeNames.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 250) : [];
   const exSet = new Set(exclude.map(rnorm));
@@ -2796,7 +2824,7 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
   //  ★営業側で有料キーを使うと、月間の上限金額を使い切って車検証の高精度読み取り(無料キーへ落とさない設計)が止まるため。
   if (!freeKeys.length) return res.status(500).json({ error: "サーバーのGeminiキーが未設定です。" });
   const latest = await latestModels(freeKeys[0]);
-  const models = uniq([latest.flash, "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"]);
+  const models = freeModelList(latest);
 
   // ---- SNS投稿用の画像生成 ----
   if (action === "image") {
