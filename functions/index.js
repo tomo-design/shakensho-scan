@@ -440,39 +440,41 @@ async function checkPaid(uid) {
    1回あたり数十秒を捨てて関数のタイムアウトまで行ってしまう(=現場の「時間オーバー」)。
    応答なし/503/404が出たモデルは一定時間スキップし、最後に成功したモデルを先頭に回す。 */
 const MODEL_BAD_MS = 15 * 60e3;
-let _mh = { at: 0, bad: {}, lastGood: "" };
+let _mh = { at: 0, bad: {}, good: {} };   // good は flash/pro 別に「最後に成功したモデル」
 async function modelHealth() {
   if (Date.now() - _mh.at < 30e3) return _mh;   // 30秒はメモリのものを使う(毎回読みに行かない)
   try {
     const d = await admin.firestore().collection("usage").doc("_models").get();
     const v = (d.exists && d.data()) || {};
-    _mh = { at: Date.now(), bad: v.bad || {}, lastGood: v.lastGood || "" };
+    _mh = { at: Date.now(), bad: v.bad || {}, good: v.good || {} };
   } catch (e) { _mh.at = Date.now(); }
   return _mh;
 }
 function saveModelHealth() {
   const old = Date.now() - MODEL_BAD_MS * 4;
   Object.keys(_mh.bad).forEach((k) => { if (_mh.bad[k] < old) delete _mh.bad[k]; });   // 古い印は掃除する
-  try { admin.firestore().collection("usage").doc("_models").set({ bad: _mh.bad, lastGood: _mh.lastGood }, { merge: true }); } catch (e) {}
+  try { admin.firestore().collection("usage").doc("_models").set({ bad: _mh.bad, good: _mh.good }, { merge: true }); } catch (e) {}
 }
 function markModelBad(model) {
   if (!model || (_mh.bad[model] && Date.now() - _mh.bad[model] < 60e3)) return;   // 連続書き込みはしない
   _mh.bad[model] = Date.now();
-  if (_mh.lastGood === model) _mh.lastGood = "";
+  Object.keys(_mh.good).forEach((k) => { if (_mh.good[k] === model) delete _mh.good[k]; });
   saveModelHealth();
 }
-function markModelGood(model) {
-  if (!model || (_mh.lastGood === model && !_mh.bad[model])) return;
-  delete _mh.bad[model]; _mh.lastGood = model;
+function markModelGood(model, mode) {
+  const k = mode === "pro" ? "pro" : "flash";
+  if (!model || (_mh.good[k] === model && !_mh.bad[model])) return;
+  delete _mh.bad[model]; _mh.good[k] = model;
   saveModelHealth();
 }
-/* 試す順を決める: 直近ダメだったモデルを外し、最後に成功したモデルを先頭へ。 */
-function orderModels(models) {
+/* 試す順を決める: 直近ダメだったモデルを外し、そのモードで最後に成功したモデルを先頭へ。 */
+function orderModels(models, mode) {
   const now = Date.now();
   const ok = models.filter((m) => !(_mh.bad[m] && now - _mh.bad[m] < MODEL_BAD_MS));
   const list = (ok.length ? ok : models).slice();   // 全部ダメ印なら元の順で試す(完全停止を避ける)
-  const i = list.indexOf(_mh.lastGood);
-  if (i > 0) { list.splice(i, 1); list.unshift(_mh.lastGood); }
+  const good = _mh.good[mode === "pro" ? "pro" : "flash"];
+  const i = list.indexOf(good);
+  if (i > 0) { list.splice(i, 1); list.unshift(good); }
   return list;
 }
 /* 1回のGemini呼び出しに待てる上限(ms)。締め切りが近ければそれに合わせて短くする。 */
@@ -485,7 +487,7 @@ const pastDeadline = (deadline) => !!deadline && Date.now() > deadline;
 async function callGeminiModels(key, models, parts, mode, search, maxTokens, thinkingBudget, temperature, deadline) {
   let lastErr = "", quota = false;
   await modelHealth();
-  for (const model of orderModels(models)) {
+  for (const model of orderModels(models, mode)) {
     if (pastDeadline(deadline)) { lastErr = lastErr || "deadline"; break; }   // 全体の締め切りを超えたら打ち切る
     const gc = { temperature: (typeof temperature === "number" ? temperature : 0.2), maxOutputTokens: maxTokens || 16384 };
     // 思考トークン制御(2.5系・3系・-latest)。flash=512(3系は0が400・128だと空応答になり得るため余裕を持たせる)、pro=-1(動的)。2.0系は非対応。
@@ -521,7 +523,7 @@ async function callGeminiModels(key, models, parts, mode, search, maxTokens, thi
     const cand = j.candidates && j.candidates[0];
     const text = ((cand && cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
     if (!text) { lastErr = "empty"; continue; }
-    markModelGood(model);
+    markModelGood(model, mode);
     return { text: text, truncated: cand.finishReason === "MAX_TOKENS", model: model };
   }
   return { failed: true, quota: quota, lastErr: lastErr };
@@ -539,7 +541,7 @@ function clampThinking(v) {
 async function callGeminiStream(key, models, parts, mode, search, maxTokens, thinkingBudget, res, deadline) {
   let lastErr = "", quota = false;
   await modelHealth();
-  for (const model of orderModels(models)) {
+  for (const model of orderModels(models, mode)) {
     if (pastDeadline(deadline)) { lastErr = lastErr || "deadline"; break; }   // 全体の締め切りを超えたら打ち切る
     const gc = { temperature: 0.2, maxOutputTokens: maxTokens || 16384 };
     if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
@@ -589,7 +591,7 @@ async function callGeminiStream(key, models, parts, mode, search, maxTokens, thi
       // finishReasonが一度も来ずに終わった=異常終了も切れ扱い。
       truncated = (finishReason !== "STOP");
     } catch (e) { lastErr = "stream " + (e && e.message); if (headed) return { started: true, truncated: true, model: usedModel }; continue; }
-    if (full) return { started: true, truncated: truncated, model: usedModel };
+    if (full) { markModelGood(usedModel || model, mode); return { started: true, truncated: truncated, model: usedModel }; }
     lastErr = "empty"; continue;   // 本文ゼロ(ヘッダ未送信) → 次モデル/次キーへ
   }
   return { failed: true, quota: quota, lastErr: lastErr };

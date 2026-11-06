@@ -6015,22 +6015,24 @@ const MODEL_BAD_MS = 15 * 60e3;
 function modelHealth() { try { return JSON.parse(localStorage.getItem("ss_modelhealth") || "{}"); } catch (e) { return {}; } }
 function noteModelBad(m) {
   if (!m) return;
-  const h = modelHealth(); h.bad = h.bad || {}; h.bad[m] = Date.now();
-  if (h.lastGood === m) h.lastGood = "";
+  const h = modelHealth(); h.bad = h.bad || {}; h.good = h.good || {}; h.bad[m] = Date.now();
+  Object.keys(h.good).forEach(k => { if (h.good[k] === m) delete h.good[k]; });
   try { localStorage.setItem("ss_modelhealth", JSON.stringify(h)); } catch (e) {}
 }
-function noteModelGood(m) {
+function noteModelGood(m, mode) {
   if (!m) return;
-  const h = modelHealth(); h.bad = h.bad || {}; delete h.bad[m]; h.lastGood = m;
+  const h = modelHealth(); h.bad = h.bad || {}; h.good = h.good || {};
+  delete h.bad[m]; h.good[mode === "pro" ? "pro" : "flash"] = m;
   try { localStorage.setItem("ss_modelhealth", JSON.stringify(h)); } catch (e) {}
 }
-/* 試す順: 直近ダメだったモデルを外し、最後に成功したモデルを先頭へ。 */
-function modelOrder(models) {
+/* 試す順: 直近ダメだったモデルを外し、そのモードで最後に成功したモデルを先頭へ。 */
+function modelOrder(models, mode) {
   const h = modelHealth(), bad = h.bad || {}, now = Date.now();
   const ok = (models || []).filter(m => !(bad[m] && now - bad[m] < MODEL_BAD_MS));
   const list = (ok.length ? ok : (models || [])).slice();   // 全部ダメ印なら元の順で試す
-  const i = list.indexOf(h.lastGood);
-  if (i > 0) { list.splice(i, 1); list.unshift(h.lastGood); }
+  const good = (h.good || {})[mode === "pro" ? "pro" : "flash"];
+  const i = list.indexOf(good);
+  if (i > 0) { list.splice(i, 1); list.unshift(good); }
   return list;
 }
 /* 契約店舗(自分の鍵なし)の実効AIモード: 契約プランに合わせてProの利用可否を上限管理。
@@ -6253,7 +6255,7 @@ async function geminiAsk(prompt, opts) {
   }
   let lastErr = null, waited429 = false;   // waited429: 429の短時間待ちは全体で1回だけ
   aiAbort = new AbortController();   // クリアで中断できるように
-  for (const model of modelOrder(GEMINI_MODELS[mode])) {
+  for (const model of modelOrder(GEMINI_MODELS[mode], mode)) {
     // 過負荷(503/500)は一時的なので、下位(無料)モデルへ落とす前に同じモデルで最大3回リトライ。
     // これで「高精度モードが一瞬の混雑で無料版に切り替わる」のを防ぐ。
     let dropToNext = false;
@@ -6300,7 +6302,7 @@ async function geminiAsk(prompt, opts) {
         const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
         if (!text) throw new Error("AIから回答が得られませんでした");
         const r = { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
-        noteModelGood(model);
+        noteModelGood(model, mode);
         aiCacheSet(ck, { text: r.text, truncated: r.truncated });
         return r;
       } catch (e) {
@@ -6351,7 +6353,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
   }
   aiAbort = new AbortController();
   let lastErr = null;
-  for (const model of modelOrder(GEMINI_MODELS[mode])) {
+  for (const model of modelOrder(GEMINI_MODELS[mode], mode)) {
     try {
       const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
       if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
@@ -6392,7 +6394,7 @@ async function geminiAskStream(prompt, opts, onChunk) {
       }
       if (!text) throw new Error("AIから回答が得られませんでした");
       const r = { text, truncated: finish === "MAX_TOKENS", model };
-      noteModelGood(model);
+      noteModelGood(model, mode);
       aiCacheSet(ck, { text: r.text, truncated: r.truncated });
       if (onChunk) onChunk(text, true);
       return r;
@@ -7871,7 +7873,7 @@ async function geminiAskMedia(prompt, media, opts) {
   if (!key) throw new Error("Gemini APIキーが未設定です。");
   let lastErr = null;
   const mediaHasVideo = (media || []).some(m => /video/.test(m.mimeType || ""));
-  for (const model of modelOrder(GEMINI_MEDIA_MODELS[getAiMode()])) {
+  for (const model of modelOrder(GEMINI_MEDIA_MODELS[getAiMode()], getAiMode())) {
     let dropToNext = false;
     for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
       try {
@@ -7903,7 +7905,7 @@ async function geminiAskMedia(prompt, media, opts) {
         const cand = j.candidates?.[0];
         const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
         if (!text) throw new Error("AIから回答が得られませんでした");
-        noteModelGood(model);
+        noteModelGood(model, getAiMode());
         return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
       } catch (e) {
         if (e && e.message === "__timeout__") { noteModelBad(model); lastErr = new Error("このモデルから返事が来ませんでした。"); dropToNext = true; continue; }
@@ -7941,7 +7943,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   aiAbort = new AbortController();
   let lastErr = null;
   const msHasVideo = (media || []).some(m => /video/.test(m.mimeType || ""));
-  for (const model of modelOrder(GEMINI_MEDIA_MODELS[mode])) {
+  for (const model of modelOrder(GEMINI_MEDIA_MODELS[mode], mode)) {
     try {
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
       // 3系/2.5系/-latest は思考量に上限を設けて速く仕上げる(写真解析は無制限思考まで不要)
@@ -7981,7 +7983,7 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
         }
       }
       if (!text) throw new Error("AIから回答が得られませんでした");
-      noteModelGood(model);
+      noteModelGood(model, mode);
       if (onChunk) onChunk(text, true);
       return { text, truncated: finish === "MAX_TOKENS", model };
     } catch (e) {
