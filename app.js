@@ -5969,8 +5969,8 @@ const GEMINI_MODELS = {
   // 先頭のGoogle公式『-latest』別名は常に最新版を指す → 新バージョンが出れば自動で移行。
   // 別名が未提供/未対応(404)の環境では、以降の固定版へ自動フォールバックする(壊れない)。
   // 現行3系を優先(2.5系は新規プロジェクトで404のため後方に)。先頭の-latestは自動で最新へ。
-  flash: ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
+  flash: ["gemini-flash-latest", "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-2.5-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-2.5-flash"]
 };
 /* AI結果キャッシュ: 同じ問い合わせは再消費しない(無料枠節約) */
 function hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
@@ -6006,6 +6006,32 @@ function aiRace(p, ms) {
     p.then(v => { clearTimeout(t); return v; }, e => { clearTimeout(t); throw e; }),
     new Promise((_, rej) => { t = setTimeout(() => rej(new Error("__timeout__")), ms); }),
   ]);
+}
+/* 使えないモデルを覚えておく(この端末)。
+   Googleの「最新Flash」は過負荷で無反応になることがあり、毎回それを先頭で掴むと
+   そのたびに数十秒を捨てることになる。ダメだったモデルは15分外し、
+   最後に成功したモデルを先頭に回す。 */
+const MODEL_BAD_MS = 15 * 60e3;
+function modelHealth() { try { return JSON.parse(localStorage.getItem("ss_modelhealth") || "{}"); } catch (e) { return {}; } }
+function noteModelBad(m) {
+  if (!m) return;
+  const h = modelHealth(); h.bad = h.bad || {}; h.bad[m] = Date.now();
+  if (h.lastGood === m) h.lastGood = "";
+  try { localStorage.setItem("ss_modelhealth", JSON.stringify(h)); } catch (e) {}
+}
+function noteModelGood(m) {
+  if (!m) return;
+  const h = modelHealth(); h.bad = h.bad || {}; delete h.bad[m]; h.lastGood = m;
+  try { localStorage.setItem("ss_modelhealth", JSON.stringify(h)); } catch (e) {}
+}
+/* 試す順: 直近ダメだったモデルを外し、最後に成功したモデルを先頭へ。 */
+function modelOrder(models) {
+  const h = modelHealth(), bad = h.bad || {}, now = Date.now();
+  const ok = (models || []).filter(m => !(bad[m] && now - bad[m] < MODEL_BAD_MS));
+  const list = (ok.length ? ok : (models || [])).slice();   // 全部ダメ印なら元の順で試す
+  const i = list.indexOf(h.lastGood);
+  if (i > 0) { list.splice(i, 1); list.unshift(h.lastGood); }
+  return list;
 }
 /* 契約店舗(自分の鍵なし)の実効AIモード: 契約プランに合わせてProの利用可否を上限管理。
    NAプランはProを使わせない(標準Flash)。ターボ/ツインターボはProのまま。トライアル中も“選んだプラン”準拠。 */
@@ -6227,7 +6253,7 @@ async function geminiAsk(prompt, opts) {
   }
   let lastErr = null, waited429 = false;   // waited429: 429の短時間待ちは全体で1回だけ
   aiAbort = new AbortController();   // クリアで中断できるように
-  for (const model of GEMINI_MODELS[mode]) {
+  for (const model of modelOrder(GEMINI_MODELS[mode])) {
     // 過負荷(503/500)は一時的なので、下位(無料)モデルへ落とす前に同じモデルで最大3回リトライ。
     // これで「高精度モードが一瞬の混雑で無料版に切り替わる」のを防ぐ。
     let dropToNext = false;
@@ -6251,7 +6277,7 @@ async function geminiAsk(prompt, opts) {
               generationConfig: genCfg
             }, opts.search ? { tools: [{ google_search: {} }] } : {}))
           }, aiWaitMs(mode, opts.search));
-        if (res.status === 404) { lastErr = new Error(model + " は利用不可"); break; }   // 次のモデルへ
+        if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); break; }   // 次のモデルへ
         if (res.status === 503 || res.status === 500) {
           lastErr = new Error("AIが混雑しています (" + res.status + ")。");
           if (attempt < 2) { await new Promise(r => setTimeout(r, 900 * (attempt + 1))); continue; }   // 同じモデルで再試行
@@ -6274,10 +6300,11 @@ async function geminiAsk(prompt, opts) {
         const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
         if (!text) throw new Error("AIから回答が得られませんでした");
         const r = { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
+        noteModelGood(model);
         aiCacheSet(ck, { text: r.text, truncated: r.truncated });
         return r;
       } catch (e) {
-        if (e && e.message === "__timeout__") { lastErr = new Error("AIの応答が遅いため打ち切りました。"); dropToNext = true; continue; }
+        if (e && e.message === "__timeout__") { noteModelBad(model); lastErr = new Error("AIの応答が遅いため打ち切りました。"); dropToNext = true; continue; }
         if (e && e.name === "AbortError") throw new Error("__cancelled__");   // クリアで中断
         if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
         lastErr = e; dropToNext = true;   // 例外は次のモデルへ
@@ -6324,21 +6351,22 @@ async function geminiAskStream(prompt, opts, onChunk) {
   }
   aiAbort = new AbortController();
   let lastErr = null;
-  for (const model of GEMINI_MODELS[mode]) {
+  for (const model of modelOrder(GEMINI_MODELS[mode])) {
     try {
       const genCfg = { temperature: 0.2, maxOutputTokens: opts.maxTokens || 16384 };
       if (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0) {
         const tb = (typeof opts.thinkingBudget === "number") ? opts.thinkingBudget : (mode === "pro" ? -1 : 512);
         genCfg.thinkingConfig = { thinkingBudget: tb };
       }
-      const res = await fetch(
+      // 返事が来ないモデルで固まらないよう時間制限つき(本文が流れ始めれば制限は解除される)
+      const res = await aiFetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key),
         {
-          method: "POST", headers: { "Content-Type": "application/json" }, signal: aiAbort.signal,
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(Object.assign({ contents: [{ parts: [{ text: prompt }] }], generationConfig: genCfg }, opts.search ? { tools: [{ google_search: {} }] } : {}))
-        });
-      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 503 || res.status === 500) { lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
+        }, aiWaitMs(mode, opts.search));
+      if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 503 || res.status === 500) { noteModelBad(model); lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか設定で標準モードにしてください。"); continue; }
       if (res.status === 400 || res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
       if (!res.ok || !res.body) { lastErr = new Error("AI応答エラー (" + res.status + ")"); continue; }
@@ -6364,10 +6392,12 @@ async function geminiAskStream(prompt, opts, onChunk) {
       }
       if (!text) throw new Error("AIから回答が得られませんでした");
       const r = { text, truncated: finish === "MAX_TOKENS", model };
+      noteModelGood(model);
       aiCacheSet(ck, { text: r.text, truncated: r.truncated });
       if (onChunk) onChunk(text, true);
       return r;
     } catch (e) {
+      if (e && e.message === "__timeout__") { noteModelBad(model); lastErr = new Error("AIの応答が遅いため打ち切りました。"); continue; }
       if (e && e.name === "AbortError") throw new Error("__cancelled__");
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
@@ -7813,8 +7843,9 @@ function cleanMime(m, fallback) {
 /* 動画・画像対応モデル(liteは動画非対応のことがあるため除外) */
 const GEMINI_MEDIA_MODELS = {
   // 先頭の『-latest』別名で自動的に最新版へ。未対応なら固定版へフォールバック。
-  flash: ["gemini-flash-latest", "gemini-2.5-flash"],
-  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-2.5-flash"]
+  // 写真はliteでも読める(実測3〜4秒)。動画非対応のことがあるので順番は最後にする。
+  flash: ["gemini-flash-latest", "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-2.5-flash"],
+  pro: ["gemini-pro-latest", "gemini-flash-latest", "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-2.5-flash"]
 };
 async function geminiAskMedia(prompt, media, opts) {
   opts = opts || {};
@@ -7839,7 +7870,8 @@ async function geminiAskMedia(prompt, media, opts) {
   }
   if (!key) throw new Error("Gemini APIキーが未設定です。");
   let lastErr = null;
-  for (const model of GEMINI_MEDIA_MODELS[getAiMode()]) {
+  const mediaHasVideo = (media || []).some(m => /video/.test(m.mimeType || ""));
+  for (const model of modelOrder(GEMINI_MEDIA_MODELS[getAiMode()])) {
     let dropToNext = false;
     for (let attempt = 0; attempt < 3 && !dropToNext; attempt++) {
       try {
@@ -7848,10 +7880,12 @@ async function geminiAskMedia(prompt, media, opts) {
         if (typeof opts.thinkingBudget === "number" && (/gemini-(2\.5|3(\.\d+)?)[-.]/.test(model) || model.indexOf("-latest") >= 0)) genCfg.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
         else if (model.startsWith("gemini-2.5")) genCfg.thinkingConfig = { thinkingBudget: -1 };
         const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
-        const res = await fetch(
+        // 無反応のモデルで固まらないよう時間制限つき(動画は長め)
+        const res = await aiFetch(
           "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
-        if (res.status === 404) { lastErr = new Error(model + " は利用不可"); break; }
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) },
+          mediaHasVideo ? 90000 : 45000);
+        if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); break; }
         if (res.status === 503 || res.status === 500) {   // 過負荷は少し待って同モデルで再試行(無料版へ落とす前に)
           lastErr = new Error("AIが混雑しています (" + res.status + ")。");
           if (attempt < 2) { await new Promise(r => setTimeout(r, 900 * (attempt + 1))); continue; }
@@ -7869,8 +7903,11 @@ async function geminiAskMedia(prompt, media, opts) {
         const cand = j.candidates?.[0];
         const text = cand?.content?.parts?.filter(p => !p.thought).map(p => p.text || "").join("") || "";
         if (!text) throw new Error("AIから回答が得られませんでした");
+        noteModelGood(model);
         return { text, truncated: cand?.finishReason === "MAX_TOKENS", model };
       } catch (e) {
+        if (e && e.message === "__timeout__") { noteModelBad(model); lastErr = new Error("このモデルから返事が来ませんでした。"); dropToNext = true; continue; }
+        if (e && e.name === "AbortError") throw new Error("__cancelled__");
         if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
         lastErr = e; dropToNext = true;
       }
@@ -7903,7 +7940,8 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
   const mode = getAiMode();   // 自前キー(個人利用)はトグル準拠
   aiAbort = new AbortController();
   let lastErr = null;
-  for (const model of GEMINI_MEDIA_MODELS[mode]) {
+  const msHasVideo = (media || []).some(m => /video/.test(m.mimeType || ""));
+  for (const model of modelOrder(GEMINI_MEDIA_MODELS[mode])) {
     try {
       const genCfg = { temperature: 0.2, maxOutputTokens: 16384 };
       // 3系/2.5系/-latest は思考量に上限を設けて速く仕上げる(写真解析は無制限思考まで不要)
@@ -7912,11 +7950,13 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
         genCfg.thinkingConfig = { thinkingBudget: tb };
       }
       const parts = [{ text: prompt }, ...media.map(m => ({ inlineData: { mimeType: m.mimeType, data: m.data } }))];
-      const res = await fetch(
+      // 無反応のモデルで固まらないよう時間制限つき(本文が流れ始めれば解除)
+      const res = await aiFetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(key),
-        { method: "POST", headers: { "Content-Type": "application/json" }, signal: aiAbort.signal, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) });
-      if (res.status === 404) { lastErr = new Error(model + " は利用不可"); continue; }
-      if (res.status === 503 || res.status === 500) { lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: genCfg }) },
+        msHasVideo ? 90000 : 45000);
+      if (res.status === 404) { noteModelBad(model); lastErr = new Error(model + " は利用不可"); continue; }
+      if (res.status === 503 || res.status === 500) { noteModelBad(model); lastErr = new Error("AIが混雑しています (" + res.status + ")。"); continue; }
       if (res.status === 429) { lastErr = new Error("無料枠の上限に達しました。1分待つか標準モードにしてください。"); continue; }
       if (res.status === 403) throw new Error("APIキーが無効です。設定タブでキーを確認してください。");
       if (res.status === 400) { let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch (e) {} lastErr = new Error("送信できませんでした(" + model + "): " + (detail || "動画が大きすぎる可能性。短く/低画質でお試しを")); continue; }
@@ -7941,9 +7981,11 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
         }
       }
       if (!text) throw new Error("AIから回答が得られませんでした");
+      noteModelGood(model);
       if (onChunk) onChunk(text, true);
       return { text, truncated: finish === "MAX_TOKENS", model };
     } catch (e) {
+      if (e && e.message === "__timeout__") { noteModelBad(model); lastErr = new Error("このモデルから返事が来ませんでした。"); continue; }
       if (e && e.name === "AbortError") throw new Error("__cancelled__");
       if (e.message && (e.message.includes("上限") || e.message.includes("キーが無効"))) throw e;
       lastErr = e;
