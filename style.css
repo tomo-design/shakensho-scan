@@ -2589,3 +2589,28 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
 .hiRow .hiTag{font-size:11px;font-weight:700;padding:3px 6px}
 .hiRow .hiSt{font-size:11px}
 .hiRow .hiStaff{max-width:5.2em;font-size:11px;padding:5px 7px}
+/* ===== メカ君に教える(現場の知見) ===== */
+.teachCard{ padding:0; overflow:hidden }
+.teachHead{ display:flex; align-items:center; gap:8px; width:100%; padding:14px 16px; border:0; background:none;
+  font:inherit; font-weight:700; font-size:14px; color:var(--ink,#2B2A27); text-align:left; cursor:pointer }
+.teachHead .teachCnt{ font-weight:600; font-size:12px; color:#7A756B }
+.teachHead .teachArrow{ margin-left:auto; color:#9A948A; transition:transform .15s }
+.teachHead.open .teachArrow{ transform:rotate(180deg) }
+.teachBody{ padding:0 16px 16px; display:flex; flex-direction:column; gap:8px }
+.teachPv{ display:flex; flex-wrap:wrap; gap:8px }
+.teachPv:empty{ display:none }
+.teachStatus:empty{ display:none }
+.teachSave{ margin-top:2px }
+.teachList{ display:flex; flex-direction:column; gap:8px; margin-top:4px }
+.teachList:empty{ display:none }
+.knowRow{ border:1px solid var(--line,#E5E3DD); border-radius:10px; padding:10px 12px; background:var(--sub,#F9F8F6) }
+.knowHead{ display:flex; align-items:center; gap:8px }
+.knowTitle{ font-size:13px; line-height:1.4; flex:1 1 auto; min-width:0 }
+.knowScope{ flex:0 0 auto; font-size:10px; font-weight:700; padding:3px 8px; border-radius:10px;
+  background:#EAEFF4; color:#2E4A66; white-space:nowrap }
+.knowScope.model{ background:#E9F1EE; color:#35584D }
+.knowScope.all{ background:#F5EDE4; color:#74512C }
+.knowDel{ flex:0 0 auto; border:0; background:none; font:inherit; font-size:11px; color:#8A3A2E;
+  text-decoration:underline; cursor:pointer; padding:2px }
+.knowBody{ font-size:12.5px; line-height:1.6; color:#45423C; margin-top:6px; white-space:pre-wrap }
+.knowMeta{ font-size:10.5px; color:#8A857B; margin-top:6px }

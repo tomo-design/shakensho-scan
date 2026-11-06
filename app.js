@@ -1905,6 +1905,7 @@ function buildRepairPrompt(q, hasMedia) {
     "【足回り(サスペンション/ハブ/ブレーキ/ステアリング)・ドレンボルト・オイルフィルターのトルク】ロアアーム/アッパーアーム・ボールジョイント・タイロッドエンド・スタビリンク・ナックル・キャリパー(ブラケット/スライドピン)・ショック取付・ハブベアリング等の締結は、部位ごとにこの車種の規定値を調べて具体数値で書く。角度締め指定があれば順序も書く。エンジンオイルのドレンボルト(オイルパン)とオイルフィルター(エレメント/カートリッジ)の締め付けトルクも、聞かれた場合や関連作業時は車種別の規定値を出す(ドレンは概ね30〜45N·m級だが車種で異なるため確認、カートリッジ式は指定Nm、スピンオン式は『パッキン接触後◯回転』表記も可)。",
     "■対象車両: " + vehicleDesc(),
     officialSpecsText(),
+    knowhowBlock(q),   // この工場の知見(登録済みの気づき・経験)
     "■質問/作業: " + q,
     (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
   ].filter(Boolean).join("\n");
@@ -6522,11 +6523,262 @@ function buildDiagPrompt(text, withSearch) {
     const named = dtcs.map(c => { const d = lookupDTC(c); return c + (d.exact ? "（" + d.name + "）" : ""); });
     lines.push("■診断機のDTC: " + named.join(", "));
   }
+  { const kb = knowhowBlock(text); if (kb) lines.push(kb); }   // この工場の知見(登録済みの気づき・経験)
   lines.push("■症状・問診内容: " + text);
   if (ebsRecoveryRelevant(text)) lines.push("\n" + KNORR_EBS_RECOVERY);
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
+
+/* =========================================================
+   現場の知見(メカ君に教える)
+   整備士の気づき・経験を、文字/音声/写真/動画で登録 → AIが対象車両と突き合わせて整理して保存。
+   保存した知見は、以後の故障診断・修理の問い合わせに自動で添えて考えさせる。
+   店舗にログイン中は tenants/{tid}/knowhow で共有(他の整備士の知見も使える)。
+   ========================================================= */
+const LS_KNOW = "ss_knowhow";
+const KNOW_SCOPES = { vehicle: "この車両", model: "同じ型式・車種", all: "全車共通" };
+function getKnowAll() {
+  try { const a = JSON.parse(localStorage.getItem(LS_KNOW) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function setKnowAll(list) {
+  try { localStorage.setItem(LS_KNOW, JSON.stringify(list.slice(-500))); } catch (e) {}
+}
+function putKnow(k) {
+  const list = getKnowAll().filter(x => x && x.id !== k.id);
+  list.push(k); setKnowAll(list);
+  try { if (window.Cloud && typeof window.Cloud.saveKnow === "function") window.Cloud.saveKnow(k); } catch (e) {}
+}
+function removeKnow(id) {
+  setKnowAll(getKnowAll().map(x => (x && x.id === id) ? Object.assign({}, x, { deleted: true, updatedAt: Date.now() }) : x));
+  try { if (window.Cloud && typeof window.Cloud.deleteKnow === "function") window.Cloud.deleteKnow(id); } catch (e) {}
+}
+/* いま開いている車両に当てはまる知見か(AIが判断した適用範囲で絞る) */
+function knowMatches(k, d) {
+  if (!k || k.deleted) return false;
+  d = d || current || {};
+  if (k.scope === "all") return true;
+  if (k.scope === "vehicle") { const vk = vehicleKey(d); return !!(k.vehKey && vk && k.vehKey === vk); }
+  const type = String(d.type || "").toUpperCase();
+  if (k.type && type && String(k.type).toUpperCase() === type) return true;
+  const m = String((currentVehicleFacts().model || "")).trim();
+  return !!(k.model && m && (k.model === m || m.indexOf(k.model) >= 0 || k.model.indexOf(m) >= 0));
+}
+function knowForVehicle(d) {
+  return getKnowAll().filter(k => knowMatches(k, d)).sort((a, b) => (b.at || 0) - (a.at || 0));
+}
+/* 質問文と関係の深い順に並べ、上位だけ使う(プロンプトを膨らませない) */
+function knowhowPick(queryText, max) {
+  const q = fluidNorm(String(queryText || ""));
+  const scoreOf = k => {
+    let sc = (k.scope === "vehicle") ? 3 : (k.scope === "model" ? 2 : 0);
+    (k.tags || []).forEach(t => { const n = fluidNorm(t); if (n && n.length >= 2 && q.indexOf(n) >= 0) sc += 4; });
+    const ti = fluidNorm(k.title || ""); if (ti && q && q.indexOf(ti) >= 0) sc += 2;
+    return sc;
+  };
+  return knowForVehicle().map(k => ({ k: k, sc: scoreOf(k) }))
+    .sort((a, b) => b.sc - a.sc || (b.k.at || 0) - (a.k.at || 0))
+    .slice(0, max || 6).map(x => x.k);
+}
+/* プロンプトに差し込む「この工場の知見」ブロック。無ければ空文字。 */
+function knowhowBlock(queryText, max) {
+  const hits = knowhowPick(queryText, max);
+  if (!hits.length) return "";
+  const lines = [
+    "■この工場の知見（整備士が実際の作業で登録した気づき・実績）",
+    "一般的な資料ではなく、この工場の整備士が実車で経験した内容。一般論と食い違う場合はこちらを優先して検討し、当てはまるものは原因候補・手順に必ず反映すること。採用した箇所には「（当店の実績）」と付ける。対象車両や症状に当てはまらないと判断した知見は無視してよい(無理に使わない)。",
+  ];
+  hits.forEach((k, i) => {
+    lines.push((i + 1) + ". 【" + (KNOW_SCOPES[k.scope] || "参考") + "】" + (k.title || "") + " — " + (k.body || "")
+      + (k.by ? "（登録: " + k.by + "）" : ""));
+  });
+  return lines.join("\n");
+}
+/* 入力を整理させるプロンプト(AIが車両と突き合わせ、適用範囲まで判断する) */
+function buildKnowPrompt(raw, hasMedia) {
+  return [
+    "あなたは整備工場の知識を整理する助手です。整備士が入力した『気づき・経験』を、後でAI診断に使える形に整理してください。",
+    "【対象車両】" + (typeof vehicleDesc === "function" ? vehicleDesc() : "不明"),
+    hasMedia ? "【写真・動画】添付があります。写っている部品・故障コード・損傷・配線・計測値などを読み取り、本文に具体的に反映してください。" : "",
+    "【整備士の入力】" + String(raw || "(文字の入力なし。添付を読み取って整理すること)"),
+    "",
+    "出力は次のJSONのみ。前後に説明やコードフェンスを書かない。",
+    '{"title":"20文字以内の見出し","body":"250文字以内の本文","scope":"vehicle|model|all","tags":["照合用キーワード5個まで"],"note":"適用範囲をそう判断した理由(30文字以内)"}',
+    "【body】整備士の入力に書かれている事実・手順・数値だけを使って具体的にまとめる。書かれていない原因や数値を創作しない。推測を足さない。",
+    "【scope】この個体だけの事情(過去の修理歴・改造・固有のクセ)=vehicle / 同じ型式・車種に共通する傾向=model / 車種を問わない一般的な整備知識=all。迷ったら狭い方(vehicle)を選ぶ。",
+    "【tags】後で症状や故障コードから引き当てるための語。DTC番号・部品名・症状語を優先する。",
+  ].filter(Boolean).join("\n");
+}
+function parseKnowJson(text) {
+  const t = String(text || "").replace(/```json|```/g, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
+}
+/* 登録済みの知見を一覧表示(この車両に当てはまるもの) */
+function renderKnowList(host) {
+  const list = host.querySelector(".teachList"); if (!list) return;
+  const items = knowForVehicle();
+  const cnt = host.querySelector(".teachCnt"); if (cnt) cnt.textContent = items.length ? "（" + items.length + "件）" : "";
+  list.innerHTML = "";
+  if (!items.length) return;
+  items.forEach(k => {
+    const row = document.createElement("div"); row.className = "knowRow";
+    const head = document.createElement("div"); head.className = "knowHead";
+    const sc = document.createElement("span"); sc.className = "knowScope " + (k.scope || "all");
+    sc.textContent = KNOW_SCOPES[k.scope] || "参考";
+    const ti = document.createElement("b"); ti.className = "knowTitle"; ti.textContent = k.title || "(無題)";
+    const del = document.createElement("button"); del.type = "button"; del.className = "knowDel"; del.textContent = "削除";
+    del.addEventListener("click", async () => {
+      if (!(await uiConfirm("この知見を削除しますか？\n「" + (k.title || "") + "」"))) return;
+      removeKnow(k.id); renderTeachCards();
+    });
+    head.append(sc, ti, del);
+    const body = document.createElement("div"); body.className = "knowBody"; body.textContent = k.body || "";
+    const meta = document.createElement("div"); meta.className = "knowMeta";
+    meta.textContent = (k.by ? k.by + " ／ " : "") + new Date(k.at || Date.now()).toLocaleDateString("ja-JP")
+      + (k.hadMedia ? " ／ 📷 写真・動画から" : "");
+    row.append(head, body, meta); list.appendChild(row);
+  });
+}
+/* 「メカ君に教える」カードを組み立てて置く */
+function mountTeachCard(hostId) {
+  const host = $(hostId); if (!host) return;
+  if (host.dataset.built === "1") { renderKnowList(host); return; }
+  host.dataset.built = "1";
+  const card = document.createElement("section"); card.className = "qCard teachCard";
+  const head = document.createElement("button"); head.type = "button"; head.className = "teachHead";
+  head.innerHTML = '<span class="teachTtl">🧠 メカ君に教える（気づき・経験）</span><span class="teachCnt"></span><span class="teachArrow">▾</span>';
+  const body = document.createElement("div"); body.className = "teachBody hidden";
+  head.addEventListener("click", () => { body.classList.toggle("hidden"); head.classList.toggle("open"); });
+
+  const lbl = document.createElement("label"); lbl.className = "qLbl";
+  lbl.textContent = "この車両で気づいたこと・経験した不具合と直し方（メカ君が覚えて、次からの診断・修理に使います）";
+  const ta = document.createElement("textarea"); ta.className = "qTa";
+  ta.placeholder = "例: このキャンターはDPF差圧センサーのホースが詰まりやすい。コードはDPF異常で出るがセンサー自体は正常なことが多い。ホースを外して清掃で直る。";
+  ta.addEventListener("input", () => autoGrow(ta));
+
+  const toolLbl = document.createElement("span"); toolLbl.className = "qLbl"; toolLbl.textContent = "音声・写真・動画";
+  const icons = document.createElement("div"); icons.className = "qTools qTools5";
+  const atts = [];
+  // 音声入力
+  const micBtn = document.createElement("button"); micBtn.type = "button"; micBtn.className = "diagIco txt qTool"; micBtn.title = "音声で入力";
+  micBtn.innerHTML = '<span class="qIco">🎤</span><span class="qCap">音声</span>';
+  const setMic = t => { const i = micBtn.querySelector(".qIco"); if (i) i.textContent = t; };
+  let rec = null, listening = false, accum = "";
+  micBtn.addEventListener("click", () => {
+    if (listening) { listening = false; if (rec) { try { rec.stop(); } catch (e) {} } setMic("🎤"); micBtn.classList.remove("sel"); return; }
+    if (!getSpeechRecognition()) { uiAlert("この端末/ブラウザは音声入力に対応していません(Chrome等をお試しください)。"); return; }
+    const base = ta.value ? ta.value + " " : "";
+    accum = ""; listening = true; setMic("●"); micBtn.classList.add("sel");
+    const start = () => {
+      const r = getSpeechRecognition(); if (!r) { listening = false; return; }
+      r.continuous = true; r.interimResults = true; rec = r;
+      let sf = "", fatal = false;
+      r.onresult = e => { let f = "", it = ""; for (let i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) f += e.results[i][0].transcript; else it += e.results[i][0].transcript; } sf = f; ta.value = base + dedupRepeats(accum + f + it); autoGrow(ta); };
+      r.onerror = e => { const er = e && e.error; if (er === "not-allowed" || er === "service-not-allowed" || er === "audio-capture") fatal = true; };
+      r.onend = () => {
+        accum += sf; sf = ""; rec = null; ta.value = base + dedupRepeats(accum); autoGrow(ta);
+        if (listening && !fatal) { setTimeout(() => { if (listening) start(); }, 120); return; }
+        listening = false; setMic("🎤"); micBtn.classList.remove("sel");
+      };
+      try { r.start(); } catch (e) { listening = false; setMic("🎤"); micBtn.classList.remove("sel"); }
+    };
+    start();
+  });
+  icons.appendChild(micBtn);
+  const preview = document.createElement("div"); preview.className = "teachPv";
+  const renderPv = () => {
+    preview.innerHTML = "";
+    atts.forEach((a, i) => {
+      const d = document.createElement("div"); d.className = "attachThumb";
+      const m = document.createElement(a.kind === "video" ? "video" : "img");
+      m.src = a.url; if (a.kind === "video") { m.muted = true; m.playsInline = true; }
+      const del = document.createElement("button"); del.className = "axDel"; del.textContent = "×";
+      del.addEventListener("click", () => { URL.revokeObjectURL(a.url); atts.splice(i, 1); renderPv(); });
+      d.append(m, del); preview.appendChild(d);
+    });
+  };
+  [["img/ic-photo.png", "写真を添付", "写真フォルダ", "image/*", false],
+   ["img/ic-photo-cam.png", "写真を撮って添付", "写真撮影", "image/*", true],
+   ["img/ic-video.png", "動画を添付", "動画ファイル", "video/*", false],
+   ["img/ic-video-cam.png", "動画を撮って添付", "動画撮影", "video/*", true]].forEach(d => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "diagIco qTool"; b.title = d[1];
+    const ic = document.createElement("span"); ic.className = "qIco";
+    const im = document.createElement("img"); im.src = d[0]; ic.appendChild(im);
+    const cp = document.createElement("span"); cp.className = "qCap"; cp.textContent = d[2];
+    b.append(ic, cp);
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = d[3]; if (d[4]) inp.capture = "environment"; inp.className = "hidden";
+    b.addEventListener("click", () => inp.click());
+    inp.addEventListener("change", async e => {
+      let f = e.target.files[0]; inp.value = ""; if (!f) return;
+      const isV = (f.type || "").startsWith("video");
+      if (isV && f.size > ATTACH_MAX) { try { f = await compressVideo(f, ATTACH_MAX); } catch (er) {} if (f.size > ATTACH_MAX) { uiAlert("動画が大きすぎます。短く撮り直してください。"); return; } }
+      atts.push({ file: f, kind: isV ? "video" : "image", url: URL.createObjectURL(f) }); renderPv();
+    });
+    icons.appendChild(b); body.appendChild(inp);
+  });
+
+  const btn = document.createElement("button"); btn.type = "button"; btn.className = "qAsk teachSave";
+  btn.innerHTML = '<img src="img/kangae.png" class="btnMecha" alt="">メカ君に覚えさせる';
+  const status = document.createElement("div"); status.className = "hint teachStatus";
+  const list = document.createElement("div"); list.className = "teachList";
+
+  btn.addEventListener("click", async () => {
+    const raw = ta.value.trim();
+    if (!raw && !atts.length) { ta.focus(); return; }
+    if (!aiOK()) { uiAlert("覚えさせるには設定タブで無料のGemini APIキーを設定してください。"); switchView("settings"); return; }
+    if (listening) { listening = false; if (rec) { try { rec.stop(); } catch (e) {} } setMic("🎤"); micBtn.classList.remove("sel"); }
+    setBtnLoading(btn, true, "メカ君が整理中…");
+    status.textContent = "メカ君が内容を車両と突き合わせて整理しています…";
+    try {
+      let media = null;
+      if (atts.length) { media = []; for (const a of atts) media.push(await attachToMedia(a)); }
+      const prompt = buildKnowPrompt(raw, !!(media && media.length));
+      const r = await withAiRetry(
+        () => (media && media.length)
+          ? geminiAskMedia(prompt, media, { thinkingBudget: 256 })
+          : geminiAsk(prompt, { mode: "flash", maxTokens: 1024, thinkingBudget: 0, noCache: true }),
+        () => { status.textContent = "混み合っていたので、もう一度整理しています…"; });
+      const o = parseKnowJson(r && r.text);
+      if (!o || !(o.body || o.title)) throw new Error("うまく整理できませんでした。もう少し具体的に書いてからもう一度お試しください。");
+      const f = currentVehicleFacts();
+      const scope = (o.scope === "vehicle" || o.scope === "model" || o.scope === "all") ? o.scope : "vehicle";
+      const k = {
+        id: "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+        at: Date.now(), updatedAt: Date.now(),
+        by: (window.Cloud && typeof window.Cloud.myName === "function" && window.Cloud.myName()) || "",
+        scope: scope,
+        vehKey: vehicleKey(current) || null,
+        type: current.type || null, model: f.model || null, engine: current.engine || null,
+        title: String(o.title || "").slice(0, 40),
+        body: String(o.body || "").slice(0, 400),
+        tags: Array.isArray(o.tags) ? o.tags.slice(0, 5).map(t => String(t).slice(0, 24)) : [],
+        raw: raw.slice(0, 1000),
+        hadMedia: !!(media && media.length),
+        deleted: false,
+      };
+      putKnow(k);
+      ta.value = ""; autoGrow(ta);
+      atts.splice(0, atts.length); renderPv();
+      status.textContent = "✓ 覚えました（" + (KNOW_SCOPES[k.scope] || "") + "）。次からの診断・修理で参考にします。";
+      renderTeachCards();
+    } catch (e) {
+      if (e && e.message === "__cancelled__") { status.textContent = ""; }
+      else status.textContent = "⚠ " + ((e && e.message) || "覚えさせられませんでした");
+    } finally { setBtnLoading(btn, false); }
+  });
+
+  body.append(lbl, ta, toolLbl, icons, preview, btn, status, list);
+  card.append(head, body);
+  host.appendChild(card);
+  renderKnowList(host);
+}
+/* 診断・修理の両方のカードを更新 */
+function renderTeachCards() {
+  ["teachDiag", "teachParts"].forEach(id => { const h = $(id); if (h) { mountTeachCard(id); renderKnowList(h); } });
+}
+window.renderTeachCards = renderTeachCards;   // クラウド同期から呼ぶ
 
 /* 原因候補に「点検手引書」ボタンを付ける。タップでその候補を確定/除外する点検手順をAIが生成(初回のみ・折り畳み)。
    基本操作の解説ではなく、その原因を解決に導く具体的な点検を出す。 */
@@ -7411,6 +7663,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           "【最重要・臨機応変】前回の原因候補を全て点検・排除したとは限りません。整備士は点検の途中で気づいたこと・実施した内容・新たな症状を追記しています。追加情報から『すでに確認できた／正常だった』ことは候補から外し、まだ疑わしいもの・新たに浮上した原因を、追加情報＋前回の手がかりを合わせて可能性の高い順に組み直すこと。前回の1位に固執せず、追加情報を最優先で反映する。写真・動画があれば必ず観察して統合する。断定できないことには『（要確認）』を付ける。",
           SENSOR_FALSEPOS_GUIDE,
           cureLikelihoodGuide(paidOn),
+          knowhowBlock((tried || "") + " " + String(origText || "")),   // この工場の知見
           "前置き・免責・挨拶は一切不要。この指示文や出力形式の説明そのものを回答に書き写さない。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
           "",
           "■原因候補（可能性が高い順）",
@@ -8040,6 +8293,7 @@ function buildMediaDiagPrompt() {
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
   { const os = officialSpecsText(); if (os) lines.push(os); }
+  { const kb = knowhowBlock(extra || ""); if (kb) lines.push(kb); }   // この工場の知見
   try { const cmt = ($("diagText") || {}).value || ""; if (ebsRecoveryRelevant(cmt)) lines.push("\n" + KNORR_EBS_RECOVERY); } catch (e) {}
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
@@ -8747,6 +9001,7 @@ function switchView(name) {
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
+  if (name === "diag" || name === "parts") { try { renderTeachCards(); } catch (e) {} }   // 「メカ君に教える」を用意
   if (name === "diag") updateDiagVehicleHint();
   if (name === "parts") renderCopyKata();
   if (name === "scan") renderLastVehicle();
@@ -9176,6 +9431,7 @@ const SUPPORT_KB = [
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(担当ごとの色。ホームの入庫状況と車両カードで操作)を管理。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫管理だけの画面になりスキャン/AIは非表示。事務用の画面は1台ずつの一覧で、区分(すべて/車検/点検/修理/板金)で絞り込め、行はナンバー下4桁＋使用者名。行をタップで申し送りコメント、担当の設定、費用の状態の切替ができる。進捗(入庫→作業中→完了→引渡待)は整備士が更新するので事務用では表示のみ。出庫も事務用には出さない(ホームの入庫状況で横スワイプ)。メイン画面に移るときはログアウトしてログインし直す。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
+  "【メカ君に教える（現場の知見）】診断タブ・修理タブの『🧠 メカ君に教える（気づき・経験）』から、整備士が気づいたこと・経験した不具合と直し方を、文字・音声・写真・動画で登録できる。登録するとAIが対象車両と突き合わせ、『この車両だけ／同じ型式・車種／全車共通』のどれに当てはまるかを判断して、見出し・本文・照合用キーワードに整理して保存する。以後の故障診断・修理では、関係する知見が自動で添えられ、一般論より優先して検討される(採用された箇所には「（当店の実績）」と付く)。登録済みの知見はカードの下に一覧表示され、不要なものは『削除』。契約店舗は社内の全端末で共有され、他の整備士が登録した知見も使われる(個人版・デモは端末内のみ)。",
   "【追加で相談/質問】診断・修理の結果の下に相談欄。実施内容・追加の症状・写真・動画を足して『メカ君に追加で相談/質問』すると、前回の結果と統合して精度高く再回答(対象車両を保持し他メーカーのコードと混同しない)。修理でも追加質問でき、手順やトルクの続きを聞ける。何度でも連鎖可能。",
   "【音声入力】各入力欄の🎤ボタンで声で入力。話の途中で無音になっても自動で認識を続けるので、話すたびに押し直す必要はない。停止はもう一度🎤、または相談/解析ボタンを押すと自動でオフ。",
   "【調べる車両の切替】別の車両を開くと、診断・修理の入力欄に残っていた写真・動画・コメントは自動でクリア(前の車両のものが混ざらない)。保存済みの診断結果は車両ごとに保持。",
@@ -9753,3 +10009,6 @@ function startDemo() {
     }
   }, 600);
 })();
+
+/* 起動時にも「メカ君に教える」を用意しておく(どの入り口から診断・修理へ入っても出るように) */
+try { setTimeout(() => { try { renderTeachCards(); } catch (e) {} }, 300); } catch (e) {}

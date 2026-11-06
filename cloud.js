@@ -39,7 +39,7 @@
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
   let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
-  let unsubVeh = null, unsubRec = null, unsubPlan = null, unsubJoin = null, unsubTenant = null, unsubMembers = null;
+  let unsubVeh = null, unsubRec = null, unsubPlan = null, unsubJoin = null, unsubTenant = null, unsubMembers = null, unsubKnow = null;
   let tenantMembers = [];      // 同じ店舗のメンバー名簿(uid/name/nameKana/nameRoma) — カルテ担当者の照合に使用
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
   let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
@@ -944,6 +944,21 @@
       const localPlans = JSON.parse(localStorage.getItem("ss_intakePlans") || "[]");
       localPlans.forEach(p => { if (p && p.id) db.collection("tenants").doc(tid).collection("intakePlans").doc(String(p.id)).set(p, { merge: true }).catch(() => {}); });
     } catch (e) {}
+    // 現場の知見(メカ君に教える): クラウド→ローカル(ss_knowhow)。ローカル分は先にアップして共有。
+    try {
+      const localKnow = JSON.parse(localStorage.getItem("ss_knowhow") || "[]");
+      localKnow.forEach(k => { if (k && k.id) db.collection("tenants").doc(tid).collection("knowhow").doc(String(k.id)).set(k, { merge: true }).catch(() => {}); });
+    } catch (e) {}
+    unsubKnow = db.collection("tenants").doc(tid).collection("knowhow").onSnapshot(snap => {
+      try {
+        let ks = [];
+        try { ks = JSON.parse(localStorage.getItem("ss_knowhow") || "[]"); } catch (e) { ks = []; }
+        const byId = {}; ks.forEach(k => { if (k && k.id) byId[k.id] = k; });
+        snap.forEach(dd => { const k = dd.data(); if (!k) return; k.id = dd.id; const l = byId[k.id]; if (!l || (k.updatedAt || 0) >= (l.updatedAt || 0)) byId[k.id] = k; });
+        localStorage.setItem("ss_knowhow", JSON.stringify(Object.values(byId).slice(-500)));
+        try { if (typeof window.renderTeachCards === "function") window.renderTeachCards(); } catch (e) {}
+      } catch (e) {}
+    }, err => {});
     unsubPlan = db.collection("tenants").doc(tid).collection("intakePlans").onSnapshot(snap => {
       try {
         let plans = [];
@@ -956,7 +971,7 @@
       } catch (e) {}
     }, err => {});
   }
-  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubPlan) { unsubPlan(); unsubPlan = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } if (unsubMembers) { unsubMembers(); unsubMembers = null; } tenantMembers = []; }
+  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubPlan) { unsubPlan(); unsubPlan = null; } if (unsubKnow) { unsubKnow(); unsubKnow = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } if (unsubMembers) { unsubMembers(); unsubMembers = null; } tenantMembers = []; }
 
   /* 店舗メンバー名簿を購読(有効メンバーのみ)。カルテ担当者名→メンバー特定に使う。 */
   function startMembersWatch(tid) {
@@ -1314,6 +1329,15 @@
         }
         if (n) await batch.commit();
       } catch (e) {}
+    },
+    // 現場の知見の共有: tenants/{tid}/knowhow/{id}
+    saveKnow(k) {
+      if (!this.active || !k || !k.id) return;
+      db.collection("tenants").doc(profile.tenantId).collection("knowhow").doc(String(k.id)).set(k, { merge: true }).catch(() => {});
+    },
+    deleteKnow(id) {
+      if (!this.active || !id) return;
+      db.collection("tenants").doc(profile.tenantId).collection("knowhow").doc(String(id)).set({ deleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     },
     // 入庫予定(カレンダー)の共有: tenants/{tid}/intakePlans/{id}
     savePlan(p) {
