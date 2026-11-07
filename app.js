@@ -182,6 +182,24 @@ function applyAppMode() {
   if (upBtn) { const w = upBtn.closest("div") || upBtn; w.style.display = personal ? "none" : ""; }
   // 個人版はAPIキーが前提。キー設定を自動で開いて見つけやすく
   if (personal) { const f = $("secAiKeyFold"); if (f) f.open = true; }
+  // カルテの注記: 個人版は社内共有しない(端末内に保存)
+  const kNote = $("karteNote");
+  if (kNote) kNote.textContent = (personal ? "※ 車両ごとに記録（この端末に保存）。" : "※ 車両ごとに記録・社内共有。")
+    + "「写真から自動入力」は作業伝票やメモの写真をメカ君(AI)が読み取り各項目に下書きします（内容は保存前に確認・修正できます）。";
+  // 履歴の絞り込みが「入庫中」のまま個人版に切り替わったら「すべて」に戻す
+  if (personal) {
+    const yard = document.querySelector('.hxChip[data-f="yard"]');
+    if (yard && yard.classList.contains("on")) { const all = document.querySelector('.hxChip[data-f="all"]'); if (all) all.click(); }
+  }
+  // 「会社」は法人版の呼び名。個人版は中身(車種データ・知見)に合わせる
+  const grpData = $("setGrpData");
+  if (grpData) grpData.textContent = personal ? "車両データ・知見" : "会社";
+  // 事務用モード(入庫管理専用端末)は法人版だけ。個人版に切り替わったら必ず解除する
+  if (personal && typeof officeMode === "function" && officeMode()) {
+    try { localStorage.setItem("ss_office", "0"); } catch (e) {}
+    try { document.body.classList.remove("officeMode"); toggle("officeBar", false); } catch (e) {}
+  }
+  try { syncSettingGroups(); } catch (e) {}   // 中身が全部消えた見出しを畳む
   // よくある質問(FAQ)を版に合わせて表示(法人=corp/個人=personal)
   const faq = $("faqLink"); if (faq) faq.href = "faq.html?v=" + (personal ? "personal" : "corp");
   // ヘッダーのエディション表記(個人版=Pocket / 法人版=Works)
@@ -5050,6 +5068,13 @@ function renderIntakeDetail(list) {
 }
 /* 事務モードのON/OFFを画面へ反映(全画面ボード) */
 function applyOfficeMode() {
+  // 入庫管理専用モードは法人版(Works)だけ。個人版(Pocket)では常にオフ
+  if (typeof getAppMode === "function" && getAppMode() === "personal") {
+    try { localStorage.setItem("ss_office", "0"); } catch (e) {}
+    document.body.classList.remove("officeMode");
+    try { toggle("officeBar", false); } catch (e) {}
+    return;
+  }
   const on = officeMode();
   document.body.classList.toggle("officeMode", on);
   const hdr = $("officeBar"); if (hdr) toggle("officeBar", on);
@@ -8956,7 +8981,7 @@ const SET_ROWS = {
   secVehDb:     { ico: "🔧", tint: "grey",   desc: "諸元・持病・トルク値の追記／写真から読み取り",
                   val: () => (BUILTIN_DB.length + CUSTOM_DB.length) + "車種", go: "db" },
   secCloudSync: { ico: "☁",  tint: "blue",   desc: "会社の共有・メンバー管理・契約・この端末の登録" },
-  secAiKey:     { ico: "🤖", tint: "blue",   desc: "契約店舗は登録不要。個人はGeminiの無料キーを登録" },
+  secAiKey:     { ico: "🤖", tint: "blue",   desc: (typeof getAppMode === "function" && getAppMode() === "personal") ? "Geminiの無料キーを登録（カード不要）" : "契約店舗は登録不要。個人はGeminiの無料キーを登録" },
   secVisionKey: { ico: "🔍", tint: "amber",  desc: "車検証の写真読み取りを高精度にする(月1,000枚まで無料)" },
   secCse:       { ico: "🖼", tint: "purple", desc: "部品の実物画像を表示するのに使います" },
   secDataMgmt:  { ico: "💾", tint: "green",  desc: "履歴・カスタム車種の書き出し／削除" },
@@ -10070,6 +10095,9 @@ function startDemo() {
   try { sessionStorage.setItem("ss_demo", "1"); } catch (e) {}
   sealDemoFromCloud();
   document.body.classList.add("demoMode");
+  // デモはPocket(個人版)として見せる。getAppMode()だけでなく画面側(personalMode)も切り替える
+  // ※これが無いと、事務用モード・入庫の通知など法人版だけの項目がデモに出てしまう
+  try { applyAppMode(); } catch (e) {}
   showDemoBanner();
   // サンプル車両の諸元・故障を端末に記憶させ、AIを呼ばずにメンテ/診断へ表示
   try { setLearned(vehicleKey(DEMO_VEHICLE), { model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS, specDone: true }); } catch (e) {}
