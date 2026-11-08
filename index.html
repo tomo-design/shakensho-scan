@@ -927,6 +927,16 @@
     </div>
     </details>
   </section>
+  <section id="secAccExport">
+    <details>
+    <summary class="secSummary">診断の当たり外れを書き出す</summary>
+    <div class="sec-body">
+      <p class="hint">AIが出した原因候補と、そのあと実際にカルテへ記録された作業・交換部品を1件ずつ並べたファイルを作ります。「1位が当たっていたか」を後から数えるためのものです。<b>使用者名・ナンバー・車台番号・担当者欄・費用は入りません</b>（型式・車種・年式・症状・AIの候補・作業内容だけ）。メモ欄は原因の手がかりになるので残しますが、氏名・電話・メールらしき記述は落とします。自由記述なので完全ではないため、<b>書き出したファイルは中身を見てから渡してください</b>。</p>
+      <div id="accExpStat" class="hint"></div>
+      <button class="btn btn-ghost" id="btnAccExport" type="button">⬇ 書き出す（JSON）</button>
+    </div>
+    </details>
+  </section>
   <section id="secContact">
     <details id="scDetails">
       <summary class="secSummary">メカ君サポート</summary>

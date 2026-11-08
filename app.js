@@ -6568,6 +6568,86 @@ function buildDiagPrompt(text, withSearch) {
   return lines.join("\n");
 }
 
+/* ===== 診断の当たり外れを後から測るための書き出し =====
+   「AIが出した原因候補」と「その後カルテに記録された実際の作業・交換部品」を突き合わせられる形にする。
+   個人情報(使用者名・ナンバー・車台番号・担当者・費用)は出さない。 */
+function diagCausesOf(aiText, max) {
+  const clean = String(aiText || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
+  const out = [];
+  clean.split(/\n/).forEach(line => {
+    const m = line.trim().match(/^(\d+)[.)、]\s*(.+)$/);
+    if (!m || out.length >= (max || 5)) return;
+    let c = m[2].replace(/^(原因候補|原因)\s*[:：]?\s*/, "").trim();
+    if (c) out.push(c.slice(0, 60));
+  });
+  return out;
+}
+/* 自由記述から、人を特定しうる記述と連絡先を落とす(作業内容は残す)。
+   自由記述なので完全ではない。書き出したファイルは中身を見てから渡すこと。 */
+function scrubText(t) {
+  return String(t || "")
+    .replace(/[\w.+-]+@[\w.-]+\.\w+/g, "")                      // メール
+    .replace(/0\d{1,4}[-(）)\s]?\d{1,4}[-(）)\s]?\d{3,4}/g, "")   // 電話
+    .replace(/(担当者?|作業者|整備士)\s*[:：]?\s*\S{1,8}/g, "")      // 「担当 佐藤」など
+    .replace(/\S{1,8}\s*(様|さん|氏)(?![々ぁ-んァ-ヶ一-龠])/g, "")   // 「◯◯様」など
+    .replace(/\s+/g, " ").trim().slice(0, 200);
+}
+/* 車両を匿名のIDに(同じ車をまとめるためだけに使う。元に戻せない) */
+function anonVehId(v) {
+  const base = String((v && (v.vin || v.type)) || "");
+  let h = 5381; for (let i = 0; i < base.length; i++) h = ((h << 5) + h + base.charCodeAt(i)) >>> 0;
+  return "v" + h.toString(36);
+}
+function buildAccuracyRows() {
+  const hist = (typeof getHistory === "function") ? getHistory() : [];
+  const diags = (typeof getDiagHist === "function") ? getDiagHist() : [];
+  const ts = k => { try { return karteTs(k); } catch (e) { return Date.parse(k && (k.date || k.at)) || 0; } };
+  return diags.filter(d => d && !d.deleted && d.kind !== "repair" && d.aiText).map(d => {
+    const v = d.veh || {};
+    const h = hist.find(x => (v.vin && x.vin === v.vin)) || hist.find(x => (!v.vin && v.type && x.type === v.type)) || null;
+    const karte = (((h && h.karte) || []).filter(k => k && !k.deleted));
+    // 診断の1時間前〜90日後に記録された作業(=その診断を受けて実施された可能性があるもの)
+    const after = karte.filter(k => { const t = ts(k); return t && t > d.ts - 3600e3 && t < d.ts + 90 * 864e5; })
+      .sort((a, b) => ts(a) - ts(b))
+      .map(k => ({ 日付: String(k.date || "").slice(0, 10), 走行km: k.odo || null,
+                   作業: scrubText(k.work), 交換部品: scrubText(k.parts), メモ: scrubText(k.note) }));
+    return {
+      車両: anonVehId(v), 型式: v.type || "", 車種: v.model || "",
+      原動機: (h && h.engine) || "", 初度登録: (h && h.firstReg && h.firstReg.year) || "",
+      診断日: new Date(d.ts).toISOString().slice(0, 10),
+      入力した症状: scrubText(d.input),
+      AIの候補: diagCausesOf(d.aiText, 5),
+      エンジン: d.mode || "",
+      その後の作業: after,
+    };
+  }).sort((a, b) => String(b.診断日).localeCompare(String(a.診断日)));
+}
+function renderAccExportStat() {
+  const el = $("accExpStat"); if (!el) return;
+  const rows = buildAccuracyRows();
+  const withWork = rows.filter(r => r.その後の作業.length).length;
+  el.textContent = rows.length
+    ? "診断の記録 " + rows.length + "件／そのうち、あとの作業がカルテに残っているもの " + withWork + "件（この分が当たり外れを数えられます）"
+    : "診断の記録がまだありません。";
+}
+(() => {
+  const b = $("btnAccExport");
+  if (b) b.addEventListener("click", () => {
+    const rows = buildAccuracyRows();
+    if (!rows.length) { uiAlert("診断の記録がまだありません。"); return; }
+    const out = { 書き出し日: new Date().toISOString().slice(0, 10), 版: (typeof APP_VER !== "undefined" ? APP_VER : ""),
+      件数: rows.length, あとの作業あり: rows.filter(r => r.その後の作業.length).length, 記録: rows };
+    try {
+      const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "mechanoai-diag-accuracy-" + new Date().toISOString().slice(0, 10) + ".json";
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    } catch (e) { uiAlert("書き出せませんでした: " + (e.message || "")); }
+  });
+})();
+
 /* =========================================================
    現場の知見(メカ君に教える)
    整備士の気づき・経験を、文字/音声/写真/動画で登録 → AIが対象車両と突き合わせて整理して保存。
@@ -9078,7 +9158,7 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "maint") { try { refreshSpecsView(); } catch (e) {} }
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); renderKnowAllCount(); } catch (e) {} }
+  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); renderKnowAllCount(); renderAccExportStat(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
