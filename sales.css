@@ -217,6 +217,7 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .st-見込み{background:#eef0f3;color:#4b5563}
 .st-アプローチ中{background:#fdf0dc;color:#9a6212}
 .st-商談中{background:#e4edfb;color:#2b5aa8}
+.st-お試し中{background:#def2f4;color:#1b6f7a}
 .st-契約{background:#e0f3e7;color:#1a7a42}
 .st-見送り{background:#fbe6e6;color:#a53838}
 .st-配信停止,.st-送信停止{background:#f1e7f7;color:#6b3f8c}
@@ -313,6 +314,7 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
   .empty-block{background:#171b22}
   .st-見込み{background:#2b303a;color:#c2c8d2}
   .st-その他{background:#2b303a;color:#c2c8d2}
+  .st-お試し中{background:#16313a;color:#9ed3dc}
   .st-配信停止,.st-送信停止{background:#2e2740;color:#cbb6e0}
   .lghead:hover{border-bottom-color:#3a414c}
   .prodBadge.works{background:#2b303a;color:#c2c8d2}

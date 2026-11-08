@@ -1151,6 +1151,43 @@ async function genTenantId(db, company) {
   }
   return base + "-" + Date.now().toString(36).slice(-5);
 }
+/* 会社名の突き合わせ用キー。「株式会社」などの法人格と空白を外して比べる。
+   営業リストは「〇〇自動車」、申込は「株式会社〇〇自動車」のように揺れるため。 */
+const leadNameKey = (s) => String(s || "").toLowerCase()
+  .replace(/[\s\u3000]/g, "")
+  .replace(/株式会社|有限会社|合同会社|（株）|\(株\)|（有）|\(有\)|（合）|\(合\)/g, "");
+
+/* 契約・トライアルが始まった会社を、見込み客リストの該当する枠へ移す。
+   これが無いと、もう客になった相手が営業コンソールの「見込み」や「アプローチ中」に
+   残り続け、件数も送信対象の判断も狂う。
+   突き合わせはメールを優先。メールで当たらない時だけ会社名で探し、
+   同名が複数ある時は動かさない(別会社を巻き込まないため)。
+   失敗しても絶対に呼び出し元を止めないこと(契約処理・決済処理の本筋ではない)。 */
+async function moveLeadStage(db, info, status, noteLine) {
+  try {
+    const email = String((info && info.email) || "").trim().toLowerCase();
+    const key = leadNameKey((info && info.company) || "");
+    if (!email && !key) return 0;
+    const snap = await db.collection("salesLeads").limit(1000).get();
+    let hits = snap.docs.filter((d) => email && String((d.data() || {}).email || "").trim().toLowerCase() === email);
+    if (!hits.length && key) {
+      const byName = snap.docs.filter((d) => leadNameKey((d.data() || {}).company) === key);
+      if (byName.length === 1) hits = byName;
+      else if (byName.length > 1) console.log("見込み客の会社名が複数一致。安全のため動かさない:", info.company);
+    }
+    let n = 0;
+    for (const d of hits) {
+      const l = d.data() || {};
+      if (l.status === status) continue;
+      const note = noteLine ? (String(l.note || "") + (l.note ? "\n" : "") + noteLine) : l.note;
+      await d.ref.set({ status: status, note: String(note || "").slice(0, 4000), updatedAt: Date.now() }, { merge: true });
+      n++;
+    }
+    if (n) console.log("見込み客を「" + status + "」へ移動: " + n + "件 " + (email || info.company));
+    return n;
+  } catch (e) { console.error("moveLeadStage失敗", e); return 0; }
+}
+
 // 契約者のテナントとStripeトライアルを自動作成し、オンボーディング用トークンを発行して返す。
 async function provisionContract(db, info) {
   const planCode = planCodeFromLabel(info.plan);
@@ -1197,6 +1234,8 @@ async function provisionContract(db, info) {
     tid, email: String(info.email || "").toLowerCase(), name: info.name || "", company: info.company,
     planCode, loginId, used: false, exp: Date.now() + 14 * 86400000, createdAt: Date.now(),
   });
+  // 営業リスト側の枠も動かす。ここはまだ無料トライアルなので「契約」ではなく「お試し中」。
+  await moveLeadStage(db, info, "お試し中", jstDateText(Date.now()) + " 無料トライアル開始(店舗コード " + tid + ")");
   return { token, loginId, planCode, trialEnd, tid };
 }
 
@@ -1818,6 +1857,11 @@ exports.stripeWebhook = functions.region(REGION).https.onRequest(async (req, res
       // 購入プラン(NA・ターボ・ツインターボ)を店舗に反映(検索上限/席数の切替)。
       if (tier) { patch.aiPlan = tier; patch.aiPaidFallback = (tier !== "na"); }
       await ref.set(patch, { merge: true });
+      // 入金が確定した時だけ営業リストを「契約」へ移す。更新のたびに書かないよう、
+      // まだ active でなかった回(＝初回の有効化)に限る。
+      if (cur.plan !== "active") {
+        await moveLeadStage(db, { email: cur.contactEmail, company: cur.name }, "契約", jstDateText(Date.now()) + " 入金確認・契約開始");
+      }
       // ④ 契約時の自動お礼・はじめ方メール(初回のみ)。送信成功時だけwelcomeSentを立てる。
       if (tier && !cur.welcomeSent) {
         try {
@@ -3576,17 +3620,20 @@ exports.dailyReport = functions.region(REGION).runWith({ timeoutSeconds: 300, me
     L.push("　使い始め " + (tm.onboard1 + tm.onboard3) + " / 満了前 " + tm.pre + " / 満了直後 " + tm.end + " / 満了後 " + tm.last);
     L.push("　決済の失敗 " + tm.payfail + " / 失効後の再接触 " + (tm.win14 + tm.win45));
 
-    const [lead, appr, nego, drip, inb, inq] = await Promise.all([
+    const [lead, appr, nego, tryi, keiyaku, drip, inb, inq] = await Promise.all([
       cnt(db.collection("salesLeads").where("status", "==", "見込み")),
       cnt(db.collection("salesLeads").where("status", "==", "アプローチ中")),
       cnt(db.collection("salesLeads").where("status", "==", "商談中")),
+      cnt(db.collection("salesLeads").where("status", "==", "お試し中")),
+      cnt(db.collection("salesLeads").where("status", "==", "契約")),
       cnt(db.collection("salesOutbound").where("ts", ">=", y.from).where("ts", "<", y.to)),
       cnt(db.collection("inboundMails").where("ts", ">=", y.from).where("ts", "<", y.to)),
       cnt(db.collection("bizInquiries").where("createdAt", ">=", y.from).where("createdAt", "<", y.to)),
     ]);
     L.push("");
     L.push("■ 営業");
-    L.push("　見込み " + n(lead) + " / アプローチ中 " + n(appr) + " / 商談中 " + n(nego));
+    L.push("　見込み " + n(lead) + " / アプローチ中 " + n(appr) + " / 商談中 " + n(nego) +
+      " / お試し中 " + n(tryi) + " / 契約 " + n(keiyaku));
     L.push("　昨日: 送信 " + n(drip) + " 通 / 受信 " + n(inb) + " 件 / 問い合わせ " + n(inq) + " 件");
 
     const head = "【メカノAI 日報】" + y.label + "（JST）";
