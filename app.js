@@ -1923,6 +1923,7 @@ function buildRepairPrompt(q, hasMedia) {
     "【足回り(サスペンション/ハブ/ブレーキ/ステアリング)・ドレンボルト・オイルフィルターのトルク】ロアアーム/アッパーアーム・ボールジョイント・タイロッドエンド・スタビリンク・ナックル・キャリパー(ブラケット/スライドピン)・ショック取付・ハブベアリング等の締結は、部位ごとにこの車種の規定値を調べて具体数値で書く。角度締め指定があれば順序も書く。エンジンオイルのドレンボルト(オイルパン)とオイルフィルター(エレメント/カートリッジ)の締め付けトルクも、聞かれた場合や関連作業時は車種別の規定値を出す(ドレンは概ね30〜45N·m級だが車種で異なるため確認、カートリッジ式は指定Nm、スピンオン式は『パッキン接触後◯回転』表記も可)。",
     "■対象車両: " + vehicleDesc(),
     officialSpecsText(),
+    karteContextBlock(4),   // この車の整備カルテ(直近の作業)
     knowhowBlock(q),   // この工場の知見(登録済みの気づき・経験)
     "■質問/作業: " + q,
     (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
@@ -6548,6 +6549,7 @@ function buildDiagPrompt(text, withSearch) {
     const named = dtcs.map(c => { const d = lookupDTC(c); return c + (d.exact ? "（" + d.name + "）" : ""); });
     lines.push("■診断機のDTC: " + named.join(", "));
   }
+  { const kc = karteContextBlock(); if (kc) lines.push(kc); }   // この車の整備カルテ(当店の作業記録)
   { const kb = knowhowBlock(text); if (kb) lines.push(kb); }   // この工場の知見(登録済みの気づき・経験)
   lines.push("■症状・問診内容: " + text);
   if (ebsRecoveryRelevant(text)) lines.push("\n" + KNORR_EBS_RECOVERY);
@@ -6612,6 +6614,30 @@ function knowhowPick(queryText, max) {
   return knowForVehicle().map(k => ({ k: k, sc: scoreOf(k) }))
     .sort((a, b) => b.sc - a.sc || (b.k.at || 0) - (a.k.at || 0))
     .slice(0, max || 6).map(x => x.k);
+}
+/* 診断に渡す「この車の整備カルテ」。新しい順に最大6件、1件ずつ短くまとめる。
+   日付・走行距離・作業・交換部品だけを使う(費用や担当者は診断に不要)。 */
+function karteContextBlock(max) {
+  let list = [];
+  try { list = getKarteList(); } catch (e) { return ""; }
+  if (!list || !list.length) return "";
+  const rows = list.slice()
+    .sort((a, b) => String(b.date || b.at || "").localeCompare(String(a.date || a.at || "")))
+    .slice(0, max || 6)
+    .map(k => {
+      const d = String(k.date || (k.at || "").slice(0, 10) || "").trim();
+      const odo = k.odo ? Number(k.odo).toLocaleString("ja-JP") + "km" : "";
+      const work = han(String(k.work || "")).replace(/\s+/g, " ").slice(0, 90);
+      const parts = han(String(k.parts || "")).replace(/\s+/g, " ").slice(0, 90);
+      const note = han(String(k.note || "")).replace(/\s+/g, " ").slice(0, 60);
+      const body = [work, parts ? "交換: " + parts : "", note ? "メモ: " + note : ""].filter(Boolean).join(" ／ ");
+      if (!body) return "";
+      return "・" + [d, odo].filter(Boolean).join(" ") + " " + body;
+    }).filter(Boolean);
+  if (!rows.length) return "";
+  return ["■この車の整備カルテ（当店の作業記録。新しい順）",
+    "同じ系統を最近触っている場合は施工起因(取り付け不良・部品初期不良・エア噛み・戻し忘れ)も候補に入れる。逆に、直近で交換済みの部品を再び第1候補にしない(再発の根拠がある場合は理由を書く)。走行距離の伸び方も劣化の判断に使う。",
+  ].concat(rows).join("\n");
 }
 /* プロンプトに差し込む「この工場の知見」ブロック。無ければ空文字。 */
 function knowhowBlock(queryText, max) {
@@ -8333,6 +8359,7 @@ function buildMediaDiagPrompt() {
     if (v && (v.faults || []).length) lines.push("この車種の既知の持病: " + v.faults.join(" / "));
   }
   { const os = officialSpecsText(); if (os) lines.push(os); }
+  { const kc = karteContextBlock(); if (kc) lines.push(kc); }   // この車の整備カルテ
   { const kb = knowhowBlock(extra || ""); if (kb) lines.push(kb); }   // この工場の知見
   try { const cmt = ($("diagText") || {}).value || ""; if (ebsRecoveryRelevant(cmt)) lines.push("\n" + KNORR_EBS_RECOVERY); } catch (e) {}
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
