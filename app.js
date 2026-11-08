@@ -9120,7 +9120,10 @@ const SET_ROWS = {
   secAiKey:     { ico: "🤖", tint: "blue",   desc: (typeof getAppMode === "function" && getAppMode() === "personal") ? "Geminiの無料キーを登録（カード不要）" : "契約店舗は登録不要。個人はGeminiの無料キーを登録" },
   secVisionKey: { ico: "🔍", tint: "amber",  desc: "車検証の写真読み取りを高精度にする(月1,000枚まで無料)" },
   secCse:       { ico: "🖼", tint: "purple", desc: "部品の実物画像を表示するのに使います" },
+  secKnowAdmin: { ico: "🧠", tint: "blue",   desc: "気づき・経験として覚えさせた内容の確認・修正",
+                  val: () => { try { const n = getKnowAll().filter(k => k && !k.deleted).length; return n ? n + "件" : "未登録"; } catch (e) { return ""; } }, go: "know" },
   secDataMgmt:  { ico: "💾", tint: "green",  desc: "履歴・カスタム車種の書き出し／削除" },
+  secAccExport: { ico: "📊", tint: "amber",  desc: "AIの原因候補と実際の作業を突き合わせる記録を書き出す" },
   secContact:   { ico: "💬", tint: "grey",   desc: "使い方の質問・不具合の報告・フィードバック" },
 };
 function decorateSettingRows() {
