@@ -6097,9 +6097,11 @@ function mediaModeByPlan() {
   return (window.Cloud && typeof window.Cloud.aiPaidOn === "function" && window.Cloud.aiPaidOn()) ? "pro" : "flash";
 }
 /* 写真・動画解析の思考量: Pro(有料プラン)は精度重視で多め、NA(Flash)は最小で高速。opts優先。 */
-function mediaThinking(opts) {
+function mediaThinking(opts, media) {
   if (opts && typeof opts.thinkingBudget === "number") return opts.thinkingBudget;
-  return mediaModeByPlan() === "pro" ? 1024 : 256;   // Proでも思考は抑えめにして速度を確保
+  // 動画は思考を増やしても待ち時間がほぼ変わらない(実測)ので多めに取る。写真は抑えめで十分。
+  if ((media || []).some(m => /video/.test(m.mimeType || ""))) return 2048;
+  return mediaModeByPlan() === "pro" ? 1024 : 256;
 }
 function renderAiMode() {
   const mode = getAiMode();
@@ -8353,10 +8355,10 @@ async function geminiAskMediaStream(prompt, media, opts, onChunk) {
       try {
         // 写真・動画解析はプラン準拠(NA=Flash / ターボ・ツインターボ=Pro)。Proでも思考は抑えめで最速化。
         return await window.Cloud.callFnStream("mechaStream",
-          { prompt, mode: mediaModeByPlan(), media, thinkingBudget: mediaThinking(opts) }, onChunk);
+          { prompt, mode: mediaModeByPlan(), media, thinkingBudget: mediaThinking(opts, media) }, onChunk);
       } catch (e) { if (e && e.message === "__cancelled__") throw e; }
     }
-    if (!key) return geminiAskMedia(prompt, media, Object.assign({}, opts, { thinkingBudget: mediaThinking(opts) }));
+    if (!key) return geminiAskMedia(prompt, media, Object.assign({}, opts, { thinkingBudget: mediaThinking(opts, media) }));
   }
   const mode = getAiMode();   // 自前キー(個人利用)はトグル準拠
   aiAbort = new AbortController();
@@ -8785,7 +8787,10 @@ async function diagMediaAnalyze() {
     const mdp = buildMediaDiagPrompt();
     // 故障診断は精度優先。写真・動画・コメントの統合をしっかり推論させるため思考量を引き上げる
     // (NA=Flashでも256→2048、有料=Proは4096)。会話等の軽用途とは別枠で確保。
-    const diagBudget = (mediaModeByPlan() === "pro") ? 2048 : 512;
+    // 実測: 写真は思考を上げても読み取り精度も中身も良くならない(512で十分)。
+    //       動画は思考を上げても所要時間がほぼ変わらない(動画の処理時間が支配的)ので多めに取る。
+    const hasVideo = media.some(m => /video/.test(m.mimeType || ""));
+    const diagBudget = hasVideo ? 2048 : ((mediaModeByPlan() === "pro") ? 2048 : 512);
     let r = await withAiRetry(
       () => geminiAskMediaStream(mdp, media, { thinkingBudget: diagBudget }, (acc, done) => {
         if (done) return;

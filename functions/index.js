@@ -754,7 +754,13 @@ exports.mecha = functions.runWith({ timeoutSeconds: 120, memory: "512MB" }).regi
   let tb = clampThinking(data.thinkingBudget);   // 思考上限(指定時のみ。待機短縮)
   // ★NAは無料Flashで動くため、大きな思考予算(診断3072/2048等)は最初のトークンまで長くかかり遅くなる。
   //   NAは思考を1024にキャップして高速化(検索/Proの差別化はそのまま。品質より応答速度を優先)。
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;
+  // NAの思考上限。実測: 文字は512で頭打ち(それ以上は遅くなるだけ)、写真も上げても良くならない。
+  // 動画だけは別で、思考を増やしても所要時間がほとんど変わらない(動画そのものの処理時間が支配的)ため上限を上げる。
+  {
+    const hasVideo = (data.media || []).some((m) => m && /video/.test(m.mimeType || ""));
+    const cap = hasVideo ? 2048 : 512;
+    if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, cap) : cap;
+  }
 
   const paidCapable = pc.plan !== "na" && !!paidKey;   // ターボ/ツインターボ=有料キー利用可(Pro・検索)
   const freeModels = freeModelList(latest);   // 無料キーはFlashのみ(Proは無料枠429)
@@ -840,7 +846,13 @@ exports.mechaStream = functions.runWith({ timeoutSeconds: 300, memory: "512MB" }
   (data.media || []).forEach((m) => { if (m && m.data) parts.push({ inlineData: { mimeType: m.mimeType || "image/jpeg", data: m.data } }); });
   const maxTokens = Math.min(Math.max(parseInt(data.maxTokens, 10) || 0, 0), 32768);
   let tb = clampThinking(data.thinkingBudget);
-  if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, 512) : 512;   // NAは思考を512にキャップして高速化
+  // NAの思考上限。実測: 文字は512で頭打ち(それ以上は遅くなるだけ)、写真も上げても良くならない。
+  // 動画だけは別で、思考を増やしても所要時間がほとんど変わらない(動画そのものの処理時間が支配的)ため上限を上げる。
+  {
+    const hasVideo = (data.media || []).some((m) => m && /video/.test(m.mimeType || ""));
+    const cap = hasVideo ? 2048 : 512;
+    if (pc.plan === "na") tb = (typeof tb === "number" && tb >= 0) ? Math.min(tb, cap) : cap;
+  }
   const paidCapable = pc.plan !== "na" && !!paidKey;
   const freeModels = freeModelList(latest);
   let effSearch = false;
