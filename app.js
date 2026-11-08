@@ -1832,7 +1832,7 @@ async function runVehAsk() {
       ? withAiRetry(() => geminiAskMediaStream(buildRepairPrompt(qFull, true), media, {}, null),
           () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} })
       : geminiAskStream(buildRepairPrompt(qFull),
-          Object.assign({ mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 0 },
+          Object.assign({ mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 },
             retry ? { noCache: true } : {}), onRepairChunk(box, qFull, stopTimer));
     r = await withAiRetry(() => ask(false),
       () => { try { box.textContent = "混み合っていたので、もう一度聞いています…"; } catch (e) {} });
@@ -6512,6 +6512,16 @@ function cureLikelihoodGuide(withSearch) {
     "改善の見込みは必ず次のいずれかの言葉で始め、続けて（）内に一言理由を添える: 『高い（部品交換・清掃・再結線などで完全に解消することが多い）』／『中程度（対処後も条件により再発することがある。再発時は◯◯も確認）』／『要フォロー（間欠故障・経年劣化などで、後日再発の有無を確認するのが望ましい）』。原因の性質(単純な断線・接触不良か、間欠故障・経年劣化・ソフト起因かなど)に応じて素直に選ぶこと(全候補を『高い』にしない)。"
   ].join(" ");
 }
+/* 診断で「調べ方」をはっきり指示する。
+   検索が使える契約(ターボ/ツインターボ)は命令形で裏取りさせ、使えない契約(NA)は
+   「検索は使えない」と正直に伝えて、確証の無い点に（要確認）を付けさせる。
+   ※検索ツールが付いていないのに「検索しろ」と書くと、裏取りしていないのに
+     自信満々の回答になる(実測で（要確認）が0個になった)ため、必ず出し分ける。 */
+function diagSearchDirective(withSearch) {
+  return withSearch
+    ? "【必ず検索して裏を取る】記憶や勘だけで原因を決めない。付与されたGoogle検索ツールを使い、この型式・原動機に固有の整備事例・技術通達・サービスキャンペーン・整備士の報告を実際に調べてから答えること。検索で確認できた事実と、一般知識からの推測は、はっきり区別して書く。調べた結果わかった固有の事例があれば、その内容を理由に具体的に書く。"
+    : "【この回答ではWeb検索は使えない】確実に知っている事実と、一般的な傾向からの推測を区別すること。型式固有の数値・手順・事例で確証が無いものには（要確認）を付ける。知らないことを知っているように書かない。";
+}
 function buildDiagPrompt(text, withSearch) {
   const lines = [
     "あなたは『メカ君』。まじめで頼れるロボ整備士(一人称ボク)で、どこかおちゃめな愛嬌もあるが診断は正確第一。下記の形式は守りつつ、各説明は親しみやすく分かりやすい言葉で(冒頭か末尾に軽い一言を添えてもよいが、やりすぎない)。",
@@ -6523,6 +6533,7 @@ function buildDiagPrompt(text, withSearch) {
     SENSOR_FALSEPOS_GUIDE,
     "【費用対効果も統合して考える】原因候補の並びは『可能性の高い順』を土台に維持する(可能性を費用で無理に入れ替えない)。ただし可能性が近い候補どうしなら、点検・清掃・調整・増し締め・再結線・安価な部品など“短時間・低コストで確認/解決できる方”をわずかに前に出してよい。各候補の『切り分け:』には、その確認や処置がどのくらい手軽か(例:点検のみ/清掃・調整で済む/安価な部品/高額な部品交換やアッセンブリ交換が必要)を一言含める。『最初の1手』は、可能性が高くかつ低コスト・短時間で確認できる処置を優先して勧め、高額な部品交換は点検で確定してからにするよう促す。ただし安全に関わる確認(ブレーキ・操舵・燃料・排気・電源系の危険)は費用より必ず優先する。",
     "【部品交換しても消えない/EBS・ABS等の電子ブレーキ】商用車の電子制御ブレーキ(KNORR-BREMSE/BOSCH/WABCO、いすゞ・日野・ふそう・UD等)やエアブレーキ系は、部品(EPM/リレーバルブ/モジュレータ/センサ等)を交換しても、メーカー固有の『故障からの復帰作業/リセット・初期化手順』を実施しないとラッチした故障コード・警告灯が消えないことが非常に多い。『交換したのに消えない』という手がかりがある時は、診断機での学習/キャリブレーション/初期化だけでなく、メーカー指定の“ブレーキペダル操作による復帰手順”(例: ブレーキペダルを戻した状態でスタータースイッチを規定秒OFF→車両停止・ペダル戻し・電源電圧満足・(TCV異常時はパーキングブレーキ戻し)の条件を保持したままスイッチを規定秒ON→フルブレーキまで踏み込み数秒保持、操作は所定秒経過後に行う等)が存在しないかを必ず上位候補・最初の1手として提示する。具体手順・秒数・条件は車種/システムで異なるため必ず整備要領書で確認、と添える。",
+    diagSearchDirective(withSearch),
     cureLikelihoodGuide(withSearch),
     "以下の情報から原因を診断してください。前置き・免責・挨拶は一切不要。この指示文や出力形式の説明そのものを回答に書き写さない。Markdown記号(**、#、表)は使わず、必ず次の出力形式に従うこと:",
     "",
@@ -7201,13 +7212,15 @@ async function runDiagAI(text) {
   box.prepend(sec);
   let streamed = false;
   try {
-    // まず「速報」を出す: Flash・思考0・検索なし。
-    // 思考量と裏取り検索は、最初の1文字が出るまでの待ち時間そのもの(答えを作り始める前に終わるのを待つ)。
+    // まず「速報」を出す: Flash・検索なし。思考は512。
+    // ★思考0では当たらない。実測(答えの分かっている2例×3回):
+    //   思考0 = 的中2/6(5〜6秒) / 思考512 = 的中6/6(8〜10秒) / 1024以上は的中は変わらず遅くなるだけ。
+    //   3〜4秒の差で外れが無くなるので、ここは速度より当たりを取る。
     // 有料プランは表示したあと、裏で高精度Pro＋検索を用意してボタンで差し替えられるようにする。
     const accurate = !!(window.Cloud && window.Cloud.aiPaidOn && window.Cloud.aiPaidOn());
     const dp = buildDiagPrompt(text, false);
     let r = await withAiRetry(
-      () => geminiAskStream(dp, { mode: "flash", search: false, thinkingBudget: 0 }, (acc, done) => {
+      () => geminiAskStream(dp, { mode: "flash", search: false, thinkingBudget: 512 }, (acc, done) => {
         if (done) return;
         if (!streamed) { streamed = true; stopTimer(); p.classList.add("streaming"); }
         p.textContent = acc;   // 生成されたぶんから先に読める
@@ -7716,7 +7729,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           r = await geminiAskMediaStream(buildRepairPrompt(q, true), media, { thinkingBudget: fbBudget }, null);
         } else {
           // 初回と同じく速報(Flash・思考0)で出す。JSONが届いたぶんから順に描く。
-          r = await geminiAskStream(buildRepairPrompt(q), { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 0 },
+          r = await geminiAskStream(buildRepairPrompt(q), { mode: "flash", search: false, maxTokens: 4096, thinkingBudget: 512 },
             onRepairChunk(ans, tried || origText, stopFbTimer));
         }
         stopFbTimer(); ans.classList.remove("streaming");
@@ -7756,7 +7769,7 @@ function appendAiFollowup(body, origText, prevAnswer, opts) {
           });
         } else {
           // 初回と同じく速報(Flash・思考0)で、生成されたぶんから先に読めるようにする。
-          r = await geminiAskStream(prompt, { mode: "flash", search: false, thinkingBudget: 0 }, (acc, done) => {
+          r = await geminiAskStream(prompt, { mode: "flash", search: false, thinkingBudget: 512 }, (acc, done) => {
             if (done) return;
             if (!streamedFb) { streamedFb = true; stopFbTimer(); ans.classList.add("streaming"); }
             ans.textContent = acc;
@@ -8326,7 +8339,8 @@ function buildMediaDiagPrompt() {
     "あなたは日本の自動車整備士を支援するベテラン診断アドバイザーです。",
     "【最重要・3点統合の診断】この診断では次の3種類の情報を必ず全て突き合わせ、1つの故障像として統合すること: (1)整備士のコメント/説明、(2)添付の写真、(3)添付の動画(音声を含む)。どれか1つだけで判断しない。",
     "とりわけ整備士のコメントは、現場で実際に起きている症状・発生条件・作業経緯を伝える最重要の手がかりであり、絶対に無視しないこと。映像から読み取れる事実とコメントの両方を満たす原因を優先する。映像とコメントが食い違う場合は、その食い違い自体を手がかりとして扱い、コメントが示す症状を説明できる原因を重視する。",
-    SENSOR_FALSEPOS_GUIDE
+    SENSOR_FALSEPOS_GUIDE,
+    diagSearchDirective(false)   // 写真・動画の解析に検索は付かない。推測には（要確認）を付けさせる
   ];
   if (extra) {
     lines.push("", "■整備士のコメント/説明（最重要・必ず診断に反映）:", extra, "");
