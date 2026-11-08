@@ -356,26 +356,102 @@
       return true;
     });
   }
-  function renderLeads() {
-    const box = $("leadList");
-    const list = visibleLeads();
-    const filtered = list.length !== leads.length;
-    $("leadCount").textContent = leads.length ? (filtered ? list.length + " / " + leads.length + " 社" : leads.length + " 社") : "";
-    if (!leads.length) { box.innerHTML = '<div class="empty-block">まだ見込み客がありません。<br>右上の「＋ 追加」から登録してください。</div>'; return; }
-    if (!list.length) { box.innerHTML = '<div class="empty-block">条件に一致する見込み客がありません。<br>検索・絞り込みを変更してください。</div>'; return; }
-    box.innerHTML = list.map((l) => `
+  // 状況の枠(パイプライン)。この並びがそのまま画面の並び順になる。
+  // 「見込み」は未接触だけを入れる箱。送信・返信・成約で状況が変わると、
+  // サーバ側で status が書き換わる(ドリップ送信→アプローチ中 / 返信受信→商談中 /
+  // 配信停止の申出→配信停止・送信停止)ので、画面のカードも自動でその枠へ移る。
+  const LEAD_STAGES = [
+    { key: "見込み", hint: "未接触。毎朝のドリップ送信の対象はここだけ" },
+    { key: "アプローチ中", hint: "送信済み。返事を待っている" },
+    { key: "商談中", hint: "返信あり。やりとり中" },
+    { key: "契約", hint: "成約" },
+    { key: "見送り", hint: "対象外。もう送らない" },
+    { key: "配信停止", hint: "配信停止の申し出あり。メールは送らない" },
+    { key: "送信停止", hint: "送信停止の申し出あり。FAXは送らない" },
+  ];
+  const LEAD_KEYS = LEAD_STAGES.map((s) => s.key);
+  const LEAD_OTHER = { key: "その他", hint: "この画面が知らない状況。編集で選び直せます" };
+  // 決着済みの枠は畳んでおく(開閉はブラウザに記憶)
+  const LG_KEY = "ss_leadGroupsClosed";
+  let leadClosed = (function () {
+    try { const v = JSON.parse(localStorage.getItem(LG_KEY) || "null"); return Array.isArray(v) ? v : ["見送り", "配信停止", "送信停止"]; }
+    catch (e) { return ["見送り", "配信停止", "送信停止"]; }
+  })();
+  const lgSave = () => { try { localStorage.setItem(LG_KEY, JSON.stringify(leadClosed)); } catch (e) {} };
+  const stageOf = (l) => { const s = String(l.status || "見込み"); return LEAD_KEYS.indexOf(s) >= 0 ? s : LEAD_OTHER.key; };
+  // 知らない状況はまず選択肢に足してから表示する。
+  // そうしないと value が空のまま保存され、配信停止の相手が「見込み」に戻ってしまう。
+  function stageOptions(cur) {
+    const keys = LEAD_KEYS.indexOf(cur) >= 0 ? LEAD_KEYS : [cur].concat(LEAD_KEYS);
+    return keys.map((k) => `<option value="${esc(k)}"${k === cur ? " selected" : ""}>${esc(k)}</option>`).join("");
+  }
+  function leadCardHtml(l) {
+    const canForm = l.phone || l.email || formUrlFromNote(l.note) || faxFromNote(l.note);
+    return `
       <div class="leadcard">
         <div class="l">
-          <div class="co">${esc(l.company)} <span class="pill st-${esc(l.status)}">${esc(l.status)}</span></div>
+          <div class="co">${esc(l.company)} <span class="pill st-${esc(stageOf(l))}" title="状況">${esc(l.status || "見込み")}</span></div>
           <div class="meta">${esc(l.kind || "")}${l.contact ? " ／ " + esc(l.contact) : ""}${l.phone ? " ／ " + esc(l.phone) : ""}</div>
           ${l.note ? `<div class="note">${esc(l.note)}</div>` : ""}
         </div>
         <div class="acts">
           <button class="btn btn-ghost btn-sm" data-edit="${l.id}">編集</button>
           <button class="btn btn-dark btn-sm" data-ai="${l.id}">AIに相談</button>
-          ${(l.phone || l.email || formUrlFromNote(l.note) || faxFromNote(l.note)) ? `<button class="btn btn-accent btn-sm" data-leadform="${l.id}">📣 営業文を作る</button>` : ""}
+          ${canForm ? `<button class="btn btn-accent btn-sm" data-leadform="${l.id}">📣 営業文を作る</button>` : ""}
+          <select class="stmove" data-mv="${l.id}" title="状況を変えると、その枠に移動します">${stageOptions(l.status || "見込み")}</select>
         </div>
-      </div>`).join("");
+      </div>`;
+  }
+  function renderLeads() {
+    const box = $("leadList");
+    const list = visibleLeads();
+    const fs = ($("leadFilterStatus") && $("leadFilterStatus").value) || "";
+    const filtered = list.length !== leads.length;
+    $("leadCount").textContent = leads.length ? (filtered ? list.length + " / " + leads.length + " 社" : leads.length + " 社") : "";
+    if (!leads.length) { box.innerHTML = '<div class="empty-block">まだ見込み客がありません。<br>右上の「＋ 追加」から登録してください。</div>'; return; }
+    if (!list.length) { box.innerHTML = '<div class="empty-block">条件に一致する見込み客がありません。<br>検索・絞り込みを変更してください。</div>'; return; }
+
+    // 状況ごとに仕分け。空の枠は出さない(ただし入口の「見込み」は0でも残す)
+    const groups = {};
+    list.forEach((l) => { const k = stageOf(l); (groups[k] = groups[k] || []).push(l); });
+    box.innerHTML = LEAD_STAGES.concat([LEAD_OTHER]).map((st) => {
+      const g = groups[st.key] || [];
+      if (!g.length && !(st.key === "見込み" && !fs)) return "";
+      // 状況で絞り込んでいる時は、畳んである枠でも開いて見せる
+      // (そうしないと「絞り込んだのに何も出ない」ように見える)
+      const closed = !fs && leadClosed.indexOf(st.key) >= 0;
+      return `
+        <section class="leadgroup${closed ? " closed" : ""}">
+          <button class="lghead" type="button" data-gt="${esc(st.key)}">
+            <span class="lgarrow">▾</span>
+            <span class="pill st-${esc(st.key)}">${esc(st.key)}</span>
+            <span class="lgn">${g.length}</span>
+            <span class="lghint">${esc(st.hint)}</span>
+          </button>
+          ${g.length ? `<div class="leadgrid">${g.map(leadCardHtml).join("")}</div>`
+            : `<div class="lgempty">この枠は空です。${st.key === "見込み" ? "「店舗リサーチ」で候補を集めると、ここに入ります。" : ""}</div>`}
+        </section>`;
+    }).join("");
+
+    box.querySelectorAll("[data-gt]").forEach((b) => b.onclick = () => {
+      const k = b.dataset.gt, i = leadClosed.indexOf(k);
+      if (i >= 0) leadClosed.splice(i, 1); else leadClosed.push(k);
+      lgSave(); renderLeads();
+    });
+    // 枠を手で移す。saveLead は渡した内容で全項目を上書きするので、
+    // 状況だけでなく元の値をそのまま一緒に送る(でないと他の欄が消える)
+    box.querySelectorAll("[data-mv]").forEach((sel) => sel.onchange = async () => {
+      const l = leads.find((x) => x.id === sel.dataset.mv); if (!l) return;
+      const from = l.status || "見込み", to = sel.value;
+      if (to === from) return;
+      sel.disabled = true;
+      try {
+        await api("saveLead", { lead: { id: l.id, company: l.company, kind: l.kind, status: to,
+          contact: l.contact, phone: l.phone, email: l.email, note: l.note } });
+        toast(l.company + "を「" + to + "」に移しました");
+        await loadLeads();
+      } catch (e) { toast(e.message); sel.value = from; sel.disabled = false; }
+    });
     box.querySelectorAll("[data-leadform]").forEach((b) => b.onclick = () => {
       const l = leads.find((x) => x.id === b.dataset.leadform); if (!l) return;
       const addrM = String(l.note || "").match(/住所:\s*(.+)/);
@@ -512,7 +588,11 @@
     $("lmTitle").textContent = id ? "見込み客を編集" : "見込み客を追加";
     $("lmCompany").value = l.company || "";
     $("lmKind").value = l.kind || "整備工場";
-    $("lmStatus").value = l.status || "見込み";
+    // 知らない状況(配信停止など)でも選択肢を作ってから入れる。
+    // 選択肢に無い値を入れると value が空になり、保存時に「見込み」へ戻ってしまう。
+    const curSt = l.status || "見込み";
+    $("lmStatus").innerHTML = stageOptions(curSt);
+    $("lmStatus").value = curSt;
     $("lmContact").value = l.contact || "";
     $("lmPhone").value = l.phone || "";
     $("lmEmail").value = l.email || "";

@@ -210,14 +210,32 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .leadcard:hover{border-color:#d3d7dd;box-shadow:0 2px 4px rgba(20,24,31,.06),0 12px 28px -14px rgba(20,24,31,.18)}
 .leadcard .co{font-weight:700;font-size:15px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .leadcard .meta{font-size:12.5px;color:var(--ink2);margin-top:4px}
-.leadcard .note{font-size:13px;color:#3a414c;margin-top:7px;white-space:pre-wrap;word-break:break-word;padding-left:11px;border-left:2px solid var(--line)}
+.leadcard .note{font-size:13px;color:var(--ink2);margin-top:7px;white-space:pre-wrap;word-break:break-word;padding-left:11px;border-left:2px solid var(--line)}
 .leadcard .acts{display:flex;flex-direction:column;gap:7px;flex-shrink:0}
-.pill{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:700;letter-spacing:.02em}
+/* 既定の見た目。画面が知らない状況が来ても崩れないように色を持たせる */
+.pill{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:700;letter-spacing:.02em;background:#eef0f3;color:#4b5563}
 .st-見込み{background:#eef0f3;color:#4b5563}
 .st-アプローチ中{background:#fdf0dc;color:#9a6212}
 .st-商談中{background:#e4edfb;color:#2b5aa8}
 .st-契約{background:#e0f3e7;color:#1a7a42}
 .st-見送り{background:#fbe6e6;color:#a53838}
+.st-配信停止,.st-送信停止{background:#f1e7f7;color:#6b3f8c}
+.st-その他{background:#eef0f3;color:#4b5563}
+
+/* 状況ごとの枠(パイプライン)。状況が変わるとカードは自動でこの枠を移動する */
+.leadpipe{display:block}
+.leadgroup{margin-bottom:20px}
+.lghead{width:100%;display:flex;align-items:center;gap:10px;background:none;border:0;border-bottom:1px solid var(--line);padding:0 2px 8px;margin:0 0 12px;cursor:pointer;text-align:left;font:inherit;color:var(--ink)}
+.lghead:hover{border-bottom-color:#c9ced6}
+.lgarrow{font-size:10px;color:var(--ink2);width:11px;flex-shrink:0;transition:transform .14s}
+.leadgroup.closed .lgarrow{transform:rotate(-90deg)}
+.lghead .pill{flex-shrink:0;white-space:nowrap}   /* 狭い画面で枠名が縦に割れないように */
+.lgn{font-weight:800;font-size:14px;flex-shrink:0}
+.lghint{font-size:12px;color:var(--ink2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leadgroup.closed .leadgrid,.leadgroup.closed .lgempty{display:none}
+.leadgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}
+.lgempty{color:var(--ink2);font-size:13px;padding:2px 2px 0}
+.leadcard .stmove{width:auto;min-width:116px;padding:5px 8px;font-size:12px}
 .secImgs{display:flex;flex-direction:column;gap:12px}
 .secImgCard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
 .secImgCard .secImgHead{font-weight:700;font-size:14px;margin-bottom:8px}
@@ -294,6 +312,9 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
   .crtext{background:#12151b}
   .empty-block{background:#171b22}
   .st-見込み{background:#2b303a;color:#c2c8d2}
+  .st-その他{background:#2b303a;color:#c2c8d2}
+  .st-配信停止,.st-送信停止{background:#2e2740;color:#cbb6e0}
+  .lghead:hover{border-bottom-color:#3a414c}
   .prodBadge.works{background:#2b303a;color:#c2c8d2}
   .xsearch .xchip{background:#171b22}
   .xsearch .xchip:hover{background:#241d12}
