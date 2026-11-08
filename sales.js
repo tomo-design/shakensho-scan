@@ -62,13 +62,25 @@
   const histKey = () => curProduct + ":" + curStaff;
 
   // ---------- 認証 ----------
-  async function api(action, payload) {
+  // timeoutMs を渡すと、その時間で待つのをやめる(渡さなければ今までどおり待ち続ける)。
+  // 長く待たせると通信が途中で切られ、ブラウザ側には理由の分からない
+  // 「Failed to fetch」として出てしまうため、長い処理では必ず指定する。
+  async function api(action, payload, timeoutMs) {
     const idToken = await auth.currentUser.getIdToken();
-    const r = await fetch(FN_BASE + "salesRoom", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-      body: JSON.stringify(Object.assign({ action }, payload || {})),
-    });
+    const ac = timeoutMs ? new AbortController() : null;
+    const timer = ac ? setTimeout(() => ac.abort(), timeoutMs) : null;
+    let r;
+    try {
+      r = await fetch(FN_BASE + "salesRoom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify(Object.assign({ action }, payload || {})),
+        signal: ac ? ac.signal : undefined,
+      });
+    } catch (e) {
+      if (ac && ac.signal.aborted) throw new Error("時間内に応答がありませんでした(" + Math.round(timeoutMs / 1000) + "秒)。混み合っている可能性があります。");
+      throw new Error("通信できませんでした。電波・回線の状態をご確認ください。");
+    } finally { if (timer) clearTimeout(timer); }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ("エラー " + r.status));
     return j;
@@ -1244,7 +1256,9 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         card.innerHTML = `<div class="secImgHead">${esc(secs[i].head)}</div><div class="secImgBody muted">生成中…</div>`;
         $("snsSectWrap").appendChild(card);
         try {
-          const j = await api("image", { prompt, aspect: "16:9", model: sectionModel });
+          // 150秒で見切る。これを超えると回線側で切られて「Failed to fetch」になり、
+          // 何が起きたのか分からなくなる。先にこちらで打ち切って理由を出す。
+          const j = await api("image", { prompt, aspect: "16:9", model: sectionModel }, 150000);
           if (j.image) {
             okCount++;
             if (!sectionModel && j.model) sectionModel = j.model;   // 以降の見出しも同じモデルに固定→タッチが揃う
@@ -1511,7 +1525,9 @@ Rules:
 - Describe ONLY what the camera SEES, in ENGLISH: physical subject, setting, action, framing. 2-4 short sentences. No on-screen text, no metaphors, no marketing copy.
 - The MAIN person (if any) must be described as FEMALE; supporting people may be male or female.
 Output: the English scene description only.`;
-    const j = await api("generate", { role: "marke", task });
+    // 25秒で見切る。ここは「見出しに合った絵にする」ための精度上げで、
+    // 失敗しても呼び出し側が見出しから作るので止まらない。
+    const j = await api("generate", { role: "marke", task }, 25000);
     return String(j.text || "").trim();
   }
   async function postToScene(post) {
