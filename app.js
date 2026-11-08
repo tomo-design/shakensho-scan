@@ -211,16 +211,25 @@ function applyAppMode() {
   }
   updatePocketAccountBox();
 }
-/* Web版Pocket(個人モード・ストア版でない)でログイン中のときだけ、設定タブ最下部にログアウトを出す。 */
+/* Pocket(個人モード)でログイン中のときだけ、設定タブにアカウント欄(ログイン中の表示＋パスワード変更＋ログアウト)を出す。
+   ★ストア版(storeApp)でも出す。storeApp で隠しているのは決済・契約まわりのUIであって、
+     ログアウトまで隠すと「別のアカウントに入り直せない」「端末を人に渡せない」ため。 */
 function updatePocketAccountBox() {
   const row = $("pocketLogoutRow");
   const pwRow = $("pocketPwRow");
   if (!row && !pwRow) return;
   const personal = getAppMode() === "personal";
-  const isStore = document.body.classList.contains("storeApp");
   const loggedIn = !!(window.Cloud && typeof window.Cloud.isLoggedIn === "function" && window.Cloud.isLoggedIn());
-  const show = personal && !isStore && loggedIn;
-  if (row) row.classList.toggle("hidden", !show);
+  const demo = (typeof isDemo === "function" && isDemo());
+  const show = personal && loggedIn && !demo;   // デモ中は出さない(ログインしていないため)
+  if (row) {
+    row.classList.toggle("hidden", !show);
+    if (show) {
+      const nm = (window.Cloud && typeof window.Cloud.myName === "function" && window.Cloud.myName()) || "";
+      const nmEl = $("pocketAcctName"); if (nmEl) nmEl.textContent = nm || "ログイン中";
+      const av = $("pocketAcctAv"); if (av) av.textContent = (nm || "?").slice(0, 1).toUpperCase();
+    }
+  }
   if (pwRow) pwRow.classList.toggle("hidden", !show);
   updatePocketTrialBanner();
 }
@@ -9926,7 +9935,7 @@ window.onCloudLoggedOut = function () {
   // Web版Pocketのログアウト(設定のアカウント欄)
   const plo = document.getElementById("btnPocketLogout");
   if (plo) plo.addEventListener("click", () => {
-    if (!confirm("ログアウトしますか？")) return;
+    if (!confirm("ログアウトしますか？\n（この端末に保存した車両・カルテはそのまま残ります）")) return;
     // 既存の同期セクションのログアウト処理(hadSession削除＋signOut)を再利用(個人モードで非表示でもclickは有効)
     const b = document.getElementById("btnCloudLogout");
     if (b) { try { b.click(); } catch (e) {} }

@@ -663,10 +663,14 @@
   <!-- 個人モードのみ表示: メカ君サポート(一番下) -->
   
 
-  <!-- Web版Pocket専用: 設定タブ最下部にパスワード変更とログアウトを横並びで(個人モードでは同期セクションが隠れるため) -->
-  <div id="pocketLogoutRow" class="hidden btnRow" style="justify-content:center;gap:10px;margin:8px 0 16px">
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:0 0 auto;display:inline-block;min-height:40px">🔑 パスワードを変更</button>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:0 0 auto;display:inline-block;min-height:40px">ログアウト</button>
+  <!-- Pocket(個人版)のアカウント欄。個人モードでは同期セクションが隠れるため、ここでログイン中の確認・パスワード変更・ログアウトを行う -->
+  <div id="pocketLogoutRow" class="hidden pocketAcct">
+    <div class="paTop"><span class="paAv" id="pocketAcctAv">?</span>
+      <span class="paTx"><b id="pocketAcctName">—</b><span>ログイン中（個人版 Pocket）</span></span></div>
+    <div class="btnRow" style="margin-top:10px;gap:10px">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnPocketChangePw" style="flex:1 1 0;min-height:40px">🔑 パスワードを変更</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnPocketLogout" style="flex:1 1 0;min-height:40px">↩ ログアウト</button>
+    </div>
   </div>
   <!-- Web版Pocket専用: 設定タブ最下部に残る無料お試し残日数（起動時バナーがフェード後もここに常設） -->
   <div id="pocketTrialRow" class="hidden" style="text-align:center;margin:2px 0 18px">
