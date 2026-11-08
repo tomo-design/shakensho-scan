@@ -1212,6 +1212,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return; }
       const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
       snsSectStop = false; b.disabled = true;
+      let okCount = 0, ngCount = 0, firstErr = "";
       $("snsSectWrap").innerHTML = "";
       // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
       const style = pick(IMG_STYLES);
@@ -1245,16 +1246,23 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         try {
           const j = await api("image", { prompt, aspect: "16:9", model: sectionModel });
           if (j.image) {
+            okCount++;
             if (!sectionModel && j.model) sectionModel = j.model;   // 以降の見出しも同じモデルに固定→タッチが揃う
             const fixed = await coverToSize(j.image, 1280, 670);     // サイズ/比率を必ず統一
             card.querySelector(".secImgBody").innerHTML = "";
             const im = document.createElement("img"); im.className = "snsImg"; im.src = fixed;
             const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = fixed; a.download = "mechanoai-note-" + (i + 1) + ".png";
             card.querySelector(".secImgBody").appendChild(im); card.querySelector(".secImgBody").appendChild(a);
-          } else { card.querySelector(".secImgBody").textContent = "取得できませんでした"; }
-        } catch (e) { card.querySelector(".secImgBody").textContent = "⚠ " + (e.message || e); }
+          } else { ngCount++; firstErr = firstErr || "画像が返ってきませんでした"; card.querySelector(".secImgBody").textContent = "取得できませんでした"; }
+        } catch (e) {
+          ngCount++; firstErr = firstErr || String(e.message || e);
+          card.querySelector(".secImgBody").textContent = "⚠ " + (e.message || e);
+        }
+        // 1枚目でつまずく時は設定不備や枠切れなど「何枚やっても同じ」種類の失敗。
+        // 残りを待たせても同じエラーが並ぶだけなので、そこで止めて理由を出す。
+        if (i === 0 && ngCount === 1) break;
       }
-      $("snsSectStat").textContent = snsSectStop ? "中止しました" : "✓ 見出しごとの画像を生成しました（各画像を保存してnoteの該当箇所に挿入）";
+      $("snsSectStat").textContent = snsSectStop ? "中止しました" : ngCount === 0 ? "✓ 見出しごとの画像を生成しました（各画像を保存してnoteの該当箇所に挿入）" : okCount === 0 ? "⚠ 画像を作れませんでした: " + firstErr : "△ " + okCount + "枚できました（" + ngCount + "枚失敗: " + firstErr + "）";
       b.disabled = false;
     };
   }

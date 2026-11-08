@@ -2503,12 +2503,19 @@ async function toFluxPrompt(promptText, aspectRatio) {
     "【元の指示】",
     String(promptText || "").slice(0, 4000),
   ].filter(Boolean).join("\n");
+  // ★ここに時間をかけすぎない(2026-11-08)。
+  //   指示文の要約は「あれば良い」最適化で、失敗しても fallback で十分絵になる。
+  //   無料枠が混んでいる時に キー数 × モデル数 ぶん粘ると、画像生成本体(Cloudflare・約4秒)より
+  //   待ち時間が桁違いに長くなる(実測: salesRoom の中央値49秒・最長316秒)。
+  //   12秒で見切りをつけて先に進む。
+  const deadline = Date.now() + 12000;
   const latest = await latestModels(freeKeys[0]);
   const models = freeModelList(latest);
   const start = Math.floor(Math.random() * freeKeys.length);
   for (let i = 0; i < freeKeys.length; i++) {
+    if (pastDeadline(deadline)) break;   // 締め切りを超えたら要約はあきらめて fallback を使う
     // 思考量は既定(512)のまま。0や128を指定すると3系モデルが400や空応答を返すことがあるため触らない
-    const out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: ask }], "flash", false, 2048);
+    const out = await callGeminiModels(freeKeys[(start + i) % freeKeys.length], models, [{ text: ask }], "flash", false, 2048, undefined, undefined, deadline);
     if (!out.failed && out.text) return keepHardRules(String(out.text).replace(/^["'`\s]+|["'`\s]+$/g, ""), promptText, shot);
   }
   return fallback;
