@@ -2730,6 +2730,36 @@ function parseKarteParts(val) {
   if (name.length) rows.push({ n: name.join(" "), q: "" });
   return rows;
 }
+/* 作業ごとのまとまり jobs=[{w:"作業名", p:[{n:部品名, q:数量}]}]
+   「どの作業で、どの部品を使ったか」を、紙に書かれた対応(同じ行・同じ囲み・並び順)の範囲でAIが結び付けた結果。
+   対応が分からない部品は w:"" のまとまりに入れ、画面では「その他の部品・材料」として最後に出す。
+   ※ k.work / k.parts の文字列は従来どおり持つ。印刷・油脂量の反映・診断への受け渡しは文字列側を使うので、
+     jobs が無い(古い記録・AIが対応を付けられなかった記録)なら、今までどおりの2本立て表示に戻るだけ。 */
+function cleanKarteJobs(arr) {
+  return (Array.isArray(arr) ? arr : []).map(g => {
+    const w = han(String((g && g.w) || "")).trim();
+    const p = (Array.isArray(g && g.p) ? g.p : []).map(x => {
+      const n = han(String((x && x.n) || "")).trim();
+      return n ? { n: n, q: han(String((x && x.q) == null ? "" : x.q)).trim() } : null;   // Firestoreはundefined不可
+    }).filter(Boolean);
+    return (w || p.length) ? { w: w, p: p } : null;
+  }).filter(Boolean);
+}
+function jobsWorkText(jobs) { return jobs.filter(g => g.w).map(g => g.w).join("\n"); }
+function jobsPartsText(jobs) {
+  const rows = []; jobs.forEach(g => g.p.forEach(x => rows.push(x.q ? x.n + " " + x.q : x.n)));
+  return rows.join("\n");
+}
+/* AIが返した jobs を採用してよいか。作業・部品がjobs側で1件でも減っていたら採用しない
+   (まとめ方を綺麗にするために記録が消えるのは本末転倒) */
+function jobsCoverOk(jobs, workText, partsText) {
+  if (!jobs.length) return false;
+  const wN = String(workText || "").split(/[、,，\n]+/).map(t => t.trim()).filter(Boolean).length;
+  const pN = parseKarteParts(partsText).length;
+  const jw = jobs.filter(g => g.w).length;
+  const jp = jobs.reduce((a, g) => a + g.p.length, 0);
+  return jw >= wN && jp >= pN && (jw + jp) > 0;
+}
 /* 印刷用の整備作業明細書(A4縦)。誰が見ても分かるよう 見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄 に整える */
 function karteSheetHtml(k) {
   const cfg = laborCfg(), f = currentVehicleFacts(), c = current || {};
@@ -2846,16 +2876,16 @@ function buildKarteCard(k) {
       if (items.length <= 1) return '<div class="kBlock"><span class="kLbl">' + label + '</span><div class="kVal">' + esc(keepUnit(han(String(val)))) + '</div></div>';
       return '<div class="kBlock"><span class="kLbl">' + label + '</span><ul class="kItems">' + items.map(i => '<li>' + esc(keepUnit(i)) + '</li>').join("") + '</ul></div>';
     };
+    // 見栄え: 末尾の(…)/（…）は小さく添える。ASSY等の長名は1行に収める(CSSで縮小)
+    const fmtName = n => {
+      const m = String(n).match(/^(.*?\S)\s*([（(].*[)）])\s*$/);
+      if (m) return esc(m[1]) + '<span class="kPnSub">' + esc(m[2]) + '</span>';
+      return esc(n);
+    };
     // 部品は「部品名＋数量」を1行に並べ、右側に数量列を作る(数字始まりのトークンを直前の部品名の数量とみなす)
     const partsBlock = (val) => {
       const rows = parseKarteParts(val);
       if (!rows.length) return "";
-      // 見栄え: 末尾の(…)/（…）は改行して小さく別行に。ASSY等の長名は1行に収める(CSSで縮小)
-      const fmtName = n => {
-        const m = String(n).match(/^(.*?\S)\s*([（(].*[)）])\s*$/);
-        if (m) return esc(m[1]) + '<span class="kPnSub">' + esc(m[2]) + '</span>';
-        return esc(n);
-      };
       return '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">部品</span><span class="kQtyLbl">数量</span></div>' +
         '<ul class="kItems kPartRows">' + rows.map(r => '<li><span class="kPn">' + fmtName(r.n) + '</span><span class="kQty">' + esc(r.q) + '</span></li>').join("") + '</ul></div>';
     };
@@ -2873,10 +2903,54 @@ function buildKarteCard(k) {
         '<ul class="kItems kPartRows">' + workPts.map(it => '<li><span class="kPn">' + esc(it.n) + '</span><span class="kQty">' + fmtPts(it.p) + '</span></li>').join("") + '</ul>' +
         '<div class="kPtsTotal">合計 <b>' + fmtPts(tot) + '</b> 点' + (rate ? ' ／ 工賃 <b>' + yen(tot * rate) + '</b>（' + rate.toLocaleString("ja-JP") + '円/点）' : "") + '</div></div>';
     };
-    body.innerHTML = (workPts.length ? itemsBlockHtml() : block("作業", k.work)) + partsBlock(k.parts) +
+    /* 作業ごとのまとまり表示。作業名の下に、その作業で使った部品を小さく並べる。
+       作業と部品を別々の2本立てで出すと、同じ部品名が複数回出たときにどれがどの作業の分か分からない
+       (ギアオイル#90 が デフ/ミッション/ミキサー で3行、など)。 */
+    const jobsBlockHtml = (jobs) => {
+      const ptsOf = {}; workPts.forEach(it => { ptsOf[it.n] = it.p; });
+      const hasPts = workPts.some(it => it.p != null);
+      const chips = ps => !ps.length ? "" :
+        '<div class="kJobParts">' + ps.map(x => '<span class="kJp"><span class="kJpN">' + fmtName(x.n) + '</span>' +
+          (x.q ? '<span class="kJpQ">' + esc(keepUnit(x.q)) + '</span>' : "") + '</span>').join("") + '</div>';
+      const rows = jobs.filter(g => g.w).map(g =>
+        '<li><div class="kJobHead"><span class="kJobName">' + esc(keepUnit(g.w)) + '</span>' +
+        (hasPts ? '<span class="kQty">' + fmtPts(ptsOf[g.w] == null ? null : ptsOf[g.w]) + '</span>' : "") + '</div>' +
+        chips(g.p) + '</li>').join("");
+      const rest = jobs.filter(g => !g.w).reduce((a, g) => a.concat(g.p), []);
+      const tot = sumPts(workPts), rate = Number(k.rate) || 0;
+      return (rows ? '<div class="kBlock kParts kJobs">' +
+        '<div class="kPartHead"><span class="kLbl">作業と使った部品</span>' + (hasPts ? '<span class="kQtyLbl">点数</span>' : "") + '</div>' +
+        '<ul class="kItems kJobList">' + rows + '</ul>' +
+        (hasPts ? '<div class="kPtsTotal">合計 <b>' + fmtPts(tot) + '</b> 点' + (rate ? ' ／ 工賃 <b>' + yen(tot * rate) + '</b>（' + rate.toLocaleString("ja-JP") + '円/点）' : "") + '</div>' : "") +
+        '</div>' : "") +
+        (rest.length ? '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">その他の部品・材料</span><span class="kQtyLbl">数量</span></div>' +
+          '<ul class="kItems kPartRows">' + rest.map(x => '<li><span class="kPn">' + fmtName(x.n) + '</span><span class="kQty">' + esc(keepUnit(x.q)) + '</span></li>').join("") + '</ul></div>' : "");
+    };
+    const kJobs = cleanKarteJobs(k.jobs);
+    body.innerHTML = (kJobs.length ? jobsBlockHtml(kJobs)
+                                   : (workPts.length ? itemsBlockHtml() : block("作業", k.work)) + partsBlock(k.parts)) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
       noteBlock("メモ", k.note);   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
     card.append(head, body);
+    // 古い記録(作業と部品が別々のまま)は、ボタン1つで作業ごとにまとめ直せるようにする
+    if (!kJobs.length && k.work && k.parts && canEditKarte(k)) {
+      const tidy = document.createElement("button");
+      tidy.type = "button"; tidy.className = "kTidy";
+      tidy.textContent = "🧩 作業ごとにまとめ直す";
+      tidy.title = "どの作業でどの部品を使ったかをメカ君が対応付けます";
+      tidy.addEventListener("click", async () => {
+        setBtnLoading(tidy, true, "メカ君が整理中…");
+        const sorted = await karteAiSortFields({
+          date: k.date || "", odo: k.odo != null ? String(k.odo) : "", work: k.work || "", parts: k.parts || "",
+          cost: k.cost != null ? String(k.cost) : "", staff: k.staff || "", note: k.note || "" });
+        const jobs = cleanKarteJobs(sorted.jobs);
+        setBtnLoading(tidy, false);
+        if (!jobs.length) { uiAlert("作業と部品の対応が読み取れませんでした。\n（どの作業の部品か判断できない時は、無理に結び付けません）"); return; }
+        await saveKarteSmart(Object.assign({}, k, { work: sorted.work || k.work, parts: sorted.parts || k.parts, jobs: jobs, at: new Date().toISOString() }));
+        renderKarte();
+      });
+      body.appendChild(tidy);
+    }
     return card;
 }
 /* カード内でその場編集(別フォームに飛ばず直接編集) */
@@ -2902,7 +2976,9 @@ function editKarteInline(card, k) {
     const work = dWork.value.trim() || g.items.map(it => it.n).join("、"), parts = dParts.value.trim(), note = dNote.value.trim();
     if (!work && !parts && !note) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
     setBtnLoading(save, true);
-    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, items: g.items, rate: g.rate, at: new Date().toISOString() });
+    // 作業・部品の文字を書き換えたら、作業ごとの対応付け(jobs)は捨てる(表示と中身が食い違うより従来表示が安全)
+    const keepJobs = (work === (k.work || "") && parts === (k.parts || "")) ? cleanKarteJobs(k.jobs) : [];
+    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, items: g.items, rate: g.rate, jobs: keepJobs, at: new Date().toISOString() });
     renderKarte();
   });
   cancel.addEventListener("click", renderKarte);
@@ -2921,6 +2997,7 @@ function openKarteForm(edit) {
   $("kStaff").value = (edit && edit.staff) || (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
   $("kNote").value = (edit && edit.note) || "";
   karteEditId = edit ? edit.id : null;
+  karteFormJobs = edit ? cleanKarteJobs(edit.jobs) : [];   // 作業ごとの対応付け(保存時に引き継ぐ)
   kFormItems = buildItemsEditor($("kItemsBox"), edit && edit.items, { rate: edit && edit.rate, workText: () => $("kWork").value });
   toggle("karteForm", true);
   autoGrowAll();   // 内容に合わせて入力欄の高さを調整
@@ -2932,6 +3009,7 @@ function autoGrowAll() { document.querySelectorAll(".kGrow").forEach(autoGrow); 
 document.addEventListener("input", e => { if (e.target && e.target.classList && e.target.classList.contains("kGrow")) autoGrow(e.target); });
 let karteEditId = null;
 let kFormItems = null;   // 追加フォームの作業点数エディタ {get,set}
+let karteFormJobs = [];  // 追加フォームの「作業ごとに使った部品」の対応付け(写真読み取り/編集から引き継ぐ)
 $("btnKarteAdd") && $("btnKarteAdd").addEventListener("click", () => openKarteForm(null));
 $("btnKarteCancel") && $("btnKarteCancel").addEventListener("click", () => { stopFieldMic(); toggle("karteForm", false); });
 $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
@@ -2947,7 +3025,9 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   if (st) st.textContent = "";   // 整理中の表示は保存ボタン側の1つだけ(メカ君が二重に出ないように)
   const fields = readKarteFields();
   // 写真読み取りでメカ君が仕分けた内容を変更せずに保存する時は、もう一度AIに整理させない(待ち時間ゼロ)
-  const sorted = (karteOcrSnapshot && karteOcrSnapshot === JSON.stringify(fields)) ? Object.assign({}, fields) : await karteAiSortFields(fields);
+  const sorted = (karteOcrSnapshot && karteOcrSnapshot === JSON.stringify(fields))
+    ? Object.assign({}, fields, { jobs: karteFormJobs })          // 写真読み取りのまま=メカ君の対応付けをそのまま使う
+    : await karteAiSortFields(fields);                            // 手で直した=もう一度対応付けし直す
   karteOcrSnapshot = null;
   if (st) st.textContent = "";
   const entry = {
@@ -2955,12 +3035,21 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
     date: sorted.date || "", odo: sorted.odo ? Number(sorted.odo) : null,
     work: sorted.work || "", parts: sorted.parts || "", cost: sorted.cost ? Number(sorted.cost) : null,
     staff: sorted.staff || "", note: sorted.note || "",
-    items: pts.items, rate: pts.rate,
+    items: pts.items, rate: pts.rate, jobs: cleanKarteJobs(sorted.jobs),
     at: new Date().toISOString(),
   };
   if (!entry.work && pts.items.length) entry.work = pts.items.map(it => it.n).join("、");
   saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); const fold = $("karteFold"); if (fold) fold.open = true; renderKarte(); });
 });
+
+/* 「どの作業で、どの部品を使ったか」の対応付け(jobs)の指示。写真読み取り・保存時整理で共用。
+   紙の書き方から読み取れる分だけ。分からない物を無理に結び付けると、現場では嘘の記録になる。 */
+const KARTE_JOBS_RULE =
+  "【作業と部品の対応 jobs】紙の書き方(同じ行・同じ囲み・並び順)から『どの作業で、どの部品を使ったか』が読み取れる場合は jobs にまとめる。" +
+  "jobs は [{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}] の配列。work に挙げた作業は、部品が無くても必ず1件ずつ入れる(wだけでpは空配列)。" +
+  "どの作業の分か紙から判断できない部品、および特定の作業に紐づかない共通の物(車検キット・ウエス・ケミカル類など)は、最後に w を空文字 \"\" にしたまとまりへまとめて入れる。対応を推測で決めない(当てずっぽうで結び付けるくらいなら w:\"\" に入れる)。" +
+  "部品はparts欄に書いたものを漏れなく、重複なく、jobsにも入れること。nは部品名のみ、qは数量のみ(『35L』『2』等)に分ける。" +
+  "同じ部品名が複数回出てくる場合は、その部位(デフ/ミッション/ミキサー/フロント/リヤ等)が紙に書かれているときに限り、部品名の後ろに括弧で添える(例: ギアオイル#90（デフ）)。書かれていない部位を推測で付けない。";
 
 /* AIで整理(自動): 人それぞれの書き方(1欄に全部書く/略字/箇条書き等)をAIが判読し、
    作業・部品・費用・担当・日付・走行・メモの各項目に仕分けして整形する。
@@ -2983,14 +3072,15 @@ async function karteAiSortFields(cur) {
     "略号の展開(書かれていれば正式名に。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキフルード, M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, BATT=バッテリー, プラグ=スパークプラグ, O/H=オーバーホール, 脱着=取り外し・取り付け。",
     "振り分け方: work=実施した作業・点検内容, parts=交換した部品・使用材料(品番があれば含む・数量はそのまま), cost=合計金額の数値のみ, staff=担当者/記入者名, note=次回への申し送り・気づき・不具合等の特記。走行距離は数値(km)に統一。日付は西暦YYYY-MM-DD(『R7.6.1』等も変換、年が無ければ空)。金額は¥/円/カンマを除く数値のみ。",
     "【厳守】書かれていない情報を勝手に補完・推測・追加しない(メーカー名・銘柄・品番・数量・単位はメモに無ければ足さない)。元の言葉をできるだけそのまま活かし、仕分けと軽い整形(重複の統合・改行整理)だけ行う。メモは箇条書き記号(・)を付けず、素の文/改行で。",
+    KARTE_JOBS_RULE,
     "該当する内容が無い項目は空文字/null。出力は厳密なJSONのみ(コードフェンス・説明不要)。数字は半角。",
-    "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\"}",
+    "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
   ].join("\n");
   try {
     const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 4096, thinkingBudget: 256, noCache: true });   // 仕分けだけなので思考は最小限で速く
     const obj = extractJson(r.text);
     if (!obj) return Object.assign({}, cur);
-    return {
+    const out = {
       date: obj.date ? String(obj.date).trim() : cur.date,
       odo: (obj.odo != null && obj.odo !== "") ? String(obj.odo).replace(/[^\d]/g, "") : cur.odo,
       work: obj.work != null ? String(obj.work).trim() : cur.work,
@@ -2998,8 +3088,13 @@ async function karteAiSortFields(cur) {
       cost: (obj.cost != null && obj.cost !== "") ? String(obj.cost).replace(/[^\d]/g, "") : cur.cost,
       staff: obj.staff ? String(obj.staff).trim() : cur.staff,
       note: obj.note != null ? String(obj.note).trim() : cur.note,
+      jobs: [],
     };
-  } catch (e) { return Object.assign({}, cur); }   // 失敗しても保存は止めない
+    // 作業ごとの対応付けは、作業・部品が1件も減っていない時だけ採用し、採用したら文字列側もそれに揃える
+    const jobs = cleanKarteJobs(obj.jobs);
+    if (jobsCoverOk(jobs, out.work, out.parts)) { out.jobs = jobs; out.work = jobsWorkText(jobs) || out.work; out.parts = jobsPartsText(jobs) || out.parts; }
+    return out;
+  } catch (e) { return Object.assign({}, cur, { jobs: [] }); }   // 失敗しても保存は止めない
 }
 /* 写真から自動入力: 作業伝票/メモ等の画像をAI(マルチモーダル)で解析し各項目に下書き */
 /* カルテ入力欄の現在値(保存と「写真読み取り直後から変更なしか」の比較で同じ形を使う) */
@@ -3187,9 +3282,10 @@ async function runKartePhotoOCR() {
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
       "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
       "【最重要・厳守】メモに書かれていない情報を勝手に補完・推測・追加しないこと。特にメーカー名・銘柄・商品名・品番・数量・単位は、メモに明記されていない限り一切足さない(例: 『オイル 3.7L』とだけあれば、そのまま『オイル 3.7L』とし、メーカー名や『エンジンオイル』等の語を付け足さない)。あくまで書かれた文字をそのまま転記する。",
+      KARTE_JOBS_RULE,
       "【作業点数 items】紙に作業ごとの点数(『点』『pt』の付いた数値や点数欄の数字)が書かれている場合に限り、その作業を items に1件ずつ入れる(n=作業名、p=書かれていた点数)。点数が書かれていない作業は p を null にする。点数を推測・計算・補完して付けてはいけない(読めた数字だけ)。紙に点数が1つも書かれていなければ items は空配列 [] にする。",
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
-      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null}]}",
+      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null}],\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
     ].join("\n");
     // 蓄積した圧縮済み写真をまとめて送信。思考は上限付きで速く(無制限だと数十秒かかっていた)。
     // 混雑や時間切れは1回だけ自動で試し直す(そのたびに写真を選び直させない)
@@ -3209,6 +3305,10 @@ async function runKartePhotoOCR() {
     openKarteForm(null);   // フォームを開いてから流し込む(当日日付・担当者を初期化した上で上書き)
     if (obj.date) $("kDate").value = String(obj.date).trim();
     if (obj.odo != null && obj.odo !== "") $("kOdo").value = String(obj.odo).replace(/[^\d]/g, "");
+    // 作業ごとの対応付け。採用できた時は作業・部品の文字もそれに揃える(カードの表示と中身を食い違わせない)
+    karteFormJobs = cleanKarteJobs(obj.jobs);
+    if (!jobsCoverOk(karteFormJobs, obj.work, obj.parts)) karteFormJobs = [];
+    if (karteFormJobs.length) { obj.work = jobsWorkText(karteFormJobs) || obj.work; obj.parts = jobsPartsText(karteFormJobs) || obj.parts; }
     if (obj.work) $("kWork").value = String(obj.work).trim();
     if (obj.parts) $("kParts").value = String(obj.parts).trim();
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
@@ -9701,7 +9801,7 @@ const SUPPORT_KB = [
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
-  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
+  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(担当ごとの色。ホームの入庫状況と車両カードで操作)を管理。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫管理だけの画面になりスキャン/AIは非表示。事務用の画面は1台ずつの一覧で、区分(すべて/車検/点検/修理/板金)で絞り込め、行はナンバー下4桁＋使用者名。行をタップで申し送りコメント、担当の設定、費用の状態の切替ができる。進捗(入庫→作業中→完了→引渡待)は整備士が更新するので事務用では表示のみ。出庫も事務用には出さない(ホームの入庫状況で横スワイプ)。メイン画面に移るときはログアウトしてログインし直す。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
