@@ -1117,7 +1117,53 @@ ${SNS_HUMAN}`;
     "muted earthy khaki & orange, retro Showa mood",
     "clean navy & bright cyan accent, trustworthy tech feel",
     "soft cream & sage green, gentle and friendly",
+    "monochrome steel grey with one red accent only",
+    "sunset orange & dusty purple, end-of-day workshop light",
+    "ink black & paper white, high-contrast print feel",
+    "pale ice blue & frosted white, cold early-morning air",
+    "olive drab & brass, heavy-machinery industrial",
   ];
+  /* 直近に使ったものを避けて選ぶ。
+     ★以前は毎回ただランダムに引いていたので、前回と同じ画風・配色を続けて引けた。
+     記事を続けて作ると「また同じ絵」に見える原因のひとつだった。 */
+  function pickFresh(list, key, keep) {
+    let used = [];
+    try { used = JSON.parse(localStorage.getItem(key) || "[]") || []; } catch (e) { used = []; }
+    const fresh = list.filter((v) => used.indexOf(v) < 0);
+    const v = pick(fresh.length ? fresh : list);
+    try { localStorage.setItem(key, JSON.stringify([v].concat(used).slice(0, keep || 3))); } catch (e) {}
+    return v;
+  }
+  /* 見出し画像の「役割(構図)」。1記事の中で同じ役割を2回出さないよう、混ぜて順に配る。
+     ★画風と配色は記事内で揃える(1記事＝1シリーズに見せる)。これは残す。
+       ただし構図まで揃えると6枚が同じ絵に見えるので、構図はここで変える。
+     people:false の回は人を出さない → サーバ側が人物用の画角を足さなくなる。 */
+  const SECTION_ROLES = [
+    { people: false, c: "Extreme macro of the single key part or tool this section is about, filling the frame, shallow depth of field." },
+    { people: true, c: "A candid working moment: the hands and the job fill the foreground, the person only half in frame." },
+    { people: false, c: "Flat lay straight down onto the workbench: the relevant parts and tools arranged in neat rows." },
+    { people: false, c: "Wide establishing view of the workshop space itself, the car on the lift, deep perspective, nobody in the frame." },
+    { people: false, c: "Technical cutaway or exploded view of the mechanism, showing how the pieces fit together." },
+    { people: false, c: "Two states side by side in one frame for contrast: before and after, worn and new, same angle and light." },
+    { people: true, c: "Two people mid-conversation across a service counter or over a car, seen from the side, neither looking at the camera." },
+    { people: false, c: "A visual metaphor for the idea in the heading (time, a pile of paperwork, tangled cables, a closed shutter) built out of workshop materials." },
+    { people: false, c: "Interior view from the driver seat: the dashboard, the windscreen, the lamp or gauge that matters here." },
+    { people: false, c: "Night workshop: one hard work lamp, the subject lit sharply against deep shadow." },
+    { people: true, c: "Seen from behind: a figure at the open shutter looking out at the yard, the workshop dark around them." },
+  ];
+  // 配列を混ぜて先頭から配る(同じ記事で重複しない)
+  function shuffled(a) {
+    const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = b[i]; b[i] = b[j]; b[j] = t; }
+    return b;
+  }
+  /* その見出しの絵に人が出るか。場面の説明(英語)と、見出し・本文(日本語)の両方から判断する。
+     ★試作で、人が主題の見出しに「工具の俯瞰・人なし」の構図を配ってしまい、
+       工具の奥に整備士が立つ妙な絵になった。場面に合う側の山から配るための判定。 */
+  const PERSON_EN = /\b(mechanic|technician|apprentice|worker|staff|customer|owner|manager|colleague|person|people|woman|women|man|men|she|he|they|hands?|crew|team)\b/i;
+  const PERSON_JA = /整備士|職人|社員|従業員|スタッフ|お客|顧客|若手|新人|先輩|後輩|社長|店長|人手|採用|育成|チーム|二人|会話|接客/;
+  const sceneHasPeople = (scene, head, body) =>
+    PERSON_EN.test(String(scene || "")) || PERSON_JA.test(String(head || "") + String(body || "").slice(0, 400));
   // 媒体ごとの推奨アスペクト比(画像生成の指示に使う)
   const IMG_ASPECT = {
     x: "16:9 horizontal (landscape, about 1200x675px)",
@@ -1308,8 +1354,14 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
       let okCount = 0, ngCount = 0, firstErr = "";
       $("snsSectWrap").innerHTML = "";
       // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
-      const style = pick(IMG_STYLES);
-      const palette = pick(IMG_PALETTES);
+      //   ただし直近に使ったものは避ける(記事を続けて作った時に同じ絵柄にならないように)。
+      const style = pickFresh(IMG_STYLES, "ss_imgStyleUsed", 4);
+      const palette = pickFresh(IMG_PALETTES, "ss_imgPaletteUsed", 4);
+      // 構図は見出しごとに変える。人あり用・人なし用の2つの山を記事ごとに混ぜ、
+      // 場面に合う側から順に配る(同じ山の中では重複しない)。
+      const deckP = shuffled(SECTION_ROLES.filter((r) => r.people));
+      const deckO = shuffled(SECTION_ROLES.filter((r) => !r.people));
+      let nP = 0, nO = 0;
       let sectionModel = "";   // 最初に成功したモデルをこの記事の全見出しで固定(モデル違いによるタッチの不一致を防ぐ)
       const artDirection = `ART DIRECTION (keep IDENTICAL across every section image of this article, so they read as one consistent set):
 - Visual style: ${style}.
@@ -1324,13 +1376,22 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
         const subject = scene
           ? `DEPICT EXACTLY THIS SCENE (it matches the heading — do not substitute):\n${scene}`
           : `Depict the concrete subject this section is about (the specific part, tool, car system or situation named in the heading "${secs[i].head}"), not a generic scene.`;
-        const prompt = `Create a clean, editorial section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${product === "pocket" ? "for individual mechanics" : "for repair shops"}).
+        // この見出しの構図。場面に人が出るならそちらの山から配る。
+        // 人を出す回だけ人物ルールを付け、出さない回は「NO PEOPLE」を宣言する
+        // (サーバ側はこの2つを見て、人物用の画角を足すかどうかを切り替える)。
+        const wantP = sceneHasPeople(scene, secs[i].head, secs[i].body);
+        const role = wantP ? deckP[nP++ % deckP.length] : deckO[nO++ % deckO.length];
+        const peopleLine = role.people ? PEOPLE_RULE
+          : "NO PEOPLE: this one is a still image of the object and the space. The frame is empty of human figures (hands may appear only if the composition above calls for them).";
+        const prompt = `Create a section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${product === "pocket" ? "for individual mechanics" : "for repair shops"}).
 This image illustrates the section titled: "${secs[i].head}".
 ${subject}
-Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame. Tasteful, magazine-like.
+COMPOSITION (frame it this way; if it clashes with the scene above, the scene wins): ${role.c}
+Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame.
+If any printed page, screen, label or sign appears, keep it out of focus, cropped at the edge, or at a steep angle so that no lettering is legible.
 ${artDirection}
 Do NOT default to a smartphone/phone screen — include one only if the section is specifically about using a phone/app.
-${PEOPLE_RULE}
+${peopleLine}
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image only.`;
         const card = document.createElement("div");
         card.className = "secImgCard";

@@ -2498,7 +2498,7 @@ const CF_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
    ★以前は固定の一文(「斜め後ろから・手元を見つめる」)を必ず足していたため、
      どの記事でも同じ『紺のツナギの女性のバストショット』ばかりになっていた。
    ★どれも顔を画面の上端ぎりぎりに置かない画角にしてある(16:9へ切り抜く時の頭切れ防止)。 */
-const SHOT_VARIANTS = [
+const SHOT_VARIANTS_PEOPLE = [
   "Wide establishing shot of the whole workshop bay; the mechanic is small in the frame and the machinery and space dominate.",
   "Over-the-shoulder view from behind her, looking past her shoulder at the part in her hands.",
   "Low angle from below, looking up at her as she works on the underside of a car on the lift.",
@@ -2512,14 +2512,37 @@ const SHOT_VARIANTS = [
   "Waist-up shot from a low three-quarter angle, the open engine bay filling the foreground.",
   "Over the roof of the car, looking across at her on the far side of the vehicle.",
 ];
-const pickShot = () => SHOT_VARIANTS[Math.floor(Math.random() * SHOT_VARIANTS.length)];
+/* 人が写らない絵の画角。部品・工具・工場そのものが主役の回に使う。
+   ★これが無かったせいで、題材が何であれ上の人物用画角が必ず足され、
+     どの記事も「工場にいる女性整備士」ばかりになっていた。 */
+const SHOT_VARIANTS_OBJECT = [
+  "Extreme macro of the part itself filling the frame, shallow depth of field.",
+  "Flat lay seen straight down: tools and parts laid out in neat rows on the workbench.",
+  "Wide empty workshop at dawn, long shadows across the floor, the car alone on the lift.",
+  "Exploded view: the component separated into its pieces, floating in order against a plain backdrop.",
+  "Cutaway cross-section of the mechanism showing the inside, technical-illustration feel.",
+  "Tight detail of a dashboard warning lamp glowing in a dark cabin.",
+  "The part clamped in a vice under one hard work lamp, dramatic side light, deep shadow.",
+  "Two states side by side in one frame: worn and new, same angle, same light.",
+  "Seen through the windscreen from outside, reflections across the glass.",
+  "From the floor looking up at the underside of the car on the lift.",
+];
+// withPeople===false なら人の写らない画角を返す
+const pickShot = (withPeople) => {
+  const a = withPeople === false ? SHOT_VARIANTS_OBJECT : SHOT_VARIANTS_PEOPLE;
+  return a[Math.floor(Math.random() * a.length)];
+};
+// 呼び出し側が構図を指定してきたか / 人を出さない指定か
+const askedComposition = (s) => ((String(s || "").match(/COMPOSITION[^\n:]*:\s*([^\n]+)/) || [])[1] || "").trim();
+const askedNoPeople = (s) => /NO PEOPLE/i.test(String(s || ""));
 /* 要約で落ちてはいけない条件を、要約後のプロンプトに必ず書き戻す。
    要約は無料Geminiに任せるため、主役の性別や「文字を入れない」が消えることがある(実際に消えた)。
    ※人物が出ない絵(部品だけ等)もあるので、性別は「人が写る場合は」という条件付きで足す。 */
 function keepHardRules(fluxPrompt, original, shot) {
   let p = String(fluxPrompt || "").trim();
   const orig = String(original || "");
-  if (/must be FEMALE|PEOPLE \(MANDATORY\)/i.test(orig) && !/\b(woman|women|female|she|her)\b/i.test(p)) {
+  const noPeople = askedNoPeople(orig);
+  if (!noPeople && /must be FEMALE|PEOPLE \(MANDATORY\)/i.test(orig) && !/\b(woman|women|female|she|her)\b/i.test(p)) {
     p += " If any person appears, the main character must be a woman: a real, capable female mechanic in work clothes, never sexualized.";
   }
   if (/Do NOT render any text|no text/i.test(orig) && !/no text|without text/i.test(p)) {
@@ -2528,6 +2551,13 @@ function keepHardRules(fluxPrompt, original, shot) {
   // 人物が写る絵は、記念写真のようなカメラ目線ではなく「仕事中の自然な一瞬」にする。
   //  ※拡散モデルは否定形(not looking at the camera)をほぼ無視するので、
   //    視線の行き先を肯定形で書く。画角は毎回違うものを選んで構図のマンネリを防ぐ。
+  if (noPeople) {
+    // 否定形は拡散モデルに効きにくいので、肯定形(主役は物)を先に書いてから念のため添える
+    if (!/no (?:people|human|person|figures)/i.test(p)) {
+      p += " The subject is the object and the space itself; the frame is empty of people.";
+    }
+    return p.slice(0, 2000);
+  }
   if (/\b(woman|women|female|man|men|male|mechanic|person|people|customer|staff)\b/i.test(p)) {
     if (!/over-the-shoulder|from behind|high angle|low angle|close-up|silhouette|reflected|establishing/i.test(p)) {
       p += " " + (shot || pickShot());
@@ -2539,7 +2569,9 @@ function keepHardRules(fluxPrompt, original, shot) {
 }
 async function toFluxPrompt(promptText, aspectRatio) {
   const freeKeys = cfg().geminiFree || [];
-  const shot = pickShot();   // 今回の画角(毎回変える)。要約にも渡し、失敗時の書き戻しにも使う
+  // 画角: 呼び出し側の指定を最優先。無ければ、人を出す絵か物の絵かで選び分ける。
+  // ★以前は常に人物用から選んでいたため、題材に関係なく人物画に寄っていた。
+  const shot = askedComposition(promptText) || pickShot(!askedNoPeople(promptText));
   const fallback = keepHardRules(String(promptText || "").slice(0, 1800), promptText, shot);
   if (!freeKeys.length) return fallback;
   const ask = [
@@ -2603,7 +2635,7 @@ async function genImage(promptText, aspectRatio, preferredModel) {   // eslint-d
       });
     } catch (e) { lastErr = "network"; continue; }
     if (r.status === 429) {   // 1日の無料枠(Neurons)切れ。翌日リセットまで待つしかないので即座に伝える
-      throw new Error("画像生成の1日の無料枠に達しました(Cloudflare)。日付が変わるとリセットされます。");
+      throw new Error("画像生成の1日の無料枠(Cloudflare 10,000ニューロン)を使い切りました。毎日 朝9時(日本時間)にリセットされます。");
     }
     if (r.status === 401 || r.status === 403) {
       throw new Error("画像生成の認証に失敗しました(" + r.status + ")。CF_AI_TOKEN の権限(Workers AI の実行)をご確認ください。");
