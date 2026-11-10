@@ -320,10 +320,17 @@
 
   <section id="secRecall" class="hidden">
     <h2><span class="tag al">RECALL</span>リコール・改善対策の確認</h2>
+    <!-- 国交省の届出を型式で自動照合(利用者の入力は不要)。
+         取得できない時はこのまとまりごと隠れ、下の外部リンクが従来どおり残る -->
+    <div id="recallMlitWrap" class="hidden">
+      <div id="recallMlitStat" class="hint" style="margin:0 0 8px"></div>
+      <div id="recallMlit"></div>
+      <div id="recallMlitSrc" class="hint hidden" style="margin:8px 0 12px"></div>
+    </div>
     <ul class="flat" id="recallList" style="margin:0 0 10px"></ul>
     <div id="recallNote" class="hint hidden" style="margin:0 0 10px">※ AIの参考情報です。下記の公式ページで車台番号により対象を確認してください。</div>
     <div id="recallVin" style="margin:0 0 10px"></div>
-    <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>車台番号・型式で検索（公式）</small><span class="arr">↗</span></a>
+    <a class="linkbtn" id="lnkMlit" href="https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" target="_blank" rel="noopener">国土交通省 リコール情報検索<small>型式で検索（公式）※車台番号での検索は不可</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkMaker" href="#" target="_blank" rel="noopener">メーカーのリコール検索ページ<small id="lnkMakerSub">車台番号入力で対象確認</small><span class="arr">↗</span></a>
     <a class="linkbtn" id="lnkGoogle" href="#" target="_blank" rel="noopener">「型式＋リコール」でWeb検索<small>最新の届出をまとめて確認</small><span class="arr">↗</span></a>
   </section>

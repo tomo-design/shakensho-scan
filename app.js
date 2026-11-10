@@ -3776,6 +3776,8 @@ async function resolveKatashiki(type, vin) {
 }
 function renderRecallVin(type, vin) {
   const box = $("recallVin"); box.innerHTML = "";
+  // 別の車両に切り替わったので、前の車のリコール表示は消し、取得中の応答も無効にする
+  toggle("recallMlitWrap", false); mlitSeq++;
   if (!vin && !type) return;
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
   head.textContent = "型式・車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
@@ -3799,7 +3801,166 @@ function renderRecallVin(type, vin) {
   cols.appendChild(kataCol.col);
   if (vin) cols.appendChild(mkCol("車台番号", vin).col);
   box.appendChild(cols);
-  if (vin) resolveKatashiki(type, vin).then(k => { if (k) kataCol.code.textContent = k; });
+  // 型式が確定した時点で、その型式で国交省の届出を照合する(利用者の入力は不要)
+  if (vin) resolveKatashiki(type, vin).then(k => { if (k) { kataCol.code.textContent = k; loadMlitRecalls(k, vin); } });
+  else if (kataInit && kataInit.indexOf("-") >= 0) loadMlitRecalls(kataInit, vin);
+}
+
+/* ===== 国土交通省のリコール届出を自動で照合する =====
+   車検証から拾った型式でそのまま引くので、利用者は何も入力しない。
+   ・取得はサーバー(recallLookup)経由。ブラウザから国交省を直接叩くとCORSで弾かれるのと、
+     型式ごとに7日キャッシュして先方へのアクセスを週1回程度に抑えるため。
+   ・車台番号が対象範囲に入っているかの判定は、この端末の中だけで行う。
+     サーバーへ車台番号を送る必要が無いので送らない。
+   ・国交省のコンテンツは公共データ利用規約(PDL1.0)で出典の表示が要る。
+     抽出・整形して出しているので、出典とあわせて「当アプリで抽出した」旨も出す。 */
+let mlitSeq = 0;          // 車両を切り替えた時に、古い応答で画面を上書きしないための通し番号
+const mlitMem = {};       // 同じ型式を開き直した時に取りに行かない(画面内のキャッシュ)
+
+/* "LA150S-0168836" を 接頭辞 と 連番 に割る。最後のハイフンで割る。 */
+function splitChassis(s) {
+  const t = String(s || "").toUpperCase()
+    .replace(/[‐‑‒–—―ー−]/g, "-").replace(/\s+/g, "");
+  const i = t.lastIndexOf("-");
+  if (i <= 0 || i === t.length - 1) return null;
+  return { pre: t.slice(0, i), num: t.slice(i + 1) };
+}
+/* 1つの範囲に入っているか。"in"(範囲内)/"out"(範囲外)/"unknown"(判定できない)。
+   ★終わりの番号が空の届出が実在する。そこを「以降すべて対象」と勝手に広げると
+     対象でない車を対象と言ってしまうので、判定できない扱いにする。 */
+function chassisInRange(vin, from, to) {
+  const v = splitChassis(vin), a = splitChassis(from), b = splitChassis(to);
+  if (!v || !a || !b) return "unknown";
+  if (v.pre !== a.pre || v.pre !== b.pre) return "unknown";          // 系列が違う範囲は判定材料にしない
+  if (!/^\d+$/.test(v.num) || !/^\d+$/.test(a.num) || !/^\d+$/.test(b.num)) return "unknown";
+  const n = Number(v.num);
+  return (n >= Number(a.num) && n <= Number(b.num)) ? "in" : "out";
+}
+/* 届出1件ぶんの判定。1つでも範囲内なら範囲内。判定できない範囲が混ざれば「要確認」。 */
+function judgeRecall(vin, item) {
+  if (!vin) return "unknown";
+  let seen = false, unknown = false;
+  for (const m of (item.models || [])) {
+    for (const r of (m.ranges || [])) {
+      seen = true;
+      const h = chassisInRange(vin, r.from, r.to);
+      if (h === "in") return "in";
+      if (h === "unknown") unknown = true;
+    }
+  }
+  return (!seen || unknown) ? "unknown" : "out";
+}
+
+/* 取得して描画する。失敗しても下の外部リンクは残るので、画面は壊れない。 */
+async function loadMlitRecalls(kata, vin) {
+  const wrap = $("recallMlit"), stat = $("recallMlitStat");
+  if (!wrap || !stat) return;
+  const key = String(kata || "").toUpperCase().replace(/\s+/g, "");
+  const seq = ++mlitSeq;
+  if (!key || !window.Cloud || !window.Cloud.callFn) { toggle("recallMlitWrap", false); return; }
+  toggle("recallMlitWrap", true);
+  toggle("recallMlitSrc", false);
+  wrap.innerHTML = "";
+  stat.textContent = "国土交通省のリコール届出を照合中…（" + key + "）";
+  let data = mlitMem[key];
+  if (!data) {
+    try {
+      data = await window.Cloud.callFn("recallLookup", { kata: key });
+      mlitMem[key] = data;
+    } catch (e) {
+      if (seq !== mlitSeq) return;
+      stat.textContent = "⚠ 国土交通省の照合ができませんでした（" + (e.message || e) + "）。下のリンクからご確認ください。";
+      return;
+    }
+  }
+  if (seq !== mlitSeq) return;        // 別の車両に切り替わっていたら、この結果は捨てる
+  paintMlitRecalls(data, vin);
+}
+
+/* 判定の見た目。範囲内=注意色、範囲外=安心色、要確認=色なし */
+const MLIT_JUDGE = {
+  in: { cls: "badge warn", t: "範囲内" },   // 長くすると狭い画面で開閉マークが次の行に落ちる
+  out: { cls: "badge ok", t: "範囲外" },
+  unknown: { cls: "badge gray", t: "要確認" },
+};
+
+function paintMlitRecalls(data, vin) {
+  const wrap = $("recallMlit"), stat = $("recallMlitStat");
+  wrap.innerHTML = "";
+  const items = (data && data.items) || [];
+  const kata = (data && data.kata) || "";
+  if (!items.length) {
+    stat.textContent = "✓ 国土交通省の届出に、この型式（" + kata + "）のリコールは見つかりませんでした。";
+    toggle("recallMlitSrc", true);
+    paintMlitSrc(data);
+    return;
+  }
+  let hits = 0;
+  for (const it of items) {
+    const j = judgeRecall(vin, it);
+    if (j === "in") hits++;
+    const d = document.createElement("details"); d.className = "rcItem";
+    const s = document.createElement("summary");
+    const dt = document.createElement("span"); dt.className = "rcDate"; dt.textContent = it.date || "";
+    const dv = document.createElement("span"); dv.className = "rcDev";
+    dv.textContent = (it.kind && it.kind !== "リコール" ? "[" + it.kind + "] " : "") + (it.device || "");
+    const bg = document.createElement("span"); const jj = MLIT_JUDGE[j] || MLIT_JUDGE.unknown;
+    bg.className = jj.cls; bg.textContent = jj.t;
+    s.appendChild(dt); s.appendChild(dv); s.appendChild(bg);
+    d.appendChild(s);
+
+    const b = document.createElement("div"); b.className = "rcBody";
+    const row = (label, text, cls) => {
+      if (!text) return;
+      const l = document.createElement("div"); l.className = "rcLbl"; l.textContent = label;
+      const v = document.createElement("div"); if (cls) v.className = cls; v.textContent = text;
+      b.appendChild(l); b.appendChild(v);
+    };
+    row("不具合の内容", it.situation);
+    row("改善措置", it.measures);
+    for (const m of (it.models || [])) {
+      const label = "対象の車台番号（" + m.name + (m.common ? "／" + m.common : "") + "）";
+      const txt = (m.ranges || []).map((r) => r.from + " 〜 " + (r.to || "（終わりの記載なし）")).join("\n") || "（記載なし）";
+      row(label, txt, "rcRange");
+    }
+    if (it.cars) row("対象台数", Number(it.cars).toLocaleString("ja-JP") + " 台");
+    if (it.no || it.pdf) {
+      const f = document.createElement("div"); f.className = "rcFoot";
+      if (it.no) { const n = document.createElement("span"); n.className = "rcNo"; n.textContent = "届出番号 " + it.no; f.appendChild(n); }
+      if (it.pdf) {
+        const a = document.createElement("a"); a.className = "rcPdf"; a.href = it.pdf;
+        a.target = "_blank"; a.rel = "noopener"; a.textContent = "📄 届出書(PDF) ↗";
+        f.appendChild(a);
+      }
+      b.appendChild(f);
+    }
+    d.appendChild(b);
+    wrap.appendChild(d);
+  }
+  const head = "国土交通省の届出 " + items.length + " 件"
+    + (data.total > items.length ? "（全" + data.total + "件のうち新しい順）" : "");
+  stat.textContent = (hits ? "🔺 " : "") + head + (vin ? (hits ? " ／ うち " + hits + " 件はお手元の車台番号が対象範囲内です" : " ／ お手元の車台番号が範囲内のものはありません") : "");
+  toggle("recallMlitSrc", true);
+  paintMlitSrc(data);
+}
+
+/* 出典の表示。公共データ利用規約(PDL1.0)で出典の記載が要るうえ、
+   加工して出している場合はその旨も書く必要がある。あわせて国交省自身の注意書きも出す。 */
+function paintMlitSrc(data) {
+  const el = $("recallMlitSrc");
+  if (!el) return;
+  el.innerHTML = "";
+  const note = document.createElement("div");
+  note.textContent = "※ 車台番号が範囲内でも、仕様の違いや実施済みにより対象外のことがあります。最終的な確認はメーカー・販売会社で行ってください。";
+  const src = document.createElement("div");
+  src.appendChild(document.createTextNode("出典："));
+  const a = document.createElement("a");
+  a.href = (data && data.source && data.source.url) || "https://renrakuda.mlit.go.jp/renrakuda/recall-search.html";
+  a.target = "_blank"; a.rel = "noopener";
+  a.textContent = (data && data.source && data.source.name) || "国土交通省 自動車不具合情報ホットライン";
+  src.appendChild(a);
+  src.appendChild(document.createTextNode("（同サイトの情報を型式で抽出して表示しています）"));
+  el.appendChild(note); el.appendChild(src);
 }
 
 /* =========================================================

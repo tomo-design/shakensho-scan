@@ -976,6 +976,141 @@ exports.imageSearch = functions.region(REGION).https.onRequest(async (req, res) 
   return res.json({ items: items });
 });
 
+/* ===================== 国土交通省のリコール届出を型式で照合する =====================
+   車検証から拾った型式だけで引けるようにして、利用者には何も入力させない。
+   ・国交省のリコール情報検索(renrakuda)が内部で使っているデータ取得口を叩く。
+     公式に案内されたAPIではないので、先方の都合で変わりうる。失敗したら画面側は
+     従来どおり外部リンクに落とす(落ちない作りにしておくこと)。
+   ・応答は1回4秒ほど・200KB超あるため、型式ごとにFirestoreへ7日キャッシュする。
+     これで国交省へ出ていくのは型式1つにつき週1回程度に収まる。
+   ・車台番号はサーバーに送らせない。範囲内かどうかの判定はブラウザ側で行う。
+     送る必要が無いうえ、端末の外に出さずに済む。
+   ・国交省のコンテンツは公共データ利用規約(PDL1.0)。出典の表示が要るので、
+     画面には必ず出典とリンクを出すこと(app.js側で出している)。
+   ・先方は「18時〜翌8時頃はデータ更新で繋がりにくい」と告知しているが、
+     キャッシュがあるので通常の利用では影響しない。 */
+const MLIT_RECALL_API = "https://renrakuda.mlit.go.jp/mt/mt-estraier.cgi";
+const MLIT_RECALL_TTL = 7 * 24 * 3600 * 1000;   // 7日
+
+/* 型式の表記ゆれを吸収する。全角→半角、各種ダッシュ→ハイフン、空白除去、大文字化。
+   OCRやユーザー入力で全角やダッシュ違いが混ざるため、照合前に必ず通す。 */
+function normKata(s) {
+  return String(s || "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[‐‑‒–—―ー−]/g, "-")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}
+/* 排ガス記号(ハイフンより前)を落とした部分。DBA-LA150S → LA150S。
+   車検証の読み取りで排ガス記号が欠けることがあるので、照合はこの部分で行う。
+   国交省側も排ガス記号なしで引ける(LA150S と DBA-LA150S で同じ結果)。 */
+const kataCore = (s) => normKata(s).split("-").pop();
+
+/* 国交省の応答は前後にHTMLの空白が付き、配列の末尾カンマも残っているため、
+   素の JSON.parse では読めない。中括弧の範囲を切り出して末尾カンマを落とす。 */
+function parseMlitJson(text) {
+  const s = String(text);
+  const i = s.indexOf("{"), j = s.lastIndexOf("}");
+  if (i < 0 || j <= i) throw new Error("応答の形式が変わっています");
+  return JSON.parse(s.slice(i, j + 1).replace(/,\s*([}\]])/g, "$1"));
+}
+
+/* 国交省から型式ぶんの届出を取り、画面に出すぶんだけに削る。
+   生の応答は typeList〜typeList60 に全型式(1件の届出で50型式を超えることがある)が
+   入っていて200KBを超えるので、自分の型式ぶんだけ残さないとキャッシュに入らない。 */
+async function mlitRecalls(kata) {
+  const u = new URL(MLIT_RECALL_API);
+  const params = {
+    blog_id: "4", model_name: kata, notification_date: "0000/00/00 9999/12/31",
+    class: "recalldatacar", offset: "1", limit: "20",
+    order_by: "recall_data_car_mlit_notification_date", order_condition: "STRD",
+  };
+  Object.keys(params).forEach((k) => u.searchParams.set(k, params[k]));
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 20000);   // 先方が重い時に関数を巻き込まない
+  let r;
+  try { r = await fetch(u.toString(), { signal: ctl.signal }); }
+  catch (e) { throw new Error(ctl.signal.aborted ? "国土交通省のサーバーが応答しませんでした" : "国土交通省のサーバーに接続できませんでした"); }
+  finally { clearTimeout(timer); }
+  if (!r.ok) throw new Error("国土交通省のサーバーから取得できませんでした(" + r.status + ")");
+  const rows = (parseMlitJson(await r.text()).data) || [];
+  const core = kataCore(kata);
+  const items = rows.map((rec) => {
+    const g = (k) => rec["recall_data_car_mlit_" + k] || "";
+    // 自分の型式の明細だけ拾う(型式ごとに車台番号の範囲が違う)
+    const models = [];
+    Object.keys(rec).forEach((k) => {
+      if (!/^typeList\d*$/.test(k) || !Array.isArray(rec[k])) return;
+      rec[k].forEach((t) => {
+        const name = t.recall_type_data_car_mlit_model_name || "";
+        if (kataCore(name) !== core) return;
+        const ck = Object.keys(t).filter((x) => x.endsWith("chassis_list"))[0];
+        const ranges = ((ck && t[ck]) || []).map((c) => ({
+          from: String(c.mst_chassis_car_mlit_chassis_no_from || "").trim(),
+          to: String(c.mst_chassis_car_mlit_chassis_to_to || "").trim(),
+        })).filter((x) => x.from);
+        models.push({ name: normKata(name), common: String(t.recall_type_data_car_mlit_common_name || ""), ranges: ranges });
+      });
+    });
+    // PDFは file_name に <a href="../recallpdf/1153210.pdf"> の形で入っている。
+    // 実体は /renrakuda/recallpdf/ 配下。../ のまま組み立てると404になるので番号だけ拾う
+    const f = (String(g("file_name")).match(/recallpdf\/([0-9A-Za-z_-]+\.pdf)/i) || [])[1] || "";
+    return {
+      date: String(g("notification_date")),
+      device: String(g("defective_device")),
+      no: String(g("notification_no")),
+      cars: String(g("recall_car_count")),
+      kind: String(g("recall_campaign_flag")) === "1" ? "リコール" : "改善対策等",
+      situation: String(g("situation_explanatory_text")).slice(0, 1200),
+      measures: String(g("measures_explanatory_text")).slice(0, 600),
+      pdf: f ? "https://renrakuda.mlit.go.jp/renrakuda/recallpdf/" + f : "",
+      models: models,
+    };
+  }).filter((x) => x.models.length);   // 自分の型式が入っていない届出は出さない
+  // 総件数は1件目の count に入っている(取得したのは最大20件ぶん)
+  const total = rows.length ? (Number(rows[0].count) || rows.length) : 0;
+  return { items: items, total: total };
+}
+
+/* 型式ごとに7日キャッシュして返す。キャッシュの書き込みに失敗しても結果は返す。 */
+async function recallForKata(db, kata) {
+  const key = normKata(kata);
+  if (!key) return { items: [], total: 0 };
+  const ref = db.collection("recallCache").doc(key.replace(/[^0-9A-Z-]/g, "_"));
+  const now = Date.now();
+  const snap = await ref.get().catch(() => null);
+  if (snap && snap.exists) {
+    const d = snap.data() || {};
+    if (d.fetchedAt && now - d.fetchedAt < MLIT_RECALL_TTL) {
+      return { items: d.items || [], total: d.total || 0, cached: true, at: d.fetchedAt };
+    }
+  }
+  const got = await mlitRecalls(key);
+  await ref.set({ fetchedAt: now, kata: key, total: got.total, items: got.items }).catch(() => {});
+  return { items: got.items, total: got.total, cached: false, at: now };
+}
+
+/* POST {kata} → {kata,total,items,source}。車台番号は受け取らない(ブラウザ側で照合する)。 */
+exports.recallLookup = functions.region(REGION).runWith({ timeoutSeconds: 60, memory: "256MB" }).https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  const uid = await uidFromReq(req);
+  if (!uid) return res.status(401).json({ error: "ログインが必要です。" });
+  const kata = String((req.body && req.body.kata) || "").slice(0, 40);
+  if (!normKata(kata)) return res.status(400).json({ error: "型式がありません。" });
+  try {
+    const out = await recallForKata(admin.firestore(), kata);
+    console.log("[recall] " + normKata(kata) + " hit=" + out.items.length + "/" + out.total + (out.cached ? " (cache)" : " (mlit)"));
+    return res.json({
+      kata: normKata(kata), total: out.total, items: out.items, cached: !!out.cached,
+      source: { name: "国土交通省 自動車不具合情報ホットライン", url: "https://renrakuda.mlit.go.jp/renrakuda/recall-search.html" },
+    });
+  } catch (e) {
+    console.warn("[recall] ng " + normKata(kata) + " " + (e.message || e));
+    return res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
 /* メンバーの一時パスワード発行: POST {targetUid} → {password}。
    代表管理者(admin)は自店舗のメンバーのみ、運営(super)は全員に対して実行可。
    メール配信に依存せず、その場でパスワードを再設定して管理者に知らせる(＝忘れた+メール来ない を解決)。 */

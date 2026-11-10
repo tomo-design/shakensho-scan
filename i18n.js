@@ -183,7 +183,7 @@
     "アプリ紹介用QRコード": "App promo QR code", "メカ君": "Mecha", "OCR対象画像": "OCR target image",
     // ===== リコール =====
     "国土交通省 リコール情報検索": "MLIT recall information search",
-    "車台番号・型式で検索（公式）": "Search by chassis / model (official)",
+    "型式で検索（公式）※車台番号での検索は不可": "Search by model code (official). Chassis number search is not available.",
     "メーカーのリコール検索ページ": "Manufacturer’s recall search page",
     "車台番号入力で対象確認": "Check affected units by chassis number",
     "「型式＋リコール」でWeb検索": "Web search “model + recall”",
