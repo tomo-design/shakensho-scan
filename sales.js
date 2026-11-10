@@ -935,7 +935,13 @@
     long: "じっくり長め(目安800〜1500字)",
   };
   // AIっぽさを徹底的に消すための最重要ルール(SNS専用)。書き手＝実在の整備士本人の"つぶやき"。
+  /* 公開される文章に個人情報を出さないための共通ルール。
+     ★一番危ないのはAIが作る架空の名前ではなく、こちらが渡す文のほう。
+       「テーマ」欄や「自由に直接指示」に実際のお客さんの名前・住所を書くと、
+       そのまま本文に写って公開されてしまう。公開後は取り返しがつかない。 */
+  const NO_PII = "・【個人情報は書かない（厳守）】本文に人名を出さない（実在・架空を問わず）。「田中さん」「山田様」のような姓＋敬称も禁止。人は『60代のお客さん』『常連の運送屋さん』『新人』『工場長』のように役割・属性だけで書く。住所・番地・建物名・店名・電話番号・ナンバープレート・郵便番号も書かない。場所に触れる時は『地方の小さな工場』『雪の多い地域』程度にぼかす。★テーマ欄や直接指示に人名・住所が含まれていても、本文には絶対に写さず、役割・属性に置き換える。";
   const SNS_HUMAN = `【最重要・AIっぽさを消す（これを外すとスルーされる）】書き手は"宣伝担当"ではなく、実在の整備士本人がスマホでポツッとつぶやいた体で書く。営業・PR感を絶対に出さない。
+${NO_PII}
 ・【主人公は女性】メインの主人公(書き手・語り手の整備士本人、会話劇やなりきりの中心人物)は女性として書く。主人公の一人称に『俺』は使わない(『私』『うち』か省略)。『〜だわよ』のような作った女性言葉や女性らしさの誇張はせず、現場のプロの自然な口語で。主人公以外の登場人物(先輩・後輩・工場長・同僚・お客さん等)は男性でも女性でもよい。
 ・使用禁止の言い回し: 「〜しませんか？」「ぜひ」「いかがでしたか」「〜な方も多いのではないでしょうか」「皆さん/みなさん」「私たち」「〜と言えるでしょう」「まとめると」「結論から言うと」「〜な時代です」、【】の見出し記法、絵文字の多用(使うなら0〜1個)、ハッシュタグの乱用(0〜2個まで)、きれいに整いすぎた起承転結、教科書みたいな説明口調、優等生の完璧な締め、抽象的な一般論。
 ・むしろOK: 口語・体言止め・言いさし・ぼやき・ツッコミ・独り言・自虐。文が短くて不揃いでいい。少し崩す。「で、結局〜」「いや〜」みたいな生っぽい入り。
@@ -944,6 +950,68 @@
 ・感情や本音を先に出し、説明は最小限。読み手(整備士)が「わかる」「それなw」と反応する具体性と温度。
 ・宣伝は入れても最後に一言ボソッと。入れない回もあってよい。毎回リズム・語尾・入り方を変える。
 ・お手本の温度感(コピペ禁止・雰囲気だけ・題材は真似しない): 『パッド残1mm。"車検通るならいい"って言われたけど、たぶん半年でキーキー鳴って戻ってくるやつ。知ってる。』 / 『暗電流でバッテリー上がり、昔はテスター当てて配線たどって半日コース。今はだいぶ当たりが早くつくようになった。楽になったわ正直。』`;
+
+  /* ===== 出来上がった本文に個人情報が紛れていないか見る =====
+     完全な判定は無理なので、消すのではなく「見つけて本人に決めてもらう」。
+     ・人名  … 姓＋敬称。姓は実際に多い200ほどに絞る(AIが作る名前はほぼここに入る)。
+              「お客さん」「業者さん」を拾わないよう、姓が付いている時だけ拾う。
+     ・住所  … 都道府県＋市区町村＋番地、郵便番号、丁目番地だけの表記。
+              地名だけ(「奄美は雪降らん」等)は正当な使い方なので拾わない。 */
+  const JP_SURNAMES = "佐藤|鈴木|高橋|田中|伊藤|渡辺|渡邊|山本|中村|小林|加藤|吉田|山田|佐々木|山口|齋藤|斎藤|斉藤|松本|井上|木村|清水|山崎|山﨑|阿部|森|池田|橋本|石川|山下|中島|石井|小川|前田|岡田|長谷川|藤田|後藤|近藤|村上|遠藤|青木|坂本|福田|太田|西村|藤井|金子|岡本|藤原|中野|三浦|原田|松田|竹内|中川|上田|柴田|酒井|工藤|横山|宮崎|宮本|内田|高木|安藤|島田|谷口|大野|高田|丸山|今井|河野|藤本|村田|武田|上野|杉山|増田|小島|小山|大塚|平野|菅原|久保|松井|千葉|岩崎|桜井|木下|野口|松尾|菊地|野村|新井|渡部|小野|林|原|堀|辻|泉|田村|竹田|中山|和田|石田|森田|原|柴崎|吉川|杉本|今村|服部|平田|樋口|岩本|大橋|松浦|吉村|川崎|関|黒田|星野|市川|大西|菅野|久保田|小松";
+  const JP_PREF = "北海道|青森|岩手|宮城|秋田|山形|福島|茨城|栃木|群馬|埼玉|千葉|東京|神奈川|新潟|富山|石川|福井|山梨|長野|岐阜|静岡|愛知|三重|滋賀|京都|大阪|兵庫|奈良|和歌山|鳥取|島根|岡山|広島|山口|徳島|香川|愛媛|高知|福岡|佐賀|長崎|熊本|大分|宮崎|鹿児島|沖縄";
+  function privRules() {
+    return [
+      { key: "人名", re: new RegExp("(?:" + JP_SURNAMES + ")\\s*(?:さん|サン|様|氏|くん|君|ちゃん)", "g") },
+      { key: "住所", re: new RegExp("(?:" + JP_PREF + ")(?:都|道|府|県)?[^\\s、。」』\\n]{0,14}?(?:市|区|町|村)[^\\s、。」』\\n]{0,20}?[0-9０-９]+\\s*(?:丁目|番地|番|[-−ー])", "g") },
+      { key: "郵便番号", re: /〒\s*[0-9０-９]{3}\s*[-−ー]?\s*[0-9０-９]{4}/g },
+      { key: "電話番号", re: /0[0-9０-９]{1,4}[-−ー][0-9０-９]{1,4}[-−ー][0-9０-９]{3,4}/g },
+      { key: "番地", re: /[0-9０-９]+\s*丁目\s*[0-9０-９]+/g },
+    ];
+  }
+  function findPrivate(text) {
+    const s = String(text || ""), out = [], seen = {};
+    privRules().forEach((r) => {
+      let m;
+      while ((m = r.re.exec(s)) && out.length < 20) {
+        const k = r.key + "\u0000" + m[0];
+        if (!seen[k]) { seen[k] = 1; out.push({ key: r.key, text: m[0] }); }
+      }
+    });
+    return out;
+  }
+  // 投稿文の欄を見張る。生成直後と、手で直したときの両方で呼ぶ。
+  function checkPrivacy() {
+    const el = $("snsPriv"); if (!el) return [];
+    const hits = findPrivate($("snsBody") ? $("snsBody").value : "");
+    if (!hits.length) { el.classList.add("hidden"); el.innerHTML = ""; return hits; }
+    el.classList.remove("hidden");
+    el.innerHTML = "<div><b>⚠ 個人情報らしき記述があります。</b>　公開する前に消してください。</div><div>"
+      + hits.slice(0, 8).map((h) => '<span class="privHit">' + esc(h.text) + "</span><span class=\"privKey\">" + h.key + "</span>").join(" ")
+      + (hits.length > 8 ? " ほか" + (hits.length - 8) + "件" : "") + "</div>";
+    const b = document.createElement("button");
+    b.className = "btn btn-dark btn-sm"; b.textContent = "✍ 個人情報を外して書き直す";
+    b.onclick = () => privRewrite(b);
+    el.appendChild(b);
+    return hits;
+  }
+  // 機械的に消すと日本語が壊れるので、AIに「そこだけ外して」と書き直させる。
+  async function privRewrite(btn) {
+    const body = ($("snsBody").value || "").trim();
+    if (!body) return;
+    btn.disabled = true; btn.textContent = "書き直し中…";
+    try {
+      const task = "次の投稿文から個人情報だけを取り除いて、そのまま投稿できる形で書き直してください。\n"
+        + NO_PII + "\n"
+        + "・それ以外(内容・長さ・語り口・改行・見出し・ハッシュタグ)は変えない。削った箇所は役割や属性に置き換えて自然な日本語にする。\n"
+        + "・説明や前置きは不要。本文だけを出す。\n\n【元の文】\n" + body;
+      const j = await api("generate", { role: "marke", task }, 60000);
+      const t = String(j.text || "").trim();
+      if (!t) throw new Error("書き直せませんでした");
+      $("snsBody").value = t; updateSnsCount(); updateSectBtn();
+      const left = checkPrivacy();
+      toast(left.length ? "まだ残っています。お手数ですが手で直してください" : "✓ 個人情報を外しました");
+    } catch (e) { toast(e.message || e); if (btn) { btn.disabled = false; btn.textContent = "✍ 個人情報を外して書き直す"; } }
+  }
 
   /* ---- 「売れている有料note」の構文を借りる ----------------------------------
      参考にした一次情報:
@@ -1074,6 +1142,7 @@ ${SNS_HUMAN}`;
       const j = await api("generate", { role: "marke", task, product, creative: true });
       const t = String(j.text || "").trim();
       $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount(); updateSectBtn();
+      checkPrivacy();   // 公開前に人名・住所が紛れていないか見る
       $("snsStat").textContent = "";
       return !!t;   // ワンストップはこの戻り値を見て次へ進むか決める
     } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); return false; }
@@ -1084,7 +1153,7 @@ ${SNS_HUMAN}`;
   { const b = $("snsCopy"); if (b) b.onclick = () => copy($("snsBody").value || ""); }
   // 投稿画面を開く時、本文を自動でクリップボードへ(長文Xや事前入力非対応SNSで貼り付けしやすく)
   { const a = $("snsOpen"); if (a) a.addEventListener("click", () => { try { if (navigator.clipboard) navigator.clipboard.writeText($("snsBody").value || ""); } catch (e) {} }); }
-  { const b = $("snsBody"); if (b) b.addEventListener("input", updateSnsCount); }
+  { const b = $("snsBody"); if (b) b.addEventListener("input", () => { updateSnsCount(); checkPrivacy(); }); }
   function syncSnsFields() {
     const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
     show("fldNoteType", isNote);        // 記事の型はnoteの時だけ
@@ -2118,7 +2187,9 @@ ${SNS_HUMAN}`;
         const dayN = i + 1;
         const div = document.createElement("div");
         div.className = "crcard";
+        const pv = findPrivate(text);   // 1本ずつコピーして投稿するので、カードごとに出す
         div.innerHTML = `<div class="crhead"><span class="crco">Day ${dayN}・${esc({ honne: "本音", casual: "カジュアル", tips: "豆知識", drama: "会話劇", buzz: "バズ", balanced: "標準" }[style] || style)}</span><span class="muted">${text.length}字</span></div>
+          ${pv.length ? `<div class="privWarn"><div><b>⚠ 個人情報らしき記述</b>　公開前に消してください</div><div>${pv.slice(0, 6).map((h) => `<span class="privHit">${esc(h.text)}</span><span class="privKey">${esc(h.key)}</span>`).join(" ")}</div></div>` : ""}
           <div class="crtext"></div>
           <div class="crbtns"><button class="btn btn-ghost btn-sm wkcopy">コピー</button></div>`;
         div.querySelector(".crtext").textContent = text;

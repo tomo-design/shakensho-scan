@@ -253,6 +253,11 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
 .secErr{color:var(--danger);font-size:13px}
 .secFile{font-size:11.5px;color:var(--ink2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
 .sectShort{color:var(--danger);font-weight:700}
+/* 個人情報の警告。見落とすと公開してしまうので、目立たせる */
+.privWarn{background:#fdf2f2;border:1px solid #f0cfcf;color:#8f2f2f;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.8;margin:0 0 12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.privWarn b{color:#a53838}
+.privHit{background:#fff;border:1px solid #f0cfcf;border-radius:6px;padding:1px 7px;margin-right:3px;display:inline-block;font-weight:700}
+.privKey{font-size:11px;color:#a86b6b;margin-right:10px}
 .snsImgWrap{margin-top:6px}
 .snsImg{display:block;max-width:100%;width:420px;border-radius:12px;border:1px solid var(--line);margin-bottom:10px}
 .snsImg.hidden{display:none}
@@ -327,6 +332,10 @@ body.mode-pocket .teamOut .outHead b::before{background:var(--green)}
   .st-その他{background:#2b303a;color:#c2c8d2}
   .secNo{background:#2b303a;color:#c2c8d2}
   .secState.wait{background:#2b303a;color:#98a0ad}
+  .privWarn{background:#2a1a1a;border-color:#4a2c2c;color:#f0bcbc}
+  .privWarn b{color:#ff9b9b}
+  .privHit{background:#1c2029;border-color:#4a2c2c}
+  .privKey{color:#c08f8f}
   .st-お試し中{background:#16313a;color:#9ed3dc}
   .st-配信停止,.st-送信停止{background:#2e2740;color:#cbb6e0}
   .lghead:hover{border-bottom-color:#3a414c}
