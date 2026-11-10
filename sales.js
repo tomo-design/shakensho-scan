@@ -1261,7 +1261,14 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
     const text = ($("snsImgText") && $("snsImgText").value || "").trim();
     const url = await overlayText(base, text);
     $("snsImgEl").src = url; show("snsImgEl", true);
-    $("snsImgDl").href = url; show("snsImgActs", true);
+    // 表示はそのまま、保存するぶんだけJPEGに落とす(PNGのままだとアップロードが途中で止まる)
+    const px = IMG_PXSIZE[($("snsPlatform") && $("snsPlatform").value) || "x"] || IMG_PXSIZE.x;
+    const out = await toJpeg(url, px[0], px[1]);
+    const dl = $("snsImgDl");
+    dl.href = out.url;
+    dl.download = "mechanoai-sns-" + noteStamp() + ".jpg";
+    dl.textContent = "⬇ 画像を保存（" + Math.round(out.bytes / 1024) + "KB）";
+    show("snsImgActs", true);
   }
   { const b = $("snsImgApplyText"); if (b) b.onclick = async () => { if (snsImgBase) await snsShowImg(snsImgBase); }; }
   async function snsGenImage() {
@@ -1325,6 +1332,55 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   }
   const IMG_PXSIZE = { x: [1200, 675], instagram: [1080, 1080], facebook: [1200, 630], line: [1080, 1080], note: [1280, 670], tiktok: [1080, 1920], threads: [1080, 1350], youtube: [1080, 1920] };
 
+  /* ===== 書き出し(JPEG・容量上限つき) =====
+     ★PNGだと1枚1.2〜1.8MBになり、noteエディタへのアップロードが途中で止まる。
+       実際に通るのは100KB前後のJPEGだけ、という実運用の結果を受けた変更。
+     目標は200KB以下。超えるなら品質を 0.8→0.7→0.6 と落とし、
+     それでも超えるなら横幅を1024px→800pxへ縮めて、必ず小さい方を返す。 */
+  const JPEG_TARGET = 200 * 1024;
+  const dataUrlBytes = (u) => Math.round((String(u).length - String(u).indexOf(",") - 1) * 3 / 4);
+  function drawCover(img, w, h) {
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);   // JPEGは透明を持てない。塗らないと透明部分が黒く出る
+    const r = coverRect(img.naturalWidth, img.naturalHeight, w, h);
+    ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
+    return cv;
+  }
+  async function toJpeg(dataUrl, w, h) {
+    let img;
+    try { img = await loadImg(dataUrl); } catch (e) { return { url: dataUrl, bytes: dataUrlBytes(dataUrl), w: w, h: h }; }
+    const nw = (px) => [px, Math.round(h * px / w)];
+    const plans = [[w, h, 0.8], [w, h, 0.7], [w, h, 0.6]]
+      .concat([nw(1024).concat([0.7]), nw(1024).concat([0.6]), nw(800).concat([0.6]), nw(800).concat([0.5]), nw(640).concat([0.45])]);
+    let best = null;
+    for (const p of plans) {
+      let url;
+      try { url = drawCover(img, p[0], p[1]).toDataURL("image/jpeg", p[2]); } catch (e) { break; }
+      const cand = { url: url, bytes: dataUrlBytes(url), w: p[0], h: p[1], q: p[2] };
+      if (!best || cand.bytes < best.bytes) best = cand;
+      if (cand.bytes <= JPEG_TARGET) return cand;
+    }
+    return best || { url: dataUrl, bytes: dataUrlBytes(dataUrl), w: w, h: h };
+  }
+
+  /* ===== 1記事ぶんの画像セット(ファイル名) =====
+     ★以前は mechanoai-note-4.png のような名前で、どの見出しの画像か分からなかった。
+     記事ごとに日時の接頭辞を付け、01=サムネ / 02以降=見出し順 の通し番号を振る。
+     例: mechanoai-note-20261110-1347-02-h1.jpg (見出し1の画像) */
+  let noteSet = null;      // { stamp, body }
+  let noteThumb = null;    // { name, url, bytes }
+  function noteStamp() {
+    const d = new Date(), p = (n) => ("0" + n).slice(-2);
+    return "" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  }
+  // 記事本文が変わったら別の記事とみなし、接頭辞を取り直してサムネも持ち越さない
+  function noteSetFor(body) {
+    if (!noteSet || noteSet.body !== body) { noteSet = { stamp: noteStamp(), body: body }; noteThumb = null; }
+    return noteSet;
+  }
+  const noteFileName = (stamp, seq, tag) => "mechanoai-note-" + stamp + "-" + ("0" + seq).slice(-2) + "-" + tag + ".jpg";
+
   // note記事の「## 見出し」ごとに、その節の内容に合う差し込み画像を生成
   function parseSections() {
     const lines = ($("snsBody").value || "").split("\n");
@@ -1345,83 +1401,221 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
   }
   { const s = $("snsPlatform"); if (s) s.addEventListener("change", updateSectBtn); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSectBtn); }
+  /* ===== note見出し画像：全点生成を保証する =====
+     ★以前は1枚ずつ作って失敗したら次へ進むだけで、画面上は「何枚できたか」しか出なかった。
+       実運用で「見出し6つなのに2枚しかできていない」のに気づけない事故が続いた(11/9・11/10)。
+       見出しごとに行を立てて状態を出し、失敗した見出しだけ自動で再挑戦・手動でもやり直せるようにする。 */
   let snsSectStop = false;
-  { const b = $("snsSectImg"); if (b) b.onclick = async () => {
-      const secs = parseSections();
-      if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return; }
-      const product = ($("snsProduct").value === "pocket") ? "pocket" : "works";
-      snsSectStop = false; b.disabled = true;
-      let okCount = 0, ngCount = 0, firstErr = "";
-      $("snsSectWrap").innerHTML = "";
-      // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
-      //   ただし直近に使ったものは避ける(記事を続けて作った時に同じ絵柄にならないように)。
-      const style = pickFresh(IMG_STYLES, "ss_imgStyleUsed", 4);
-      const palette = pickFresh(IMG_PALETTES, "ss_imgPaletteUsed", 4);
-      // 構図は見出しごとに変える。人あり用・人なし用の2つの山を記事ごとに混ぜ、
-      // 場面に合う側から順に配る(同じ山の中では重複しない)。
-      const deckP = shuffled(SECTION_ROLES.filter((r) => r.people));
-      const deckO = shuffled(SECTION_ROLES.filter((r) => !r.people));
-      let nP = 0, nO = 0;
-      let sectionModel = "";   // 最初に成功したモデルをこの記事の全見出しで固定(モデル違いによるタッチの不一致を防ぐ)
-      const artDirection = `ART DIRECTION (keep IDENTICAL across every section image of this article, so they read as one consistent set):
-- Visual style: ${style}.
-- Color palette / mood: ${palette}.
-- Same rendering technique, same lighting mood, same level of detail and finish for all images. They must look like one coherent series by the same illustrator, NOT a random mix of styles.`;
-      for (let i = 0; i < secs.length; i++) {
-        if (snsSectStop) break;
-        $("snsSectStat").textContent = "見出し画像を生成中… " + (i + 1) + "/" + secs.length + "（" + secs[i].head + "）";
-        // 見出しに合った具体シーンを抽出(精度アップ)。失敗時は見出し＋本文にフォールバック。
-        let scene = "";
-        try { scene = await sectionToScene(secs[i].head, secs[i].body); } catch (e) {}
-        const subject = scene
-          ? `DEPICT EXACTLY THIS SCENE (it matches the heading — do not substitute):\n${scene}`
-          : `Depict the concrete subject this section is about (the specific part, tool, car system or situation named in the heading "${secs[i].head}"), not a generic scene.`;
-        // この見出しの構図。場面に人が出るならそちらの山から配る。
-        // 人を出す回だけ人物ルールを付け、出さない回は「NO PEOPLE」を宣言する
-        // (サーバ側はこの2つを見て、人物用の画角を足すかどうかを切り替える)。
-        const wantP = sceneHasPeople(scene, secs[i].head, secs[i].body);
-        const role = wantP ? deckP[nP++ % deckP.length] : deckO[nO++ % deckO.length];
-        const peopleLine = role.people ? PEOPLE_RULE
-          : "NO PEOPLE: this one is a still image of the object and the space. The frame is empty of human figures (hands may appear only if the composition above calls for them).";
-        const prompt = `Create a section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${product === "pocket" ? "for individual mechanics" : "for repair shops"}).
-This image illustrates the section titled: "${secs[i].head}".
+  const SECT_RETRY = 2;   // 1回目が失敗したら、その見出しだけ最大2回まで自動で再挑戦
+  // 枠切れ・認証・設定不備は何枚試しても同じ結果。残りを待たせず理由を出して止める。
+  const fatalImgErr = (m) => /無料枠|認証に失敗|設定が未完了/.test(String(m || ""));
+  let sectCtx = null;     // 直近の生成セット。個別の作り直しと一括保存で使う
+
+  function sectPaint(row) {
+    const st = row.card.querySelector(".secState");
+    const body = row.card.querySelector(".secImgBody");
+    st.className = "secState " + (row.url ? "ok" : row.err ? "ng" : row.busy ? "run" : "wait");
+    st.textContent = row.url ? "✓" : row.err ? "✗" : row.busy ? "生成中" : "待機";
+    body.className = "secImgBody";
+    body.innerHTML = "";
+    if (row.url) {
+      const im = document.createElement("img"); im.className = "snsImg"; im.src = row.url;
+      const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存";
+      a.href = row.url; a.download = row.name;
+      const re = document.createElement("button"); re.className = "btn btn-ghost btn-sm"; re.textContent = "↻ 作り直す";
+      re.onclick = () => sectRun([row]);
+      const info = document.createElement("div"); info.className = "secFile";
+      info.textContent = row.name + "（" + Math.round(row.bytes / 1024) + "KB）";
+      const acts = document.createElement("div"); acts.className = "fmActs";
+      acts.appendChild(a); acts.appendChild(re);
+      body.appendChild(im); body.appendChild(acts); body.appendChild(info);
+    } else if (row.err) {
+      const msg = document.createElement("div"); msg.className = "secErr"; msg.textContent = "⚠ " + row.err;
+      const re = document.createElement("button"); re.className = "btn btn-dark btn-sm"; re.textContent = "↻ この見出しだけ作り直す";
+      re.onclick = () => sectRun([row]);
+      body.appendChild(msg); body.appendChild(re);
+    } else {
+      body.classList.add("muted");
+      body.textContent = row.busy ? "生成中…" : "待機中";
+    }
+  }
+
+  function sectRefreshStat() {
+    if (!sectCtx) return;
+    const rows = sectCtx.rows, n = rows.length, ok = rows.filter((r) => r.url).length;
+    const el = $("snsSectStat");
+    if (sectCtx.running) {
+      const cur = rows.find((r) => r.busy);
+      el.innerHTML = "見出し画像を生成中… " + ok + "/" + n + (cur ? "（見出し" + cur.no + "：" + esc(cur.head) + (cur.tryNo > 1 ? " ／ " + cur.tryNo + "回目" : "") + "）" : "");
+    } else if (ok === n) {
+      el.innerHTML = "✓ <b>見出し画像 " + ok + "/" + n + " 生成済み</b>　各画像を保存してnoteの該当箇所に挿入してください";
+    } else {
+      el.innerHTML = '<span class="sectShort">⚠ 見出し画像 ' + ok + "/" + n + "　" + (n - ok) + "枚足りません</span>　"
+        + (sectCtx.fatal ? esc(sectCtx.fatal) : snsSectStop ? "中止しました" : "✗ の行の「作り直す」でやり直せます");
+    }
+    show("snsSectDlAll", collectNoteImages().length > 0);   // サムネだけでも保存できるようにする
+  }
+
+  // 1見出しぶんの生成。成功したら row に url/bytes/name を入れる。失敗は throw。
+  async function sectOne(row) {
+    const c = sectCtx;
+    // 見出しに合った具体シーンを抽出(精度アップ)。失敗時は見出し＋本文にフォールバック。
+    let scene = "";
+    try { scene = await sectionToScene(row.head, row.body); } catch (e) {}
+    const subject = scene
+      ? `DEPICT EXACTLY THIS SCENE (it matches the heading — do not substitute):\n${scene}`
+      : `Depict the concrete subject this section is about (the specific part, tool, car system or situation named in the heading "${row.head}"), not a generic scene.`;
+    // この見出しの構図。場面に人が出るならそちらの山から配る。作り直しでも同じ構図を使い、
+    // 記事全体のシリーズ感が崩れないようにする。
+    if (!row.role) {
+      const wantP = sceneHasPeople(scene, row.head, row.body);
+      row.role = wantP ? c.deckP[c.nP++ % c.deckP.length] : c.deckO[c.nO++ % c.deckO.length];
+    }
+    const role = row.role;
+    const peopleLine = role.people ? PEOPLE_RULE
+      : "NO PEOPLE: this one is a still image of the object and the space. The frame is empty of human figures (hands may appear only if the composition above calls for them).";
+    const prompt = `Create a section image for a Japanese note.com article about automotive repair / the AI app "MECHANO-AI" (${c.product === "pocket" ? "for individual mechanics" : "for repair shops"}).
+This image illustrates the section titled: "${row.head}".
 ${subject}
 COMPOSITION (frame it this way; if it clashes with the scene above, the scene wins): ${role.c}
 Aspect ratio: 16:9 horizontal (about 1280x670px), fill the frame.
 If any printed page, screen, label or sign appears, keep it out of focus, cropped at the edge, or at a steep angle so that no lettering is legible.
-${artDirection}
+${c.artDirection}
 Do NOT default to a smartphone/phone screen — include one only if the section is specifically about using a phone/app.
 ${peopleLine}
 IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image only.`;
+    // 150秒で見切る。これを超えると回線側で切られて「Failed to fetch」になり、
+    // 何が起きたのか分からなくなる。先にこちらで打ち切って理由を出す。
+    const j = await api("image", { prompt, aspect: "16:9", model: c.model }, 150000);
+    if (!j.image) throw new Error("画像が返ってきませんでした");
+    if (!c.model && j.model) c.model = j.model;   // 以降の見出しも同じモデルに固定→タッチが揃う
+    const out = await toJpeg(j.image, 1280, 670); // 比率をそろえ、noteに上げられる容量のJPEGにする
+    row.url = out.url; row.bytes = out.bytes;
+    row.name = noteFileName(c.stamp, row.no + 1, "h" + row.no);   // 01はサムネ。見出しは02から
+  }
+
+  /* 指定した行を順に生成する。1件失敗しても止めず、その見出しだけ自動で再挑戦する。
+     ただし枠切れ・認証・設定不備だけは何枚やっても同じなので、そこで打ち切る。 */
+  async function sectRun(rows) {
+    if (!sectCtx || sectCtx.running) return;
+    const btn = $("snsSectImg");
+    snsSectStop = false; sectCtx.running = true; sectCtx.fatal = "";
+    if (btn) btn.disabled = true;
+    show("snsSectCancel", true);
+    for (const row of rows) {
+      if (snsSectStop) break;
+      row.busy = true; row.err = ""; row.url = ""; row.tryNo = 1; sectPaint(row); sectRefreshStat();
+      let lastErr = "";
+      for (let attempt = 0; attempt <= SECT_RETRY; attempt++) {
+        if (snsSectStop) break;
+        row.tryNo = attempt + 1; sectRefreshStat();
+        try { await sectOne(row); lastErr = ""; break; }
+        catch (e) {
+          lastErr = String(e.message || e);
+          if (fatalImgErr(lastErr)) { sectCtx.fatal = lastErr; break; }
+          if (attempt < SECT_RETRY) await new Promise((r) => setTimeout(r, 1500));   // 少し置いてから再挑戦
+        }
+      }
+      row.busy = false;
+      if (lastErr) { row.url = ""; row.err = lastErr + (fatalImgErr(lastErr) ? "" : "（" + (SECT_RETRY + 1) + "回試しました）"); }
+      sectPaint(row);
+      if (sectCtx.fatal) break;
+    }
+    sectCtx.running = false;
+    if (btn) btn.disabled = false;
+    show("snsSectCancel", false);
+    sectRefreshStat();
+  }
+
+  { const b = $("snsSectImg"); if (b) b.onclick = () => {
+      const secs = parseSections();
+      if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return; }
+      const body = ($("snsBody").value || "").trim();
+      const set = noteSetFor(body);
+      // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
+      //   ただし直近に使ったものは避ける(記事を続けて作った時に同じ絵柄にならないように)。
+      const style = pickFresh(IMG_STYLES, "ss_imgStyleUsed", 4);
+      const palette = pickFresh(IMG_PALETTES, "ss_imgPaletteUsed", 4);
+      sectCtx = {
+        stamp: set.stamp,
+        product: ($("snsProduct").value === "pocket") ? "pocket" : "works",
+        // 構図は見出しごとに変える。人あり用・人なし用の2つの山を記事ごとに混ぜ、
+        // 場面に合う側から順に配る(同じ山の中では重複しない)。
+        deckP: shuffled(SECTION_ROLES.filter((r) => r.people)),
+        deckO: shuffled(SECTION_ROLES.filter((r) => !r.people)),
+        nP: 0, nO: 0,
+        model: "",   // 最初に成功したモデルを全見出しで固定(モデル違いによるタッチの不一致を防ぐ)
+        artDirection: `ART DIRECTION (keep IDENTICAL across every section image of this article, so they read as one consistent set):
+- Visual style: ${style}.
+- Color palette / mood: ${palette}.
+- Same rendering technique, same lighting mood, same level of detail and finish for all images. They must look like one coherent series by the same illustrator, NOT a random mix of styles.`,
+        rows: secs.map((s, i) => ({ no: i + 1, head: s.head, body: s.body, url: "", err: "", bytes: 0, name: "", role: null })),
+        running: false, fatal: "",
+      };
+      // 先に全見出しぶんの行を並べる。これで「何番の見出しがまだか」が常に見える。
+      const wrap = $("snsSectWrap"); wrap.innerHTML = "";
+      sectCtx.rows.forEach((row) => {
         const card = document.createElement("div");
         card.className = "secImgCard";
-        card.innerHTML = `<div class="secImgHead">${esc(secs[i].head)}</div><div class="secImgBody muted">生成中…</div>`;
-        $("snsSectWrap").appendChild(card);
-        try {
-          // 150秒で見切る。これを超えると回線側で切られて「Failed to fetch」になり、
-          // 何が起きたのか分からなくなる。先にこちらで打ち切って理由を出す。
-          const j = await api("image", { prompt, aspect: "16:9", model: sectionModel }, 150000);
-          if (j.image) {
-            okCount++;
-            if (!sectionModel && j.model) sectionModel = j.model;   // 以降の見出しも同じモデルに固定→タッチが揃う
-            const fixed = await coverToSize(j.image, 1280, 670);     // サイズ/比率を必ず統一
-            card.querySelector(".secImgBody").innerHTML = "";
-            const im = document.createElement("img"); im.className = "snsImg"; im.src = fixed;
-            const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = fixed; a.download = "mechanoai-note-" + (i + 1) + ".png";
-            card.querySelector(".secImgBody").appendChild(im); card.querySelector(".secImgBody").appendChild(a);
-          } else { ngCount++; firstErr = firstErr || "画像が返ってきませんでした"; card.querySelector(".secImgBody").textContent = "取得できませんでした"; }
-        } catch (e) {
-          ngCount++; firstErr = firstErr || String(e.message || e);
-          card.querySelector(".secImgBody").textContent = "⚠ " + (e.message || e);
-        }
-        // 1枚目でつまずく時は設定不備や枠切れなど「何枚やっても同じ」種類の失敗。
-        // 残りを待たせても同じエラーが並ぶだけなので、そこで止めて理由を出す。
-        if (i === 0 && ngCount === 1) break;
-      }
-      $("snsSectStat").textContent = snsSectStop ? "中止しました" : ngCount === 0 ? "✓ 見出しごとの画像を生成しました（各画像を保存してnoteの該当箇所に挿入）" : okCount === 0 ? "⚠ 画像を作れませんでした: " + firstErr : "△ " + okCount + "枚できました（" + ngCount + "枚失敗: " + firstErr + "）";
-      b.disabled = false;
+        card.innerHTML = '<div class="secImgHead"><span class="secNo"></span><span class="secHeadTxt"></span><span class="secState wait">待機</span></div><div class="secImgBody muted">待機中…</div>';
+        card.querySelector(".secNo").textContent = "見出し" + row.no;
+        card.querySelector(".secHeadTxt").textContent = row.head;
+        row.card = card; wrap.appendChild(card);
+      });
+      sectRefreshStat();
+      sectRun(sectCtx.rows);
     };
   }
+  { const b = $("snsSectCancel"); if (b) b.onclick = () => { snsSectStop = true; b.disabled = true; setTimeout(() => { b.disabled = false; }, 2000); }; }
+  { const b = $("snsSectDlAll"); if (b) b.onclick = () => saveAllNoteImages(); }
+
+  /* 1記事ぶんの画像をまとめて保存。サムネ→見出し順で、ファイル名は通し番号つき。
+     ブラウザは短時間の連続ダウンロードを止めるので、できればZIPにまとめる。 */
+  function collectNoteImages() {
+    const files = [];
+    if (noteThumb && noteThumb.url) files.push(noteThumb);
+    if (sectCtx) sectCtx.rows.forEach((r) => { if (r.url) files.push({ name: r.name, url: r.url }); });
+    return files;
+  }
+  function loadScriptOnce(src) {
+    return new Promise((res, rej) => {
+      if (document.querySelector('script[data-ss="' + src + '"]')) return res();
+      const s = document.createElement("script");
+      s.src = src; s.dataset.ss = src;
+      s.onload = () => res(); s.onerror = () => rej(new Error("読み込めませんでした"));
+      document.head.appendChild(s);
+    });
+  }
+  async function saveAllNoteImages() {
+    const files = collectNoteImages();
+    if (!files.length) { toast("保存できる画像がまだありません"); return; }
+    const btn = $("snsSectDlAll"); const label = btn.textContent;
+    btn.disabled = true;
+    try {
+      btn.textContent = "ZIPにまとめています…";
+      await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+      if (!window.JSZip) throw new Error("JSZipを読み込めませんでした");
+      const zip = new window.JSZip();
+      files.forEach((f) => zip.file(f.name, String(f.url).split(",")[1], { base64: true }));
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "mechanoai-note-" + (noteSet ? noteSet.stamp : "images") + ".zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 20000);
+      toast(files.length + "点をZIPで保存しました");
+    } catch (e) {
+      // ZIPが使えない時は1枚ずつ。間隔を空けないとブラウザが2枚目以降を止める。
+      btn.textContent = "1枚ずつ保存しています…";
+      for (const f of files) {
+        const a = document.createElement("a"); a.href = f.url; a.download = f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        await new Promise((r) => setTimeout(r, 900));
+      }
+      toast(files.length + "点を1枚ずつ保存しました");
+    } finally { btn.disabled = false; btn.textContent = label; }
+  }
+
   // ===== note用サムネ生成 =====
   // 背景はAI生成(文字なし)、タイトル文字はcanvasで崩れず合成。毎回レイアウト/配色を変えて飽きさせない。
   // 色テーマ(キーワード色/締め色)を巡回。[0]=キーワード, [1]=強調(2つ目), [2]=締めバッジ
@@ -1616,15 +1810,33 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
     } catch (e) { stat.textContent = "⚠ " + (e.message || e); return; }
     stat.textContent = "文字を合成中…";
     let url; try { url = composeThumb(bgImg, parts); } catch (e) { stat.textContent = "⚠ 合成エラー: " + (e.message || e); return; }
+    // noteに上げられる容量のJPEGにし、記事セットの01番として名前を付ける
+    const set = noteSetFor(post);
+    const out = await toJpeg(url, 1280, 670);
+    url = out.url;
+    noteThumb = { name: noteFileName(set.stamp, 1, "thumb"), url: url, bytes: out.bytes };
     const card = document.createElement("div"); card.className = "secImgCard";
     const im = document.createElement("img"); im.className = "snsImg"; im.src = url;
-    const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = url; a.download = "mechanoai-note-thumb.png";
+    const a = document.createElement("a"); a.className = "btn btn-dark btn-sm"; a.textContent = "⬇ 保存"; a.href = url; a.download = noteThumb.name;
     const re = document.createElement("button"); re.className = "btn btn-ghost btn-sm"; re.textContent = "↻ 別パターン(文字はそのまま)";
-    re.onclick = () => { try { im.src = composeThumb(bgImg, parts); } catch (e) {} };
+    // 別パターンもJPEGに通してから差し替える(そのままだとPNGのまま保存されてしまう)
+    re.onclick = async () => {
+      try {
+        const o = await toJpeg(composeThumb(bgImg, parts), 1280, 670);
+        im.src = o.url; a.href = o.url;
+        noteThumb = { name: noteThumb.name, url: o.url, bytes: o.bytes };
+        info.textContent = noteThumb.name + "（" + Math.round(o.bytes / 1024) + "KB）";
+      } catch (e) {}
+    };
+    const info = document.createElement("div"); info.className = "secFile";
+    info.textContent = noteThumb.name + "（" + Math.round(out.bytes / 1024) + "KB）";
     const body = document.createElement("div"); body.className = "secImgBody";
-    body.appendChild(im); body.appendChild(a); body.appendChild(re);
+    const acts = document.createElement("div"); acts.className = "fmActs";
+    acts.appendChild(a); acts.appendChild(re);
+    body.appendChild(im); body.appendChild(acts); body.appendChild(info);
     card.appendChild(body);
     $("snsThumbWrap").insertBefore(card, $("snsThumbWrap").firstChild);
+    show("snsSectDlAll", true);
     stat.textContent = "✓ サムネを作りました（別パターンは同じ背景で文字レイアウトだけ変えられます／作り直すと背景も再生成）";
   }
   { const b = $("snsThumb"); if (b) b.onclick = async () => { b.disabled = true; try { await genOneThumb(); } finally { b.disabled = false; } }; }
