@@ -332,6 +332,7 @@
         </div>
         <div class="panel-actions">
           <button id="btnSns" class="btn btn-accent">投稿文を作成</button>
+          <button id="btnNoteAll" class="btn btn-dark hidden">🚀 note一式を作る（本文→サムネ→見出し画像）</button>
           <button id="btnSnsWeek" class="btn btn-dark">📅 1週間分（7本）を一括生成</button>
           <button id="btnSnsWeekStop" class="btn btn-ghost btn-sm hidden">中止</button>
           <span id="snsStat" class="muted"></span>
@@ -375,6 +376,15 @@
         <button id="snsSectCancel" class="btn btn-ghost btn-sm hidden">⏹ 中止</button>
       </div>
       <div id="snsSectWrap" class="secImgs"></div>
+
+      <div id="notePack" class="panel hidden" style="margin-top:14px">
+        <div id="notePackStat" style="font-size:14px;line-height:1.9"></div>
+        <div class="fmActs" style="margin-top:10px">
+          <button id="notePackBody" class="btn btn-dark btn-sm">📋 本文をコピー</button>
+          <button id="notePackTags" class="btn btn-dark btn-sm">📋 タグをコピー</button>
+          <button id="notePackDl" class="btn btn-accent btn-sm">⬇ 画像を全部保存</button>
+        </div>
+      </div>
 
       <div id="snsWeek" class="campresults"></div>
 

@@ -1075,7 +1075,8 @@ ${SNS_HUMAN}`;
       const t = String(j.text || "").trim();
       $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount(); updateSectBtn();
       $("snsStat").textContent = "";
-    } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); }
+      return !!t;   // ワンストップはこの戻り値を見て次へ進むか決める
+    } catch (e) { $("snsStat").textContent = "⚠ " + (e.message || e); return false; }
     finally { $("btnSns").disabled = false; }
   }
   { const b = $("btnSns"); if (b) b.onclick = snsGen; }
@@ -1088,6 +1089,7 @@ ${SNS_HUMAN}`;
     const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
     show("fldNoteType", isNote);        // 記事の型はnoteの時だけ
     show("fldSnsLen", !isNote);         // noteは文量を記事側で固定するので隠す
+    show("btnNoteAll", isNote);
   }
   { const s = $("snsPlatform"); if (s) s.onchange = () => { updateSnsCount(); syncSnsFields(); }; }
   syncSnsFields();
@@ -1398,6 +1400,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
     const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
     show("snsSectImg", isNote && parseSections().length > 0);
     show("snsThumb", isNote && ($("snsBody").value || "").trim().length > 0);
+    show("btnNoteAll", isNote);   // 一式作成はnoteだけ
   }
   { const s = $("snsPlatform"); if (s) s.addEventListener("change", updateSectBtn); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", updateSectBtn); }
@@ -1527,9 +1530,10 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
     sectRefreshStat();
   }
 
-  { const b = $("snsSectImg"); if (b) b.onclick = () => {
+  // ボタンからもワンストップからも呼ぶ。完了まで待てるよう Promise を返す。
+  function startSectionImages() {
       const secs = parseSections();
-      if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return; }
+      if (!secs.length) { toast("『## 見出し』が見つかりません（note記事を作成してください）"); return Promise.resolve(false); }
       const body = ($("snsBody").value || "").trim();
       const set = noteSetFor(body);
       // ★1記事は同じテイストで統一する。画風・配色・雰囲気を最初に1回だけ決めて、全見出しで共有する。
@@ -1563,9 +1567,9 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         row.card = card; wrap.appendChild(card);
       });
       sectRefreshStat();
-      sectRun(sectCtx.rows);
-    };
+      return sectRun(sectCtx.rows).then(() => sectCtx.rows.every((r) => !!r.url));
   }
+  { const b = $("snsSectImg"); if (b) b.onclick = () => startSectionImages(); }
   { const b = $("snsSectCancel"); if (b) b.onclick = () => { snsSectStop = true; b.disabled = true; setTimeout(() => { b.disabled = false; }, 2000); }; }
   { const b = $("snsSectDlAll"); if (b) b.onclick = () => saveAllNoteImages(); }
 
@@ -1614,6 +1618,65 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
       }
       toast(files.length + "点を1枚ずつ保存しました");
     } finally { btn.disabled = false; btn.textContent = label; }
+  }
+
+  /* ===== ワンストップ: 本文 → サムネ → 見出し画像 =====
+     ★手順の飛ばしと数え間違いが事故の元だった(見出し6つのつもりで2枚しか無い等)。
+       1操作で最後まで通し、最後に「何が何点できたか」を数で出す。 */
+  // noteはタグ欄が本文と別。本文末尾の『---』より下の『タグ: #〜』を切り出す。
+  function noteBodyOnly(body) {
+    const s = String(body || "");
+    const i = s.search(/\n\s*-{3,}\s*\n/);
+    return (i >= 0 ? s.slice(0, i) : s).trim();
+  }
+  function noteTagList(body) {
+    const m = String(body || "").match(/^\s*タグ\s*[:：]\s*(.+)$/m);
+    return m ? (m[1].match(/#[^\s#]+/g) || []) : [];
+  }
+  function renderNotePack() {
+    const body = ($("snsBody").value || "").trim();
+    const main = noteBodyOnly(body), tags = noteTagList(body);
+    const heads = sectCtx ? sectCtx.rows.length : 0;
+    const got = sectCtx ? sectCtx.rows.filter((r) => r.url).length : 0;
+    const thumb = noteThumb && noteThumb.url ? 1 : 0;
+    const done = main && tags.length && thumb && heads && got === heads;
+    const short = [];
+    if (!main) short.push("本文");
+    if (!tags.length) short.push("タグ");
+    if (!thumb) short.push("サムネ");
+    if (heads && got < heads) short.push("見出し画像" + (heads - got) + "枚");
+    $("notePackStat").innerHTML = (done ? "✅ <b>note投稿パッケージ完成</b>" : '⚠ <span class="sectShort">note投稿パッケージ 未完成</span>')
+      + "<br>本文 " + main.length.toLocaleString() + "字 ／ タグ " + tags.length + "個 ／ 画像 " + (thumb + got) + "点"
+      + "（サムネ" + thumb + "＋見出し" + got + "/" + heads + "）"
+      + (short.length ? '<br><span class="sectShort">足りないもの: ' + esc(short.join("・")) + "</span>" : "");
+    const tb = $("notePackTags");
+    tb.textContent = tags.length ? "📋 タグをコピー（" + tags.length + "個）" : "タグが見つかりません";
+    tb.disabled = !tags.length;
+    show("notePack", true);
+  }
+  { const b = $("notePackBody"); if (b) b.onclick = () => copy(noteBodyOnly($("snsBody").value || "")); }
+  { const b = $("notePackTags"); if (b) b.onclick = () => copy(noteTagList($("snsBody").value || "").join(" ")); }
+  { const b = $("notePackDl"); if (b) b.onclick = () => saveAllNoteImages(); }
+  { const b = $("btnNoteAll"); if (b) b.onclick = async () => {
+      const btns = ["btnNoteAll", "btnSns", "btnSnsWeek", "snsSectImg", "snsThumb", "snsRegen"];
+      btns.forEach((id) => { const e = $(id); if (e) e.disabled = true; });
+      show("notePack", false);
+      const step = (s) => { $("snsStat").textContent = s; };
+      try {
+        step("1/3 記事を作成中…");
+        if (!await snsGen()) { step("⚠ 記事を作れませんでした。ここで中断します"); return; }
+        // 本文が無いと見出しもサムネも作れないので、ここだけは失敗したら進まない
+        step("2/3 サムネを作成中…（20〜40秒ほど）");
+        await genOneThumb();   // サムネが作れなくても見出し画像には進む
+        step("3/3 見出しごとの画像を作成中…");
+        await startSectionImages();
+        step("");
+      } catch (e) { step("⚠ " + (e.message || e)); }
+      finally {
+        btns.forEach((id) => { const e = $(id); if (e) e.disabled = false; });
+        renderNotePack();
+      }
+    };
   }
 
   // ===== note用サムネ生成 =====
@@ -1794,7 +1857,7 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
   function loadImg(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
   async function genOneThumb() {
     const post = ($("snsBody").value || "").trim();
-    if (!post) { toast("先にnote記事を作成してください"); return; }
+    if (!post) { toast("先にnote記事を作成してください"); return false; }
     const stat = $("snsThumbStat");
     stat.textContent = "サムネの文字を設計中…";
     let parts;
@@ -1807,9 +1870,9 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
       const j = await api("image", { prompt, aspect: "16:9" });
       if (!j.image) throw new Error("背景画像を取得できませんでした");
       bgImg = await loadImg(j.image);
-    } catch (e) { stat.textContent = "⚠ " + (e.message || e); return; }
+    } catch (e) { stat.textContent = "⚠ " + (e.message || e); return false; }
     stat.textContent = "文字を合成中…";
-    let url; try { url = composeThumb(bgImg, parts); } catch (e) { stat.textContent = "⚠ 合成エラー: " + (e.message || e); return; }
+    let url; try { url = composeThumb(bgImg, parts); } catch (e) { stat.textContent = "⚠ 合成エラー: " + (e.message || e); return false; }
     // noteに上げられる容量のJPEGにし、記事セットの01番として名前を付ける
     const set = noteSetFor(post);
     const out = await toJpeg(url, 1280, 670);
@@ -1838,6 +1901,7 @@ CRITICAL: Do NOT render ANY text, letters, words, numbers, logos or watermarks a
     $("snsThumbWrap").insertBefore(card, $("snsThumbWrap").firstChild);
     show("snsSectDlAll", true);
     stat.textContent = "✓ サムネを作りました（別パターンは同じ背景で文字レイアウトだけ変えられます／作り直すと背景も再生成）";
+    return true;
   }
   { const b = $("snsThumb"); if (b) b.onclick = async () => { b.disabled = true; try { await genOneThumb(); } finally { b.disabled = false; } }; }
 
