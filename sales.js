@@ -1479,8 +1479,16 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
        見出しごとに行を立てて状態を出し、失敗した見出しだけ自動で再挑戦・手動でもやり直せるようにする。 */
   let snsSectStop = false;
   const SECT_RETRY = 2;   // 1回目が失敗したら、その見出しだけ最大2回まで自動で再挑戦
-  // 枠切れ・認証・設定不備は何枚試しても同じ結果。残りを待たせず理由を出して止める。
-  const fatalImgErr = (m) => /無料枠|認証に失敗|設定が未完了/.test(String(m || ""));
+  /* ★ここに「無料枠」を入れてはいけない。入れていたのが11/10の
+     「ミューズAI側のブラウザだけ0枚／ユーザーのPCでは普通に作れた」の原因だった。
+     Cloudflareの429は断続的に出る(当日のログでは失敗の1分後に成功が何度も出ている)のに、
+     1回受けただけでその見出しの再挑戦も残り全部の見出しも打ち切って「朝9時まで待て」と
+     表示していたため、たまたま当たったブラウザだけ全滅した。
+     打ち切っていいのは、何回やっても結果が変わらない設定ミスと認証エラーだけ。 */
+  const fatalImgErr = (m) => /認証に失敗|設定が未完了/.test(String(m || ""));
+  // 混雑・枠系(429)。打ち切らず間隔を長めに取って試す。ただし3枚続けてダメなら本当に尽きている
+  const busyImgErr = (m) => /混み合|無料枠|429/.test(String(m || ""));
+  let sectBusyRun = 0;    // 混雑エラーが連続した枚数
   let sectCtx = null;     // 直近の生成セット。個別の作り直しと一括保存で使う
 
   function sectPaint(row) {
@@ -1571,7 +1579,7 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
   async function sectRun(rows) {
     if (!sectCtx || sectCtx.running) return;
     const btn = $("snsSectImg");
-    snsSectStop = false; sectCtx.running = true; sectCtx.fatal = "";
+    snsSectStop = false; sectCtx.running = true; sectCtx.fatal = ""; sectBusyRun = 0;
     if (btn) btn.disabled = true;
     show("snsSectCancel", true);
     for (const row of rows) {
@@ -1585,11 +1593,19 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks. Image on
         catch (e) {
           lastErr = String(e.message || e);
           if (fatalImgErr(lastErr)) { sectCtx.fatal = lastErr; break; }
-          if (attempt < SECT_RETRY) await new Promise((r) => setTimeout(r, 1500));   // 少し置いてから再挑戦
+          // 混雑・枠系はすぐ叩き直しても同じ答えが返るだけなので、間隔を長めに空ける
+          if (attempt < SECT_RETRY) await new Promise((r) => setTimeout(r, busyImgErr(lastErr) ? 6000 : 1500));
         }
       }
       row.busy = false;
-      if (lastErr) { row.url = ""; row.err = lastErr + (fatalImgErr(lastErr) ? "" : "（" + (SECT_RETRY + 1) + "回試しました）"); }
+      if (lastErr) {
+        row.url = ""; row.err = lastErr + (fatalImgErr(lastErr) ? "" : "（" + (SECT_RETRY + 1) + "回試しました）");
+        sectBusyRun = busyImgErr(lastErr) ? sectBusyRun + 1 : 0;
+        // 3枚続けて混雑・枠で落ちたら今日はもう通らない可能性が高い。残りを待たせずに止める
+        if (sectBusyRun >= 3 && !sectCtx.fatal) {
+          sectCtx.fatal = "画像生成が3枚続けて通りませんでした。1日の無料枠(朝9時リセット)に達している可能性があります。残りは中止しました。時間をおいて ✗ の行の「作り直す」でやり直せます。";
+        }
+      } else { sectBusyRun = 0; }
       sectPaint(row);
       if (sectCtx.fatal) break;
     }

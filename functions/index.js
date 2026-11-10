@@ -2630,12 +2630,25 @@ async function genImage(promptText, aspectRatio, preferredModel) {   // eslint-d
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cf.token },
         // steps=8(上限)。4だと人物が首から下だけになる等の破綻が出たため、品質側に振る。
-        // 消費は1枚あたり最大でも約77 Neurons=1日130枚ほど生成できる計算で、無料枠(1日10,000)に十分収まる。
+        // ★消費量(2026-11-11訂正)。以前ここに「1枚77 Neurons=1日130枚」と書いていたが誤りだった。
+        //   公式レート: 4.80 Neurons/512x512タイル + 9.60 Neurons/ステップ。FLUXは1024x1024固定=タイル4枚。
+        //   (4.80 + 9.60*steps) * 4 → steps=8 で 326.4 Neurons。無料枠10,000/日 = 1日30枚だけ。
+        //   note記事1本=サムネ1+見出し6=7枚=2,285 Neurons → 1日4本で枯れる(2026-11-10に実際に枯れた)。
+        //   steps=4 なら 172.8 Neurons=1日57枚(記事8本)。枠を倍にしたい時はここを4に戻す。
         body: JSON.stringify({ prompt: prompt, steps: 8 }),
       });
     } catch (e) { lastErr = "network"; continue; }
-    if (r.status === 429) {   // 1日の無料枠(Neurons)切れ。翌日リセットまで待つしかないので即座に伝える
-      throw new Error("画像生成の1日の無料枠(Cloudflare 10,000ニューロン)を使い切りました。毎日 朝9時(日本時間)にリセットされます。");
+    if (r.status === 429) {
+      /* ★429は「1日の無料枠切れ」と「一時的な絞り込み」の両方で返る。以前はここで即エラーにしていたが、
+         2026-11-10のログでは429の直後に成功が何度も出ており(=断続的)、1回の429で「朝9時まで待て」と
+         断定表示していたせいで、たまたま当たったブラウザだけ0枚になり、別のブラウザでは普通に作れる、
+         という食い違いが起きた。間隔を空けて3回試し、応答本文(code/message)をログに残して後から判別できるようにする。
+         ※429は生成が行われないのでニューロンは消費しない。試し直してもコストは増えない。 */
+      let detail = "";
+      try { const j = await r.json(); const e0 = (j && j.errors && j.errors[0]) || {}; detail = String((e0.code || "") + " " + (e0.message || "")).trim(); } catch (e) {}
+      console.warn("[genImage] Cloudflare 429 (" + (attempt + 1) + "/3) detail=" + (detail || "(本文なし)"));
+      if (attempt < 2) { await new Promise((rs) => setTimeout(rs, attempt === 0 ? 3000 : 7000)); continue; }
+      throw new Error("画像生成が混み合っています(429" + (detail ? " / " + detail : "") + ")。3回試しても通りませんでした。1日の無料枠(Cloudflare 10,000ニューロン・朝9時リセット)に達している可能性もあります。少し時間をおいてお試しください。");
     }
     if (r.status === 401 || r.status === 403) {
       throw new Error("画像生成の認証に失敗しました(" + r.status + ")。CF_AI_TOKEN の権限(Workers AI の実行)をご確認ください。");
@@ -2781,6 +2794,9 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
   const db = admin.firestore();
   const data = req.body || {};
   const action = data.action || "generate";
+  // ★actionを残す。これが無いと「どの呼び出しが画像だったか」がログから分からず、
+  //   11/10の枠切れ調査で日次上限か一時的な絞り込みかを判別できなかった。
+  console.log("[salesRoom] action=" + action);
 
   // ---- 見込み客リスト(CRUD) ----
   if (action === "listLeads") {
@@ -2928,8 +2944,15 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
     if (!p) return res.status(400).json({ error: "画像の指示が空です。" });
     const aspect = /^(1:1|16:9|9:16|4:3|3:4|3:2|2:3|4:5|5:4|21:9)$/.test(String(data.aspect || "")) ? data.aspect : "";
     const preferredModel = /^gemini-[a-z0-9.-]+$/.test(String(data.model || "")) ? data.model : "";
-    try { const g = await genImage(p, aspect, preferredModel); return res.json({ image: g.url, model: g.model }); }
-    catch (e) { return res.status(503).json({ error: e.message || "画像生成に失敗しました。" }); }
+    const t0 = Date.now();
+    try {
+      const g = await genImage(p, aspect, preferredModel);
+      console.log("[image] ok " + (Date.now() - t0) + "ms");   // 1枚=326.4ニューロン(steps=8)。1日30枚で無料枠に達する
+      return res.json({ image: g.url, model: g.model });
+    } catch (e) {
+      console.warn("[image] ng " + (Date.now() - t0) + "ms " + (e.message || e));
+      return res.status(503).json({ error: e.message || "画像生成に失敗しました。" });
+    }
   }
 
   // ---- YouTube Shorts等の短編動画(音声付き・ストーリー)を1ビート分生成 ----
