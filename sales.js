@@ -1485,9 +1485,11 @@ IMPORTANT: Do NOT render any text, letters, words, logos or watermarks (text loo
      1回受けただけでその見出しの再挑戦も残り全部の見出しも打ち切って「朝9時まで待て」と
      表示していたため、たまたま当たったブラウザだけ全滅した。
      打ち切っていいのは、何回やっても結果が変わらない設定ミスと認証エラーだけ。 */
-  const fatalImgErr = (m) => /認証に失敗|設定が未完了/.test(String(m || ""));
-  // 混雑・枠系(429)。打ち切らず間隔を長めに取って試す。ただし3枚続けてダメなら本当に尽きている
-  const busyImgErr = (m) => /混み合|無料枠|429/.test(String(m || ""));
+  // 「使い切りました」は、Cloudflare自身が code 4006 で枠切れと言った時だけ出る文言。
+  // これは何枚やっても同じなので打ち切ってよい(2026-11-11のログで確定)。
+  const fatalImgErr = (m) => /使い切りました|認証に失敗|設定が未完了/.test(String(m || ""));
+  // 一時的な混雑の429。こちらは打ち切らず、間隔を長めに取って試す
+  const busyImgErr = (m) => /混み合|429/.test(String(m || ""));
   let sectBusyRun = 0;    // 混雑エラーが連続した枚数
   let sectCtx = null;     // 直近の生成セット。個別の作り直しと一括保存で使う
 

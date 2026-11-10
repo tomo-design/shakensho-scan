@@ -2774,14 +2774,19 @@ async function genImage(promptText, aspectRatio, preferredModel) {   // eslint-d
       });
     } catch (e) { lastErr = "network"; continue; }
     if (r.status === 429) {
-      /* ★429は「1日の無料枠切れ」と「一時的な絞り込み」の両方で返る。以前はここで即エラーにしていたが、
-         2026-11-10のログでは429の直後に成功が何度も出ており(=断続的)、1回の429で「朝9時まで待て」と
-         断定表示していたせいで、たまたま当たったブラウザだけ0枚になり、別のブラウザでは普通に作れる、
-         という食い違いが起きた。間隔を空けて3回試し、応答本文(code/message)をログに残して後から判別できるようにする。
-         ※429は生成が行われないのでニューロンは消費しない。試し直してもコストは増えない。 */
+      /* ★429は「1日の無料枠切れ」と「一時的な絞り込み」の両方で返る。応答本文で区別できる。
+         枠切れのときは code 4006 と "daily free allocation of 10,000 neurons" が入る
+         (2026-11-11のログで実際に確認)。これは何回試しても同じなので待たずに即伝える。
+         ここで粘ると1枚あたり11〜22秒も待たせることになる(実測)。
+         本文が読めない429や別物の429だけ、間隔を空けて試す。
+         ※429は生成が行われないのでニューロンは消費しない。試し直してもコストは増えない。
+         ※昨日「429は断続的」と見えたのは、本文(Gemini)と画像(Cloudflare)が交互に出ていただけで、
+           画像はずっと失敗し続けていた。actionをログに出していなかったため区別できなかった。 */
       let detail = "";
       try { const j = await r.json(); const e0 = (j && j.errors && j.errors[0]) || {}; detail = String((e0.code || "") + " " + (e0.message || "")).trim(); } catch (e) {}
-      console.warn("[genImage] Cloudflare 429 (" + (attempt + 1) + "/3) detail=" + (detail || "(本文なし)"));
+      const dailyOut = /4006|daily free allocation|neurons/i.test(detail);
+      console.warn("[genImage] Cloudflare 429 (" + (attempt + 1) + "/3) " + (dailyOut ? "日次枠切れ" : "一時的?") + " detail=" + (detail || "(本文なし)"));
+      if (dailyOut) throw new Error("画像生成の1日の無料枠(Cloudflare 10,000ニューロン)を使い切りました。日本時間の朝9時にリセットされます。");
       if (attempt < 2) { await new Promise((rs) => setTimeout(rs, attempt === 0 ? 3000 : 7000)); continue; }
       throw new Error("画像生成が混み合っています(429" + (detail ? " / " + detail : "") + ")。3回試しても通りませんでした。1日の無料枠(Cloudflare 10,000ニューロン・朝9時リセット)に達している可能性もあります。少し時間をおいてお試しください。");
     }
