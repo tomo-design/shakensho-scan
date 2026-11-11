@@ -622,6 +622,8 @@ function parsePayloads(payloadSet) {
     firstReg: s.firstReg || null,
     kataShitei: s.kataShitei || null,
     structured: !!s.structured,
+    // 二次元コードの項目位置から直接取れた値＝確かな値。推測(ヒューリスティック)より優先する。
+    sure: { type: !!s.type, vin: !!s.vin, engine: !!s.engine, plate: !!s.plate, kataShitei: !!s.kataShitei },
     raw: uniq,
   };
 }
@@ -675,25 +677,38 @@ let scanStartAt = 0;   // スキャン開始時刻(開始直後に重い処理�
 /* 統合アキュムレータ: QR・OCR・手動のどれからでも項目を埋めていく */
 function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, rid: null, raw: [] }; }
 let acc = freshAcc();
+let accSure = {};   // 二次元コードの項目位置から確定した項目(推測値より強い)
 function mergeAcc(d) {
   // 読み取り順に依存せず、正しい値を採用する:
   //  ・フィラー(9999999等)は取り込まない  ・既存がフィラーなら実値で上書き
+  //  ・二次元コードの項目位置から取れた値(sure)は、先に入っていた推測値を上書きする
+  //    (コード3を先に読むと駆動方式「2WD」が原動機型式に居座り、あとから来たコード2の
+  //     「4JJ1」が採用されなかった。型式も車台番号の接頭辞のまま直らなかった)
   const fillable = new Set(["type", "vin", "engine", "plate", "kataShitei"]);
+  const sure = (d && d.sure) || {};
   for (const k of ["type", "vin", "engine", "plate", "expiry", "firstReg", "kataShitei"]) {
     const nv = d[k];
     if (!nv) continue;
     const isStr = typeof nv === "string";
     if (fillable.has(k) && isStr && isFiller(nv)) continue;                 // フィラーは無視
     if (k === "plate" && !isValidPlate(nv)) continue;                       // 登録番号は数字のみ不可(地名を含むこと)
-    if (!acc[k] || (fillable.has(k) && typeof acc[k] === "string" && isFiller(acc[k]))) acc[k] = nv;  // 空 or 既存フィラーなら採用
+    const empty = !acc[k] || (fillable.has(k) && typeof acc[k] === "string" && isFiller(acc[k]));
+    if (sure[k]) { if (empty || !accSure[k]) { acc[k] = nv; accSure[k] = true; } continue; }  // 確定値: 推測値なら上書き
+    if (empty) acc[k] = nv;                                                 // 推測値: 空いている時だけ
   }
   if (d.rid && !acc.rid) acc.rid = d.rid;   // 表示中の車両IDを引き継ぐ(同じ車として追記・別レコード化を防ぐ)
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
 function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
-function accComplete() { return !!(acc.vin && acc.engine); } // 車台番号＋原動機型式が揃えば完了
+/* 二次元コード3まで読めたか。有効期間満了日・初度登録・指定類別・型式はすべてこのコードに入っている。 */
+function hasCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); }
+/* 読み取り完了。コード2(車台番号・原動機型式)だけで終わらせると有効期間が毎回落ちるので、
+   コード3まで揃って初めて「完了」とする。コード3が読めない車検証のために、
+   車台番号が取れたあとは下の猶予(CODE3_WAIT_MS)で打ち切る仕組みがあるので止まることはない。 */
+function accComplete() { return !!(acc.vin && acc.engine && hasCode3()); }
+const CODE3_WAIT_MS = 2500;   // 車台番号が取れてから、有効期間(コード3)を待つ時間
 function accResult() { return { ...acc, rid: acc.rid || null, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
+function resetScan() { payloads.clear(); acc = freshAcc(); accSure = {}; scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null, expiry: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 /* 再スキャン: 状態を初期化しカメラを開き直す(検出が固まった時の確実な復帰手段) */
@@ -854,16 +869,20 @@ function onLiveQr(data) {
 }
 /* 文字(OCR)検出時。壁の模様・影などの誤検出を防ぐため、
    同じ値が2回連続で読めた項目だけを採用する(1回だけの値は捨てる)。QRは正確なので対象外。 */
-let lastOcrCand = { type: null, vin: null };
+let lastOcrCand = { type: null, vin: null, expiry: null };
 function onLiveText(d) {
   const use = {};
   if (d.type && d.type === lastOcrCand.type) use.type = d.type;   // 前回と一致した型式のみ採用
   if (d.vin && d.vin === lastOcrCand.vin) use.vin = d.vin;        // 前回と一致した車台番号のみ採用
-  lastOcrCand = { type: d.type || null, vin: d.vin || null };
-  if (!use.type && !use.vin) return;                              // 初回や不一致(ノイズ)は無視
-  const before = acc.type + "|" + acc.vin + "|" + acc.engine;
+  // 「有効期間の満了する日」も券面に印字されている。誤読を入れないよう、型式・車台番号と同じく
+  // 2回続けて同じ日付が読めた時だけ採用する。
+  if (d.expiry && lastOcrCand.expiry && +d.expiry === +lastOcrCand.expiry) use.expiry = d.expiry;
+  lastOcrCand = { type: d.type || null, vin: d.vin || null, expiry: d.expiry || null };
+  if (!use.type && !use.vin && !use.expiry) return;               // 初回や不一致(ノイズ)は無視
+  const sig = () => acc.type + "|" + acc.vin + "|" + acc.engine + "|" + (acc.expiry ? +acc.expiry : "");
+  const before = sig();
   mergeAcc(use);
-  if (acc.type + "|" + acc.vin + "|" + acc.engine !== before) {
+  if (sig() !== before) {
     if (navigator.vibrate) navigator.vibrate(40);
     flashScan();
     afterScanUpdate("文字");
@@ -892,9 +911,12 @@ function afterScanUpdate(src) {
   if (accComplete()) { finalizeScan(); return; }
   // 安定化: 確実な読取である「車台番号(コード2)」を基準に確定。型式だけの曖昧な状態では完了しない。
   if (acc.vin) {
-    setScanMsg("✓ 読み取り中… そのままかざしてください");
-    // 車台番号が取れたら短い猶予で残りQR(型式コード3)も拾って確定
-    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, 500);
+    const c3 = hasCode3();
+    setScanMsg(c3 ? "✓ 読み取り中… そのままかざしてください"
+                  : "✓ 車台番号を読みました。有効期間はもう1つの二次元コードにあります。そのままかざしてください");
+    // 車台番号が取れたら猶予を置いて残りQR(コード3=有効期間・初度登録・型式)も拾ってから確定する。
+    // コード3がまだなら長めに待つ(500ミリ秒では実際には間に合わず、有効期間が毎回落ちていた)。
+    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, c3 ? 500 : CODE3_WAIT_MS);
     return;
   }
   // 型式のみ(コード3先読み)の場合は、車台番号(コード2)を必須として待ち続ける。
@@ -966,7 +988,7 @@ async function scanTick() {
     getOcrWorker().then(w => w.recognize(oc)).then(({ data }) => {
       if (!scanning) return;
       const d = extractFromOcrText(data.text || "");
-      if (d.type || d.vin) onLiveText(d);
+      if (d.type || d.vin || d.expiry) onLiveText(d);   // 満了日だけ読めた回も渡す
     }).catch(() => {}).finally(() => { ocrBusy = false; });
   }
   scanRaf = requestAnimationFrame(scanTick);
@@ -1046,7 +1068,7 @@ $("qrPhotoIn").addEventListener("change", async e => {
     if (accComplete()) { scanComplete = true; showResult(accResult(), { fromScan: true }); }
     else if (added === 0) $("qrPhotoStatus").innerHTML = "QRを検出できませんでした。1つのQRが<b>画面いっぱい</b>になるまで近づけて撮影してください。";
     else {
-      const need = [!acc.type && "型式", !acc.vin && "車台番号"].filter(Boolean).join("・");
+      const need = [!acc.vin && "車台番号", !hasCode3() && "有効期間・型式"].filter(Boolean).join("・");
       $("qrPhotoStatus").textContent = "✓ " + added + "件読取。続けて" + (need ? "「" + need + "」の" : "別の") + "QRを撮影してください。";
     }
   } catch (err) { $("qrPhotoStatus").textContent = "読み取りエラー: " + (err.message || err); }
@@ -2253,8 +2275,9 @@ function showResult(d, opt = {}) {
   setText("rVin", han(d.vin) || "未検出");
   setText("rPlate", han(d.plate) || "—");
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
-  const _ex = d.expiry ? String(d.expiry) : "";
-  setText("rExpiry", _ex ? _ex.replace(/-/g, "/") : "—"); toggle("rExpiryBox", !!_ex);
+  // ※ String(Date) をそのまま出していたため「Mon Mar 15 2027 00:00:00 GMT+0900 (日本標準時)」と表示されていた
+  const _ex = d.expiry ? fmtYMD(d.expiry) : "";
+  setText("rExpiry", _ex ? _ex + expiryLeftText(d.expiry) : "—"); toggle("rExpiryBox", !!_ex);
   const _fr = d.firstReg;
   setText("rFirstReg", (_fr && _fr.year) ? (_fr.year + "/" + pad2(_fr.month)) : "—"); toggle("rFirstRegBox", !!(_fr && _fr.year));
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
@@ -5563,6 +5586,16 @@ function openStaffPicker(current, onPick) {
   const cls = $("spClose"); if (cls) cls.addEventListener("click", close);
 }
 /* 満了日等のYYYY/MM/DD整形(timestamp or Date) */
+/* 車検満了まであと何日か。過ぎていれば「切れています」。分からなければ空。 */
+function expiryLeftText(v) {
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d)) return "";
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const n = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t0) / 864e5);
+  if (n < 0) return "（切れています）";
+  if (n === 0) return "（今日まで）";
+  return "（あと" + n + "日）";
+}
 function fmtYMD(v) {
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d)) return "";
@@ -10081,7 +10114,7 @@ const SUPPORT_KB = [
   "",
   "【概要】整備士向けアプリ。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。個人向けの「MECHANO-AI Pocket」(Web版・ブラウザ)は7日無料→月額¥500。法人向けは「MECHANO-AI Works」。",
   "【画面】下タブ=スキャン/車両/履歴/設定。「スキャン」はいつでもホーム(車検証を読み取る画面)、「車両」はいま開いている車両に戻る。車種データの編集(DB編集)は設定の中『車種データの編集』から。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
-  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・使用者 が出る。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
+  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・車検満了・初度登録・使用者 が出る。有効期間の満了する日(車検満了)は二次元コードの2枚目に入っているため、車台番号を読んだあとも最大2.5秒はそのままかざして2枚目を読ませる(画面に『有効期間はもう1つの二次元コードにあります』と出る)。読めない車検証でも待ち続けずに確定する。車検満了は『2027/03/15（あと124日）』のように残り日数つきで表示し、過ぎていれば『（切れています）』と出る。履歴では満了が近い車両だけを絞り込める。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【はじめの3つ(初回の案内)】初めて使う人には、ホーム上部に『はじめの3つ』が出る。①車検証を1台スキャンする ②整備カルテを1件残す ③違っている諸元を訂正して保存する。各項目の『やる』でその画面へ移動する。チェックは自己申告ではなく実際のデータで自動的に付く(カルテの実績量から自動反映された諸元は③に数えない)。3つとも終わると一度だけ完了が出て、以後は表示されない。『閉じる』でいつでも消せる。すでに3つとも済んでいる利用者には最初から表示されない。デモ中は出ない(デモは『体験ガイド』が案内する)。",
   "【ログインできない時】◆ID・パスワードは合っているのに、何も出ずにログイン画面へ戻る: そのIDの版(Works=法人版／Pocket=個人版)と、いま開いている側が違う可能性が高い。IDは版ごとに分かれていて、Pocket用IDでWorks側からは入れない(逆も同じ)。ログイン画面の Works ⇄ Pocket の切り替えを、そのIDの側に合わせてからログインする。新しいブラウザで開くと既定はWorksなので、Pocket用IDだとこれに当たりやすい。◆「ログイン中…」のまま進まない: 通信がこのアプリのデータベースへ届いていない。アプリ内ブラウザ(LINE等のアプリの中で開いた画面)では繋がらないことがあるので、Chrome / Safari で開き直すか、ホーム画面に追加したメカノAIから開く。ログインIDではなくメールアドレスでも試す。20秒たつと画面にも同じ案内が出る。◆ログインは通ったのに社内のデータが出ない: 登録端末の枠(無料2台)を超えている。設定→クラウド同期→登録端末 で使っていない端末を「解除」する。端末はブラウザごとに数えるので、同じスマホでもChromeとFirefoxは別の端末になる。",
