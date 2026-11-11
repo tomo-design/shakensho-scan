@@ -56,6 +56,13 @@
       <rect x="16" y="18" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="20" y="22" width="1" height="1"/><rect x="22" y="19" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/>
       <rect x="9" y="4" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/></g>
   </symbol></svg>
+  <!-- 初めて使う人向けの「はじめの3つ」。実データで進み具合を判定し、済んだ人・閉じた人には出ない -->
+  <section id="onbCard" class="onbCard hidden">
+    <div class="onbHead"><b>はじめの3つ</b><button type="button" id="onbHide" class="onbHide">閉じる</button></div>
+    <p class="onbLead">この3つを一度ずつ通せば、あとは同じ流れです。済んだものは自動でチェックが付きます。</p>
+    <ol class="onbList" id="onbList"></ol>
+  </section>
+
   <div id="mechaHero">
     <h2 class="homeTtl">車検証を読み取る</h2>
     <div id="heroBtns">

@@ -9476,9 +9476,63 @@ function syncSettingGroups() {
   });
   flush();
 }
+/* ===== ホームの「はじめの3つ」(初回オンボーディング) =====
+   体験ガイド(tutorial.js)はデモ専用。契約した工場が“自分の車で”最初の1台を通すための案内がなく、
+   機能が並んでいるだけで最初の一歩が分からない状態だった。
+   進み具合は実データから判定するので、押し忘れ・自己申告のズレが起きない。 */
+const LS_ONB = "ss_onboard";
+function onbState() { try { return JSON.parse(localStorage.getItem(LS_ONB) || "{}") || {}; } catch (e) { return {}; } }
+function onbSave(patch) { try { localStorage.setItem(LS_ONB, JSON.stringify(Object.assign(onbState(), patch))); } catch (e) {} }
+/* 3つの達成を実データで判定する */
+function onbProgress() {
+  let hist = [];
+  try { hist = getHistory() || []; } catch (e) {}
+  const scan = hist.length > 0;
+  const karte = hist.some(h => ((h && h.karte) || []).some(k => k && !k.deleted));
+  // 「訂正して保存」= 手入力で確定した諸元。カルテの実績量から自動で入った値(src:"karte")は含めない
+  const fix = hist.some(h => ((h && h.specs) || []).some(sp => sp && sp.manual && sp.src !== "karte"));
+  return { scan: scan, karte: karte, fix: fix, all: scan && karte && fix };
+}
+const ONB_STEPS = [
+  { k: "scan", t: "車検証を1台スキャンする",
+    d: "ホームの「QRでScan」。読めなければ「写真でScan」。型式・車台番号から、その車の諸元が出ます。",
+    go: () => { switchView("scan"); const b = $("btnStart"); if (b) b.scrollIntoView({ behavior: "smooth", block: "center" }); } },
+  { k: "karte", t: "整備カルテを1件残す",
+    d: "車両を開いて「カルテ」→「＋記録を追加」。紙の伝票や手書きメモは写真から読み取れます。",
+    go: () => { if (!vehicleKey(current)) { uiAlert("先に車検証をスキャンして、車両を開いてください。"); return; } switchView("karte"); } },
+  { k: "fix", t: "違っている諸元を訂正して保存する",
+    d: "「メンテ」の値を直して保存すると、その車両に記憶され次回から緑で出ます。使うほど自社の正データになります。",
+    go: () => { if (!vehicleKey(current)) { uiAlert("先に車検証をスキャンして、車両を開いてください。"); return; } switchView("maint"); } },
+];
+function renderOnboard() {
+  const box = $("onbCard"); if (!box) return;
+  const st = onbState();
+  if (st.hidden || (typeof isDemo === "function" && isDemo())) { toggle("onbCard", false); return; }
+  const p = onbProgress();
+  // 初めて評価した時点で3つとも済んでいる=すでに使い込んでいる人。以後ずっと出さない
+  if (st.seen == null) {
+    onbSave({ seen: 1 });
+    if (p.all) { onbSave({ hidden: 1 }); toggle("onbCard", false); return; }
+  }
+  const list = $("onbList"); if (!list) return;
+  list.innerHTML = ONB_STEPS.map((step, i) =>
+    '<li class="onbItem' + (p[step.k] ? " done" : "") + '">' +
+      '<span class="onbNo">' + (p[step.k] ? "✓" : (i + 1)) + '</span>' +
+      '<div class="onbTx"><b>' + esc(step.t) + '</b><span>' + esc(step.d) + '</span></div>' +
+      (p[step.k] ? "" : '<button type="button" class="onbGo" data-i="' + i + '">やる</button>') +
+    '</li>').join("") +
+    (p.all ? '<li class="onbAll">✓ 3つとも終わりました。この案内はもう出ません。</li>' : "");
+  list.querySelectorAll(".onbGo").forEach(b => b.addEventListener("click", () => {
+    const step = ONB_STEPS[Number(b.dataset.i)]; if (step) step.go();
+  }));
+  if (p.all) onbSave({ hidden: 1 });   // 完了の表示は今回だけ。次からは出さない
+  toggle("onbCard", true);
+}
+$("onbHide") && $("onbHide").addEventListener("click", () => { onbSave({ hidden: 1 }); toggle("onbCard", false); });
 function syncTabHighlight() {
   try { setPageTitles(); } catch (e) {}
   try { renderHomeIntake(); } catch (e) {}   // 入庫状況はホームでだけ出す
+  try { renderOnboard(); } catch (e) {}      // はじめの3つ(済んだら自動で消える)
   const res = $("result");
   const onVeh = ["maint", "diag", "parts", "karte"].includes(curView) ||
                 (curView === "scan" && res && !res.classList.contains("hidden"));
@@ -10039,6 +10093,7 @@ const SUPPORT_KB = [
   "【画面】下タブ=スキャン/車両/履歴/設定。「スキャン」はいつでもホーム(車検証を読み取る画面)、「車両」はいま開いている車両に戻る。車種データの編集(DB編集)は設定の中『車種データの編集』から。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
   "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・使用者 が出る。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
+  "【はじめの3つ(初回の案内)】初めて使う人には、ホーム上部に『はじめの3つ』が出る。①車検証を1台スキャンする ②整備カルテを1件残す ③違っている諸元を訂正して保存する。各項目の『やる』でその画面へ移動する。チェックは自己申告ではなく実際のデータで自動的に付く(カルテの実績量から自動反映された諸元は③に数えない)。3つとも終わると一度だけ完了が出て、以後は表示されない。『閉じる』でいつでも消せる。すでに3つとも済んでいる利用者には最初から表示されない。デモ中は出ない(デモは『体験ガイド』が案内する)。",
   "【リコール・改善対策】車両を読み込むと、メンテタブの『リコール・改善対策の確認』で国土交通省の届出を型式で自動照合する(利用者の入力は不要)。届出ごとに車台番号が対象範囲かをこの端末の中だけで判定し『範囲内/範囲外/要確認』を表示(車台番号をサーバーへ送らない)。型式・車台番号はタップでコピーでき、メーカーのリコール検索ページに貼って『この車が対象か・実施済みか』まで確認できる。国土交通省サイトへの手動検索リンクは、自動照合ができなかった時だけ出る(照合済みなら二度手間なので出さない)。",
   "【FAINESへの受け渡し】修理タブの下に『📗FAINESで正式な整備手順・品番・トルクを確認』。FAINESは メーカー→車種→型式→年式 と辿るため、そのすぐ上に『FAINESで車両を選ぶときの手がかり』として 車種・型式・年式・原動機型式 をタップでコピーできる形で並べている(車検証を見直さなくてよい)。その上の丸いボタンは、FAINESの車台番号キーワード検索に使う打刻の記号部(例 NKR85)。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
