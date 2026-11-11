@@ -199,6 +199,7 @@ function applyAppMode() {
     try { localStorage.setItem("ss_office", "0"); } catch (e) {}
     try { document.body.classList.remove("officeMode"); toggle("officeBar", false); } catch (e) {}
   }
+  try { syncSettingAccess(); } catch (e) {}   // 権限・版で見せない設定を先に隠す
   try { syncSettingGroups(); } catch (e) {}   // 中身が全部消えた見出しを畳む
   // よくある質問(FAQ)を版に合わせて表示(法人=corp/個人=personal)
   const faq = $("faqLink"); if (faq) faq.href = "faq.html?v=" + (personal ? "personal" : "corp");
@@ -9452,6 +9453,19 @@ function decorateSettingRows() {
   });
 }
 /* 設定のグループ見出し: 中身が全部隠れているグループは見出しも出さない */
+/* 権限・版で見せない設定セクションを出し分ける。
+   ・secVehDb(車種データの編集): 会社で使っている時は管理者だけ。従業員が触ると全員の車種判定が変わるため。
+   ・secAiKey(AIキーの登録): 契約店舗はサーバーのキーで動くので登録不要。出すと迷うだけなので隠す。
+   個人版(Pocket)・未ログインの個人利用では、どちらも本人のものなので従来どおり出す。 */
+function syncSettingAccess() {
+  const c = window.Cloud || {};
+  const loggedIn = !!(c.isLoggedIn && c.isLoggedIn());
+  const personal = (typeof getAppMode === "function") && getAppMode() === "personal";
+  const manager = !!((c.isManager && c.isManager()) || (c.isSuper && c.isSuper()));
+  const corpUser = loggedIn && !personal;   // 会社に参加していて法人版で使っている
+  toggle("secVehDb", !corpUser || manager);
+  toggle("secAiKey", !corpUser);
+}
 function syncSettingGroups() {
   const v = document.getElementById("view-settings"); if (!v) return;
   let grp = null, any = false;
@@ -9481,7 +9495,7 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "maint") { try { refreshSpecsView(); } catch (e) {} }
   if (name === "karte") { toggle("karteForm", false); renderKarte(); }
-  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingGroups(); renderKnowAllCount(); renderAccExportStat(); } catch (e) {} }
+  if (name === "settings") { try { decorateSettingRows(); renderSetAccount(); syncSettingSwitches(); syncSettingAccess(); syncSettingGroups(); renderKnowAllCount(); renderAccExportStat(); } catch (e) {} }
   syncTabHighlight();
   // 共通ナビの現在ページをハイライト(枠だけ色)
   document.querySelectorAll(".pageNav .navBtn").forEach(b => b.classList.toggle("navActive", b.dataset.go === name));
@@ -10038,7 +10052,8 @@ const SUPPORT_KB = [
   "【音声入力】各入力欄の🎤ボタンで声で入力。話の途中で無音になっても自動で認識を続けるので、話すたびに押し直す必要はない。停止はもう一度🎤、または相談/解析ボタンを押すと自動でオフ。",
   "【調べる車両の切替】別の車両を開くと、診断・修理の入力欄に残っていた写真・動画・コメントは自動でクリア(前の車両のものが混ざらない)。保存済みの診断結果は車両ごとに保持。",
   "【ログイン・パスワード・メール】設定→クラウド同期。◆パスワードを変更したい: ログイン中に『🔑パスワード変更』ボタン→新パスワード(6文字以上)を入力。◆メールを変更したい: 『✉メール変更』ボタン→新メールを入力(Auth・社内データ両方更新)。◆パスワードを忘れた: ログイン画面の『パスワードを忘れた方(再設定メール)』でメール送信(届かない時は迷惑メール確認/差出人 noreply@mecanoai.firebaseapp.com)。メールが届かない場合は、代表管理者がメンバー管理→『パスワード』で一時パスワードを発行→本人がそれでログイン→『🔑パスワード変更』で任意のパスワードに変更、が確実(メール不要)。",
-  "【AIの用意】個人利用は設定タブで無料のGeminiキー(カード不要)を登録。契約店舗はサーバー経由で鍵登録不要。常に最新のGeminiを使用。",
+  "【AIの用意】個人利用は設定タブで無料のGeminiキー(カード不要)を登録。契約店舗はサーバー経由で鍵登録不要なので、会社にログイン中は『AIキー』の設定自体を表示しない(迷うだけなので隠している)。常に最新のGeminiを使用。",
+  "【車種データの編集の権限】設定の『車種データの編集』(車種名・型式マッチ正規表現・メーカー等)は、会社で使っている時は代表管理者だけに表示される。従業員の端末には出ない(1人が触ると全員の車種判定が変わるため)。個人版Pocketと未ログインの個人利用では従来どおり表示される。",
   "【料金プラン(法人)】3段階。NA=裏取り検索なし(標準AI・全機能可)。ターボ=AI Pro＋裏取り検索(月500回)。ツインターボ=AI Pro＋裏取り検索(無制限・検索を使えるのは席数まで=標準3席、4席目〜+¥3,000/席)。『裏取り検索』はGoogle検索で実データを確認し精度を上げる機能(診断・修理で有効)。現在の契約特典は設定→『契約・プラン』にグレード別に表示。プラン変更・席追加は同画面(代表管理者)または運営。支払いは月額/年契約。",
   "【MECHANO-AI Pocket（個人向け・Web版）】ブラウザで利用(mechanoai-cablueie.com)。最初の7日間は全機能無料、8日目以降は月額¥500。ログイン画面の『Pocket ＞ 7日間無料ではじめる』でメール入力→ID・パスが自動で届く。スマホはホーム画面に追加すればアプリのように使える。直通リンク mechanoai-cablueie.com/?pocket=start を開くと無料登録のフォームがそのまま出る。★入庫区分の選択・入庫状況・入出庫カレンダー・社内共有は法人版Worksだけの機能で、Pocketにはない(Pocketではスキャンしても入庫区分は聞かれない)。※App Store/Google Playのストア版は現在準備中。",
   "【デモ(登録なしの体験)】ログイン画面の『ログインせずにデモを試す』、または mechanoai-cablueie.com/?demo=1。デモは個人版(Pocket)として動き、サンプル車両(ダイハツ ハイゼットカーゴ)で 車両情報→メンテ諸元→故障診断→修理→整備カルテ を試せる(入庫管理・カレンダー・社内共有は法人版Worksの機能なのでデモには出ない)。デモ中はクラウドへ一切書き込まないので、会社にログイン中の端末でデモを開いても社内のデータや入庫の通知には影響しない。デモのAIは固定のサンプル回答で、内容が出るのは診断の『P0401』(原因候補と点検手引書)と修理の『ブレーキパッド交換』だけ。ほかの入力には案内文が返る。やり直しは右下の『❓体験ガイド』、終了は画面下の帯の『デモ終了』。最後の画面から『個人で使う（7日間無料）』=Pocketの無料登録、『会社で導入する』=法人向けの案内へ進める。",
