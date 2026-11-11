@@ -889,7 +889,18 @@
   const snsCfg = () => SNS[($("snsPlatform") && $("snsPlatform").value) || "x"] || SNS.x;
   function updateSnsCount() {
     const g = snsCfg(); const body = ($("snsBody").value || ""); const n = body.length;
-    if ($("snsCount")) $("snsCount").textContent = "　" + n + " / " + g.limit + "字" + (n > g.limit ? " ⚠字数超過" : "");
+    if ($("snsCount")) {
+      // X通常投稿のときはXの数え方(全角2・半角1・URL23)で出す。素の字数とは一致しない
+      if (isXPost()) {
+        const w = xWeighted(body);
+        $("snsCount").textContent = "　X換算 " + w + " / " + X_MAX + "（" + n + "字）" + (w > X_MAX ? " ⚠ " + (w - X_MAX) + "超過" : "");
+        $("snsCount").classList.toggle("over", w > X_MAX);
+      } else {
+        $("snsCount").textContent = "　" + n + " / " + g.limit + "字" + (n > g.limit ? " ⚠字数超過" : "");
+        $("snsCount").classList.remove("over");
+      }
+    }
+    renderXCheck();
     if ($("snsOpen")) $("snsOpen").href = g.compose(body);
     if ($("snsHint")) {
       if (!body) { $("snsHint").textContent = ""; }
@@ -933,6 +944,9 @@
     short: "短め・ひと言で刺す(目安120〜200字)",
     medium: "標準(目安300〜500字)",
     long: "じっくり長め(目安800〜1500字)",
+    // Xの通常投稿。Xは日本語1文字=2カウントなので、280カウント=実質130〜140字しか入らない
+    xpost: "Xの通常投稿。X換算280カウント以内(日本語は1文字=2カウントなので実質130〜140字)に必ず収める。短くて構わない、足りなければ話を削る",
+    xlong: "X Premiumの長文(目安300〜1500字)",
   };
   // AIっぽさを徹底的に消すための最重要ルール(SNS専用)。書き手＝実在の整備士本人の"つぶやき"。
   /* 公開される文章に個人情報を出さないための共通ルール。
@@ -1106,6 +1120,154 @@ ${NO_PII}
   結論は先に書くが、「結論から言うと」という言葉は使わずに、そのまま言い切る。`;
   };
   // Xは"入口"。読ませて終わりではなく、次(note・体験)へ渡すところまでが仕事。
+  /* ===== Xの文字数(weighted count) =====
+     Xは文字ごとに重みが違う。公式の定義では
+       U+0000–U+10FF / U+2000–U+200D / U+2010–U+201F / U+2032–U+2037 → 1
+       それ以外(日本語・絵文字など) → 2
+     URLは実際の長さに関係なく23カウント。
+     つまり上限280は、日本語だけなら実質130〜140字しか書けない。
+     ここを素の .length で数えていたため、長すぎる投稿がそのまま出ていた。 */
+  const X_MAX = 280;
+  const X_URL_RE = /https?:\/\/[^\s　]+/g;
+  function xWeighted(text) {
+    const s = String(text || "");
+    let urls = 0;
+    const body = s.replace(X_URL_RE, () => { urls++; return ""; });
+    let w = 0;
+    for (const ch of body) {          // for...of はサロゲートペア(絵文字等)を1文字として回す
+      const c = ch.codePointAt(0);
+      const light = (c <= 0x10FF) || (c >= 0x2000 && c <= 0x200D) ||
+                    (c >= 0x2010 && c <= 0x201F) || (c >= 0x2032 && c <= 0x2037);
+      w += light ? 1 : 2;
+    }
+    return w + urls * 23;
+  }
+  const curPlat = () => ($("snsPlatform") && $("snsPlatform").value) || "x";
+  const curLen = () => ($("snsLen") && $("snsLen").value) || "medium";
+  const isXPost = () => curPlat() === "x" && curLen() === "xpost";
+
+  /* 生成文から「戦略案」などの前置きを切り離す。{body, notes} を返す。
+     実際に出た壊れ方(2026-11-11): 「## マーケティング戦略案 …」が先に出て、
+     そのあと「## X（Premium）投稿文」が続き、投稿欄に戦略案ごと入ってしまっていた。
+     ※ ハッシュタグ(#整備士)を誤って見出しと判定しないよう、#の後の空白を必須にしている。 */
+  function splitStrategy(text, isNote) {
+    const s = String(text || "").replace(/\r\n/g, "\n");
+    const lines = s.split("\n");
+    // 「…投稿文」「…投稿案」「…本文」という見出しがあれば、その最後のものより後ろが投稿文
+    let at = -1;
+    lines.forEach((l, i) => { if (/^\s{0,3}#{1,6}\s+.*(投稿文|投稿案|本文)\s*$/.test(l)) at = i; });
+    if (at >= 0) {
+      return { body: lines.slice(at + 1).join("\n").trim(), notes: lines.slice(0, at).join("\n").trim() };
+    }
+    // note以外で、先頭が戦略・マーケ系の見出しなら、次の見出しの手前までを前置きとして外す
+    if (!isNote && /^\s{0,3}#{1,6}\s+.*(戦略|マーケ|ターゲット|設計|方針|分析)/.test(lines[0] || "")) {
+      for (let i = 1; i < lines.length; i++) {
+        if (/^\s{0,3}#{1,6}\s+/.test(lines[i])) {
+          return { body: lines.slice(i).join("\n").trim(), notes: lines.slice(0, i).join("\n").trim() };
+        }
+      }
+    }
+    return { body: s.trim(), notes: "" };
+  }
+
+  /* 投稿前の機械チェック。引っかかった項目だけ返す */
+  function xPostCheck(text) {
+    const s = String(text || "");
+    const out = [];
+    const w = xWeighted(s);
+    if (w > X_MAX) out.push("X換算 " + w + " カウント＝上限280を " + (w - X_MAX) + " 超過");
+    const urls = s.match(X_URL_RE) || [];
+    if (urls.length) out.push("URLが入っている（" + urls.length + "件）");
+    const tags = s.match(/(^|[\s　])#[^\s　#]+/g) || [];
+    if (tags.length > 1) out.push("ハッシュタグが " + tags.length + " 個（1個まで）");
+    if (/^\s{0,3}#{1,6}\s+/m.test(s)) out.push("見出し記号（##）が入っている");
+    // 日本語の箇条書きは「・」の後ろに空白を入れないことが多いので、・だけ空白を必須にしない。
+    // 一方 - や * は文中のハイフンを誤検出しないよう、後ろの空白を必須にする。
+    if (/^\s{0,3}(?:・|[-*]\s|\d+[.)]\s)/m.test(s)) out.push("箇条書きが入っている");
+    return { w: w, problems: out };
+  }
+
+  /* X通常投稿のときだけ、投稿前チェックを出す。
+     超過中はコピーボタンの文字も変えて、警告を見ずにコピーできないようにする。 */
+  function renderXCheck() {
+    const el = $("snsXchk");
+    const body = (($("snsBody") && $("snsBody").value) || "").trim();
+    const copyBtn = $("snsCopy");
+    if (!el) return;
+    if (!isXPost() || !body) {
+      show("snsXchk", false);
+      if (copyBtn) copyBtn.textContent = "📋 投稿文をコピー";
+      return;
+    }
+    const r = xPostCheck(body);
+    show("snsXchk", true);
+    if (!r.problems.length) {
+      el.className = "xchk ok";
+      el.textContent = "✓ そのまま投稿できます（X換算 " + r.w + " / " + X_MAX + "）";
+    } else {
+      el.className = "xchk ng";
+      el.innerHTML = "<b>⚠ このままXに投稿するには直したい点があります</b>"
+        + r.problems.map((p) => "<span>・" + esc(p) + "</span>").join("");
+    }
+    if (copyBtn) copyBtn.textContent = (r.w > X_MAX) ? "⚠ 280超過（それでもコピー）" : "📋 投稿文をコピー";
+  }
+
+  /* 戦略案など、投稿文から外した部分を別枠に出す */
+  function renderSnsNotes(notes) {
+    const el = $("snsNotes");
+    if (!el) return;
+    el.value = String(notes || "");
+    show("snsNotesWrap", !!String(notes || "").trim());
+  }
+
+  /* X通常投稿で超過していたら、1回だけ短く書き直させる。
+     それでも入らなければ、そのまま返して画面の警告に任せる(無限に粘らない)。 */
+  async function xShorten(text, product) {
+    const w = xWeighted(text);
+    if (w <= X_MAX) return text;
+    const task = "次のX投稿は長すぎます（X換算 " + w + " カウント／上限280）。"
+      + "言いたいことの芯を1つだけ残し、X換算280カウント以内（日本語なら約130〜140字）に収めて書き直してください。\n"
+      + "・文体はそのまま（現場の独り言。整えすぎない、改行多め、口語）\n"
+      + "・説明や前置き・見出しは書かず、書き直した投稿文だけを出す\n\n" + text;
+    try {
+      const j = await api("generate", { role: "marke", task: task, product: product, creative: true });
+      const t2 = splitStrategy(String(j.text || "").trim(), false).body;
+      if (t2 && xWeighted(t2) < w) return t2;
+    } catch (e) {}
+    return text;
+  }
+
+  /* X通常投稿のときの文体。2026-11-11にユーザー承認。
+     それまでの出力が「Xっぽくない・AI臭い」(整った広告文・抽象的な決め台詞・末尾にCTAとタグ)だったため、
+     現場の独り言に寄せる。お手本は承認済みの書き直し例をそのまま渡している。 */
+  const X_SOLO = `【文体＝現場の独り言（ここを外すとAI臭くなってスルーされる）】
+・1投稿＝エピソードは1つだけ。話題を盛らない。起承転結をきれいに揃えない。
+・文は短く切り、改行を多めに。体言止め・言いさし・主語の省略をどんどん使う。整えすぎない。愚痴っぽさを残してよい。
+・口語で書く（「〜んよ」「ほんと」「いや何を〜」等）。ただし若者言葉の盛りすぎはしない。
+・具体的な数字・部品名・車名のどれか1つ以上を必ず入れる。抽象論だけで終わらせない。
+・禁止: 抽象的な決め台詞（「資産」「スタンダード」「未来を変える」の類）、箇条書き、見出し記号（##）、きれいにまとまった広告文。
+・禁止: 本文中の売り込み（CTA・リンク・「7日間無料」等の案内）。ハッシュタグは基本なし（付けても1つまで）。
+・メカノAIに触れるなら「今はこうしてる」程度の一言に留める。勧めない。
+【この空気感に寄せる（トーンのお手本。内容は毎回まったく別のエピソードにすること）】
+「異音また出た」
+
+…はい、一番イヤなやつ来た
+
+カルテ見た
+「調整済み」
+
+いや何を調整したんよ笑
+
+結局ゼロから探し直し
+気づいたら夕方
+
+あれほんと時間もったいない
+
+今はメモも写真もその場でポイポイ入れとくから
+次触る人が違っても「あーこれか」で済む
+
+地味だけど、これが一番効く`;
+
   const X_CRAFT = `【Xは入口（1行目で勝負が決まる）】
 ・1行目は『続きを読む』を押させるためだけに書く。状況が一瞬で浮かぶ具体(部品名・症状・場面)から入る。前置き・あいさつ・一般論で始めない。
 ・2行目以降はその具体を自分の体験として展開する。途中で一般論に逃げない。
@@ -1123,7 +1285,13 @@ ${NO_PII}
     const isNote = platform === "note";
     const lenTxt = isNote ? "note記事として2000〜3500字程度（薄い増量はせず、必要なことを過不足なく）" : (SNS_LEN[len] || SNS_LEN.medium);
     const noteType = ($("snsNoteType") && $("snsNoteType").value) || "";
-    const craft = isNote ? noteCraft(noteType, product) : (platform === "x" ? X_CRAFT : "");
+    // X通常投稿は独り言トーン、X Premium長文は従来の組み立て
+    const craft = isNote ? noteCraft(noteType, product)
+      : (platform === "x" ? (len === "xpost" ? X_SOLO : X_CRAFT) : "");
+    // 上限の伝え方。Xの通常投稿は字数ではなくX換算で縛る(g.limitは25000なので使えない)
+    const limitTxt = (platform === "x" && len === "xpost")
+      ? "X換算280カウント(日本語で約130〜140字)を絶対に超えないこと。超えそうなら話を削って短くする"
+      : g.limit + " 字は超えないこと（冗長に引き伸ばさない）";
     const instruct = ($("snsInstruct") && $("snsInstruct").value || "").trim();
     const topicHint = theme ? "" : "／今回の題材=「" + pick(SNS_TOPICS) + "」(この題材を軸にする。前回までと必ず変える)";
     const seed = "今回の切り口(毎回変える・過去と被らせない): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」" + topicHint + "。この切り口で新鮮な入りにする。";
@@ -1134,13 +1302,21 @@ ${instruct ? "・【最優先の指示（他のスタイル設定より優先）
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
 ${craft}
 ・毎回できるだけ違う表現・切り口にし、テンプレ的な言い回しの使い回しを避ける。読み手（${product === "pocket" ? "整備士本人" : "整備工場・経営者"}）が思わず反応する自然な投稿に。誇張・虚偽はしない。
-・文量は ${lenTxt}。この範囲を目安にし、${g.limit} 字は超えないこと（冗長に引き伸ばさない）。
-・前置きの説明や「以下が投稿文です」等は不要、本文だけ。
+・文量は ${lenTxt}。${limitTxt}。
+・前置きの説明や「以下が投稿文です」等は不要。『## マーケティング戦略案』のような見出し・解説・前置きも一切書かず、投稿文だけを書く。
 ${SNS_HUMAN}`;
     $("snsStat").textContent = "生成中…"; $("btnSns").disabled = true;
     try {
       const j = await api("generate", { role: "marke", task, product, creative: true });
-      const t = String(j.text || "").trim();
+      // 戦略案などの前置きが混ざっていたら、投稿文だけを取り出して別枠に分ける
+      const sp = splitStrategy(String(j.text || "").trim(), isNote);
+      let t = sp.body;
+      // X通常投稿で超過していたら1回だけ短く書き直させる(それでも入らなければ画面の警告に任せる)
+      if (platform === "x" && len === "xpost" && xWeighted(t) > X_MAX) {
+        $("snsStat").textContent = "長すぎたので短くしています…";
+        t = await xShorten(t, product);
+      }
+      renderSnsNotes(sp.notes);
       $("snsBody").value = t; show("snsOutPanel", true); updateSnsCount(); updateSectBtn();
       checkPrivacy();   // 公開前に人名・住所が紛れていないか見る
       $("snsStat").textContent = "";
@@ -1155,12 +1331,30 @@ ${SNS_HUMAN}`;
   { const a = $("snsOpen"); if (a) a.addEventListener("click", () => { try { if (navigator.clipboard) navigator.clipboard.writeText($("snsBody").value || ""); } catch (e) {} }); }
   { const b = $("snsBody"); if (b) b.addEventListener("input", () => { updateSnsCount(); checkPrivacy(); }); }
   function syncSnsFields() {
-    const isNote = ($("snsPlatform") && $("snsPlatform").value) === "note";
+    const plat = curPlat();
+    const isNote = plat === "note";
     show("fldNoteType", isNote);        // 記事の型はnoteの時だけ
     show("fldSnsLen", !isNote);         // noteは文量を記事側で固定するので隠す
     show("btnNoteAll", isNote);
+    /* 文量の選択肢はプラットフォームで出し分ける。X専用(data-plat="x")はXの時だけ出し、
+       今の選択が出せない選択肢になったら既定へ戻す。
+       Xの既定は「X通常投稿」。以前は「標準(300〜500字)」が既定で、
+       Xの上限(X換算280=日本語130字ほど)を大きく超える投稿がそのまま出ていた。 */
+    const sel = $("snsLen");
+    if (sel) {
+      let valid = false;
+      Array.prototype.forEach.call(sel.options, (o) => {
+        const forX = o.getAttribute("data-plat") === "x";
+        o.hidden = plat === "x" ? !forX : forX;
+        if (!o.hidden && o.value === sel.value) valid = true;
+      });
+      if (!valid) sel.value = (plat === "x") ? "xpost" : "medium";
+    }
+    updateSnsCount();
   }
-  { const s = $("snsPlatform"); if (s) s.onchange = () => { updateSnsCount(); syncSnsFields(); }; }
+  { const s = $("snsPlatform"); if (s) s.onchange = () => { syncSnsFields(); }; }
+  { const s = $("snsLen"); if (s) s.onchange = () => { updateSnsCount(); }; }
+  { const b = $("snsNotesCopy"); if (b) b.onclick = () => copy(($("snsNotes") && $("snsNotes").value) || ""); }
   syncSnsFields();
 
   // 画像スタイルの素。毎回ランダムに選び、ありきたりを防ぎバズりやすい多彩なビジュアルに。
@@ -2188,8 +2382,11 @@ Japanese post:
       for (let i = 0; i < 7; i++) {
         if (snsWeekStop) break;
         const style = styles[i];
-        const len = (style === "drama") ? "long" : (Math.random() < 0.5 ? "short" : "medium");
+        // 「X通常投稿」を選んでいる時は7本とも280カウントに収める(ここだけ長文が出ると使えない)
+        const xShort = isXPost();
+        const len = xShort ? "xpost" : ((style === "drama") ? "long" : (Math.random() < 0.5 ? "short" : "medium"));
         const lenTxt = SNS_LEN[len] || SNS_LEN.medium;
+        const limitTxt = xShort ? "X換算280カウント(日本語で約130〜140字)を絶対に超えない" : g.limit + "字以内";
         const topicHint = theme ? "" : "／今回の題材=「" + (weekTopics[i] || pick(SNS_TOPICS)) + "」(この題材を軸に。他の曜日と必ず別ネタ)";
         const seed = "今回の切り口(毎回変える): フック=「" + pick(SNS_HOOKS) + "」／形式=「" + pick(SNS_FORMATS) + "」" + topicHint + "。";
         const task = `${g.name} に投稿する、メカノAI（${product === "pocket" ? "整備士個人向けアプリ Pocket" : "整備工場・法人向け Works"}）の投稿を1本、そのまま投稿できる完成形で作成してください。
@@ -2197,16 +2394,20 @@ Japanese post:
 ・${seed}
 ・${g.guide}
 ・${theme ? "テーマ: " + theme : "テーマはおまかせ（整備の現場に響く切り口を1つ選ぶ）"}
-・他の曜日の投稿と被らない新鮮な切り口に。誇張・虚偽はしない。文量は ${lenTxt}（${g.limit}字以内）。本文だけ。
+・他の曜日の投稿と被らない新鮮な切り口に。誇張・虚偽はしない。文量は ${lenTxt}（${limitTxt}）。
+・前置き・見出し・戦略案は書かず、投稿文だけ。
+${xShort ? X_SOLO : ""}
 ${SNS_HUMAN}`;
         let text = "";
-        try { const j = await api("generate", { role: "marke", task, product, creative: true }); text = String(j.text || "").trim(); }
-        catch (e) { text = "⚠️ " + (e.message || e); }
+        try {
+          const j = await api("generate", { role: "marke", task, product, creative: true });
+          text = splitStrategy(String(j.text || "").trim(), false).body;   // 戦略案が混ざっていたら落とす
+        } catch (e) { text = "⚠️ " + (e.message || e); }
         const dayN = i + 1;
         const div = document.createElement("div");
         div.className = "crcard";
         const pv = findPrivate(text);   // 1本ずつコピーして投稿するので、カードごとに出す
-        div.innerHTML = `<div class="crhead"><span class="crco">Day ${dayN}・${esc({ honne: "本音", casual: "カジュアル", tips: "豆知識", drama: "会話劇", buzz: "バズ", balanced: "標準" }[style] || style)}</span><span class="muted">${text.length}字</span></div>
+        div.innerHTML = `<div class="crhead"><span class="crco">Day ${dayN}・${esc({ honne: "本音", casual: "カジュアル", tips: "豆知識", drama: "会話劇", buzz: "バズ", balanced: "標準" }[style] || style)}</span><span class="muted">${xShort ? ("X換算 " + xWeighted(text) + "/" + X_MAX + (xWeighted(text) > X_MAX ? " ⚠超過" : "")) : (text.length + "字")}</span></div>
           ${pv.length ? `<div class="privWarn"><div><b>⚠ 個人情報らしき記述</b>　公開前に消してください</div><div>${pv.slice(0, 6).map((h) => `<span class="privHit">${esc(h.text)}</span><span class="privKey">${esc(h.key)}</span>`).join(" ")}</div></div>` : ""}
           <div class="crtext"></div>
           <div class="crbtns"><button class="btn btn-ghost btn-sm wkcopy">コピー</button></div>`;
