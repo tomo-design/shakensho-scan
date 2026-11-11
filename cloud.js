@@ -437,11 +437,27 @@
   $("btnModeNew") && $("btnModeNew").addEventListener("click", () => openForm("new"));
   $("btnModeJoin") && $("btnModeJoin").addEventListener("click", () => openForm("join"));
   $("btnCloudBack") && $("btnCloudBack").addEventListener("click", closeForm);
+  /* 「ログイン中…」のまま進まない時に、黙って固まらせない見張り(表示だけ)。
+     ログインの待ちには時間切れが無く、Firestoreは繋がらない時に例外を投げず再試行し続けるため、
+     通信が通らない環境では catch にも入らず画面が止まったままになる。処理自体は止めず、文字だけ差し替える。 */
+  let loginWatch = null;
+  function watchLoginStuck() {
+    clearTimeout(loginWatch);
+    loginWatch = setTimeout(() => {
+      const st = $("cloudAuthStat");
+      if (!me && st && String(st.textContent || "").indexOf("ログイン中") >= 0) {
+        st.textContent = "⚠ 接続できません。アプリ内ブラウザでは繋がらないことがあります。"
+          + "Chrome / Safari で開き直すか、ホーム画面に追加したメカノAIからお試しください。"
+          + "（ログインIDではなくメールアドレスでも試してみてください）";
+      }
+    }, 20000);
+  }
   $("btnCloudSubmit") && $("btnCloudSubmit").addEventListener("click", async () => {
     if (cloudMode === "login") {
       let email = $("cloudEmail").value.trim(); const pw = $("cloudPw").value;
       if (!email || !pw) { $("cloudAuthStat").textContent = "メール(またはログインID)とパスワードを入力してください。"; return; }
       $("cloudAuthStat").textContent = "ログイン中…";
+      watchLoginStuck();   // 20秒たっても進まなければ理由を出す(処理は止めない)
       try {
         await persistReady;
         // メール形式でなければ「ログインID」とみなし、サーバーでメールに変換
@@ -638,6 +654,9 @@
             : "このID・パスワードは法人版(Works)専用です。個人版(Pocket)ではログインできません。";
           try { await auth.signOut(); } catch (e) {}
           me = null; profile = null; renderAuthUI();
+          // アプリ内ブラウザは alert() を無視することがあり、「何も出ずにログイン画面へ戻る」ように見えていた。
+          // 画面内のログイン状態の行にも必ず出す(alertも従来どおり試みる)。
+          try { const st = $("cloudAuthStat"); if (st) st.textContent = "⚠ " + msg; } catch (e) {}
           try { alert(msg); } catch (e) {}
           return;
         }
