@@ -58,6 +58,15 @@ body.personalMode #secAiKey{border:1.5px solid var(--cyan);border-radius:12px;pa
 .copyRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
 .copyRow .copyKata{margin-top:0}
 .kataYear{font-size:12.5px;color:var(--dim);font-weight:600}
+/* FAINESで車両を選ぶときの手がかり(車種・型式・年式・原動機)。タップでコピー */
+.fainesHints{margin-top:10px}
+.fHintLbl{font-size:11.5px;color:var(--dim);font-weight:700;margin-bottom:5px}
+.fHintRow{display:flex;flex-wrap:wrap;gap:6px}
+.fHint{display:inline-flex;align-items:baseline;gap:6px;max-width:100%;padding:5px 11px;min-height:34px;
+  border:1px solid var(--line);border-radius:999px;background:var(--panel);cursor:pointer;font-size:13px;text-align:left}
+.fHint i{flex:0 0 auto;font-style:normal;font-size:11px;color:var(--dim);font-weight:700}
+.fHint b{color:var(--cyan);font-family:'Chakra Petch','Noto Sans JP',monospace;letter-spacing:.03em;font-size:13px}
+.fHint:active{transform:scale(.97)}
 /* 起動時の言語選択バー(小さめ・中央上) */
 #langPick{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:center;gap:10px;
   background:rgba(46,74,102,.92);color:#fff;font-size:12.5px;padding:7px 10px;backdrop-filter:blur(4px)}

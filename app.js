@@ -2338,7 +2338,6 @@ function showResult(d, opt = {}) {
     const lm = $("lnkMaker");
     lm.firstChild.textContent = mk.label; lm.href = mk.url;
   }
-  $("lnkGoogle").href = "https://www.google.com/search?q=" + encodeURIComponent((d.type || d.vin || "") + " リコール 改善対策");
   renderRecallVin(d.type, d.vin);   // 型式(車台番号から特定)と車台番号をそれぞれコピー
 
   // RAWチップ (廃止済み。要素が無ければ何もしない)
@@ -2809,6 +2808,7 @@ function printKarte(k) {
    点数表データ・点数の仕組みはメカノAIには無い。開くときは型式/原動機型式/車名だけをURLの#以降(サーバーに送られない部分)で渡す。 */
 const TENSU_URL = "https://tomo-design.github.io/tensu-app/";
 function tensuAllowed() {
+  if (getAppMode() === "personal") return false;   // Pocket(個人版)には出さない(自社の法人向け機能)
   try { const c = window.Cloud; return !!(c && c.isLoggedIn && c.isLoggedIn() && ((c.isSuper && c.isSuper()) || (c.tenantFeature && c.tenantFeature("tensu")))); } catch (e) { return false; }
 }
 function refreshTensuBtn() { toggle("btnTensu", tensuAllowed() && !!vehicleKey(current)); }
@@ -3778,9 +3778,10 @@ function renderRecallVin(type, vin) {
   const box = $("recallVin"); box.innerHTML = "";
   // 別の車両に切り替わったので、前の車のリコール表示は消し、取得中の応答も無効にする
   toggle("recallMlitWrap", false); mlitSeq++;
+  toggle("lnkMlit", true);   // 自動照合が成立したら下で隠す(成立していれば手動検索は要らない)
   if (!vin && !type) return;
   const head = document.createElement("div"); head.className = "hint"; head.style.margin = "0 0 6px";
-  head.textContent = "型式・車台番号をコピーして、下のリコール検索サイトに貼り付けて確認できます。";
+  head.textContent = "メーカーのリコール検索で使います。タップでコピーできます。";
   box.appendChild(head);
   const cols = document.createElement("div"); cols.style.cssText = "display:flex;flex-direction:column;gap:8px";
   // 修理タブ下部のコピー(.copyKata)と同じ見た目のピルボタン。タップでコピー。
@@ -3857,7 +3858,7 @@ async function loadMlitRecalls(kata, vin) {
   if (!wrap || !stat) return;
   const key = String(kata || "").toUpperCase().replace(/\s+/g, "");
   const seq = ++mlitSeq;
-  if (!key || !window.Cloud || !window.Cloud.callFn) { toggle("recallMlitWrap", false); return; }
+  if (!key || !window.Cloud || !window.Cloud.callFn) { toggle("recallMlitWrap", false); toggle("lnkMlit", true); return; }
   toggle("recallMlitWrap", true);
   toggle("recallMlitSrc", false);
   wrap.innerHTML = "";
@@ -3870,6 +3871,7 @@ async function loadMlitRecalls(kata, vin) {
     } catch (e) {
       if (seq !== mlitSeq) return;
       stat.textContent = "⚠ 国土交通省の照合ができませんでした（" + (e.message || e) + "）。下のリンクからご確認ください。";
+      toggle("lnkMlit", true);   // 自動で引けなかった時だけ、手動検索のリンクを出す
       return;
     }
   }
@@ -3887,6 +3889,7 @@ const MLIT_JUDGE = {
 function paintMlitRecalls(data, vin) {
   const wrap = $("recallMlit"), stat = $("recallMlitStat");
   wrap.innerHTML = "";
+  toggle("lnkMlit", false);   // 型式での照合は済んだので、国交省サイトでの手動検索リンクは出さない
   const items = (data && data.items) || [];
   const kata = (data && data.kata) || "";
   if (!items.length) {
@@ -9641,12 +9644,33 @@ function renderCopyKata() {
     const orig = el.innerHTML; el.innerHTML = '✓ コピー';
     setTimeout(() => { el.innerHTML = orig; }, 1200);
   };
-  // 年式(初度登録年)を横に表示(参考表示・コピー不可)
-  const yEl = $("kataYear"); if (yEl) {
-    const fr = current && current.firstReg; const yr = fr && fr.year;
-    if (yr) { yEl.textContent = "年式: " + yr + "年" + (fr.month ? "/" + fr.month + "月" : ""); toggle("kataYear", true); }
-    else toggle("kataYear", false);
-  }
+  toggle("kataYear", false);   // 年式は下の「手がかり」側にコピーできる形で出す
+  renderFainesHints();
+}
+/* FAINESは メーカー→車種→型式→年式 と辿るため、開くたびに車検証を見直すことになる。
+   アプリは全部持っているので、FAINESボタンのすぐ上にタップでコピーできる形で並べておく。 */
+function renderFainesHints() {
+  const box = $("fainesHints"); if (!box) return;
+  const d = current || {};
+  const fr = d.firstReg || {};
+  const rows = [
+    ["車種", currentVehicleFacts().model || ""],
+    ["型式", d.type || ""],
+    ["年式", fr.year ? (fr.year + "年" + (fr.month ? fr.month + "月" : "")) : ""],
+    ["原動機", d.engine || ""],
+  ].filter(r => r[1]);
+  if (!rows.length) { toggle("fainesHints", false); return; }
+  box.innerHTML = '<div class="fHintLbl">FAINESで車両を選ぶときの手がかり（タップでコピー）</div>' +
+    '<div class="fHintRow">' + rows.map(r =>
+      '<button type="button" class="fHint"><i>' + esc(r[0]) + '</i><b>' + esc(r[1]) + '</b></button>').join("") + '</div>';
+  box.querySelectorAll(".fHint").forEach((btn, i) => {
+    btn.addEventListener("click", async () => {
+      await copyText(rows[i][1]);
+      const orig = btn.innerHTML; btn.innerHTML = '<i>' + esc(rows[i][0]) + '</i><b>✓ コピー</b>';
+      setTimeout(() => { btn.innerHTML = orig; }, 1200);
+    });
+  });
+  toggle("fainesHints", true);
 }
 /* 最近表示した車両を記録(表示のたびに更新。前回=最後に表示していた車両) */
 function vehId(v) { return [(v && v.type) || "", (v && v.vin) || "", (v && v.kataShitei) || "", (v && v.plate) || ""].join("|"); }
@@ -9960,6 +9984,8 @@ const SUPPORT_KB = [
   "【画面】下タブ=スキャン/車両/履歴/設定。「スキャン」はいつでもホーム(車検証を読み取る画面)、「車両」はいま開いている車両に戻る。車種データの編集(DB編集)は設定の中『車種データの編集』から。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
   "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・使用者 が出る。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
+  "【リコール・改善対策】車両を読み込むと、メンテタブの『リコール・改善対策の確認』で国土交通省の届出を型式で自動照合する(利用者の入力は不要)。届出ごとに車台番号が対象範囲かをこの端末の中だけで判定し『範囲内/範囲外/要確認』を表示(車台番号をサーバーへ送らない)。型式・車台番号はタップでコピーでき、メーカーのリコール検索ページに貼って『この車が対象か・実施済みか』まで確認できる。国土交通省サイトへの手動検索リンクは、自動照合ができなかった時だけ出る(照合済みなら二度手間なので出さない)。",
+  "【FAINESへの受け渡し】修理タブの下に『📗FAINESで正式な整備手順・品番・トルクを確認』。FAINESは メーカー→車種→型式→年式 と辿るため、そのすぐ上に『FAINESで車両を選ぶときの手がかり』として 車種・型式・年式・原動機型式 をタップでコピーできる形で並べている(車検証を見直さなくてよい)。その上の丸いボタンは、FAINESの車台番号キーワード検索に使う打刻の記号部(例 NKR85)。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
