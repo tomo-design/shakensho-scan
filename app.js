@@ -1935,6 +1935,7 @@ function buildRepairPrompt(q, hasMedia) {
     karteContextBlock(4),   // この車の整備カルテ(直近の作業)
     knowhowBlock(q),   // この工場の知見(登録済みの気づき・経験)
     "■質問/作業: " + q,
+    smootherTcmRelevant(q) ? "\n" + SMOOTHER_TCM_LEARN : "",   // 組んだ後の学習を落とすと走らないので、作業手順と一緒に出す
     (window.APP_LANG === "en" ? "Fill every JSON string value (location, video title, order names, steps, tools, torque, special, answer) in natural technical English. Keep the JSON keys exactly as specified in English." : ""),
   ].filter(Boolean).join("\n");
 }
@@ -6771,6 +6772,41 @@ function ebsRecoveryRelevant(text) {
   return /EBS|ABS|KNORR|クノール|クノル|リレーバルブ|\bEPM\b|モジュレータ|圧力差|\bHSA\b|C[CD]\d{2}|いすゞ|イスズ|ISUZU|ギガ|フォワード|エルフ/i.test(s)
     && /ブレーキ|EBS|ABS|KNORR|リレーバルブ|EPM|圧力|HSA|警告|消えない|交換|復帰|C[CD]\d{2}/i.test(s);
 }
+/* 確定リファレンス: いすゞ Smoother-Ex(6段/MYY) TCM学習。
+   2ペダルAMTのクラッチ・シフト系を触ったら必須の作業だが、スキャンツールのメニューには無く
+   DLC短絡＋アジャストスイッチ操作で行うため、知らないと「組んだのに走らない」で止まる。
+   一次資料(いすゞ整備要領書)に基づく確定手順なので、該当時はAIに“そのまま正確に”提示させる(創作させない)。 */
+const SMOOTHER_TCM_LEARN = [
+  "【確定リファレンス: いすゞ Smoother-Ex(6段/MYY) TCM学習】",
+  "スキャンツールのメニュー操作ではなく、DLC短絡＋アジャストスイッチ操作で行う。該当が疑われる時は、この手順を改変せず正確に、上位候補または作業の最後の必須工程として提示すること:",
+  "■どの学習が必要か",
+  "・初期学習 = 『ギヤ選択およびシフト位置学習』と『半クラッチ位置学習』を同時に実施する。実施するとDTCも同時に消去される。",
+  "・ギヤ選択およびシフト位置学習: シフトソレノイド(1,3,5／2,4,6,R)、セレクトソレノイド、シフトストロークセンサー、セレクトストロークセンサー、ギヤシフトユニット、トランスミッション内部部品 のいずれかを脱着・交換・修理した時。",
+  "・半クラッチ位置学習: 変速クラッチASSY、クラッチソレノイド、オイルポンプASSY のいずれかを脱着・交換・修理した時、またはクラッチ接続ポイントが大きくずれて調整スイッチでも調整困難な時。",
+  "■事前条件(すべて満たすこと)",
+  "DTCなし／車両停止／パーキングブレーキON／シフトレバーN／Smoother-Ex非常用スイッチOFF／エンジン暖機・アイドリング／アイドリングコントロールノブは反時計回りいっぱい(最低位置)／エアコンOFF／ATF温度40〜80℃をスキャンツールで確認。",
+  "■手順(3種類とも操作は同じ)",
+  "1) ジャンパー線でDLCの4番ピンと12番ピンを短絡する(Smoother-Ex警告灯が点滅)。",
+  "2) ブレーキペダルを踏み込む。以降、ブザーの停止を確認してジャンパー線を外すまで絶対に放さない。",
+  "3) Smoother-ExアジャストスイッチのFASTを7秒以上押し、17秒以内に離す → 学習モードに入りブザーが『ピピッ、ピピッ、ピピッ…』。鳴らなければ最初からやり直す。",
+  "4) ブレーキを強く踏んだまま、シフトレバーを N→D→N の順に操作する。ブザーが『ピッ、ピー…』に変わる。ブザーが鳴らずDTCが出る場合は学習値を消去して最初からやり直す。",
+  "5) 約10秒後に自動で変速操作が行われ、ブザーが『ピッ、ピッ、ピッ…』に変わる。",
+  "6) 約30秒後に自動でクラッチ接続が行われる。鳴らない時はシフトレバーをもう一度操作する。途中でブザーが止まったら、ブレーキを踏む手順からやり直す。",
+  "7) ジャンパー線をDLCから外す。正常終了時は『ピーッ』と鳴る。終了ブザーが鳴らずに止まった場合は学習値が更新されていない(ブレーキ踏み込みからやり直す)。外した状態で警告灯点滅＋ブザー『ピピピ…』なら未完了(最初からやり直す)。",
+  "8) Smoother-Ex警告灯が消灯すれば学習完了。※他の車両からTCMを移設した場合は警告灯が点滅しない。",
+  "■あわせて忘れやすい点",
+  "・ATF／トランスミッションオイルを交換したら、メーターの3モードスイッチ長押しでメンテナンス時期(残距離)のリセットが必要(リセットすると50000kmに再設定される)。",
+  "・フルードカップリング内のエア抜きのため、交換後は走行してロックアップを作動させ、再度ATF量を点検して不足分を補充する。",
+  "※いすゞ整備要領書(トランスミッション(6段) 取り付け Smoother-Ex(MYY))に基づく。年式・仕様で細部が異なる場合があるため、最終は整備要領書で確認、と必ず添える。",
+].join("\n");
+/* Smoother-Ex(2ペダルAMT)のTCM学習リファレンスを出すべき文脈か判定。
+   「いすゞ」だけでは出さない(MT車の相談に混ざると邪魔なので、AMTを指す語が要る)。 */
+function smootherTcmRelevant(text) {
+  const s = String(text || "") + " " + ((current && (current.maker || current.type || "")) || "") + " " + ((current && current.name) || "");
+  const amt = /スムーサ|スムーザ|smoother|ｽﾑｰｻ|\bAMT\b|\bMYY\b|2ペダル|２ペダル|セミオート/i.test(s);
+  if (!amt) return false;
+  return /TCM|学習|初期化|半クラ|クラッチ|シフトソレノイド|セレクトソレノイド|ストロークセンサー|ギヤシフトユニット|ギアシフトユニット|変速|ギヤ抜|ギア抜|発進|つながらない|繋がらない|入らない|警告灯|点滅|交換|載せ替|降ろ|積み替/i.test(s);
+}
 /* 「量はある・漏れは無い」のように、既に確認済みの実測情報が警告灯/症状と矛盾する時、
    物理的な異常(オーバーヒート等)ばかりを候補にして、警告系統自体の誤検知(センサー故障・断線・コネクタ腐食)を
    後回しにしてしまう傾向があるため、明示的に上位候補へ含めさせる。冷却水に限らず油圧・燃料等の警告全般に適用。 */
@@ -6808,6 +6844,7 @@ function buildDiagPrompt(text, withSearch) {
     "・単独で無関係と判断できるDTCがあれば、それは別枠として扱ってよい(無理に1つに統合しない)。",
     SENSOR_FALSEPOS_GUIDE,
     "【費用対効果も統合して考える】原因候補の並びは『可能性の高い順』を土台に維持する(可能性を費用で無理に入れ替えない)。ただし可能性が近い候補どうしなら、点検・清掃・調整・増し締め・再結線・安価な部品など“短時間・低コストで確認/解決できる方”をわずかに前に出してよい。各候補の『切り分け:』には、その確認や処置がどのくらい手軽か(例:点検のみ/清掃・調整で済む/安価な部品/高額な部品交換やアッセンブリ交換が必要)を一言含める。『最初の1手』は、可能性が高くかつ低コスト・短時間で確認できる処置を優先して勧め、高額な部品交換は点検で確定してからにするよう促す。ただし安全に関わる確認(ブレーキ・操舵・燃料・排気・電源系の危険)は費用より必ず優先する。",
+    "【2ペダルAMTは部品を触ったら学習が要る】いすゞスムーサー(Smoother)/ふそうINOMAT/日野Pro Shift/UD ESCOT等の2ペダルAMT(機械式自動変速)は、クラッチ・シフト/セレクト系の部品を脱着・交換するとTCMの学習(初期学習・シフト位置学習・半クラッチ位置学習)が必要で、これを行わないと変速不良・発進不良・ギヤが入らない・警告灯が残るといった症状になる。組み付け後の不調という手がかりがある時は、学習未実施を必ず候補に挙げる(手順は車種・メーカーで異なるため整備要領書で確認、と添える)。",
     "【部品交換しても消えない/EBS・ABS等の電子ブレーキ】商用車の電子制御ブレーキ(KNORR-BREMSE/BOSCH/WABCO、いすゞ・日野・ふそう・UD等)やエアブレーキ系は、部品(EPM/リレーバルブ/モジュレータ/センサ等)を交換しても、メーカー固有の『故障からの復帰作業/リセット・初期化手順』を実施しないとラッチした故障コード・警告灯が消えないことが非常に多い。『交換したのに消えない』という手がかりがある時は、診断機での学習/キャリブレーション/初期化だけでなく、メーカー指定の“ブレーキペダル操作による復帰手順”(例: ブレーキペダルを戻した状態でスタータースイッチを規定秒OFF→車両停止・ペダル戻し・電源電圧満足・(TCV異常時はパーキングブレーキ戻し)の条件を保持したままスイッチを規定秒ON→フルブレーキまで踏み込み数秒保持、操作は所定秒経過後に行う等)が存在しないかを必ず上位候補・最初の1手として提示する。具体手順・秒数・条件は車種/システムで異なるため必ず整備要領書で確認、と添える。",
     diagSearchDirective(withSearch),
     cureLikelihoodGuide(withSearch),
@@ -6840,6 +6877,7 @@ function buildDiagPrompt(text, withSearch) {
   { const kb = knowhowBlock(text); if (kb) lines.push(kb); }   // この工場の知見(登録済みの気づき・経験)
   lines.push("■症状・問診内容: " + text);
   if (ebsRecoveryRelevant(text)) lines.push("\n" + KNORR_EBS_RECOVERY);
+  if (smootherTcmRelevant(text)) lines.push("\n" + SMOOTHER_TCM_LEARN);
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
@@ -8731,7 +8769,10 @@ function buildMediaDiagPrompt() {
   { const os = officialSpecsText(); if (os) lines.push(os); }
   { const kc = karteContextBlock(); if (kc) lines.push(kc); }   // この車の整備カルテ
   { const kb = knowhowBlock(extra || ""); if (kb) lines.push(kb); }   // この工場の知見
-  try { const cmt = ($("diagText") || {}).value || ""; if (ebsRecoveryRelevant(cmt)) lines.push("\n" + KNORR_EBS_RECOVERY); } catch (e) {}
+  try { const cmt = ($("diagText") || {}).value || "";
+    if (ebsRecoveryRelevant(cmt)) lines.push("\n" + KNORR_EBS_RECOVERY);
+    if (smootherTcmRelevant(cmt)) lines.push("\n" + SMOOTHER_TCM_LEARN);
+  } catch (e) {}
   const ld = aiLangDirective(); if (ld) lines.push("\n" + ld);
   return lines.join("\n");
 }
