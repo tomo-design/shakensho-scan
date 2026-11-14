@@ -657,6 +657,52 @@ function decodeCanvas(canvas) {
   } catch (e) {}
   return null;
 }
+/* 1枚読んで、その位置も返す。複数枚読み(decodeCanvasAll)で使う。
+   ZXingが返すのは3つのファインダパターン、jsQRは四隅。 */
+function decodeCanvasBox(canvas) {
+  if (zxReader) {
+    try {
+      const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+      const bb = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+      const r = zxReader.decode(bb, zxHints);
+      if (r && r.getText()) return { text: r.getText(), pts: (r.getResultPoints() || []).map(p => ({ x: p.getX(), y: p.getY() })) };
+    } catch (e) {}
+  }
+  try {
+    const id = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(id.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" });
+    if (code && code.data) {
+      const L = code.location;
+      return { text: code.data, pts: L ? [L.topLeftCorner, L.topRightCorner, L.bottomRightCorner, L.bottomLeftCorner] : [] };
+    }
+  } catch (e) {}
+  return null;
+}
+/* 1つの画面から読めるだけQRを読む。
+   ZXingもjsQRも1回につき1枚しか返さないため、読めたQRを白く塗りつぶして読み直す。
+   車検証はQRが横に並んでいるので、これをしないと同じ片方だけを何度も読み続けてしまい、
+   もう片方が永久に読まれない(合成画面での実測で確認。全面でも中央でも右半分でもコード3しか返らず、
+   左半分に切った時だけコード2が読めた)。 */
+const qrWork = document.createElement("canvas");   // 毎フレーム作り直さず使い回す(モバイルのGC対策)
+const qrWorkCtx = qrWork.getContext("2d", { willReadFrequently: true });
+function decodeCanvasAll(canvas, max) {
+  const w = canvas.width, h = canvas.height;
+  const work = qrWork, wc = qrWorkCtx;
+  work.width = w; work.height = h;
+  wc.drawImage(canvas, 0, 0);
+  const out = [];
+  for (let i = 0; i < (max || 3); i++) {
+    const r = decodeCanvasBox(work);
+    if (!r || !r.text) break;
+    if (out.indexOf(r.text) < 0) out.push(r.text);
+    if (!r.pts || r.pts.length < 3) break;   // 位置が分からないと消せないのでここで終わり
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    r.pts.forEach(p => { if (p.x < x0) x0 = p.x; if (p.y < y0) y0 = p.y; if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y; });
+    const px = (x1 - x0) * 0.4 + 10, py = (y1 - y0) * 0.4 + 10;   // 右下の角が含まれないぶん広めに塗る
+    wc.fillStyle = "#fff"; wc.fillRect(x0 - px, y0 - py, (x1 - x0) + px * 2, (y1 - y0) + py * 2);
+  }
+  return out;
+}
 /* かすれ・低コントラストのQR向け: グレースケール+コントラスト強調(自動レベル補正) */
 function boostContrast(canvas) {
   const c = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
@@ -928,6 +974,9 @@ function afterScanUpdate(src) {
   setScanMsg("QRを枠内に大きく写してください");
 }
 
+/* 解析のたびに見る範囲を変える。f=中央から切り出す割合(1=全面)、b=コントラスト強調するか。
+   1種類の切り出し方だと、その切り方で読めないQRは何度やっても読めないままになる。 */
+const QR_VIEWS = [{ f: 1, b: 0 }, { f: 0.8, b: 0 }, { f: 0.55, b: 0 }, { f: 1, b: 1 }, { f: 0.8, b: 1 }, { f: 0.55, b: 1 }];
 let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0;
 async function scanTick() {
   if (!scanning) return;
@@ -954,27 +1003,20 @@ async function scanTick() {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
     try {
-      const cropF = (tickN % 2 === 0) ? 0.75 : 0.55;
-      const s = Math.floor(Math.min(vw, vh) * cropF);
-      cv.width = s; cv.height = s;
-      ctx.drawImage(video, (vw - s) >> 1, (vh - s) >> 1, s, s, 0, 0, s, s);
-      let dt = decodeCanvas(cv);
-      // 高解像度パス(最も重い)。この②ブロック自体がネイティブ機では「2秒読めない時だけ」なので、
-      // 発動時は全端末で本気を出して難しいQRを拾う(=精度向上)。iOSのみ解像度は控えめに。
-      if (!dt) {
-        const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(vw, vh));
-        const w = Math.round(vw * sc), h = Math.round(vh * sc);
-        cv.width = w; cv.height = h; ctx.drawImage(video, 0, 0, w, h);
-        dt = decodeCanvas(cv);
-      }
-      if (!dt && tickN % 2 === 0) {   // コントラスト強調(全画素ループ)も発動時は全端末で実行
-        const s2 = Math.floor(Math.min(vw, vh) * 0.75);
-        cv.width = s2; cv.height = s2;
-        ctx.drawImage(video, (vw - s2) >> 1, (vh - s2) >> 1, s2, s2, 0, 0, s2, s2);
-        boostContrast(cv);
-        dt = decodeCanvas(cv);
-      }
-      if (dt) onLiveQr(dt);
+      // 見る範囲を毎回ずらす: 全面 → 中央0.8 → 中央0.55、それぞれコントラスト強調の有無。
+      //  ・全面 … 中央の正方形だけ見ていると左右が切り捨てられ、横に並ぶ2枚目を最初から見ていなかった
+      //  ・中央寄り … 遠い・傾いたQRはアップにした方が読める
+      //  ・コントラスト強調 … 薄い車検証・明るさムラ向け
+      const V = QR_VIEWS[tickN % QR_VIEWS.length];
+      let sx = 0, sy = 0, sw = vw, sh = vh;
+      if (V.f < 1) { const sq = Math.floor(Math.min(vw, vh) * V.f); sx = (vw - sq) >> 1; sy = (vh - sq) >> 1; sw = sh = sq; }
+      const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(sw, sh));   // iOSはメモリ節約のため控えめ
+      const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
+      cv.width = w; cv.height = h;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+      if (V.b) boostContrast(cv);
+      // 読めたQRを塗りつぶして読み直すので、横に並んだ2枚を1フレームで両方拾える
+      decodeCanvasAll(cv, 3).forEach(t => onLiveQr(t));
     } catch (e) {}
     tickBusy = false;
   }
@@ -1131,8 +1173,7 @@ async function decodePhotoQR(file) {
     const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
     cv.width = w; cv.height = h;
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-    const t = decodeCanvas(cv);
-    if (t) out.add(t);
+    decodeCanvasAll(cv, 3).forEach(t => out.add(t));   // 1タイルに2枚写っていても両方拾う
   }
   return [...out];
 }
@@ -10114,7 +10155,7 @@ const SUPPORT_KB = [
   "",
   "【概要】整備士向けアプリ。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。個人向けの「MECHANO-AI Pocket」(Web版・ブラウザ)は7日無料→月額¥500。法人向けは「MECHANO-AI Works」。",
   "【画面】下タブ=スキャン/車両/履歴/設定。「スキャン」はいつでもホーム(車検証を読み取る画面)、「車両」はいま開いている車両に戻る。車種データの編集(DB編集)は設定の中『車種データの編集』から。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
-  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。QRが複数ある車検証は『2つずつ』写す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・車検満了・初度登録・使用者 が出る。有効期間の満了する日(車検満了)は二次元コードの2枚目に入っているため、車台番号を読んだあとも最大2.5秒はそのままかざして2枚目を読ませる(画面に『有効期間はもう1つの二次元コードにあります』と出る)。読めない車検証でも待ち続けずに確定する。車検満了は『2027/03/15（あと124日）』のように残り日数つきで表示し、過ぎていれば『（切れています）』と出る。履歴では満了が近い車両だけを絞り込める。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
+  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。車検証はQRが横に並んでいるが、2枚とも枠に入れたまま数秒かざせば両方読める(v764で、読めたQRを一旦伏せて同じ画面からもう1枚を探すようにした。それ以前は常に同じ片方だけを読み続けて、もう片方が読めなかった)。遠い・傾いている・薄い車検証のときは、少し近づけて枠いっぱいにするか、角度を変えてかざし直す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・車検満了・初度登録・使用者 が出る。有効期間の満了する日(車検満了)は二次元コードの2枚目に入っているため、車台番号を読んだあとも最大2.5秒はそのままかざして2枚目を読ませる(画面に『有効期間はもう1つの二次元コードにあります』と出る)。読めない車検証でも待ち続けずに確定する。車検満了は『2027/03/15（あと124日）』のように残り日数つきで表示し、過ぎていれば『（切れています）』と出る。履歴では満了が近い車両だけを絞り込める。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【はじめの3つ(初回の案内)】初めて使う人には、ホーム上部に『はじめの3つ』が出る。①車検証を1台スキャンする ②整備カルテを1件残す ③違っている諸元を訂正して保存する。各項目の『やる』でその画面へ移動する。チェックは自己申告ではなく実際のデータで自動的に付く(カルテの実績量から自動反映された諸元は③に数えない)。3つとも終わると一度だけ完了が出て、以後は表示されない。『閉じる』でいつでも消せる。すでに3つとも済んでいる利用者には最初から表示されない。デモ中は出ない(デモは『体験ガイド』が案内する)。",
   "【ログインできない時】◆ID・パスワードは合っているのに、何も出ずにログイン画面へ戻る: そのIDの版(Works=法人版／Pocket=個人版)と、いま開いている側が違う可能性が高い。IDは版ごとに分かれていて、Pocket用IDでWorks側からは入れない(逆も同じ)。ログイン画面の Works ⇄ Pocket の切り替えを、そのIDの側に合わせてからログインする。新しいブラウザで開くと既定はWorksなので、Pocket用IDだとこれに当たりやすい。◆「ログイン中…」のまま進まない: 通信がこのアプリのデータベースへ届いていない。アプリ内ブラウザ(LINE等のアプリの中で開いた画面)では繋がらないことがあるので、Chrome / Safari で開き直すか、ホーム画面に追加したメカノAIから開く。ログインIDではなくメールアドレスでも試す。20秒たつと画面にも同じ案内が出る。◆ログインは通ったのに社内のデータが出ない: 登録端末の枠(無料2台)を超えている。設定→クラウド同期→登録端末 で使っていない端末を「解除」する。端末はブラウザごとに数えるので、同じスマホでもChromeとFirefoxは別の端末になる。",
