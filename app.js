@@ -10555,18 +10555,18 @@ function demoAnswer(prompt) {
   // 原因候補の「点検手引書」(buildInspectManualPrompt)。P0401サンプルの3候補には本番と同じ見出し構成の例を返す。
   // 諸元の判定(下の「諸元」)より先に見る: 手引書の指示文にも車両の諸元が混ざることがあるため。
   const guideCause = /点検手引書を作成する/.test(p) ? ((/^疑う原因: (.+)$/m.exec(p) || [])[1] || "") : "";
-  const demoGuide = guideCause && window.APP_LANG !== "en"
+  const demoGuide = guideCause
     ? (/クーラー/.test(guideCause) ? DEMO_GUIDE_EGR.cooler
       : /作動不良|固着|追従/.test(guideCause) ? DEMO_GUIDE_EGR.valve
       : /カーボン|通路/.test(guideCause) ? DEMO_GUIDE_EGR.carbon : "")
     : "";
   if (demoGuide) {
     text = demoGuide;
-  } else if (/"isWork"|修理|作業/.test(p) && /JSON/.test(p)) {
+  } else if (/"isWork"/.test(p) || (/修理|作業/.test(p) && /JSON/.test(p) && !/■原因候補/.test(p))) {
     text = JSON.stringify(DEMO_REPAIR);
   } else if (/"specs"|メンテナンス諸元|諸元/.test(p)) {
     text = JSON.stringify({ model: "ダイハツ ハイゼットカーゴ", maker: "daihatsu", specs: DEMO_SPECS, faults: DEMO_FAULTS, recalls: DEMO_RECALLS });
-  } else if (/■原因候補/.test(p) && /P0401/i.test(p) && window.APP_LANG !== "en") {
+  } else if (/■原因候補/.test(p) && /P0401/i.test(p)) {
     // 体験ガイドの例(P0401)には、本番と同じ形式の回答例を返す。「案内文だけ」だと一番の売りが伝わらない。
     // 内容は内蔵の db/dtc.json(P0401) と db/guides.json(EGR系統点検の手引き) に書いてある範囲でまとめたもの。
     text = DEMO_DIAG_P0401;

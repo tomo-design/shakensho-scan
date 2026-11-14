@@ -429,15 +429,89 @@
       "An error occurred ($1). Please contact cablueie.123@gmail.com."],
   ];
 
+  // 追加辞書(i18n-extra.js が window.I18N_EXTRA に入れる): exact=完全一致/語句, ph=[正規表現, 置換]
+  const EXTRA = window.I18N_EXTRA || {};
+  Object.assign(EXACT, EXTRA.exact || {});
+  if (EXTRA.ph) PH.unshift(...EXTRA.ph);
+
   const has = k => Object.prototype.hasOwnProperty.call(EXACT, k);
+  /* 語句連結: 完全一致も正規表現も無い文でも、辞書の語(EXACTのキー)を長い順に並べて「日本語の部分が全部」覆えたときだけ訳す。
+     1文字でも辞書に無い日本語が混じれば訳さない(=利用者の入力・車両名などは触らない)。
+     例外: 「…」の中、「ラベル: 」の直後(／まで)は利用者データとみなしてそのまま残す。 */
+  const JPRE = /[\u3040-\u30fa\u30fc-\u30ff\u3400-\u9fff\uff66-\uff9f]/;   // 中黒「・」(U+30FB)は記号として扱う
+  const PUNCT = { "（": " (", "）": ") ", "：": ": ", "、": ", ", "。": ". ", "／": " / ", "・": " · ", "！": "! ", "？": "? ", "「": "“", "」": "”", "『": "“", "』": "”", "〜": "–", "～": "–", "　": " ", "［": " [", "］": "] ", "【": "[", "】": "] ", "〔": "(", "〕": ")", "＋": "+", "－": "-", "％": "%", "＆": "&", "×": "×" };
+  let TOK = null;
+  const TV = {};
+  function buildTok() {
+    TOK = {};
+    const add = (k, v) => { if (!JPRE.test(k) || (k.length < 2 && !(EXTRA.tok || {})[k])) return; TV[k] = v; const c = k[0]; if (!TOK[c]) TOK[c] = []; if (!TOK[c].includes(k)) TOK[c].push(k); };
+    for (const k of Object.keys(EXACT)) { if (k.length >= 2) add(k, EXACT[k]); }
+    const tk = EXTRA.tok || {}; for (const k of Object.keys(tk)) add(k, tk[k]);
+    for (const c in TOK) TOK[c].sort((a, b) => b.length - a.length);
+  }
+  function frag(str) {
+    if (!JPRE.test(str)) return null;
+    if (!TOK) buildTok();
+    const parts = []; let i = 0, inQ = false, nTok = 0;
+    while (i < str.length) {
+      const ch = str[i];
+      let hit = null; const cands = TOK[ch];
+      if (cands) for (const k of cands) { if (str.startsWith(k, i)) { hit = k; break; } }
+      if (hit) { parts.push({ t: TV[hit], tok: true }); i += hit.length; nTok++; continue; }
+      if (!JPRE.test(ch)) {
+        if (ch === "「" || ch === "『") inQ = true; else if (ch === "」" || ch === "』") inQ = false;
+        const has2 = Object.prototype.hasOwnProperty.call(PUNCT, ch);
+        parts.push({ t: has2 ? PUNCT[ch] : ch, tok: has2 }); i++; continue;
+      }
+      let prev = ""; for (let q = parts.length - 1; q >= 0 && !prev; q--) prev = parts[q].t.trim();   // 直前の(空白でない)部品
+      if (inQ || /[:：]$/.test(prev)) {
+        let j = i;
+        if (inQ) { while (j < str.length && str[j] !== "」" && str[j] !== "』") j++; }
+        else { while (j < str.length && !(str[j] === "／" || str.startsWith(" / ", j))) j++; }
+        if (j === i) return null;
+        parts.push({ t: str.slice(i, j), tok: false }); i = j; continue;
+      }
+      return null;
+    }
+    if (!nTok) return null;
+    let res = "", pt = false;
+    for (const p of parts) {
+      if (res && (p.tok || pt) && /[A-Za-z0-9)”%]$/.test(res) && /^[A-Za-z0-9(“]/.test(p.t)) res += " ";
+      res += p.t; pt = p.tok;
+    }
+    res = res.replace(/ {2,}/g, " ").replace(/ +([,.:;!?)])/g, "$1").replace(/\( +/g, "(").trim();
+    return res.charAt(0).toUpperCase() + res.slice(1);
+  }
   function translate(s) {
     if (s == null) return s;
     const key = String(s).trim();
-    if (has(key)) return String(s).replace(key, EXACT[key]);
-    for (const [re, rep] of PH) { if (re.test(key)) return String(s).replace(key, key.replace(re, rep)); }
+    if (!key) return s;
+    if (has(key)) { const v = EXACT[key]; return String(s).replace(key, () => v); }
+    for (const [re, rep] of PH) {
+      if (re.test(key)) { let v = key.replace(re, rep); if (JPRE.test(v)) { const f2 = frag(v); if (f2 != null) v = f2; } return String(s).replace(key, () => v); }
+    }
+    const f = frag(key);
+    if (f != null) return String(s).replace(key, () => f);
     return s;
   }
 
+  EXTRA.tr = translate; window.I18N_EXTRA = EXTRA;
+  /* 内蔵DB(診断コード・症状・点検手引書・車種名など ≒2,400件)の英訳は大きいので、英語表示のときだけ読み込む */
+  let dbMerged = false, dbLoading = false;
+  function mergeDb() {
+    if (dbMerged || !window.I18N_DB_EN) return false;
+    dbMerged = true; const d = window.I18N_DB_EN;
+    for (const k in d) { if (!has(k)) EXACT[k] = d[k]; }
+    TOK = null; return true;
+  }
+  function loadDb(cb) {
+    if (window.I18N_DB_EN) { if (mergeDb() && cb) cb(); return; }
+    if (dbLoading) return; dbLoading = true;
+    const sc = document.createElement("script"); sc.src = "i18n-db-en.js";
+    sc.onload = () => { dbLoading = false; if (mergeDb() && cb) cb(); };
+    sc.onerror = () => { dbLoading = false; };
+    document.head.appendChild(sc);
+  }
   const ORIG = "__i18n_orig";
   let lang = localStorage.getItem("ss_lang") || null;
   window.APP_LANG = lang || "ja";
@@ -450,12 +524,15 @@
       if (out !== cur) { if (node[ORIG] == null) node[ORIG] = cur; node.nodeValue = out; }  // 現在値と差がある時だけ更新(ループ防止)
     } else if (node[ORIG] != null && node[ORIG] !== cur) { node.nodeValue = node[ORIG]; delete node[ORIG]; }
   }
+  const ATTRS = ["placeholder", "title", "aria-label", "alt"];
   function trAttr(el, attr, toEn) {
-    const k = "__i18n_" + attr;
+    const k = "__i18n_" + attr, cur = el.getAttribute(attr);
     if (toEn) {
-      const base = el[k] != null ? el[k] : el.getAttribute(attr);
+      if (cur == null) return;
+      const base = (el[k] != null && translate(el[k]) === cur) ? el[k] : cur;   // 自分が訳した値のまま→原文は保存済み / JSが新しい値を入れた→それが原文
       const out = translate(base);
-      if (out !== base) { if (el[k] == null) el[k] = el.getAttribute(attr); el.setAttribute(attr, out); }
+      if (out !== cur) { el[k] = base; el.setAttribute(attr, out); }
+      else if (base === cur) delete el[k];
     } else if (el[k] != null) { el.setAttribute(attr, el[k]); delete el[k]; }
   }
   function walk(root, toEn) {
@@ -464,8 +541,8 @@
     const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
     const texts = []; let n; while ((n = tw.nextNode())) texts.push(n);
     texts.forEach(t => trTextNode(t, toEn));
-    const els = [root, ...root.querySelectorAll("[placeholder],[title]")];
-    els.forEach(el => { if (el.hasAttribute && (el.hasAttribute("placeholder") || el.hasAttribute("title"))) { trAttr(el, "placeholder", toEn); trAttr(el, "title", toEn); } });
+    const els = [root, ...root.querySelectorAll("[placeholder],[title],[aria-label],[alt]")];
+    els.forEach(el => { if (el.hasAttribute) ATTRS.forEach(a => { if (el.hasAttribute(a) || el["__i18n_" + a] != null) trAttr(el, a, toEn); }); });
   }
 
   function applyLang(l) {
@@ -473,6 +550,9 @@
     localStorage.setItem("ss_lang", l);
     document.documentElement.lang = l;
     walk(document.body, l === "en");
+    if (l === "en") loadDb(() => { if (window.APP_LANG === "en") walk(document.body, true); });
+    if (window.__titleJa == null) window.__titleJa = document.title;
+    document.title = l === "en" ? translate(window.__titleJa) : window.__titleJa;
     updateToggle();
   }
   window.applyLang = applyLang;
@@ -483,8 +563,12 @@
   const mo = new MutationObserver(muts => {
     if (window.APP_LANG !== "en" || applying) return;
     applying = true;
-    try { for (const m of muts) m.addedNodes.forEach(nd => { if (nd.nodeType === 3) trTextNode(nd, true); else if (nd.nodeType === 1) walk(nd, true); }); }
-    finally { applying = false; }
+    try {
+      for (const m of muts) {
+        if (m.type === "attributes") { trAttr(m.target, m.attributeName, true); continue; }
+        m.addedNodes.forEach(nd => { if (nd.nodeType === 3) trTextNode(nd, true); else if (nd.nodeType === 1) walk(nd, true); });
+      }
+    } finally { applying = false; }
   });
 
   // ===== alert / confirm / prompt を翻訳 =====
@@ -514,7 +598,7 @@
   }
 
   function init() {
-    mo.observe(document.body, { childList: true, subtree: true });
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ATTRS });
     makeToggle();
     if (!lang) { document.documentElement.lang = "ja"; askLanguage(); }
     else applyLang(lang);

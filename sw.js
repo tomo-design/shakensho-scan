@@ -1,6 +1,6 @@
 "use strict";
 /* Service Worker — オフライン動作(アプリシェル + 車両DBキャッシュ) */
-const CACHE = "shaken-scan-v764";
+const CACHE = "shaken-scan-v765";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -14,6 +14,7 @@ const PRECACHE = [
   "./app.js",
   "./cloud.js",
   "./i18n.js",
+  "./i18n-extra.js",
   "./paywall.js",
   "./db/vehicles.json",
   "./db/dtc.json",
