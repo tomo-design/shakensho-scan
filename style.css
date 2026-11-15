@@ -955,10 +955,10 @@ details[open] > .secSummary::after{content:"▴"}
 .kcDone{min-width:74px;height:46px;border-radius:20px;background:var(--amber);color:#fff;border:0;font-size:14px;font-weight:700;flex:none;padding:0 14px}
 
 /* アプリ内通知モーダル(ブラウザalertの代替。ドメイン名を出さない) */
-.uiModalOv{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px}
-.uiModal{background:var(--panel,#fff);color:var(--txt);border-radius:16px;max-width:340px;width:100%;padding:22px 20px 16px;box-shadow:0 14px 44px rgba(0,0,0,.32)}
+.uiModalOv{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.uiModal{background:var(--panel,#fff);color:var(--txt);border-radius:16px;max-width:380px;width:100%;padding:22px 18px 16px;box-shadow:0 14px 44px rgba(0,0,0,.32)}
 .uiModal .uiModalTitle{font-weight:800;font-size:16px;margin-bottom:8px}
-.uiModal .uiModalBody{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.uiModal .uiModalBody{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere;line-break:strict}
 .uiModal .uiModalOk{margin-top:16px;width:100%;padding:12px;border:0;border-radius:10px;background:#2E4A66;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
 .uiModal .uiModalOk:active{opacity:.85}
 .uiModal .uiModalBtns{display:flex;gap:10px;margin-top:16px}
