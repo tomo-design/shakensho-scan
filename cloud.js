@@ -685,14 +685,15 @@
       }
     }
     renderAuthUI();
+    notifyBlocked_();   // プロフィール未作成・承認待ち・却下を、ここで知らせる
     try { window.refreshPocketUI && window.refreshPocketUI(); } catch (e) {}   // 契約情報読込後にPocketの無料残日数バナーを再描画
     if (profile && profile.active && profile.tenantId) {
       // 店舗が未払い/停止なら社内共有を止める(個人利用=ローカルは継続)
-      if (!planActive()) { planBlocked = true; renderAuthUI(); renderDevices(); return; }
+      if (!planActive()) { planBlocked = true; renderAuthUI(); renderDevices(); notifyBlocked_(); return; }
       // 端末制限チェック(無料2台まで/3台目以降は有料枠が必要)。許可された端末のみ同期する。
       const gate = await ensureDeviceAllowed(user.uid);
       renderDevices();
-      if (!gate.ok) { deviceBlocked = true; renderAuthUI(); return; }   // 未許可端末は同期させない
+      if (!gate.ok) { deviceBlocked = true; renderAuthUI(); notifyBlocked_(); return; }   // 未許可端末は同期させない
       // 最終ログイン日時を記録(管理画面に表示)
       try { db.collection("users").doc(user.uid).set({ lastLogin: Date.now() }, { merge: true }); } catch (e) {}
       startSync(profile.tenantId);
@@ -709,6 +710,38 @@
       else { pendingSuperOpen = false; const s = $("superStat"); if (s) s.textContent = "⚠ このアカウントは運営管理者ではありません。"; }
     }
   });
+
+  /* ★同期が止まっている理由を、ログイン直後に画面の前面へ出す。
+     これまで理由は設定タブの #cloudStat にしか出ず、ログインした本人が
+     「入れたのに同期されない・理由も分からない」状態になっていた。
+     実際に、新しいブラウザが3台目になって端末上限で弾かれたのに
+     何も表示されない事例が出た(2026-11-15・原因特定済み)。
+     同じ理由では一度しか出さない(再描画のたびに出さない)。 */
+  let _blockNotice = "";
+  function notifyBlocked_() {
+    if (!me) { _blockNotice = ""; return; }
+    let state = "", msg = "";
+    if (!profile) {
+      state = "noprofile";
+      msg = "アカウントの情報が読み込めませんでした。設定タブの「クラウド同期」から、もう一度「会社に参加」をお試しください。";
+    } else if (profile.rejected) {
+      state = "rejected";
+      msg = "会社への参加申請が却下されています。設定タブの「クラウド同期」から再申請できます。";
+    } else if (!profile.active) {
+      state = "pending";
+      msg = "承認待ちです。会社の代表管理者が承認すると、自動で同期が始まります。";
+    } else if (planBlocked) {
+      state = "plan";
+      msg = "店舗の利用契約が停止中、または期限切れです。代表管理者にお支払いの確認をお願いしてください。なお、この端末だけでのご利用は続けられます。";
+    } else if (deviceBlocked) {
+      state = "device";
+      msg = "この端末は、登録できる台数(" + deviceLimitOf() + "台)を超えています。設定タブの「クラウド同期」→「登録端末」から、使っていない端末を削除すると、この端末でも社内共有が使えるようになります。削除するまでの間も、この端末だけでのご利用は続けられます。";
+    }
+    if (!state) { _blockNotice = ""; return; }      // 正常に戻ったら、次に止まった時はまた知らせる
+    if (_blockNotice === state) return;             // 同じ理由を繰り返し出さない
+    _blockNotice = state;
+    try { if (typeof uiAlert === "function") uiAlert(msg, "社内共有が始まっていません"); } catch (e) {}
+  }
 
   let _wasLoggedIn = false;   // 直前の描画時にログイン中だったか(ログアウトの瞬間を検出する)
   function renderAuthUI() {
