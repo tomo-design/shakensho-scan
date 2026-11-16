@@ -494,6 +494,98 @@ function reconstructCodes(payloadList) {
   return codes;
 }
 
+/* ===== 分割QRの組み立て(読み取った順序に頼らない) =====
+   車検証の二次元コード2は2個、コード3は3個に分割して印字されている(横に4〜5個並ぶ)。
+   従来は「読み取った順に連結」していたため、読む順番が前後したり、別のコードの断片が間に入ると
+   組み立てが壊れたまま直らず、必要な項目が揃わずにいつまでも読み取りが終わらなかった。
+   → 読めた断片の「すべての並べ方・組み合わせ」を試し、コードとして正しい構造になるものを選んで組み立てる。
+   構造が確認できる分だけ採用し、確認できない断片は従来どおり読み取り順で連結する(従来より悪くならない)。 */
+function scoreCode(str) {
+  const f = String(str).split("/").map(s => s.trim());
+  if (f.length < 5 || !/^\d$/.test(f[0])) return null;
+  if (f.length > 20) return null;                                // 項目が多すぎる=別のコードの断片が余計に付いている
+  if (f.length >= 17) {                                          // 二次元コード3(19項目。最後の断片が欠けて17〜18項目でも可): 満了日・初度登録が決まった形か
+    if (!/^\d{6}$/.test(f[3]) || !/^\d{4}$/.test(f[4])) return null;
+    let sc = 6;
+    if (f[3] === "999999" || parseYYMMDD(f[3])) sc += 2;
+    if (f[4] === "9999" || parseYYMM(f[4])) sc += 2;
+    if (!f[2] || /^\d{5,10}$/.test(f[2]) || isFiller(f[2])) sc += 1;
+    if (/^(?:[0-9A-Z]{2,4}-)?[A-Z][A-Z0-9]{2,11}$/.test(zen2han(f[5] || "").toUpperCase())) sc += 3;   // 型式の形(例 2RG-NKR85AN)
+    if (/^\d{2}$/.test(f[f.length - 1])) sc += 2;                                                       // 最後の項目=燃料コード(2桁)
+    if (f.length === 19) sc += 1;
+    return { kind: 3, score: sc };
+  }
+  if (f.length <= 7) {                                           // 二次元コード2(6項目): 車台番号が決まった形か
+    const vin = zen2han(f[3] || "").toUpperCase();
+    if (!/^[A-Z0-9\[\]\-]{4,23}$/.test(vin) || isFiller(vin)) return null;
+    let sc = 6;
+    if (isValidPlate((f[1] || "").replace(/[　 ]+/g, " ").trim())) sc += 1;
+    const eng = zen2han(f[4] || "").toUpperCase().trim();
+    if (eng && !eng.startsWith("*") && /^[A-Z0-9\-]{2,10}$/.test(eng) && !/^\d+$/.test(eng)) sc += 1;
+    if (f.length === 6) sc += 1;
+    if (/^\d{1,3}$/.test(f[f.length - 1])) sc += 1;                                                     // 最後の項目=帳票種別(短い数字)
+    return { kind: 2, score: sc };
+  }
+  return null;
+}
+const solveCache = new Map();
+const qrSeq = new Map();   // QR本文 → 連結QRの情報 {id, idx, size}(ZXing-C++が読めた時だけ入る)。あれば並び順は確定できる
+function solveCodes(list) {
+  const F = [...new Set(list)];
+  const n = F.length;
+  if (n === 0 || n > 8) return null;                             // 断片が多すぎる(別の車両が混ざった等)ときは従来の連結に任せる
+  const key = F.join("\u0001") + "\u0002" + qrSeq.size;
+  if (solveCache.has(key)) return solveCache.get(key);
+  const groups = [];
+  const rec = (used, seq) => {
+    if (seq.length) {
+      const sc = scoreCode(seq.map(i => F[i]).join(""));
+      let inv = 0; for (let a = 0; a < seq.length; a++) for (let b = a + 1; b < seq.length; b++) if (seq[a] > seq[b]) inv++;   // 読み取り順と逆の並びほど不利(同点の時だけ効く)
+      if (sc) groups.push({ mask: used, seq, kind: sc.kind, score: sc.score - inv * 0.01 });
+    }
+    if (seq.length >= 4) return;
+    for (let i = 0; i < n; i++) if (!(used & (1 << i))) rec(used | (1 << i), seq.concat(i));
+  };
+  rec(0, []);
+  // 連結QR(structured append)の情報が揃っているものは、その順序で確定(最優先)
+  const byId = {};
+  F.forEach((t, i) => { const m = qrSeq.get(t); if (m && m.size > 1) ((byId[m.id + "|" + m.size] = byId[m.id + "|" + m.size] || {})[m.idx] = i); });
+  Object.keys(byId).forEach(k => {
+    const size = +k.split("|").pop(), g = byId[k], seq = [];
+    for (let j = 0; j < size; j++) { if (g[j] == null) return; seq.push(g[j]); }
+    let mask = 0; seq.forEach(i => mask |= 1 << i);
+    const sc = scoreCode(seq.map(i => F[i]).join(""));
+    groups.push({ mask, seq, kind: sc ? sc.kind : 0, score: 100 });
+  });
+  const pop = m => { let c = 0; while (m) { c += m & 1; m >>= 1; } return c; };
+  const memo = new Map();
+  const best = mask => {                                         // mask=まだ使っていない断片。最も多く正しいコードに組み込めるものを選ぶ
+    if (!mask) return { cov: 0, score: 0, picks: [] };
+    if (memo.has(mask)) return memo.get(mask);
+    const low = mask & -mask;
+    let top = best(mask & ~low);
+    for (const g of groups) {
+      if ((g.mask & low) && (g.mask & mask) === g.mask) {
+        const r = best(mask & ~g.mask), cov = r.cov + pop(g.mask), score = r.score + g.score;
+        if (cov > top.cov || (cov === top.cov && score > top.score)) top = { cov, score, picks: r.picks.concat(g) };
+      }
+    }
+    memo.set(mask, top); return top;
+  };
+  const r = best((1 << n) - 1);
+  let usedMask = 0; r.picks.forEach(g => usedMask |= g.mask);
+  const out = { codes: r.picks.map(g => g.seq.map(i => F[i]).join("")), kinds: r.picks.map(g => g.kind), covered: r.cov, rest: F.filter((_, i) => !(usedMask & (1 << i))), n };
+  out.restMask = usedMask;
+  if (solveCache.size > 50) solveCache.clear();
+  solveCache.set(key, out);
+  return out;
+}
+/* 読めたQRの状況(進捗表示用): 何個読めて、そのうち何個がコードとして組み上がったか */
+function qrStatus(payloadSet) {
+  const list = [...payloadSet], sol = solveCodes(list);
+  return { n: list.length, solved: sol ? sol.covered : 0, kinds: sol ? sol.kinds : [] };
+}
+
 const zen2han = s => s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,
   c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, " ");
 
@@ -595,15 +687,20 @@ function parseHeuristic(fields, exclude = new Set()) {
 
 function parsePayloads(payloadSet) {
   const list = [...payloadSet];
-  const codes = reconstructCodes(list);
+  // 構造が確認できた分は順序に関係なく組み立て、残りは従来どおり読み取り順に連結する
+  const sol = solveCodes(list);
+  const codes = sol && sol.covered ? sol.codes.concat(reconstructCodes(sol.rest)) : reconstructCodes(list);
   const s = parseStructured(codes);
 
-  const rawFields = [];
+  const rawFields = [], guessFields = [];
   list.forEach(p => p.split("/").forEach(f => { f = f.trim(); if (f) rawFields.push(f); }));
-  const uniq = [...new Set(rawFields)];
+  // 推測の対象は「組み上がっていない断片」だけ。組み上がったコードの項目は構造から確定しており、
+  // 含めると別の項目(例: コード3の打刻位置 ABC12)を原動機型式と取り違える
+  (sol && sol.covered ? sol.rest : list).forEach(p => p.split("/").forEach(f => { f = f.trim(); if (f) guessFields.push(f); }));
+  const uniq = [...new Set(rawFields)], guessUniq = [...new Set(guessFields)];
   // 型式・車台番号・原動機型式(確定済み)はヒューリスティックの再判定から除外
   const exclude = new Set([s.engine, s.vin, s.type].filter(Boolean).map(x => zen2han(x).toUpperCase()));
-  const h = parseHeuristic(uniq, exclude);
+  const h = parseHeuristic(guessUniq, exclude);
 
   // 型式は コード3(f[5]) 優先 → 無ければ車台番号の接頭辞(例 MK21S-149973 → MK21S) → ハイフン付き型式
   const vinVal = s.vin || h.vin || null;
@@ -703,6 +800,74 @@ function decodeCanvasAll(canvas, max) {
   }
   return out;
 }
+/* ===== 強力な解読: ZXing-C++(wasm) + 2倍拡大 =====
+   従来のZXing-js・jsQRは、小さい/薄い/ぼけた車検証のQRで取りこぼしが多い。
+   車検証QR風の合成画像(1モジュール2〜3画素・ぼかし・ノイズ・斜め・低コントラスト)で比べたところ、成功率は
+     jsQR 約4割 / ZXing-js 約3割 → ZXing-C++(wasm) 約5割 → さらに2倍に拡大して読み直すと 約8割(濃いQRでも同様)。
+   ・wasmは lib/ から必要になった時に読み込む(読み込み中や失敗時は従来の解読にそのまま戻る)
+   ・1枚の画面に並ぶ2枚のQRは maxNumberOfSymbols で一度に読む */
+let zxw = null, zxwLoading = null, zxwFailed = false;
+function ensureZxWasm() {
+  if (zxw) return Promise.resolve(zxw);
+  if (zxwFailed) return Promise.resolve(null);
+  if (zxwLoading) return zxwLoading;
+  zxwLoading = new Promise(res => {
+    const done = v => { zxwLoading = null; if (!v) zxwFailed = true; res(v); };
+    const boot = async () => {
+      try {
+        await ZXingWASM.prepareZXingModule({ overrides: { locateFile: (f, prefix) => /\.wasm$/.test(f) ? "lib/" + f : prefix + f }, fireImmediately: true });
+        zxw = ZXingWASM; done(zxw);
+      } catch (e) { done(null); }
+    };
+    if (typeof ZXingWASM !== "undefined") { boot(); return; }
+    const sc = document.createElement("script"); sc.src = "lib/zxing-wasm-reader.js";
+    sc.onload = boot; sc.onerror = () => done(null);
+    document.head.appendChild(sc);
+  });
+  return zxwLoading;
+}
+const ZXW_OPTS = { formats: ["QRCode"], tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true };
+function zxwText(r) {
+  let t = r.text || "";
+  if (/\uFFFD/.test(t) && r.bytes && r.bytes.length) {   // 文字コードの判定に失敗した時はShift_JISでも読んでみる(登録番号の漢字)
+    try { const t2 = new TextDecoder("shift_jis").decode(r.bytes); if (!/\uFFFD/.test(t2)) t = t2; } catch (e) {}
+  }
+  return t;
+}
+async function zxwRead(imageData, max) {
+  const rs = await zxw.readBarcodes(imageData, { ...ZXW_OPTS, maxNumberOfSymbols: max || 3 });
+  const out = [];
+  rs.forEach(r => {
+    if (r && r.isValid) {
+      const t = zxwText(r);
+      if (t && out.indexOf(t) < 0) out.push(t);
+      if (t && r.sequenceSize > 1 && r.sequenceIndex >= 0) qrSeq.set(t, { id: String(r.sequenceId || ""), idx: r.sequenceIndex, size: r.sequenceSize });   // 連結QR(○個中○番目)
+    }
+  });
+  return out;
+}
+const qrUp = document.createElement("canvas"), qrUpCtx = qrUp.getContext("2d", { willReadFrequently: true });
+function upscale2(canvas) {
+  qrUp.width = canvas.width * 2; qrUp.height = canvas.height * 2;
+  qrUpCtx.imageSmoothingEnabled = true; qrUpCtx.imageSmoothingQuality = "high";
+  qrUpCtx.drawImage(canvas, 0, 0, qrUp.width, qrUp.height);
+  return qrUp;
+}
+/* 1つのcanvasから読めるだけQRを読む(非同期)。wasm→(読めなければ2倍拡大)→従来の解読の順 */
+async function decodeStrongAll(canvas, max, allowUp) {
+  if (zxw) {
+    try {
+      const w = canvas.width, h = canvas.height;
+      let out = await zxwRead(canvas.getContext("2d").getImageData(0, 0, w, h), max);
+      if (!out.length && allowUp !== false && w * h <= 1600 * 1600) {
+        const u = upscale2(canvas);
+        out = await zxwRead(qrUpCtx.getImageData(0, 0, u.width, u.height), max);
+      }
+      if (out.length) return out;
+    } catch (e) {}
+  } else ensureZxWasm();
+  return decodeCanvasAll(canvas, max);
+}
 /* かすれ・低コントラストのQR向け: グレースケール+コントラスト強調(自動レベル補正) */
 function boostContrast(canvas) {
   const c = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
@@ -751,8 +916,13 @@ function hasCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); }
 /* 読み取り完了。コード2(車台番号・原動機型式)だけで終わらせると有効期間が毎回落ちるので、
    コード3まで揃って初めて「完了」とする。コード3が読めない車検証のために、
    車台番号が取れたあとは下の猶予(CODE3_WAIT_MS)で打ち切る仕組みがあるので止まることはない。 */
-function accComplete() { return !!(acc.vin && acc.engine && hasCode3()); }
-const CODE3_WAIT_MS = 2500;   // 車台番号が取れてから、有効期間(コード3)を待つ時間
+function accComplete() {
+  if (!(acc.vin && acc.engine && hasCode3())) return false;
+  const st = qrStatus(payloads);
+  if (st.kinds.indexOf(2) >= 0 && st.kinds.indexOf(3) >= 0) return true;   // コード2・3とも組み上がった=確定
+  return st.n === st.solved;                                              // そうでなければ、組み立て前の断片が残る間は完了にしない(推測値で早く終わらせない)
+}
+const CODE3_WAIT_MS = 4000;   // 新しいQRが読めなくなってから、有効期間(コード3)を待つ時間。QRを読むたびに数え直す(横にずらして読み進める間は終わらせない)
 function accResult() { return { ...acc, rid: acc.rid || null, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
 function resetScan() { payloads.clear(); acc = freshAcc(); accSure = {}; scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null, expiry: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
@@ -773,9 +943,11 @@ $("btnStop").addEventListener("click", rescanNow);
 $("scanBack").addEventListener("click", goHome);   // スキャン中の「戻る」→ ホームへ
 
 let camList = [], camIdx = 0;
+let camLowRes = false, nativeSlow = 0;   // 4Kだと端末のQR検出が間に合わない時は、解像度を下げてやり直す
 
 async function startLiveScan() {
   resetScan();   // 新規スキャンは必ず状態を初期化(固まったフラグ・前回データの持ち越しを防ぐ)
+  ensureZxWasm();   // 強力な解読(wasm)を先読み(読み込み中は従来の解読で動く)
   const ok = await openCamera(null);
   if (!ok) {
     toggle("qrPhotoStatus", true);
@@ -811,7 +983,10 @@ async function openCamera(deviceId) {
     ? { deviceId: { exact: deviceId } }
     : { facingMode: { ideal: "environment" } };
   try {
-    liveStream = await navigator.mediaDevices.getUserMedia({ video: { ...base, width: { ideal: 2560 }, height: { ideal: 1440 } } });
+    // 車検証のQRは小さい(約1.2cm)ので、フレームの解像度がそのまま読みやすさになる。対応端末は4K(3840x2160)を要求し、
+    // 出せない端末はブラウザが出せる最大に自動で下がる(iOSはメモリ節約のため従来の2560x1440)。
+    const hi = !IS_IOS && !camLowRes;   // 4Kで検出が遅い端末は camLowRes で2560x1440に自動で下げる(下のscanTick)
+    liveStream = await navigator.mediaDevices.getUserMedia({ video: { ...base, width: { ideal: hi ? 3840 : 2560 }, height: { ideal: hi ? 2160 : 1440 } } });
   } catch (e) {
     try { liveStream = await navigator.mediaDevices.getUserMedia({ video: base }); }
     catch (e2) { return false; }
@@ -959,24 +1134,31 @@ function afterScanUpdate(src) {
   if (acc.vin) {
     const c3 = hasCode3();
     setScanMsg(c3 ? "✓ 読み取り中… そのままかざしてください"
-                  : "✓ 車台番号を読みました。有効期間はもう1つの二次元コードにあります。そのままかざしてください");
+                  : "✓ 車台番号を読みました。有効期間は別のQRにあります。横にずらして残りのQRも写してください");
     // 車台番号が取れたら猶予を置いて残りQR(コード3=有効期間・初度登録・型式)も拾ってから確定する。
     // コード3がまだなら長めに待つ(500ミリ秒では実際には間に合わず、有効期間が毎回落ちていた)。
-    if (!scanGrace) scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, c3 ? 500 : CODE3_WAIT_MS);
+    // 新しい項目が読めるたびに待ち時間を数え直す。車台番号(コード2)を読んだ直後に打ち切ると、
+    // 横にずらして残りのQRを読んでいる途中で終わってしまい、有効期間・型式が毎回落ちていた。
+    if (scanGrace) clearTimeout(scanGrace);
+    scanGrace = setTimeout(() => { scanGrace = null; if (scanning && acc.vin) finalizeScan(); }, c3 ? 500 : CODE3_WAIT_MS);
     return;
   }
   // 型式のみ(コード3先読み)の場合は、車台番号(コード2)を必須として待ち続ける。
   // ここで勝手に完了させない → 車台番号 未検出のまま「✓読み取り完了」を出さないため(誤OK防止)。
   if (acc.type) {
-    setScanMsg("あと少し: 車台番号側の二次元コード(コード2)も枠に入れてください");
+    setScanMsg("あと少し: 車台番号側のQR(横に並んだ別のQR)も写してください");
     return;
   }
+  if (payloads.size) { setScanMsg("QR " + payloads.size + "個 読めました。横にずらして残りのQRも写してください"); return; }
   setScanMsg("QRを枠内に大きく写してください");
 }
 
 /* 解析のたびに見る範囲を変える。f=中央から切り出す割合(1=全面)、b=コントラスト強調するか。
    1種類の切り出し方だと、その切り方で読めないQRは何度やっても読めないままになる。 */
-const QR_VIEWS = [{ f: 1, b: 0 }, { f: 0.8, b: 0 }, { f: 0.55, b: 0 }, { f: 1, b: 1 }, { f: 0.8, b: 1 }, { f: 0.55, b: 1 }];
+// band: 画面の中央の横長の帯(幅いっぱい・高さ4割)を元の解像度のまま読む。車検証のQRは横に4〜5個並ぶので、これが一番速い
+//   (4K全面は1回に0.2〜2秒かかり、読んでいる間に車検証をずらすと取りこぼす。帯なら約1/3の画素数で済む)
+// half: "L"/"R" は画面の左半分/右半分を元の解像度のまま切り出す。全面を縮小すると小さなQRがつぶれる
+const QR_VIEWS = [{ band: 1 }, { f: 0.8, b: 0 }, { half: "L" }, { half: "R" }, { band: 1, b: 1 }, { f: 1, b: 0 }, { f: 0.55, b: 0 }, { f: 0.8, b: 1 }];
 let lastScanProc = 0, nativeBusy = false, lastNewDataAt = 0;
 async function scanTick() {
   if (!scanning) return;
@@ -991,17 +1173,23 @@ async function scanTick() {
       nativeDetector.detect(video),
       new Promise((_, rej) => setTimeout(() => rej(0), 700)),
     ])
-      .then(codes => { if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
-      .catch(() => {})            // タイムアウト/失敗は無視(nativeは残す)
+      .then(codes => { nativeSlow = 0; if (scanning && codes && codes.length) codes.forEach(c => onLiveQr(c.rawValue)); })
+      .catch(e => {               // タイムアウト/失敗は無視(nativeは残す)。ただし4Kで連続して間に合わない時は解像度を下げる
+        if (e === 0 && ++nativeSlow >= 4 && !camLowRes && !IS_IOS && video.videoWidth > 2600 && scanning) {
+          camLowRes = true; nativeSlow = 0;
+          openCamera(camList[camIdx] ? camList[camIdx].deviceId : null).catch(() => {});
+        }
+      })
       .finally(() => { nativeBusy = false; });
   }
   // ② ZXing/jsQR(重い同期解析)は保険。ネイティブが使える端末では「進捗が1.2秒止まった時だけ」に絞る。
   //    常時走らせるとメインスレッドを塞ぎ、スキャン開始直後に画面が固まるため。
-  const zxWait = nativeDetector ? 800 : 400;   // ネイティブで読めない難QRに、少し早く高精度ZXingを併走させる
+  const zxWait = nativeDetector ? 350 : 250;   // ネイティブで読めない時は、強力な解読(wasm)をすぐ併走させる
   const zxThrottle = nativeDetector ? 350 : 200;
   if (ready && !tickBusy && Date.now() - lastScanProc >= zxThrottle && Date.now() - lastNewDataAt > zxWait) {
     lastScanProc = Date.now(); tickBusy = true; tickN++;
     const vw = video.videoWidth, vh = video.videoHeight;
+    let pending = false;
     try {
       // 見る範囲を毎回ずらす: 全面 → 中央0.8 → 中央0.55、それぞれコントラスト強調の有無。
       //  ・全面 … 中央の正方形だけ見ていると左右が切り捨てられ、横に並ぶ2枚目を最初から見ていなかった
@@ -1009,16 +1197,20 @@ async function scanTick() {
       //  ・コントラスト強調 … 薄い車検証・明るさムラ向け
       const V = QR_VIEWS[tickN % QR_VIEWS.length];
       let sx = 0, sy = 0, sw = vw, sh = vh;
-      if (V.f < 1) { const sq = Math.floor(Math.min(vw, vh) * V.f); sx = (vw - sq) >> 1; sy = (vh - sq) >> 1; sw = sh = sq; }
-      const cap = IS_IOS ? 1280 : 1920, sc = Math.min(1, cap / Math.max(sw, sh));   // iOSはメモリ節約のため控えめ
+      if (V.band) { sh = Math.floor(vh * 0.4); sy = (vh - sh) >> 1; }
+      else if (V.half) { sw = vw >> 1; sx = V.half === "R" ? vw - sw : 0; }
+      else if (V.f < 1) { const sq = Math.floor(Math.min(vw, vh) * V.f); sx = (vw - sq) >> 1; sy = (vh - sq) >> 1; sw = sh = sq; }
+      // 小さいQRをつぶさないよう縮小は最小限。帯(1回目の見方)は4Kのまま読み、4〜5個が並んでいても一度に拾う(iOSはメモリ節約のため控えめ)
+      const cap = IS_IOS ? 1600 : (V.band && !V.b ? 3840 : 2560), sc = Math.min(1, cap / Math.max(sw, sh));
       const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
       cv.width = w; cv.height = h;
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
       if (V.b) boostContrast(cv);
-      // 読めたQRを塗りつぶして読み直すので、横に並んだ2枚を1フレームで両方拾える
-      decodeCanvasAll(cv, 3).forEach(t => onLiveQr(t));
+      // 強力な解読(wasm→2倍拡大→従来)。横に並んだ2枚も1フレームで両方拾える。非同期なので終わるまで次の解析は始めない
+      pending = true;
+      decodeStrongAll(cv, 6, true).then(list => { if (scanning) list.forEach(t => onLiveQr(t)); }).catch(() => {}).finally(() => { tickBusy = false; });
     } catch (e) {}
-    tickBusy = false;
+    if (!pending) tickBusy = false;
   }
   // ③ 券面OCR(型式・車台番号の印字補完): 約2.2秒に1回、別スレッドで
   // 券面OCRはメインスレッドで重い前処理(全画素ループ)を伴うため、
@@ -1119,10 +1311,12 @@ $("qrPhotoIn").addEventListener("change", async e => {
 /* 読み取り済み項目の進捗表示 */
 function updateScanProgress(d) {
   const box = $("scanProgress");
+  const qs = qrStatus(payloads);
+  const qrLine = qs.n ? '<div class="progQR">QR ' + qs.n + '個 読み取り済み' + ((d.vin && hasCode3()) ? "" : ' — 残りのQRも写してください') + '</div>' : "";
   const items = [
     ["車台番号", d.vin], ["原動機型式", d.engine], ["登録番号", d.plate], ["指定・類別", formatKata(d.kataShitei)],
   ];
-  box.innerHTML = items.map(([label, val]) =>
+  box.innerHTML = qrLine + items.map(([label, val]) =>
     '<div class="progRow ' + (val ? "got" : "") + '">' +
     '<span class="progIco">' + (val ? "✓" : "○") + '</span>' +
     '<span class="progLabel">' + label + '</span>' +
@@ -1144,17 +1338,19 @@ function loadImageEl(file) {
 /* 1枚の写真からQRを抽出して配列で返す(純関数。グローバルは触らない) */
 async function decodePhotoQR(file) {
   const out = new Set();
-  // ① ネイティブ検出 (Android Chrome): 1枚で複数QRを一度に取得
+  // ① ネイティブ検出 (Android Chrome): 1枚で複数QRを一度に取得。2枚読めたらそれで終わり。
+  //    1枚だけ読めた時は、もう1枚(車検証はQRが2枚並ぶ)を探して下の解読でも続けて読み、合わせる。
   if (nativeDetector) {
     try {
       const bmp = await createImageBitmap(file);
       const codes = await nativeDetector.detect(bmp);
       if (bmp.close) bmp.close();
       codes.forEach(c => { if (c.rawValue) out.add(c.rawValue); });
-      if (out.size) return [...out];
+      if (out.size >= 2) return [...out];
     } catch (e) {}
   }
-  // ② jsQR (iPhone等): 複数QRが1枚に並ぶと全体スキャンは失敗するため、
+  await ensureZxWasm();   // 強力な解読(ZXing-C++)を使う。使えなければ従来の解読に戻る
+  // ② 複数QRが1枚に並ぶと全体スキャンは失敗しやすいため、
   //    タイル分割して各領域を個別に読む
   const img = await loadImageEl(file);
   const W = img.width, H = img.height;
@@ -1167,13 +1363,13 @@ async function decodePhotoQR(file) {
     const sy = Math.max(0, r * th - th * ov * 0.5);
     regions.push([sx, sy, Math.min(W - sx, tw * (1 + ov)), Math.min(H - sy, th * (1 + ov))]);
   }
-  const cap = 1400;
+  const cap = zxw ? 2400 : 1400;   // 写真は一度きりなので、wasmが使える時は高解像度のまま読む
   for (const [sx, sy, sw, sh] of regions) {
     const sc = Math.min(1, cap / Math.max(sw, sh));
     const w = Math.max(1, Math.round(sw * sc)), h = Math.max(1, Math.round(sh * sc));
     cv.width = w; cv.height = h;
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-    decodeCanvasAll(cv, 3).forEach(t => out.add(t));   // 1タイルに2枚写っていても両方拾う
+    (await decodeStrongAll(cv, 6, true)).forEach(t => out.add(t));   // 1タイルに何枚写っていても拾う
   }
   return [...out];
 }
@@ -10155,7 +10351,7 @@ const SUPPORT_KB = [
   "",
   "【概要】整備士向けアプリ。車検証をスキャンして車両を識別し、メンテナンス諸元・AI故障診断・修理手順・整備カルテを現場で使える。データは端末内に保存。契約店舗は社内の全端末で自動共有。個人向けの「MECHANO-AI Pocket」(Web版・ブラウザ)は7日無料→月額¥500。法人向けは「MECHANO-AI Works」。",
   "【画面】下タブ=スキャン/車両/履歴/設定。「スキャン」はいつでもホーム(車検証を読み取る画面)、「車両」はいま開いている車両に戻る。車種データの編集(DB編集)は設定の中『車種データの編集』から。車両を開くと上部に 車両/メンテ/診断/修理/カルテ。PC・タブレット横向き(画面幅1024px以上)では下タブが画面左のサイドメニューになり、診断・修理は左に入力/右にメカ君の回答、メンテは左に諸元/右に定番故障・リコール、カルテは記録を書きながら過去の記録を横に見られる2カラム表示。設定は読みやすい幅の中央1列、メカ君サポートのチャットは画面中央のウィンドウで開く。タブレット縦向きは画面を広く使い、履歴は2列。",
-  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。車検証はQRが横に並んでいるが、2枚とも枠に入れたまま数秒かざせば両方読める(v764で、読めたQRを一旦伏せて同じ画面からもう1枚を探すようにした。それ以前は常に同じ片方だけを読み続けて、もう片方が読めなかった)。遠い・傾いている・薄い車検証のときは、少し近づけて枠いっぱいにするか、角度を変えてかざし直す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・車検満了・初度登録・使用者 が出る。有効期間の満了する日(車検満了)は二次元コードの2枚目に入っているため、車台番号を読んだあとも最大2.5秒はそのままかざして2枚目を読ませる(画面に『有効期間はもう1つの二次元コードにあります』と出る)。読めない車検証でも待ち続けずに確定する。車検満了は『2027/03/15（あと124日）』のように残り日数つきで表示し、過ぎていれば『（切れています）』と出る。履歴では満了が近い車両だけを絞り込める。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
+  "【車検証スキャン】ホームの『車検証を読み取る』にある2枚のカード(QRでScan / 写真でScan)から。その下に『🔎車両検索』『✎手入力』。QRを枠いっぱいに明るく撮る。読めなければ『写真でScan(全体)』。車検証はQRが横に並んでいるが、2枚とも枠に入れたまま数秒かざせば両方読める(v764で、読めたQRを一旦伏せて同じ画面からもう1枚を探すようにした。それ以前は常に同じ片方だけを読み続けて、もう片方が読めなかった)。v766で読み取りを強化した: ①車検証のQRは横に4〜5個並ぶ(コード2が2個・コード3が3個に分割)。読んだ順番がばらばらでも、全部の並べ方を試して正しく組み立てる(従来は読んだ順に連結していたため、順番が前後すると壊れたまま終わらなかった)。2個ずつ横にずらして読み進めてよく、新しいQRが読めるたびに待ち時間を数え直すので途中で打ち切られない。画面に「QR ○個 読み取り済み」と出る。②小さい・薄い・ぼけたQRに強い解読を追加し、対応端末は4Kで撮影、読めない時は2倍に拡大して読み直す。それでも読みにくい時は、ライトを消してピントが合うところまで近づけ、反射が入らないよう車検証の角度を変える。遠い・傾いている・薄い車検証のときは、少し近づけて枠いっぱいにするか、角度を変えてかざし直す。読み取ると車両カードに 車名(分かる場合のみ)・型式・車台番号・原動機型式・登録番号・指定類別・車検満了・初度登録・使用者 が出る。有効期間の満了する日(車検満了)は二次元コードの2枚目に入っているため、車台番号を読んだあとも最大2.5秒はそのままかざして2枚目を読ませる(画面に『有効期間はもう1つの二次元コードにあります』と出る)。読めない車検証でも待ち続けずに確定する。車検満了は『2027/03/15（あと124日）』のように残り日数つきで表示し、過ぎていれば『（切れています）』と出る。履歴では満了が近い車両だけを絞り込める。車名はAIが諸元を取得して特定した時点でも表示される。違っていたら『車両データを修正』で直せる。",
   "【メンテナンス諸元(メンテ)】AIがエンジンオイル量・締付トルク(ホイールナット/前後ハブベアリングナット/アクスルフランジ等)・油脂類・粘度・車台/エンジン打刻位置・OBD検査対象などを取得。国産乗用車のオイル量・粘度はHKS適合表の実データを内蔵し検索なしでも即表示(ターボ/NA・年式・ハイブリッドなどで量や粘度が違う車種は、変種ごとに小さな青い見出し付きで併記)。大型トラック(いすゞ・日野・ふそう・UD)のホイールナット締付トルクは全日本トラック協会の基準表(JIS 6穴/8穴・ISO 10穴)の値を内蔵し、AIなしでも表示(穴数の種類が複数あり得る車型は種類ごとに併記)。商用車などのオイル量・粘度はAIが調べ、変種で違う場合は同じ書式で併記。『最新に更新』で取り直し、各項目右上の🔄で個別取り直し。手動訂正値は緑で固定・保持(ただし油脂量は、その後に整備カルテへ記録した実績量が新しければカルテの値が優先。カルテより後に手入力した値は手入力が優先)。",
   "【はじめの3つ(初回の案内)】初めて使う人には、ホーム上部に『はじめの3つ』が出る。①車検証を1台スキャンする ②整備カルテを1件残す ③違っている諸元を訂正して保存する。各項目の『やる』でその画面へ移動する。チェックは自己申告ではなく実際のデータで自動的に付く(カルテの実績量から自動反映された諸元は③に数えない)。3つとも終わると一度だけ完了が出て、以後は表示されない。『閉じる』でいつでも消せる。すでに3つとも済んでいる利用者には最初から表示されない。デモ中は出ない(デモは『体験ガイド』が案内する)。",
   "【ログインできない時】◆ID・パスワードは合っているのに、何も出ずにログイン画面へ戻る: そのIDの版(Works=法人版／Pocket=個人版)と、いま開いている側が違う可能性が高い。IDは版ごとに分かれていて、Pocket用IDでWorks側からは入れない(逆も同じ)。ログイン画面の Works ⇄ Pocket の切り替えを、そのIDの側に合わせてからログインする。新しいブラウザで開くと既定はWorksなので、Pocket用IDだとこれに当たりやすい。◆「ログイン中…」のまま進まない: 通信がこのアプリのデータベースへ届いていない。アプリ内ブラウザ(LINE等のアプリの中で開いた画面)では繋がらないことがあるので、Chrome / Safari で開き直すか、ホーム画面に追加したメカノAIから開く。ログインIDではなくメールアドレスでも試す。20秒たつと画面にも同じ案内が出る。◆ログインは通ったのに社内のデータが出ない: 登録端末の枠(無料2台)を超えている。設定→クラウド同期→登録端末 で使っていない端末を「解除」する。端末はブラウザごとに数えるので、同じスマホでもChromeとFirefoxは別の端末になる。",

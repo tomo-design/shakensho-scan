@@ -33,6 +33,8 @@ const PRECACHE = [
   "./icons/apple-touch-icon.png",
   "./lib/jsQR.js",
   "./lib/zxing.js",
+  "./lib/zxing-wasm-reader.js",
+  "./lib/zxing_reader.wasm",
   "./img/mecha.png",
   "./img/logo-mark.png",
   "./img/hero.png",

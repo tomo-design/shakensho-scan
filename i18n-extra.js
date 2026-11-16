@@ -1013,3 +1013,16 @@ Object.assign(window.I18N_EXTRA.exact, {
   "・清掃や交換の後も、煤の出やすい使い方が続くと再発することがある": "· Even after cleaning or replacement it may recur if usage that produces soot continues",
 });
 Object.assign(window.I18N_EXTRA.exact, { "全閉時に実開度0%に戻れば正常": "Normal if actual opening returns to 0% when fully closed" });
+
+/* ===== QR読み取りの案内(v766) ===== */
+Object.assign(window.I18N_EXTRA.exact, {
+  "✓ 車台番号を読みました。有効期間は別のQRにあります。横にずらして残りのQRも写してください": "✓ Chassis number read. The validity period is in another QR. Slide sideways and scan the remaining QR codes too",
+  "あと少し: 車台番号側のQR(横に並んだ別のQR)も写してください": "Almost there: also scan the chassis-side QR (another QR in the row)",
+});
+window.I18N_EXTRA.ph.push(
+  [/^QR (\d+)個 読み取り済み( — 残りのQRも写してください)?$/, (m, n, rest) => n + " QR code(s) read" + (rest ? " — scan the remaining QR codes too" : "")],
+  [/^QR (\d+)個 読めました。横にずらして残りのQRも写してください$/, "$1 QR code(s) read. Slide sideways and scan the remaining ones"]
+);
+Object.assign(window.I18N_EXTRA.exact, {
+  "QRが4〜5個並ぶ車検証は、2つずつ横にずらして写してください（順番は問いません）。読めない時は「写真でScan（全体）」へ。": "If the certificate has 4–5 QR codes in a row, scan them two at a time, sliding sideways (any order is fine). If it won’t read, use “Scan by photo (whole)”.",
+});

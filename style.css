@@ -253,6 +253,7 @@ label.fld:first-child{margin-top:0}
 /* スキャン進捗 */
 #scanIntro{margin-top:14px;font-size:14px;line-height:1.7;color:var(--dim);text-align:center;padding:0 8px}
 #scanProgress{margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.progQR{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:700;color:var(--ok)}
 .progRow{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);font-size:14px}
 .progRow:last-child{border-bottom:0}
 .progIco{flex:none;width:20px;text-align:center;color:var(--dim);font-weight:700}
