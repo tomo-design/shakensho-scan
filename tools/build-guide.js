@@ -219,6 +219,11 @@ ${o.noindex ? '<meta name="robots" content="noindex,follow">\n' : ""}<link rel="
 <nav class="crumbs">${trail}</nav>
 <h1>${esc(o.h1)}</h1>
 ${o.body}
+<aside class="cta" style="background:#EEF3F7;border-color:#CBD8E3">
+  <div class="ctaH">別のコード・症状をその場で調べる</div>
+  <p>登録もアプリもいりません。コード(例 P0171)か症状の言葉を入れると、原因候補と確認することが出ます。</p>
+  <a class="btn" href="${up}shindan.html">無料で調べる</a>
+</aside>
 <aside class="cta">
   <div class="ctaH">この車両ではどうか、まで調べるなら</div>
   <p>${BRAND}は、車検証を読み取るだけで、その車両のメンテナンス諸元・定番故障・故障コードの原因候補をまとめて出す整備士向けアプリです。</p>
@@ -380,6 +385,7 @@ const siteFile = f => {
 const urls = [
   { loc: "/", lastmod: siteFile("index.html") },
   { loc: "/biz.html", lastmod: siteFile("biz.html") },
+  { loc: "/shindan.html", lastmod: siteFile("shindan.html") },
   { loc: "/faq.html", lastmod: siteFile("faq.html") },
   { loc: "/manual.html", lastmod: siteFile("manual.html") }
 ].concat(pages.filter(p => !p.noindex)
