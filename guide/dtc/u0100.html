@@ -23,6 +23,7 @@
 <nav class="crumbs"><a href="../">メカノAI 整備メモ</a> › <a href="../#dtc">故障コードから調べる</a> › <a href="../dtc/chassis-body-network/">シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</a> › <span>U0100</span></nav>
 <h1>U0100 エンジンECUとの通信途絶</h1>
 <p class="lead">系統: ネットワーク系(CAN通信・ユニット間)。考えられる原因と、確認する順番の目安です。</p>
+
 <section><h2>考えられる原因</h2><ul><li>CAN配線の断線・短絡</li><li>エンジンECUの電源・アース不良</li><li>コネクタの接触不良・水入り</li><li>終端抵抗の異常</li><li>ECU本体の不良</li><li>後付け電装品の割り込み配線による通信妨害</li></ul></section>
 <section><h2>点検・確認すること</h2><ol><li>IG OFFでDLCのCAN H-L間抵抗を測る。終端抵抗2個が並列なので約60Ωが目安(約120Ωなら片方の経路が切れている)</li><li>エンジンECUの電源ヒューズとアースを確認する</li><li>ECUコネクタの端子・水の侵入を目視する</li><li>後付け電装品(ドラレコ・セキュリティ等)の配線を確認し、疑わしければ外して再確認する</li><li>他のユニットとも通信が途絶えていないか、全システムスキャンで確認する</li><li>配線を揺すりながら通信の切れを再現させる</li></ol></section>
 <section><h2>詳しい点検の手引き</h2><ul class="links"><li><a href="../tebiki/can.html">CAN通信系統点検の手引き</a></li></ul></section>

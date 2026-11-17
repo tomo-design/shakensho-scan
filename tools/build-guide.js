@@ -27,6 +27,16 @@ const BRAND = "メカノAI";
 const MIN_INDEX_CHARS = 70;
 
 const readDb = f => JSON.parse(fs.readFileSync(path.join(ROOT, "db", f), "utf8"));
+/* 「現場でのポイント」= 箇条書きではなく文章で書く解説。db の note に入れた分だけ出る。
+   空なら何も出さない(無い物をAIで埋めない。自動生成の水増しは検索・AdSense双方で不利)。
+   note は文字列でも、段落ごとの配列でもよい。 */
+const noteBlock = n => {
+  const ps = (Array.isArray(n) ? n : [n]).map(x => String(x || "").trim()).filter(Boolean);
+  if (!ps.length) return "";
+  return '<section class="sec"><h2>現場でのポイント</h2>'
+    + ps.map(p => "<p>" + esc(p) + "</p>").join("") + "</section>";
+};
+const noteLen = n => (Array.isArray(n) ? n.join("") : String(n || "")).length;
 const guides = readDb("guides.json").guides;
 const symptoms = readDb("symptoms.json").symptoms;
 const dtcDb = readDb("dtc.json");
@@ -275,10 +285,11 @@ symptoms.forEach(s => {
     title: s.name + "の原因と点検の順番｜整備士向け｜" + BRAND,
     desc: cut(s.name + "で考えられる原因は" + s.causes.length + "つ（" + s.causes.slice(0, 3).join("、") + "など）。現場で確認する順番は「" + s.checks[0] + "」から。整備士向けの点検メモです。", 120),
     h1: h1,
-    noindex: textLen(s.causes.concat(s.checks)) < MIN_INDEX_CHARS,
+    noindex: textLen(s.causes.concat(s.checks)) + noteLen(s.note) < MIN_INDEX_CHARS,
     crumbs: [{ name: "症状から調べる", url: SITE + "/guide/#symptom" }, { name: s.name }],
     body: [
       '<p class="lead">考えられる原因と、現場で確認する順番の目安です。</p>',
+      noteBlock(s.note),
       section("考えられる原因", ul(s.causes)),
       section("点検・確認すること", ol(s.checks)),
       section("詳しい点検の手引き", linkList(rel, guideLinks(guidesForSymptom(s)))),
@@ -299,12 +310,13 @@ codes.forEach(c => {
     title: c.code.replace(/,/g, "・") + " " + c.name + "｜原因と点検手順｜" + BRAND,
     desc: cut("故障コード " + c.code.replace(/,/g, "・") + "（" + c.name + "）の主な原因は" + c.causes.join("、") + "。現場で確認する順番と、関連する点検の手引きをまとめました。", 120),
     h1: h1,
-    noindex: textLen(c.causes.concat(c.checks)) < MIN_INDEX_CHARS,
+    noindex: textLen(c.causes.concat(c.checks)) + noteLen(c.note) < MIN_INDEX_CHARS,
     crumbs: [{ name: "故障コードから調べる", url: SITE + "/guide/#dtc" }].concat(
       hub ? [{ name: hub.name, url: SITE + "/guide/" + hubUrl(hub).replace(/index\.html$/, "") }] : []
     ).concat([{ name: c.code.replace(/,/g, "・") }]),
     body: [
       '<p class="lead">' + (sys ? "系統: " + esc(sys) + "。" : "") + "考えられる原因と、確認する順番の目安です。</p>",
+      noteBlock(c.note),
       section("考えられる原因", ul(c.causes)),
       section("点検・確認すること", ol(c.checks)),
       section("詳しい点検の手引き", linkList(rel, guideLinks(guidesForCode(c)))),
