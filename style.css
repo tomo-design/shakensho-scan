@@ -616,6 +616,8 @@ dl.specs{display:block}
   .ps .psTbl .psTot td{background:#F1EFEA;font-weight:800}
   .ps .psCost{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:6px 8px;border:2px solid #000;font-size:11pt}
   .ps .psCost b{font-size:15pt}
+  .ps .psPics{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px}
+  .ps .psPics img{width:31%;aspect-ratio:4/3;object-fit:cover;border:1px solid #999}
   .ps .psNote{min-height:46px;border:1px solid #44443F;padding:6px 8px;white-space:normal}
   .ps .psSign{display:flex;gap:8px;margin-top:14px}
   .ps .psSign>div{flex:1 1 0;border:1px solid #44443F;height:62px;position:relative}
@@ -2720,3 +2722,17 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
   font-size:13px;font-weight:700;padding:0 14px;min-height:36px;cursor:pointer;white-space:nowrap;margin-top:1px}
 .onbGo:active{transform:scale(.97)}
 .onbAll{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--cyan);font-weight:700}
+/* ===== 整備カルテの写真 ===== */
+.kPicRow{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.kPic{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--panel2)}
+.kPic img{width:100%;height:100%;object-fit:cover;display:block}
+.kPicDel{position:absolute;top:2px;right:2px;width:24px;height:24px;border:none;border-radius:50%;
+  background:rgba(0,0,0,.55);color:#fff;font-size:15px;line-height:1;cursor:pointer;padding:0}
+.kPicTag{position:absolute;left:0;bottom:0;right:0;background:rgba(0,0,0,.5);color:#fff;font-size:10px;text-align:center;padding:1px 0}
+.karteItem .kPicStrip{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.karteItem .kPicTh{width:76px;height:76px;object-fit:cover;border-radius:9px;border:1px solid var(--line);cursor:pointer;display:block}
+.karteItem .kPicTh:active{transform:scale(.97)}
+.kPicView{position:fixed;inset:0;z-index:99000;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px}
+.kPicView img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.kPicClose{position:absolute;top:12px;right:14px;width:40px;height:40px;border:none;border-radius:50%;
+  background:rgba(255,255,255,.18);color:#fff;font-size:22px;line-height:1;cursor:pointer}

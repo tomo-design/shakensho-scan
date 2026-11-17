@@ -888,6 +888,37 @@
       try { const safe = Object.assign({}, body); INTAKE_SESSION_KEYS.forEach(k => { delete safe[k]; }); delete safe.comments; delete safe.updatedAt; await ref.set(safe, { merge: true }); } catch (e2) {}
     }
   }
+  /* ===== 整備カルテの写真 =====
+     写真は Firestore に入れられない(1車両の全カルテが1ドキュメントで上限1MB)。
+     Firebase Storage に置き、カルテには置き場所(path)と表示用URLだけを残す。
+     ここは保存先とのやり取りだけで、ログイン・認証・セッションには触れていない。 */
+  function storageRef() {
+    try { return (firebase.storage && firebase.storage()) || null; } catch (e) { return null; }
+  }
+  function kartePhotoDir() {
+    const tid = profile && profile.tenantId;
+    if (!tid) return null;
+    return "tenants/" + tid + "/karte";
+  }
+  /* blob を1枚アップロードして {p: 置き場所, u: 表示用URL} を返す。失敗時は null。 */
+  async function uploadKartePhoto(blob, karteId) {
+    const st = storageRef(), dir = kartePhotoDir();
+    if (!st || !dir || !blob) return null;
+    const id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const path = dir + "/" + (karteId || "misc") + "/" + id + ".jpg";
+    try {
+      const ref = st.ref(path);
+      await ref.put(blob, { contentType: "image/jpeg", cacheControl: "public,max-age=31536000" });
+      const url = await ref.getDownloadURL();
+      return { p: path, u: url };
+    } catch (e) { return null; }
+  }
+  /* 置き場所を指定して1枚消す。消せなくても画面側は進める(記録から外れていれば実害が無いため)。 */
+  async function deleteKartePhoto(path) {
+    const st = storageRef();
+    if (!st || !path) return false;
+    try { await st.ref(path).delete(); return true; } catch (e) { return false; }
+  }
   function syncMsg(t) { const el = $("cloudSyncMsg"); if (el) el.textContent = t; }
   /* 既存のローカルデータをクラウドへ初回アップロード(ログイン前に作った分を共有) */
   async function uploadLocal(tid) {
@@ -1400,7 +1431,9 @@
       if (!this.active || !id) return;
       db.collection("tenants").doc(profile.tenantId).collection("intakePlans").doc(String(id)).set({ deleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
     },
-    signOut() { logoutAndRestart(); },   // 入庫管理の「ログアウト」等からも同じ流れ(読み直してゲートへ)
+    signOut() { logoutAndRestart(); },
+    uploadKartePhoto, deleteKartePhoto,                 // カルテの写真(保存先とのやり取りのみ)
+    canKartePhoto() { return !!(storageRef() && kartePhotoDir() && this.active); },   // 入庫管理の「ログアウト」等からも同じ流れ(読み直してゲートへ)
     /* 明示的に通知を有効化(モバイルはユーザー操作が必要)。戻り値でUIに結果を返す */
     async enablePush() {
       const IAB = "この画面はアプリ内ブラウザで開かれています。通知を使うには、右上メニューから「Chrome / Safari で開く」か、ホーム画面に追加したアプリ（メカノAI）で開いてください。";

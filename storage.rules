@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn(){ return request.auth != null; }
+    function meDoc(){ return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
+    function meActive(){ return signedIn()
+                         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+                         && meDoc().active == true; }
+    function myTenant(){ return meActive() ? meDoc().tenantId : ""; }
+    function isOwner(){ return signedIn() && request.auth.token.email == "cablueie.123@gmail.com"; }
+    function isSuper(){ return isOwner() || (meActive() && meDoc().role == "super"); }
+    // 画像だけ・1枚3MBまで(アプリ側で長辺1000px/150KB目安まで圧縮して上げている)
+    function okImage(){ return request.resource != null
+                        && request.resource.size < 3 * 1024 * 1024
+                        && request.resource.contentType.matches('image/.*'); }
+
+    // 整備カルテの写真。同じ店舗の有効メンバーだけが読み書きできる。
+    //   パス: tenants/{事業所ID}/karte/{カルテID}/{写真ID}.jpg
+    match /tenants/{tid}/karte/{allPaths=**} {
+      function member(){ return isSuper() || (meActive() && myTenant() == tid); }
+      allow read: if member();
+      allow create, update: if member() && okImage();
+      allow delete: if member();
+    }
+
+    // 上記以外は一切不可(バケットを素通しにしない)
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

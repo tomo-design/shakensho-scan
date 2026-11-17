@@ -21,6 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging-compat.js"></script>
 </head>
 <body>
@@ -399,6 +400,15 @@
         </div>
         <label class="fld">メモ</label>
         <textarea id="kNote" class="kGrow" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
+        <label class="fld" id="kPicLbl">写真（作業の記録）</label>
+        <input type="file" id="kPicShootIn" accept="image/*" capture="environment" class="hidden">
+        <input type="file" id="kPicPickIn" accept="image/*" multiple class="hidden">
+        <div class="kPicRow" id="kPicRow"></div>
+        <div class="btnRow" style="gap:8px;margin-top:6px">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnKPicShoot">📷 撮る</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnKPicPick">📁 選ぶ</button>
+        </div>
+        <div class="hint" id="kPicHint" style="margin-top:4px">作業前・作業後、摩耗や損傷、品番の写し などに。小さく圧縮して保存します。</div>
         <div class="hint" id="kAiSortStatus" style="margin:4px 0 0"></div>
         <div class="btnRow" style="margin-top:8px">
           <button class="btn btn-amber" id="btnKarteSave">保存</button>

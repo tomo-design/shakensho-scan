@@ -2991,6 +2991,92 @@ function parseKarteParts(val) {
   if (name.length) rows.push({ n: name.join(" "), q: "" });
   return rows;
 }
+/* ===== 整備カルテの写真 =====
+   写真はFirestoreに入れられない(1車両の全カルテが1ドキュメントで上限1MB)。
+   Firebase Storageに置き、カルテには {p: 置き場所, u: 表示用URL} だけを持つ。
+   圧縮は強め: 長辺1000pxに縮めたうえで、1枚150KBに収まるまで品質を落とす。 */
+const KPIC_MAX_DIM = 1000, KPIC_MAX_BYTES = 150 * 1024;
+async function karteJpegBlob(file) {
+  const img = await loadImageEl(file);
+  const sc = Math.min(1, KPIC_MAX_DIM / Math.max(img.width || 1, img.height || 1));
+  const w = Math.max(1, Math.round((img.width || 1) * sc)), h = Math.max(1, Math.round((img.height || 1) * sc));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d").drawImage(img, 0, 0, w, h);
+  const toBlob = q => new Promise(res => { try { c.toBlob(res, "image/jpeg", q); } catch (e) { res(null); } });
+  let blob = null;
+  for (const q of [0.55, 0.45, 0.35, 0.25]) {
+    blob = await toBlob(q);
+    if (blob && blob.size <= KPIC_MAX_BYTES) break;
+  }
+  return blob;
+}
+let karteFormPics = [];        // 入力中の写真 [{p,u}=保存済み / {blob,url,isNew}=これから上げる]
+let karteFormPicsRemoved = []; // 「×」で外した保存済み写真の置き場所(保存時にStorageからも消す)
+function kartePicsAllowed() {
+  try { return !!(window.Cloud && window.Cloud.canKartePhoto && window.Cloud.canKartePhoto()); } catch (e) { return false; }
+}
+function renderKartePics() {
+  const row = $("kPicRow"); if (!row) return;
+  row.innerHTML = karteFormPics.map((p, i) =>
+    '<div class="kPic"><img src="' + esc(p.u || p.url || "") + '" alt="">' +
+    '<button type="button" class="kPicDel" data-i="' + i + '" aria-label="この写真を外す">×</button>' +
+    (p.isNew ? '<span class="kPicTag">' + (p.kb ? p.kb + "KB" : "新規") + '</span>' : "") + '</div>').join("");
+  row.querySelectorAll(".kPicDel").forEach(b => b.addEventListener("click", () => {
+    const i = Number(b.dataset.i), p = karteFormPics[i];
+    if (p && p.isNew && p.url) { try { URL.revokeObjectURL(p.url); } catch (e) {} }
+    if (p && p.p) karteFormPicsRemoved.push(p.p);
+    karteFormPics.splice(i, 1); renderKartePics();
+  }));
+  const hint = $("kPicHint");
+  if (hint) hint.textContent = karteFormPics.length
+    ? karteFormPics.length + "枚。×で外せます。保存すると小さく圧縮して記録します。"
+    : "作業前・作業後、摩耗や損傷、品番の写し などに。小さく圧縮して保存します。";
+}
+async function addKartePics(files) {
+  const list = [].slice.call(files || []).filter(f => f && /^image\//.test(f.type || ""));
+  if (!list.length) return;
+  const hint = $("kPicHint");
+  if (hint) hint.textContent = "写真を圧縮しています…";
+  for (const f of list) {
+    try {
+      const blob = await karteJpegBlob(f);
+      if (blob) karteFormPics.push({ blob: blob, url: URL.createObjectURL(blob), isNew: true, kb: Math.round(blob.size / 1024) });
+    } catch (e) {}
+  }
+  renderKartePics();
+}
+/* 保存時: 新しい写真を上げ、外した写真を消して、カルテに残す配列を返す */
+async function saveKartePics(karteId) {
+  const out = [];
+  let ng = 0;
+  for (const p of karteFormPics) {
+    if (p && p.p) { out.push({ p: p.p, u: p.u || "" }); continue; }   // 既存はそのまま
+    if (!p || !p.blob) continue;
+    if (!kartePicsAllowed()) { ng++; continue; }
+    try { const r = await window.Cloud.uploadKartePhoto(p.blob, karteId); if (r) out.push(r); else ng++; } catch (e) { ng++; }
+  }
+  // 黙って消さない。上げられなかった時は、作業内容は保存したうえでその事実を伝える。
+  if (ng) uiAlert(ng + "枚の写真を保存できませんでした。\n作業内容は保存されています。\n通信状態を確かめて、『編集』から入れ直してください。", "写真が保存できません");
+  for (const path of karteFormPicsRemoved) {
+    try { await window.Cloud.deleteKartePhoto(path); } catch (e) {}
+  }
+  karteFormPicsRemoved = [];
+  return out;
+}
+/* 写真をタップで拡大(カード・印刷プレビュー共用) */
+function openKartePicView(url) {
+  if (!url) return;
+  const ov = document.createElement("div");
+  ov.className = "kPicView";
+  ov.innerHTML = '<img src="' + esc(url) + '" alt=""><button type="button" class="kPicClose" aria-label="閉じる">×</button>';
+  const close = () => { try { ov.remove(); } catch (e) {} };
+  ov.addEventListener("click", close);
+  document.body.appendChild(ov);
+}
+document.addEventListener("click", e => {
+  const th = e.target && e.target.closest && e.target.closest(".kPicTh");
+  if (th) openKartePicView(th.dataset.full || th.src);
+});
 /* 作業ごとのまとまり jobs=[{w:"作業名", p:[{n:部品名, q:数量}]}]
    「どの作業で、どの部品を使ったか」を、紙に書かれた対応(同じ行・同じ囲み・並び順)の範囲でAIが結び付けた結果。
    対応が分からない部品は w:"" のまとまりに入れ、画面では「その他の部品・材料」として最後に出す。
@@ -3053,6 +3139,10 @@ function karteSheetHtml(k) {
     '<table class="psTbl"><thead><tr><th class="no">No.</th><th>作業項目</th><th class="r pt">標準点数</th>' + (rate ? '<th class="r wg">工賃（' + rate.toLocaleString("ja-JP") + '円/点）</th>' : "") + '</tr></thead><tbody>' + workRows + '</tbody></table>' +
     (parts.length ? '<div class="psSec">交換部品・使用材料</div><table class="psTbl"><thead><tr><th class="no">No.</th><th>部品・材料名</th><th class="r">数量</th></tr></thead><tbody>' + partsRows + '</tbody></table>' : "") +
     (k.cost ? '<div class="psCost"><span>ご請求額（記載）</span><b>' + yen(Number(han(String(k.cost)).replace(/[^\d]/g, "")) || 0) + '</b></div>' : "") +
+    (((k.photos || []).filter(p => p && p.u).length)
+      ? '<div class="psSec">作業写真</div><div class="psPics">' +
+        (k.photos || []).filter(p => p && p.u).slice(0, 6).map(p => '<img src="' + esc(p.u) + '" alt="">').join("") + '</div>'
+      : "") +
     '<div class="psSec">備考・申し送り</div><div class="psNote">' + (k.note ? t(k.note).replace(/\n/g, "<br>") : "&nbsp;") + '</div>' +
     '<div class="psSign"><div><span>担当者</span></div><div><span>確認</span></div><div><span>お客様確認</span></div></div>' +
   '</div>';
@@ -3123,7 +3213,11 @@ function buildKarteCard(k) {
       const del = document.createElement("button"); del.className = "kDel"; del.textContent = "削除";
       del.addEventListener("click", () => {
         if (!confirm("この記録を削除しますか？")) return;
-        saveKarteEntry(Object.assign({}, k, { deleted: true, at: new Date().toISOString() }));
+        // 記録と一緒に写真も保存先から消す(残しても見る手段が無く、容量だけ食うため)
+        (Array.isArray(k.photos) ? k.photos : []).forEach(p => {
+          if (p && p.p && window.Cloud && window.Cloud.deleteKartePhoto) { try { window.Cloud.deleteKartePhoto(p.p); } catch (e) {} }
+        });
+        saveKarteEntry(Object.assign({}, k, { deleted: true, photos: [], at: new Date().toISOString() }));
         renderKarte();
       });
       btns.append(edit, del);
@@ -3188,11 +3282,19 @@ function buildKarteCard(k) {
         (rest.length ? '<div class="kBlock kParts"><div class="kPartHead"><span class="kLbl">その他の部品・材料</span><span class="kQtyLbl">数量</span></div>' +
           '<ul class="kItems kPartRows">' + rest.map(x => '<li><span class="kPn">' + fmtName(x.n) + '</span><span class="kQty">' + esc(keepUnit(x.q)) + '</span></li>').join("") + '</ul></div>' : "");
     };
+    // 写真(タップで拡大)
+    const picsBlock = () => {
+      const ps = (Array.isArray(k.photos) ? k.photos : []).filter(p => p && p.u);
+      if (!ps.length) return "";
+      return '<div class="kBlock"><span class="kLbl">写真（' + ps.length + '枚）</span><div class="kPicStrip">' +
+        ps.map((p, i) => '<img class="kPicTh" loading="lazy" src="' + esc(p.u) + '" alt="作業写真' + (i + 1) + '">').join("") +
+        '</div></div>';
+    };
     const kJobs = cleanKarteJobs(k.jobs);
     body.innerHTML = (kJobs.length ? jobsBlockHtml(kJobs)
                                    : (workPts.length ? itemsBlockHtml() : block("作業", k.work)) + partsBlock(k.parts)) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
-      noteBlock("メモ", k.note);   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
+      noteBlock("メモ", k.note) + picsBlock();   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
     card.append(head, body);
     // 古い記録(作業と部品が別々のまま)は、ボタン1つで作業ごとにまとめ直せるようにする
     if (!kJobs.length && k.work && k.parts && canEditKarte(k)) {
@@ -3240,7 +3342,7 @@ function editKarteInline(card, k) {
     setBtnLoading(save, true);
     // 作業・部品の文字を書き換えたら、作業ごとの対応付け(jobs)は捨てる(表示と中身が食い違うより従来表示が安全)
     const keepJobs = (work === (k.work || "") && parts === (k.parts || "")) ? cleanKarteJobs(k.jobs) : [];
-    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, items: g.items, rate: g.rate, jobs: keepJobs, at: new Date().toISOString() });
+    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, items: g.items, rate: g.rate, jobs: keepJobs, photos: Array.isArray(k.photos) ? k.photos : [], at: new Date().toISOString() });
     renderKarte();
   });
   cancel.addEventListener("click", renderKarte);
@@ -3260,6 +3362,12 @@ function openKarteForm(edit) {
   $("kNote").value = (edit && edit.note) || "";
   karteEditId = edit ? edit.id : null;
   karteFormJobs = edit ? cleanKarteJobs(edit.jobs) : [];   // 作業ごとの対応付け(保存時に引き継ぐ)
+  karteFormPics = (edit && Array.isArray(edit.photos)) ? edit.photos.slice() : [];
+  karteFormPicsRemoved = [];
+  renderKartePics();
+  // 写真の置き場所(Storage)が使えない時は写真欄ごと出さない(押しても保存できないため)
+  const picOn = kartePicsAllowed();
+  ["kPicLbl", "kPicRow", "btnKPicShoot", "btnKPicPick", "kPicHint"].forEach(id => toggle(id, picOn));
   kFormItems = buildItemsEditor($("kItemsBox"), edit && edit.items, { rate: edit && edit.rate, workText: () => $("kWork").value });
   toggle("karteForm", true);
   autoGrowAll();   // 内容に合わせて入力欄の高さを調整
@@ -3273,6 +3381,10 @@ let karteEditId = null;
 let kFormItems = null;   // 追加フォームの作業点数エディタ {get,set}
 let karteFormJobs = [];  // 追加フォームの「作業ごとに使った部品」の対応付け(写真読み取り/編集から引き継ぐ)
 $("btnKarteAdd") && $("btnKarteAdd").addEventListener("click", () => openKarteForm(null));
+$("btnKPicShoot") && $("btnKPicShoot").addEventListener("click", () => $("kPicShootIn") && $("kPicShootIn").click());
+$("btnKPicPick") && $("btnKPicPick").addEventListener("click", () => $("kPicPickIn") && $("kPicPickIn").click());
+$("kPicShootIn") && $("kPicShootIn").addEventListener("change", async e => { await addKartePics(e.target.files); e.target.value = ""; });
+$("kPicPickIn") && $("kPicPickIn").addEventListener("change", async e => { await addKartePics(e.target.files); e.target.value = ""; });
 $("btnKarteCancel") && $("btnKarteCancel").addEventListener("click", () => { stopFieldMic(); toggle("karteForm", false); });
 $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   stopFieldMic();
@@ -3297,10 +3409,14 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
     date: sorted.date || "", odo: sorted.odo ? Number(sorted.odo) : null,
     work: sorted.work || "", parts: sorted.parts || "", cost: sorted.cost ? Number(sorted.cost) : null,
     staff: sorted.staff || "", note: sorted.note || "",
-    items: pts.items, rate: pts.rate, jobs: cleanKarteJobs(sorted.jobs),
+    items: pts.items, rate: pts.rate, jobs: cleanKarteJobs(sorted.jobs), photos: [],
     at: new Date().toISOString(),
   };
   if (!entry.work && pts.items.length) entry.work = pts.items.map(it => it.n).join("、");
+  if (karteFormPics.length || karteFormPicsRemoved.length) {
+    setBtnLoading(sb, true, "写真を保存中…");
+    entry.photos = await saveKartePics(entry.id);
+  }
   saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); const fold = $("karteFold"); if (fold) fold.open = true; renderKarte(); });
 });
 
@@ -10359,7 +10475,7 @@ const SUPPORT_KB = [
   "【FAINESへの受け渡し】修理タブの下に『📗FAINESで正式な整備手順・品番・トルクを確認』。FAINESは メーカー→車種→型式→年式 と辿るため、そのすぐ上に『FAINESで車両を選ぶときの手がかり』として 車種・型式・年式・原動機型式 をタップでコピーできる形で並べている(車検証を見直さなくてよい)。『打刻』はFAINESの車台番号キーワード検索に使う記号部(例 NKR85)。車両情報はこの1列にまとめてあり、以前あった大きなコピーボタンは型式と二重になるため廃止した。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
-  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。",
+  "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・作業写真・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。記録には写真も残せる(v769〜)。入力欄の『写真（作業の記録）』で『📷撮る』『📁選ぶ』。作業前後・摩耗や損傷・品番の写しなどを何枚でも。保存時に長辺1000px・1枚150KB目安まで圧縮してから保管し、カルテ本体には置き場所だけを持つ(写真をそのまま記録に入れると数枚で保存できなくなるため)。写真は社内の全端末で見られ、カードの写真をタップすると拡大、『×』で外せる。記録を削除すると写真も一緒に消える。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(担当ごとの色。ホームの入庫状況と車両カードで操作)を管理。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫管理だけの画面になりスキャン/AIは非表示。事務用の画面は1台ずつの一覧で、区分(すべて/車検/点検/修理/板金)で絞り込め、行はナンバー下4桁＋使用者名。行をタップで申し送りコメント、担当の設定、費用の状態の切替ができる。進捗(入庫→作業中→完了→引渡待)は整備士が更新するので事務用では表示のみ。出庫も事務用には出さない(ホームの入庫状況で横スワイプ)。メイン画面に移るときはログアウトしてログインし直す。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
