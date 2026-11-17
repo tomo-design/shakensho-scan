@@ -58,6 +58,16 @@ h1{font-size:20px;margin:20px 0 6px;line-height:1.5}
 .cta a{display:block;background:#fff;color:var(--blue);text-align:center;font-weight:800;padding:12px;border-radius:10px;text-decoration:none}
 .adbox{margin:16px 0;min-height:0}
 .adlbl{font-size:10px;color:var(--dim);text-align:center;margin-bottom:2px}
+.card h2{font-size:16px;margin:0 0 8px;padding-left:9px;border-left:4px solid var(--blue)}
+.card p{margin:0 0 10px;font-size:14px}
+.tbl{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:14px}
+.tbl th{width:34px;text-align:center;vertical-align:top;color:var(--blue);font-family:'Chakra Petch',monospace;font-size:17px;padding:6px 4px;border-bottom:1px solid var(--line)}
+.tbl td{padding:6px 4px;border-bottom:1px solid var(--line);line-height:1.6}
+.codeGrp{margin:0 0 12px}
+.codeGrp h3{font-size:12.5px;color:var(--dim);margin:0 0 5px;font-weight:700}
+.codeList{display:flex;flex-wrap:wrap;gap:5px}
+.codeList a{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+  padding:4px 9px;font-size:13px;text-decoration:none;color:var(--blue);font-family:'Chakra Petch',monospace}
 .links{font-size:13px;margin-top:18px}
 .links a{color:var(--blue)}
 footer{border-top:1px solid var(--line);margin-top:24px;padding-top:14px;font-size:11.5px;color:var(--dim)}
@@ -91,6 +101,35 @@ footer a{color:var(--dim)}
   <div class="adbox" id="adTop"></div>
   <div class="res" id="res"></div>
   <div class="adbox" id="adBottom"></div>
+
+  <section class="card">
+    <h2>故障コードの読み方</h2>
+    <p>故障コード（DTC）は、英字1文字＋数字4桁で書かれます。先頭の英字がどの系統かを示します。</p>
+    <table class="tbl">
+      <tr><th>P</th><td>パワートレイン系。エンジン・燃料・点火・排気・変速機。整備で扱うコードの大半はここに入ります。</td></tr>
+      <tr><th>B</th><td>ボディ系。エアバッグ、ドア、ライト、空調など。</td></tr>
+      <tr><th>C</th><td>シャシ系。ABS、ブレーキ、サスペンション、ステアリング。</td></tr>
+      <tr><th>U</th><td>ネットワーク系。ECU同士のCAN通信。「どこかが壊れた」ではなく「相手の信号が届かない」を示すのが特徴です。</td></tr>
+    </table>
+    <p>2文字目の数字にも意味があります。<b>0</b> はメーカー共通（SAE J2012で定義）、<b>1</b> はメーカー固有です。P1から始まるコードは車種別の資料でしか定義が分からないため、このページでは系統の案内だけを出します。</p>
+    <p>なお、コードは「どの部品が壊れたか」ではなく「どの信号が規定から外れたか」を示しています。コードに書かれた部品名をそのまま交換して直らない、という外し方はここから起きます。原因候補を順番に当たるのは、そのためです。</p>
+  </section>
+
+  <section class="card">
+    <h2>収録している故障コード</h2>
+    <p>以下のコードは、原因候補と確認する順番をそのまま表示できます。タップするとこのページで開きます。</p>
+    <!-- CODES:START -->
+    <div class="codeGrp"><h3>エンジン・燃料・空気量系</h3><div class="codeList"><a href="?q=P0011" title="カム角タイミング進角過多/応答不良(バンク1)">P0011</a><a href="?q=P0016" title="クランク/カム角センサ相関異常">P0016</a><a href="?q=P0045" title="ターボ過給圧制御回路異常(VNT/ウェイストゲート)">P0045</a><a href="?q=P0087" title="燃料レール圧力低すぎ">P0087</a><a href="?q=P0088" title="燃料レール圧力高すぎ">P0088</a><a href="?q=P0093" title="燃料系統大リーク検出">P0093</a><a href="?q=P0101" title="エアフロセンサ範囲/性能異常">P0101</a><a href="?q=P0102" title="エアフロセンサ信号低">P0102</a><a href="?q=P0113" title="吸気温センサ信号高(断線系)">P0113</a><a href="?q=P0117" title="水温センサ信号低(短絡系)">P0117</a><a href="?q=P0118" title="水温センサ信号高(断線系)">P0118</a><a href="?q=P0120" title="スロットルポジションセンサ系統異常">P0120</a><a href="?q=P0122" title="スロットルポジションセンサ信号低">P0122</a><a href="?q=P0123" title="スロットルポジションセンサ信号高">P0123</a><a href="?q=P0128" title="サーモスタット系統(水温上がらず)">P0128</a><a href="?q=P0130" title="O2センサ系統異常(B1S1)">P0130</a><a href="?q=P0131" title="O2センサ信号低(B1S1)">P0131</a><a href="?q=P0133" title="O2センサ応答遅い(B1S1)">P0133</a><a href="?q=P0135" title="O2センサヒーター回路異常(B1S1)">P0135</a><a href="?q=P0141" title="O2センサヒーター回路異常(B1S2・リア側)">P0141</a><a href="?q=P0171" title="燃調リーン(薄い)バンク1">P0171</a><a href="?q=P0172" title="燃調リッチ(濃い)バンク1">P0172</a><a href="?q=P0174" title="燃調リーン(薄い)バンク2">P0174</a><a href="?q=P0191" title="燃料レール圧センサ性能異常">P0191</a><a href="?q=P0201" title="インジェクタ回路異常(1番気筒) ※P0202〜P0208は2〜8番">P0201</a><a href="?q=P0234" title="過給圧過大(オーバーブースト)">P0234</a><a href="?q=P0299" title="過給圧不足(アンダーブースト)">P0299</a></div></div>
+    <div class="codeGrp"><h3>点火・失火系</h3><div class="codeList"><a href="?q=P0300" title="ランダム失火検出 ※P0301〜P0312は気筒別">P0300</a><a href="?q=P0325" title="ノックセンサ系統異常">P0325</a><a href="?q=P0335" title="クランク角センサ系統異常">P0335</a><a href="?q=P0335" title="(同時検出) クランク/カム両方">P0335 / P0340</a><a href="?q=P0340" title="カム角センサ系統異常">P0340</a><a href="?q=P0380" title="グロープラグ/ヒーター回路異常">P0380</a></div></div>
+    <div class="codeGrp"><h3>排気・後処理系（EGR・触媒・DPF・尿素SCR）</h3><div class="codeList"><a href="?q=P0401" title="EGR流量不足">P0401</a><a href="?q=P0402" title="EGR流量過大">P0402</a><a href="?q=P0404" title="EGRバルブ開度異常">P0404</a><a href="?q=P0420" title="触媒劣化(バンク1)">P0420</a><a href="?q=P0430" title="触媒劣化(バンク2)">P0430</a><a href="?q=P0441" title="EVAPパージ流量異常">P0441</a><a href="?q=P0442" title="EVAP小リーク検出">P0442</a><a href="?q=P0455" title="EVAP大リーク検出">P0455</a><a href="?q=P0471" title="排気圧センサ性能異常">P0471</a><a href="?q=P2002" title="DPF/DPR/DPD 捕集効率低下(バンク1)">P2002</a><a href="?q=P204F" title="SCRシステム性能異常">P204F</a><a href="?q=P207F" title="尿素水品質異常">P207F</a><a href="?q=P2096" title="燃調リーン(触媒後)">P2096</a><a href="?q=P20EE" title="SCR NOx触媒効率低下">P20EE</a><a href="?q=P2101" title="電子スロットルモーター系統異常">P2101</a><a href="?q=P2122" title="アクセルポジションセンサ信号低(D系統)">P2122</a><a href="?q=P2138" title="アクセルポジションセンサ相関異常">P2138</a><a href="?q=P2146" title="インジェクタ電源グループ回路異常">P2146</a><a href="?q=P2196" title="O2センサ信号リッチ張り付き">P2196</a><a href="?q=P2227" title="大気圧センサ性能異常">P2227</a><a href="?q=P2263" title="ターボブースト性能異常">P2263</a><a href="?q=P2453" title="DPF差圧センサ性能異常">P2453</a><a href="?q=P2457" title="EGRクーラー性能異常">P2457</a><a href="?q=P2463" title="DPF煤過剰堆積">P2463</a></div></div>
+    <div class="codeGrp"><h3>アイドル・車速・ECU系</h3><div class="codeList"><a href="?q=P0500" title="車速センサ系統異常">P0500</a><a href="?q=P0504" title="ブレーキスイッチ相関異常">P0504</a><a href="?q=P0507" title="アイドル回転が規定より高い">P0507</a><a href="?q=P0545" title="排気温センサ回路異常(低)">P0545</a><a href="?q=P0562" title="システム電圧低">P0562</a><a href="?q=P0563" title="システム電圧高">P0563</a><a href="?q=P0606" title="ECU内部異常">P0606</a><a href="?q=P0627" title="燃料ポンプ制御回路異常">P0627</a></div></div>
+    <div class="codeGrp"><h3>トランスミッション系</h3><div class="codeList"><a href="?q=P0700" title="AT/CVT制御系異常(詳細はTM側コード参照)">P0700</a><a href="?q=P0705" title="インヒビタスイッチ(レンジセンサ)異常">P0705</a><a href="?q=P0720" title="アウトプットスピードセンサ異常">P0720</a><a href="?q=P0741" title="トルコンロックアップ系統異常">P0741</a></div></div>
+    <div class="codeGrp"><h3>シャシ・ボディ・通信系（ABS・エアバッグ・CAN）</h3><div class="codeList"><a href="?q=B1000" title="ボディ系コード(B)">B1000</a><a href="?q=C0200" title="ホイールスピードセンサ異常(右前) ※C0205左前/C0210右後/C0215左後">C0200</a><a href="?q=C1201" title="エンジン制御系異常(ABS/VSC連動)">C1201</a><a href="?q=U0073" title="CANバス通信オフ">U0073</a><a href="?q=U0100" title="エンジンECUとの通信途絶">U0100</a><a href="?q=U0101" title="TCM(AT/CVT)との通信途絶">U0101</a><a href="?q=U0155" title="メーターとの通信途絶">U0155</a></div></div>
+    <div class="codeGrp"><h3>メーカー固有コード</h3><div class="codeList"><a href="?q=P1000" title="メーカー固有コード(P1xxx)">P1000</a></div></div>
+    <div class="codeGrp"><h3>大型車のJ1939(SPN/FMI)</h3><div class="codeList"><a href="?q=SPN%20100" title="エンジン油圧【大型・J1939】">SPN 100</a><a href="?q=SPN%20102" title="過給圧(ブースト)【大型・J1939】">SPN 102</a><a href="?q=SPN%20110" title="エンジン冷却水温【大型・J1939】">SPN 110</a><a href="?q=SPN%20157" title="コモンレール圧【大型・J1939】">SPN 157</a><a href="?q=SPN%20168" title="電源電圧(バッテリー)【大型・J1939】">SPN 168</a><a href="?q=SPN%201761" title="尿素(AdBlue)タンク残量【大型・J1939】">SPN 1761</a><a href="?q=SPN%2027" title="EGRバルブ位置【大型・J1939】">SPN 27</a><a href="?q=SPN%203216" title="SCR上流NOxセンサ【大型・J1939】">SPN 3216</a><a href="?q=SPN%203226" title="SCR下流NOxセンサ【大型・J1939】">SPN 3226</a><a href="?q=SPN%203251" title="DPF差圧【大型・J1939】">SPN 3251</a><a href="?q=SPN%203364" title="尿素(AdBlue)品質【大型・J1939】">SPN 3364</a><a href="?q=SPN%203719" title="DPF煤堆積率【大型・J1939】">SPN 3719</a><a href="?q=SPN%203936" title="DPFシステム【大型・J1939】">SPN 3936</a><a href="?q=SPN%204094" title="SCR出力制限(インデュースメント)【大型・J1939】">SPN 4094</a><a href="?q=SPN%20411" title="EGR差圧【大型・J1939】">SPN 411</a><a href="?q=SPN%204334" title="尿素ドージング圧【大型・J1939】">SPN 4334</a><a href="?q=SPN%20629" title="ECU内部異常【大型・J1939】">SPN 629</a><a href="?q=SPN%20639" title="J1939通信(CAN)【大型・J1939】">SPN 639</a></div></div>
+    <!-- CODES:END -->
+    <p class="pnote">ここに無いコード（P1xxxなどのメーカー固有コード）は、系統の案内だけを表示します。</p>
+  </section>
 
   <div class="cta">
     <b>その車専用の答えが要るときは</b>

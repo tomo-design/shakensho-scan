@@ -404,6 +404,28 @@ const urls = [
   .map(p => ({ loc: "/guide/" + (p.file === "index.html" ? "" : p.file.replace(/\/index\.html$/, "/")), lastmod: DB_MTIME }))
   .sort((a, b) => a.loc.localeCompare(b.loc)));
 
+// 公開診断ページ(shindan.html)の「収録している故障コード」一覧を差し替える。
+// DBを直せば一覧も追従する。JSで描く部分と違い、これは静的HTMLなので検索にも読まれる。
+{
+  const f = path.join(ROOT, "shindan.html");
+  if (fs.existsSync(f)) {
+    const byHub = HUBS.map(h => ({
+      name: h.name,
+      codes: codes.filter(c => hubOf(c) === h).sort((a, b) => a.code.localeCompare(b.code))
+    })).filter(g => g.codes.length);
+    const html = byHub.map(g =>
+      '<div class="codeGrp"><h3>' + esc(g.name) + '</h3><div class="codeList">'
+      + g.codes.map(c => '<a href="?q=' + encodeURIComponent(c.code.split(",")[0].trim()) + '" title="'
+          + esc(c.name) + '">' + esc(c.code.replace(/,/g, " / ")) + "</a>").join("")
+      + "</div></div>").join("\n    ");
+    const src = fs.readFileSync(f, "utf8");
+    const out = src.replace(/<!-- CODES:START -->[\s\S]*?<!-- CODES:END -->/,
+      "<!-- CODES:START -->\n    " + html + "\n    <!-- CODES:END -->");
+    if (out !== src) fs.writeFileSync(f, out);
+    console.log("shindan.html の収録コード一覧: " + codes.length + "件");
+  }
+}
+
 fs.writeFileSync(path.join(ROOT, "sitemap.xml"),
   '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
   + urls.map(u => "  <url><loc>" + SITE + u.loc + "</loc><lastmod>" + u.lastmod + "</lastmod></url>").join("\n")
