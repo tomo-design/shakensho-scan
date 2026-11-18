@@ -10,6 +10,23 @@ Object.assign(window.I18N_EXTRA.exact, {
   "メカノAI": "MECHANO-AI",
   "車両整備サポート": "Vehicle maintenance support",
   "エディション": "Edition",
+  // ===== 申し送り(次回への引き継ぎ) =====
+  "🔔 次回への申し送り": "🔔 Handover for next visit",
+  "次回への申し送り": "Handover for next visit",
+  "🔔 前回からの申し送り": "🔔 Handover from last visit",
+  "ここに書いた内容は、次にこの車を読み込んだ人の画面に必ず出ます。対応が済むまで消えません。":
+    "Whatever you write here is shown to whoever opens this vehicle next, and stays until it is marked done.",
+  "例: 次回車検時にブレーキホース交換（ひび割れ）": "e.g. Replace brake hoses at next inspection (cracking)",
+  "今回の気づき・特記など（任意）": "Observations or notes for this job (optional)",
+  "次回への申し送り（対応が済むまで車両画面に出ます）":
+    "Handover for next visit (shown on the vehicle screen until marked done)",
+  "✓ 対応済みにする": "✓ Mark as done", "対応済みにする": "Mark as done",
+  "投稿すると他の担当者の端末に通知が届きます（Ctrl+Enterでも送信）。<br>※ここは今回の入庫中だけの連絡で、出庫すると消えます。次回に残すことは整備カルテの「🔔 次回への申し送り」へ。":
+    "Posting notifies the other staff members' devices (Ctrl+Enter also sends).<br>※ These notes apply to this visit only and are cleared on check-out. To leave something for next time, use “🔔 Handover for next visit” in the service record.",
+  "✓ 申し送り（対応済み）": "✓ Handover (done)",
+  "申し送りを対応済みにする": "Mark handover as done",
+  "作業内容・交換部品・メモ・申し送りのいずれかを入力してください。":
+    "Enter at least one of: work done, parts used, notes, or handover.",
   // ===== ホーム =====
   "はじめの3つ": "First 3 steps",
   "この3つを一度ずつ通せば、あとは同じ流れです。済んだものは自動でチェックが付きます。": "Go through these three once and the rest follows the same flow. Finished items are checked automatically.",
@@ -278,7 +295,10 @@ Object.assign(window.I18N_EXTRA.exact, {
   "進捗": "Progress",
   "自分の確認レ点": "My checkmark",
   "担当を決める": "Assign staff", "進める": "Advance",
-  "申し送り": "Handover notes", "まだ申し送りはありません。": "No handover notes yet.", "＋ 申し送りを書く": "＋ Write a handover note",
+  "申し送り": "Handover notes", "今回の申し送り": "Handover for this visit",
+  "まだ申し送りはありません。": "No handover notes yet.",
+  "この入庫の申し送りはまだありません。": "No handover notes for this visit yet.",
+  "＋ 申し送りを書く": "＋ Write a handover note", "＋ 今回の申し送りを書く": "＋ Write a note for this visit",
   "区分を切り替える": "Change category", "満了": "Expiry", "申し送りコメントを見る": "View handover comments",
   "進捗は整備士が更新します": "Progress is updated by mechanics",
   "＋ 担当": "＋ Staff",

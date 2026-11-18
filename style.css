@@ -2224,6 +2224,30 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .vhSpecs dd{margin:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vhCard .match{margin:0;padding:10px 15px 12px;font-size:13px;font-weight:700;color:var(--amber)}
 .vhCard .match:empty{display:none}
+/* 前回からの申し送り。見落とされては意味がないので、車両カードの中で一番目立たせる */
+.vhHo{border-color:#E2C9C2;background:#FFF8F6}
+.vhHo .vhCardTtl{color:var(--alert);border-bottom-color:#F0DCD6;font-size:12px;letter-spacing:.04em}
+.vhHo .vhCardTtl .n{background:#F3DFD9;color:var(--alert)}
+.hoExp{padding:7px 15px 0;font-size:12px;color:var(--dim);font-weight:600}
+.hoList{padding:10px 15px 13px;display:flex;flex-direction:column;gap:10px}
+.hoItem{display:flex;flex-direction:column;gap:5px}
+.hoItem+.hoItem{border-top:1px dashed #EBD9D3;padding-top:10px}
+.hoTxt{font-size:14.5px;font-weight:700;line-height:1.55;white-space:pre-wrap}
+.hoMeta{font-size:11.5px;color:var(--dim)}
+.hoDone{align-self:flex-start;margin-top:2px;background:#fff;border:1px solid #DFC6BE;color:var(--alert);
+  border-radius:8px;padding:6px 13px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer}
+.hoDone:active{background:var(--alert);color:#fff;border-color:var(--alert)}
+/* カルテ1件の中の申し送り表示 */
+.kNextBlk{margin-top:8px;padding:8px 10px;border-radius:9px;background:#FFF8F6;border:1px solid #F0DCD6}
+.kNextBlk.done{background:#F4F6F4;border-color:#DFE4DF}
+.kNextHd{font-size:11px;font-weight:700;color:var(--alert);letter-spacing:.04em;margin-bottom:3px}
+.kNextBlk.done .kNextHd{color:var(--ok)}
+.kNextTxt{font-size:13.5px;line-height:1.55;white-space:pre-wrap}
+.kNextBlk.done .kNextTxt{color:var(--dim);text-decoration:line-through}
+.kNextWho{font-size:11px;color:var(--dim);margin-top:3px}
+/* 入庫区分ポップアップの申し送り */
+.ikNext{margin:2px 0 10px;padding:9px 11px;border-radius:10px;background:#FFF3EF;border:1px solid #E8CDC5;
+  text-align:left;font-size:13px;line-height:1.55;color:var(--alert);font-weight:700;white-space:pre-wrap}
 
 .vhQrRow{display:flex;gap:8px}
 .vhQrBtn{flex:1;min-height:42px;font-size:12px;font-weight:600;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:#44443F;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}

@@ -214,6 +214,9 @@
 
     <section class="vhCard vhProg hidden" id="vhProg"></section>
 
+    <!-- 前回からの申し送り。車両を読み込んだ全員に出す(担当が替わっても見落とさないため) -->
+    <section class="vhCard vhHo hidden" id="vhHandover"></section>
+
     <section class="vhCard" id="vhInfo">
       <h2 class="vhCardTtl">車両情報</h2>
       <dl class="vhSpecs">
@@ -398,8 +401,11 @@
           <div><label class="fld">費用(円)</label><input type="number" id="kCost" inputmode="numeric" placeholder="任意"></div>
           <div><label class="fld">担当者</label><input type="text" id="kStaff" placeholder="担当者名"></div>
         </div>
+        <label class="fld" id="kNextLbl">🔔 次回への申し送り</label>
+        <textarea id="kNext" class="kGrow" placeholder="例: 次回車検時にブレーキホース交換（ひび割れ）"></textarea>
+        <div class="hint" id="kNextHint">ここに書いた内容は、次にこの車を読み込んだ人の画面に必ず出ます。対応が済むまで消えません。</div>
         <label class="fld">メモ</label>
-        <textarea id="kNote" class="kGrow" placeholder="次回の申し送り・気づきなど（任意）"></textarea>
+        <textarea id="kNote" class="kGrow" placeholder="今回の気づき・特記など（任意）"></textarea>
         <label class="fld" id="kPicLbl">写真（作業の記録）</label>
         <input type="file" id="kPicShootIn" accept="image/*" capture="environment" class="hidden">
         <input type="file" id="kPicPickIn" accept="image/*" multiple class="hidden">
@@ -1105,6 +1111,7 @@
   <div class="ikCard">
     <div class="ikTitle">この車の入庫目的は？</div>
     <div id="ikVeh" class="ikVeh"></div>
+    <div id="ikNext" class="ikNext hidden"></div>
     <button type="button" id="ikStaffBtn" class="ikStaffBtn hidden">担当: <span id="ikStaffName">自分</span> <span class="ikStaffCaret">▾</span></button>
     <div class="ikBtns">
       <button type="button" class="ikBtn" data-kind="車検">車検</button>

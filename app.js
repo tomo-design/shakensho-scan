@@ -3170,7 +3170,68 @@ $("btnTensu") && $("btnTensu").addEventListener("click", () => {
   const enc = btoa(unescape(encodeURIComponent(JSON.stringify(info)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   window.open(TENSU_URL + "#v=" + enc, "_blank", "noopener");
 });
+/* ===== 申し送り（次回への引き継ぎ） =====
+   カルテのメモに「次回車検時に交換」と書いても、次の入庫でカルテを開き、
+   畳まれた日付グループを展開した人にしか見えない。入庫ごとに担当が替わる現場では
+   「書いた本人しか知らない情報」になってしまう。
+   そこで申し送りはカルテの独立した項目(next)にし、車両を読み込んだ時点で必ず画面に出す。
+   対応済みにできるのは記入者だけではない(次に触った人が消せなければ意味がない)。
+   記録自体は消さず、いつ・誰が対応したかをカルテに残す。 */
+function handoversIn(list) {
+  return (list || []).filter(k => k && k.next && String(k.next).trim() && !k.nextAt);
+}
+/* 表示中の車両の、未対応の申し送り */
+function openHandovers() {
+  try { return handoversIn(getKarteList()); } catch (e) { return []; }
+}
+/* 履歴ID指定。入庫ボードから表示中でない車両のポップアップを開く時に使う
+   (currentを見ると別の車の申し送りを出してしまう) */
+function handoversForRid(rid) {
+  try {
+    const h = rid ? (getHistory() || []).find(x => x.rid === rid) : null;
+    if (!h) return [];
+    return handoversIn(mergeKarte(h.karte, []).filter(k => !k.deleted));
+  } catch (e) { return []; }
+}
+function handoverMeta(k) {
+  // 走行距離は桁区切りで読ませる(ここは警告なので一目で読めることを優先)
+  return [dispText(k.date), k.odo ? Number(k.odo).toLocaleString("ja-JP") + "km" : "", k.staff ? han(k.staff) : ""].filter(Boolean).join(" ／ ");
+}
+function renderHandover() {
+  const box = $("vhHandover"); if (!box) return;
+  const list = (current && vehicleKey(current)) ? openHandovers() : [];
+  if (!list.length) { box.innerHTML = ""; toggle("vhHandover", false); return; }
+  // 「次回車検時に」の申し送りがある車は満了日も添える(その『次回』がいつなのかが分かる)
+  const onShaken = list.some(k => /車検|継続検査/.test(String(k.next)));
+  const exp = (onShaken && current.expiry)
+    ? '<div class="hoExp">車検満了 ' + esc(fmtYMD(current.expiry)) + esc(expiryLeftText(current.expiry)) + '</div>' : "";
+  box.innerHTML = '<h2 class="vhCardTtl">🔔 前回からの申し送り' + (list.length > 1 ? '<span class="n">' + list.length + '件</span>' : "") + '</h2>' + exp +
+    '<div class="hoList">' + list.map(k =>
+      '<div class="hoItem"><div class="hoTxt">' + esc(keepUnit(han(String(k.next)))) + '</div>' +
+      '<div class="hoMeta">' + esc(handoverMeta(k)) + ' の記録より</div>' +
+      '<button type="button" class="hoDone" data-ho="' + esc(k.id) + '">✓ 対応済みにする</button></div>').join("") + '</div>';
+  box.querySelectorAll(".hoDone").forEach(b => b.addEventListener("click", () => markHandoverDone(b.dataset.ho)));
+  toggle("vhHandover", true);
+}
+async function markHandoverDone(id) {
+  const k = openHandovers().find(x => x.id === id); if (!k) return;
+  const ok = await uiConfirm(String(k.next) + "\n\nこの申し送りを「対応済み」にします。車両画面には出なくなります（記録はカルテに残ります）。",
+    { title: "申し送りを対応済みにする", okText: "対応済みにする" });
+  if (!ok) return;
+  const me = (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
+  saveKarteEntry(Object.assign({}, k, { nextAt: new Date().toISOString(), nextBy: me, at: new Date().toISOString() }));
+  renderHandover(); renderKarte();
+}
+/* カルテ1件の中の申し送り表示(対応済みは取り消し線で残す) */
+function nextBlockHtml(k) {
+  if (!k || !k.next || !String(k.next).trim()) return "";
+  const done = !!k.nextAt;
+  const who = done ? ('<div class="kNextWho">' + esc([dispText(String(k.nextAt).slice(0, 10)), k.nextBy ? han(k.nextBy) : ""].filter(Boolean).join(" ／ ")) + ' 対応済み</div>') : "";
+  return '<div class="kNextBlk' + (done ? " done" : "") + '"><div class="kNextHd">' + (done ? "✓ 申し送り（対応済み）" : "🔔 次回への申し送り") + '</div>' +
+    '<div class="kNextTxt">' + esc(keepUnit(han(String(k.next)))) + '</div>' + who + '</div>';
+}
 function renderKarte() {
+  try { renderHandover(); } catch (e) {}
   try { refreshTensuBtn(); } catch (e) {}
   const box = $("karteList"); if (!box) return;
   const cntEl = $("karteCount");
@@ -3294,7 +3355,7 @@ function buildKarteCard(k) {
     body.innerHTML = (kJobs.length ? jobsBlockHtml(kJobs)
                                    : (workPts.length ? itemsBlockHtml() : block("作業", k.work)) + partsBlock(k.parts)) +
       (k.cost ? '<div class="kBlock"><span class="kLbl">費用</span><div class="kVal">¥' + han(String(k.cost)) + '</div></div>' : "") +
-      noteBlock("メモ", k.note) + picsBlock();   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
+      noteBlock("メモ", k.note) + nextBlockHtml(k) + picsBlock();   // メモは箇条書き(・)にせず、入力そのまま(改行だけ活かす)
     card.append(head, body);
     // 古い記録(作業と部品が別々のまま)は、ボタン1つで作業ごとにまとめ直せるようにする
     if (!kJobs.length && k.work && k.parts && canEditKarte(k)) {
@@ -3329,20 +3390,24 @@ function editKarteInline(card, k) {
   const dWork = ta(nl(k.work), "1行に1件（作業内容）"); const dParts = ta(nl(k.parts), "1行に1件（交換部品・使用材料）");
   const dCost = inp("number", k.cost != null ? k.cost : ""); dCost.inputMode = "numeric"; const dStaff = inp("text", k.staff || "");
   const dNote = ta(k.note, "メモ");
+  const dNext = ta(k.next, "次回への申し送り（対応が済むまで車両画面に出ます）");
   const itemsHost = document.createElement("div");
   const itemsEd = buildItemsEditor(itemsHost, k.items, { rate: k.rate, workText: () => dWork.value });
-  wrap.append(row("日付", dDate), row("走行距離(km)", dOdo), row("作業内容", dWork), itemsHost, row("交換部品・使用材料", dParts), row("費用(円)", dCost), row("担当者", dStaff), row("メモ", dNote));
+  wrap.append(row("日付", dDate), row("走行距離(km)", dOdo), row("作業内容", dWork), itemsHost, row("交換部品・使用材料", dParts), row("費用(円)", dCost), row("担当者", dStaff), row("メモ", dNote), row("🔔 次回への申し送り", dNext));
   const btns = document.createElement("div"); btns.className = "btnRow"; btns.style.marginTop = "10px";
   const save = document.createElement("button"); save.className = "btn btn-amber"; save.textContent = "保存";
   const cancel = document.createElement("button"); cancel.className = "btn btn-ghost"; cancel.style.flex = "0 0 28%"; cancel.textContent = "取消";
   save.addEventListener("click", async () => {
     const g = itemsEd.get();
     const work = dWork.value.trim() || g.items.map(it => it.n).join("、"), parts = dParts.value.trim(), note = dNote.value.trim();
-    if (!work && !parts && !note) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+    const next = dNext.value.trim();
+    if (!work && !parts && !note && !next) { uiAlert("作業内容・交換部品・メモ・申し送りのいずれかを入力してください。"); return; }
     setBtnLoading(save, true);
     // 作業・部品の文字を書き換えたら、作業ごとの対応付け(jobs)は捨てる(表示と中身が食い違うより従来表示が安全)
     const keepJobs = (work === (k.work || "") && parts === (k.parts || "")) ? cleanKarteJobs(k.jobs) : [];
-    await saveKarteSmart({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, items: g.items, rate: g.rate, jobs: keepJobs, photos: Array.isArray(k.photos) ? k.photos : [], at: new Date().toISOString() });
+    // 申し送りを書き換えたら未対応に戻す(内容が変わったのに『済み』のままだと次の人に届かない)
+    const keepDone = (next && next === String(k.next || "")) ? { nextAt: k.nextAt || null, nextBy: k.nextBy || "" } : { nextAt: null, nextBy: "" };
+    await saveKarteSmart(Object.assign({ id: k.id, date: dDate.value || "", odo: dOdo.value ? Number(dOdo.value) : null, work, parts, cost: dCost.value ? Number(dCost.value) : null, staff: dStaff.value.trim(), note, next, items: g.items, rate: g.rate, jobs: keepJobs, photos: Array.isArray(k.photos) ? k.photos : [], at: new Date().toISOString() }, keepDone));
     renderKarte();
   });
   cancel.addEventListener("click", renderKarte);
@@ -3360,6 +3425,7 @@ function openKarteForm(edit) {
   $("kCost").value = (edit && edit.cost) || "";
   $("kStaff").value = (edit && edit.staff) || (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "";
   $("kNote").value = (edit && edit.note) || "";
+  $("kNext") && ($("kNext").value = (edit && edit.next) || "");
   karteEditId = edit ? edit.id : null;
   karteFormJobs = edit ? cleanKarteJobs(edit.jobs) : [];   // 作業ごとの対応付け(保存時に引き継ぐ)
   karteFormPics = (edit && Array.isArray(edit.photos)) ? edit.photos.slice() : [];
@@ -3392,7 +3458,8 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   const work0 = $("kWork").value.trim() || pts.items.map(it => it.n).join("、");
   const parts0 = $("kParts").value.trim();
   const note0 = $("kNote").value.trim();
-  if (!work0 && !parts0 && !note0) { uiAlert("作業内容・交換部品・メモのいずれかを入力してください。"); return; }
+  const next0 = $("kNext") ? $("kNext").value.trim() : "";
+  if (!work0 && !parts0 && !note0 && !next0) { uiAlert("作業内容・交換部品・メモ・申し送りのいずれかを入力してください。"); return; }
   const sb = $("btnKarteSave"); setBtnLoading(sb, true, "メカ君が整理中…");
   const st = $("kAiSortStatus");
   // 保存時に自動でAI仕分け(人それぞれの書き方を項目ごとに整理してから保存)。失敗時は入力そのままで保存。
@@ -3408,10 +3475,16 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
     id: karteEditId || ("k" + Date.now() + Math.floor(Math.random() * 1000)),
     date: sorted.date || "", odo: sorted.odo ? Number(sorted.odo) : null,
     work: sorted.work || "", parts: sorted.parts || "", cost: sorted.cost ? Number(sorted.cost) : null,
-    staff: sorted.staff || "", note: sorted.note || "",
+    staff: sorted.staff || "", note: sorted.note || "", next: sorted.next || "", nextAt: null, nextBy: "",
     items: pts.items, rate: pts.rate, jobs: cleanKarteJobs(sorted.jobs), photos: [],
     at: new Date().toISOString(),
   };
+  // 編集時: 申し送りの文面が変わっていなければ「対応済み」の印はそのまま引き継ぐ。
+  // 書き換えた＝別の申し送りなので、未対応に戻す(済んだ物として埋もれないように)。
+  if (karteEditId) {
+    const prevK = getKarteList().find(x => x.id === karteEditId);
+    if (prevK && prevK.nextAt && String(prevK.next || "") === entry.next) { entry.nextAt = prevK.nextAt; entry.nextBy = prevK.nextBy || ""; }
+  }
   if (!entry.work && pts.items.length) entry.work = pts.items.map(it => it.n).join("、");
   if (karteFormPics.length || karteFormPicsRemoved.length) {
     setBtnLoading(sb, true, "写真を保存中…");
@@ -3419,6 +3492,11 @@ $("btnKarteSave") && $("btnKarteSave").addEventListener("click", async () => {
   }
   saveKarteSmart(entry).then(() => { setBtnLoading(sb, false); toggle("karteForm", false); const fold = $("karteFold"); if (fold) fold.open = true; renderKarte(); });
 });
+
+/* 「次回への申し送り(next)」の仕分け指示。保存時整理・写真読み取りで共用。
+   次に触る整備士への引き継ぎなので、紙に書かれていないことをAIが作ってはいけない。 */
+const KARTE_NEXT_RULE =
+  "【申し送り next】『次回(来年/次の車検/次回点検)で対応が必要なこと』『要経過観察』『今回は見送った/様子見にした箇所』が書かれていれば next に入れる。書かれた言葉のまま、1件1行で。今回すでに実施した作業は next に入れない(それは work)。next に入れた内容は note からは外す(同じことを二重に持たない)。next に該当する記述が無ければ next は空文字にする。【厳守】書かれていない『次回やるべきこと』をAIが作り出してはいけない。整備の常識から推測した推奨(そろそろタイヤ交換、など)も書かない。申し送りは次に触る整備士への引き継ぎであり、嘘が混ざると実害が出る。";
 
 /* 「どの作業で、どの部品を使ったか」の対応付け(jobs)の指示。写真読み取り・保存時整理で共用。
    紙の書き方から読み取れる分だけ。分からない物を無理に結び付けると、現場では嘘の記録になる。 */
@@ -3447,12 +3525,14 @@ async function karteAiSortFields(cur) {
     "・費用: " + (cur.cost || "(空)"),
     "・担当者: " + (cur.staff || "(空)"),
     "・メモ: " + (cur.note || "(空)"),
+    "・次回への申し送り: " + (cur.next || "(空)"),
     "略号の展開(書かれていれば正式名に。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキフルード, M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, BATT=バッテリー, プラグ=スパークプラグ, O/H=オーバーホール, 脱着=取り外し・取り付け。",
-    "振り分け方: work=実施した作業・点検内容, parts=交換した部品・使用材料(品番があれば含む・数量はそのまま), cost=合計金額の数値のみ, staff=担当者/記入者名, note=次回への申し送り・気づき・不具合等の特記。走行距離は数値(km)に統一。日付は西暦YYYY-MM-DD(『R7.6.1』等も変換、年が無ければ空)。金額は¥/円/カンマを除く数値のみ。",
+    "振り分け方: work=実施した作業・点検内容, parts=交換した部品・使用材料(品番があれば含む・数量はそのまま), cost=合計金額の数値のみ, staff=担当者/記入者名, note=今回の気づき・不具合等の特記。走行距離は数値(km)に統一。日付は西暦YYYY-MM-DD(『R7.6.1』等も変換、年が無ければ空)。金額は¥/円/カンマを除く数値のみ。",
     "【厳守】書かれていない情報を勝手に補完・推測・追加しない(メーカー名・銘柄・品番・数量・単位はメモに無ければ足さない)。元の言葉をできるだけそのまま活かし、仕分けと軽い整形(重複の統合・改行整理)だけ行う。メモは箇条書き記号(・)を付けず、素の文/改行で。",
+    KARTE_NEXT_RULE,
     KARTE_JOBS_RULE,
     "該当する内容が無い項目は空文字/null。出力は厳密なJSONのみ(コードフェンス・説明不要)。数字は半角。",
-    "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
+    "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"next\":\"\",\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
   ].join("\n");
   try {
     const r = await geminiAsk(prompt, { mode: "flash", maxTokens: 4096, thinkingBudget: 256, noCache: true });   // 仕分けだけなので思考は最小限で速く
@@ -3466,6 +3546,7 @@ async function karteAiSortFields(cur) {
       cost: (obj.cost != null && obj.cost !== "") ? String(obj.cost).replace(/[^\d]/g, "") : cur.cost,
       staff: obj.staff ? String(obj.staff).trim() : cur.staff,
       note: obj.note != null ? String(obj.note).trim() : cur.note,
+      next: obj.next != null ? String(obj.next).trim() : (cur.next || ""),
       jobs: [],
     };
     // 作業ごとの対応付けは、作業・部品が1件も減っていない時だけ採用し、採用したら文字列側もそれに揃える
@@ -3478,7 +3559,7 @@ async function karteAiSortFields(cur) {
 /* カルテ入力欄の現在値(保存と「写真読み取り直後から変更なしか」の比較で同じ形を使う) */
 function readKarteFields() {
   const v = id => ($(id) ? $(id).value.trim() : "");
-  return { date: v("kDate"), odo: v("kOdo"), work: v("kWork"), parts: v("kParts"), cost: v("kCost"), staff: v("kStaff"), note: v("kNote") };
+  return { date: v("kDate"), odo: v("kOdo"), work: v("kWork"), parts: v("kParts"), cost: v("kCost"), staff: v("kStaff"), note: v("kNote"), next: v("kNext") };
 }
 let karteOcrSnapshot = null;   // 写真読み取り直後の各欄(変更なしで保存ならAI再整理を省く)
 let karteResetOnPick = false;  // 見出しの写真フォルダから選んだ時は新規スタート(選択キャンセル時は既存の写真を消さない)
@@ -3658,12 +3739,13 @@ async function runKartePhotoOCR() {
       nPhotos > 1 ? "画像は複数枚ありますが、すべて同じ1件の整備作業に関するメモです。全ての画像の内容を統合して、1つのカルテにまとめて返してください(項目ごとに全画像の情報を合わせる。部品は全画像分を列挙)。" : "",
       "略号の展開(整備現場の頻出略号。書かれていれば正式名に展開してよい。※メーカー名・数量・品番など書かれていない情報は足さない): E/O=エンジンオイル, O/E=オイルエレメント(オイルフィルター), B/O=ブレーキオイル(ブレーキフルード), M/O=ミッションオイル, T/M=トランスミッション, A/T=オートマチックオイル, CVT/F=CVTフルード, D/O=デフオイル, P/S=パワステフルード, L/L=ロングライフクーラント(冷却水), F/パッド=フロントブレーキパッド, R/パッド=リアブレーキパッド, F/ローター=フロントローター, R/ローター=リアローター, W/ブレード=ワイパーブレード, バッテリ/BATT=バッテリー, プラグ=スパークプラグ, エレメント=フィルター, O/H=オーバーホール, 脱着=取り外し・取り付け。",
       "判読のヒント: 『OIL/オイル交換』『EG/エンジン』『ミッション/AT/CVT』『Fブレーキ/Rブレーキ』『パッド』『ローター』『バッテリー/BATT』『エレメント/フィルター』『点検』『下回り』等の整備略語を考慮。走行距離は『8.2万km』『82,000』『82000キロ』等どの表記でも数値(km)に統一。日付は和暦・年月日・『R7.6.1』等でも西暦YYYY-MM-DDに変換(年が無ければ空文字)。金額の『¥』『円』『,』は除いて数値のみ。",
-      "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=次回の申し送り・特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
+      "各項目に振り分け: work=実施した作業/点検内容, parts=交換した部品・使用材料(品番があれば含む), cost=合計金額の数値, staff=担当者/記入者名, note=今回の特記(不具合や気づき)。判読できない文字は無理に決めつけず、その項目は空にする。",
+      KARTE_NEXT_RULE,
       "【最重要・厳守】メモに書かれていない情報を勝手に補完・推測・追加しないこと。特にメーカー名・銘柄・商品名・品番・数量・単位は、メモに明記されていない限り一切足さない(例: 『オイル 3.7L』とだけあれば、そのまま『オイル 3.7L』とし、メーカー名や『エンジンオイル』等の語を付け足さない)。あくまで書かれた文字をそのまま転記する。",
       KARTE_JOBS_RULE,
       "【作業点数 items】紙に作業ごとの点数(『点』『pt』の付いた数値や点数欄の数字)が書かれている場合に限り、その作業を items に1件ずつ入れる(n=作業名、p=書かれていた点数)。点数が書かれていない作業は p を null にする。点数を推測・計算・補完して付けてはいけない(読めた数字だけ)。紙に点数が1つも書かれていなければ items は空配列 [] にする。",
       "出力は厳密なJSONのみ(前後の文章・コードフェンス・説明は不要)。数字は半角。",
-      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"items\":[{\"n\":\"\",\"p\":null}],\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
+      "形式: {\"date\":\"\",\"odo\":null,\"work\":\"\",\"parts\":\"\",\"cost\":null,\"staff\":\"\",\"note\":\"\",\"next\":\"\",\"items\":[{\"n\":\"\",\"p\":null}],\"jobs\":[{\"w\":\"作業名\",\"p\":[{\"n\":\"部品名\",\"q\":\"数量\"}]}]}",
     ].join("\n");
     // 蓄積した圧縮済み写真をまとめて送信。思考は上限付きで速く(無制限だと数十秒かかっていた)。
     // 混雑や時間切れは1回だけ自動で試し直す(そのたびに写真を選び直させない)
@@ -3692,6 +3774,7 @@ async function runKartePhotoOCR() {
     if (obj.cost != null && obj.cost !== "") $("kCost").value = String(obj.cost).replace(/[^\d]/g, "");
     if (obj.staff) $("kStaff").value = String(obj.staff).trim();
     if (obj.note) $("kNote").value = String(obj.note).trim();
+    if (obj.next && $("kNext")) $("kNext").value = String(obj.next).trim();
     // 作業点数: 紙に書かれていた点数だけを「記載」として保存(AIは点数を付けない)。点数が1つも読めなければ従来どおり作業・部品・数量のみ。
     let nItems = 0;
     if (kFormItems && Array.isArray(obj.items)) {
@@ -4663,6 +4746,16 @@ function changeIntakeKind(rid) {
 function openIntakeModalFor(rid, label, mode) {
   const modal = $("intakeModal"); if (!modal) return;
   $("ikVeh").textContent = label;
+  // 前回からの申し送りは、受付(入庫区分を選ぶ時)にも出す。車検で入った車に
+  // 「次回車検時に交換」が残っていることに、この時点で気づけるようにする。
+  const inx = $("ikNext");
+  if (inx) {
+    const ho = handoversForRid(rid);
+    if (ho.length) {
+      inx.textContent = "🔔 前回からの申し送り\n" + ho.map(k => "・" + han(String(k.next)).replace(/\n+/g, " ")).join("\n");
+      toggle("ikNext", true);
+    } else { inx.textContent = ""; toggle("ikNext", false); }
+  }
   const ttl = modal.querySelector(".ikTitle"); if (ttl) ttl.textContent = mode === "change" ? "入庫区分を変更しますか？" : "この車の入庫目的は？";
   modal.dataset.rid = rid; modal.dataset.mode = mode || "new";
   setupIntakeStaff(rid);
@@ -4866,7 +4959,7 @@ function openIntakeComments(rid, opts) {
         '<textarea id="cmtInput" class="cmtInput" rows="2" placeholder="連絡事項・費用の内訳・申し送りなど…"></textarea>' +
         '<button type="button" class="cmtSend" id="cmtSend">送信</button>' +
       '</div>' +
-      '<div class="cmtHint">投稿すると他の担当者の端末に通知が届きます（Ctrl+Enterでも送信）。</div>' +
+      '<div class="cmtHint">投稿すると他の担当者の端末に通知が届きます（Ctrl+Enterでも送信）。<br>※ここは今回の入庫中だけの連絡で、出庫すると消えます。次回に残すことは整備カルテの「🔔 次回への申し送り」へ。</div>' +
       '<button type="button" class="cmtClose" id="cmtClose">閉じる</button>' +
     '</div>';
   document.body.appendChild(ov);
@@ -5104,9 +5197,9 @@ function renderVehicleIntake() {
     '<span class="vhMemoBody"><span class="vhMemoWho"><b>' + esc(c.name || "担当") + '</b><span>' + esc(cmtWhen(c.at)) + '</span></span>' +
     '<span class="vhMemoTx">' + esc(c.text || "") + '</span></span></div>').join("");
   memo.innerHTML =
-    '<h2 class="vhCardTtl">申し送り' + (cs.length ? '<span class="n">' + cs.length + '</span>' : "") + '</h2>' +
-    (rows || '<div class="vhMemoNone">まだ申し送りはありません。</div>') +
-    '<button type="button" id="vhMemoAdd" class="vhMemoAdd">＋ 申し送りを書く</button>';
+    '<h2 class="vhCardTtl">今回の申し送り' + (cs.length ? '<span class="n">' + cs.length + '</span>' : "") + '</h2>' +
+    (rows || '<div class="vhMemoNone">この入庫の申し送りはまだありません。</div>') +
+    '<button type="button" id="vhMemoAdd" class="vhMemoAdd">＋ 今回の申し送りを書く</button>';
   toggle("vhMemo", true);
   const ma = $("vhMemoAdd"); if (ma) ma.addEventListener("click", () => openIntakeComments(h.rid));
 }
@@ -7426,10 +7519,15 @@ function karteContextBlock(max) {
       if (!body) return "";
       return "・" + [d, odo].filter(Boolean).join(" ") + " " + body;
     }).filter(Boolean);
-  if (!rows.length) return "";
+  // 未対応の申し送りは別立てで先に渡す(カルテの行に埋めると見落とされる)
+  let ho = [];
+  try { ho = openHandovers().map(k => "・" + han(String(k.next)).replace(/\s+/g, " ") + "（" + [dispText(k.date), k.staff ? han(k.staff) : ""].filter(Boolean).join(" ") + " 記入・未対応）"); } catch (e) {}
+  const hoBlock = ho.length ? ["", "■前回からの申し送り（まだ対応していない。今回の症状と関係があれば必ず触れること）"].concat(ho) : [];
+  if (!rows.length && !ho.length) return "";
+  if (!rows.length) return hoBlock.slice(1).join("\n");
   return ["■この車の整備カルテ（当店の作業記録。新しい順）",
     "同じ系統を最近触っている場合は施工起因(取り付け不良・部品初期不良・エア噛み・戻し忘れ)も候補に入れる。逆に、直近で交換済みの部品を再び第1候補にしない(再発の根拠がある場合は理由を書く)。走行距離の伸び方も劣化の判断に使う。",
-  ].concat(rows).join("\n");
+  ].concat(rows).concat(hoBlock).join("\n");
 }
 /* プロンプトに差し込む「この工場の知見」ブロック。無ければ空文字。 */
 function knowhowBlock(queryText, max) {
@@ -10476,6 +10574,7 @@ const SUPPORT_KB = [
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・作業写真・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。記録には写真も残せる(v769〜)。入力欄の『写真（作業の記録）』で『📷撮る』『📁選ぶ』。作業前後・摩耗や損傷・品番の写しなどを何枚でも。保存時に長辺1000px・1枚150KB目安まで圧縮してから保管し、カルテ本体には置き場所だけを持つ(写真をそのまま記録に入れると数枚で保存できなくなるため)。写真は社内の全端末で見られ、カードの写真をタップすると拡大、『×』で外せる。記録を削除すると写真も一緒に消える。",
+  "【申し送り(次回への引き継ぎ)】整備カルテの入力欄に『🔔 次回への申し送り』がある(v770〜)。ここに書いた内容は、次にその車両を読み込んだ時に車両画面の上部へ赤い枠で必ず出る。カルテを開かなくても、スキャンした時点で全員の目に入る。入庫区分(車検/点検/修理/板金)を選ぶポップアップにも同じ内容が出るので、受付の時点で気づける。『次回車検時に』を含む申し送りがある車は、車検満了日と残り日数も一緒に表示する。作業したときの担当者と次の入庫の担当者が違っても引き継がれるのが目的なので、『✓ 対応済みにする』は記入者本人でなくても押せる(カルテの編集権限とは別)。押すと車両画面からは消えるが記録は消えず、カルテにはその申し送りが『✓ 申し送り（対応済み）』として、対応した日付と人の名前付きで残る。申し送りは手で書くほか、手書きメモの写真読み取りと保存時の自動整理でも、『次回〜』『要経過観察』『今回は見送り』等の記述があればメカ君が申し送り欄に振り分ける(書かれていない推奨をAIが作ることはしない)。申し送りを書き換えると未対応に戻る(別の内容になったものを済み扱いにしないため)。未対応の申し送りはAI故障診断にも渡され、今回の症状と関係があれば触れる。※以前はメモ欄に『次回〜』と書く運用だったが、メモは畳まれた日付グループを開かないと見えないため、担当が替わると気づかれなかった。それを解決する機能。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",
   "【入庫管理ボード(法人)】車検証をスキャンすると区分ポップアップ(車検/定期点検/一般修理/板金)が出て、選ぶと『入庫ボード』に色分け表示。区分フィルター、費用回収の状態(未回収→回収済→自社立替、車検のみ・タップで切替)、車両ごとのコメント、確認レ点(担当ごとの色。ホームの入庫状況と車両カードで操作)を管理。ホーム画面の『入庫状況』(管理者・ログイン中)で、担当者を名簿から選んで設定、行を横スワイプで出庫。事務専用モード(ログイン画面で選択、または設定)にすると入庫管理だけの画面になりスキャン/AIは非表示。事務用の画面は1台ずつの一覧で、区分(すべて/車検/点検/修理/板金)で絞り込め、行はナンバー下4桁＋使用者名。行をタップで申し送りコメント、担当の設定、費用の状態の切替ができる。進捗(入庫→作業中→完了→引渡待)は整備士が更新するので事務用では表示のみ。出庫も事務用には出さない(ホームの入庫状況で横スワイプ)。メイン画面に移るときはログアウトしてログインし直す。すべて全端末で自動同期。",
   "【通知(プッシュ)】アプリを開いていなくても届く通知。新しい入庫→事務モード端末＋管理者、参加申請→運営管理者、へプッシュ。有効化は設定または入庫管理バーの『🔔通知を許可』を1回タップ。Android Chromeやホーム画面に追加したアプリで動作(iPhoneはホーム画面に追加したPWAのみ・Safariのタブ単体やLINE等のアプリ内ブラウザは不可)。通知が『許可されませんでした』の場合はブラウザ側でこのサイトの通知がブロックされている→アドレスバー左の鍵/ⓘアイコン→サイトの設定→通知を『許可』→再読み込み。MECHANO-AI Pocket（個人向け）には通知機能はなし。",
