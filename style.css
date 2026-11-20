@@ -1993,7 +1993,9 @@ body.gated{overflow:hidden}
    =================================================================== */
 ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;border-radius:50%;
   background:var(--amber);color:#fff;font-family:'Chakra Petch',system-ui,sans-serif;font-weight:700;
-  font-size:14px;line-height:1;align-items:center;margin-top:1px;box-shadow:0 1px 3px rgba(61,97,132,.3)}
+  font-size:14px;line-height:1;align-items:center;margin-top:1px;box-shadow:0 1px 3px rgba(61,97,132,.3);
+  /* バッジは見出し行の左に置くだけ。流し込みから外して、本文がカードの幅いっぱいを使えるようにする */
+  position:absolute;left:14px;top:14px;margin:0;justify-content:center}
 
 /* ===================================================================
    入庫管理ボード — スマホは「1画面でなるべく多く見渡せる」詰めたレイアウト
@@ -2452,8 +2454,10 @@ section.formCard{border:2px solid #3D6184}
 /* 原因候補: 1件=白いカード(順位バッジ＋見出し) */
 ol.guide-steps.ai-rank{gap:10px}
 ol.guide-steps.ai-rank li{background:var(--panel);border:1px solid var(--line);border-radius:13px;
-  padding:13px 14px;gap:9px;align-items:flex-start}
-.ai-rank .ai-cause{font-size:15px;font-weight:700;line-height:1.5}
+  padding:13px 14px;display:block;position:relative;overflow:hidden}
+/* 見出しだけが番号バッジの分を空ける。理由・切り分け・手引書はカードの幅いっぱい。
+   (以前は li 自体を flex にしていたので、下の本文までずっと内側に寄っていた) */
+.ai-rank .ai-cause{font-size:15px;font-weight:700;line-height:1.5;padding-left:35px;min-height:27px}
 /* 改善の見込み: 淡色のピル */
 .ai-rank .ai-cure{margin:9px 0 0;padding:0;background:none;border-left:0;display:flex;align-items:center;gap:7px}
 .ai-rank .ai-cure .ai-cure-lv{font-size:11px;font-weight:700;border-radius:6px;padding:3px 8px;background:#F1EFEA;color:#5C574E}
@@ -2607,9 +2611,15 @@ body.fsXL .ikModal,body.fsXL .notifyPop{zoom:.8}
 .pcBanner.ended{background:#F6E9E6;border-color:#E8CFC9;color:#8A3A2E}
 .pcBannerBtn{display:block;width:100%;min-height:44px;margin-top:10px;border-radius:10px;border:1px solid #9A6B3C;
   background:#9A6B3C;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
-/* 点検手引書のパネル: 候補カードの中にきちんと収める(旧レイアウト用の負のマージンを打ち消す) */
-.ai-rank .manualPane{margin:10px 0 0;border-radius:11px;padding:12px 13px 13px}
-.ai-rank .manualPane .ai-h{margin:12px -13px 10px;padding:9px 13px;background:#EAEFF4;color:#2E4A66;
+/* 点検手引書のパネル: カードの左右いっぱい・下端まで敷く。
+   手引書は現場で見ながら手を動かすものなので、本文の横幅を最優先する。
+   (li の overflow:hidden がカードの角丸で切ってくれる) */
+.ai-rank .manualPane{margin:11px -14px -13px;border:0;border-top:1px solid var(--line);
+  border-radius:0;padding:12px 12px 13px;background:#F7F6F3}
+.ai-rank .manualPane .imSection{border-radius:9px}
+.ai-rank .manualPane .ai-cause{padding-left:0;min-height:0}
+.ai-rank .manualPane .imBody{padding:11px 11px 12px}
+.ai-rank .manualPane .ai-h{margin:12px -12px 10px;padding:9px 12px;background:#EAEFF4;color:#2E4A66;
   font-size:12px;font-weight:700;letter-spacing:.04em}
 .ai-rank .manualPane .ai-h:first-child{margin-top:0}
 .ai-rank .manualPane .hint{margin:0;font-size:12px;line-height:1.7}
