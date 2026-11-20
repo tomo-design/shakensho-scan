@@ -7748,11 +7748,14 @@ function buildInspectManualPrompt(cause, kirikake) {
     kirikake ? "想定される切り分けの方針: " + kirikake : "",
     "この原因を実車で確定/除外するための点検手引書を、次の見出し構成で作成する。",
     "【出力フォーマット(厳守)】",
-    "・見出しは行頭に ■ を付ける。見出しは順に: ■準備する物 / ■点検手順 / ■判定の目安 / ■この原因だった場合の対処 / ■注意。",
+    "・見出しは行頭に ■ を付ける。見出しは順に: ■準備する物 / ■点検手順 / ■判定の目安 / ■この原因だった場合の対処 / ■交換する部品 / ■注意。",
     "・各見出しの下は『1行に1項目』。1行に複数の内容を詰め込まない。①②③のような記号で1行にまとめない。",
     "・■点検手順 は番号付き(1. 2. 3. …)で、1手順=1動作の短い文にする。『部位』『使う工具』『測定/確認方法』『正常値の目安』を伝えたい時は、それぞれ別の手順(別の行)に分けて書く。",
     "・■判定の目安 は『◯◯なら正常/△△ならこの原因』を1項目ずつ、具体的な数値で。",
-    "・■この原因だった場合の対処 は交換部品・処置を1〜2行で。",
+    "・■この原因だった場合の対処 は処置の内容を1〜2行で(文章)。",
+    "・■交換する部品 は、この原因だと確定した場合に手配・交換が必要になる部品を『1行に1つ、部品名だけ』で書く。" +
+      "説明・理由・数量・品番・『〜の可能性』などは書かない(整備士がそのまま注文と交換手順の検索に使う行なので、部品名以外が混ざると使えない)。" +
+      "部品名はその車両で通じる正式名称にする。清掃・調整・増し締め・再結線・エア抜き等の処置だけで直り、交換部品が無い場合は、この見出しごと出力しない(無理に部品を挙げない)。",
     "・1文が長くなりすぎないように短く区切る(スマホで読みやすく)。",
     "その車両に即した具体的な内容にし、一般的なテスターの使い方の説明に終始しない。専門用語には短い補足を付ける。",
     "出力は上記の■見出しと項目だけ(前置き・免責・Markdown記号・引用マーカーは書かない)。",
@@ -7771,7 +7774,7 @@ function attachInspectManual(itemDiv, cause) {
   let loaded = false, loading = false, preparing = false;
   function fill(text) {   // 本文をペインへ描画し「作成済み」状態にする(表示状態は変えない)
     preparing = false; btn.classList.remove("preparing");
-    pane.innerHTML = ""; renderInspectManual(pane, cleanCite(text)); loaded = true;
+    pane.innerHTML = ""; renderInspectManual(pane, cleanCite(text), cause); loaded = true;
     btn.classList.add("ready");
     if (pane.classList.contains("hidden")) btn.textContent = "📖 点検手引書を開く";
   }
@@ -7803,7 +7806,7 @@ function attachInspectManual(itemDiv, cause) {
       diagGuideCache[cause] = r.text;
       if (typeof stashGuideToRecord === "function") stashGuideToRecord(cause, r.text);   // 履歴レコードにも保存
       pane.innerHTML = "";
-      renderInspectManual(pane, cleanCite(r.text));   // 見出しタップで開閉するアコーディオン形式
+      renderInspectManual(pane, cleanCite(r.text), cause);   // 見出しタップで開閉するアコーディオン形式
       loaded = true; loading = false; btn.classList.add("ready");
     } catch (e) {
       loading = false;
@@ -7861,7 +7864,32 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /* 点検手引書を「見出しタップで開閉するアコーディオン」で描画。
    ■/【】見出しごとに区切り、見出しをタップすると内容が開き、他の見出しを開くと前は閉じる(1つだけ開く)。 */
-function renderInspectManual(container, text) {
+/* 手引書の「交換する部品」をタップ → 修理タブに入れてAIを実行。
+   点検で原因が確定した次の一手(部品の手配・交換手順)まで、打ち直さずに進めるようにする。 */
+let repairQFromGuide = "";   // 手引書から入れた文面。これと一致する間は継ぎ足す(複数部品を1件にまとめる)
+async function sendPartToRepair(part, cause) {
+  const ta = $("qVehText");
+  if (!ta) { uiAlert("修理タブを開けませんでした。"); return; }
+  const add = String(part).trim().replace(/[。、]+$/, "") + "の交換";
+  const cur = ta.value.trim();
+  let next;
+  if (!cur || cur === repairQFromGuide) {
+    // 手引書から入れた分は継ぎ足す(部品を2つ3つタップしたら、まとめて1件の修理として調べる)
+    next = !cur ? add : (cur.indexOf(add) >= 0 ? cur : cur + "、" + add);
+  } else {
+    // 整備士が自分で書いた文が残っている時は黙って消さない
+    const ok = await uiConfirm("修理タブに別の入力が残っています:\n「" + cur + "」\n\n「" + add + "」に置き換えて調べますか？",
+      { title: "修理タブの入力を置き換える", okText: "置き換える" });
+    if (!ok) return;
+    next = add;
+  }
+  ta.value = next; repairQFromGuide = next;
+  switchView("parts");
+  try { autoGrow(ta); } catch (e) {}
+  try { ta.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+  runVehAsk();
+}
+function renderInspectManual(container, text, cause) {
   container.innerHTML = "";
   const clean = String(text || "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "")
     .replace(/([^\n])[ 　]*(■)/g, "$1\n$2");   // 詰まった見出し■だけ改行(保険)
@@ -7881,12 +7909,24 @@ function renderInspectManual(container, text) {
     head.querySelector(".imTitle").textContent = sec.title;
     const body = document.createElement("div"); body.className = "imBody hidden";
     const numbered = /手順|手引|検査|作業/.test(sec.title);   // 点検手順は連番、その他は・で表示
+    // 部品の行はタップで修理へ送る。英語表示では見出しも英語で返るので両方を見る
+    const isParts = (/部品/.test(sec.title) && /交換|手配/.test(sec.title))
+      || /\bparts?\b/i.test(sec.title) && /replac|order/i.test(sec.title);
     let n = 0;
     sec.body.forEach((raw) => {
       let t = raw.trim();
       if (/^\d+[.)]?$/.test(t)) return;                       // 番号だけの行(ゴミ)は捨てる
       t = t.replace(/^(?:\d{1,2}[.)、:：]|[①-⑳]|[・\-*])\s*/, "").trim();   // 先頭の番号/記号を除去
       if (!t) return;
+      if (isParts) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "imPart";
+        b.innerHTML = '<span class="imPartN"></span><span class="imPartGo">🛠 修理で調べる ›</span>';
+        b.querySelector(".imPartN").textContent = t;
+        b.addEventListener("click", () => sendPartToRepair(t, cause));
+        body.appendChild(b);
+        return;
+      }
       const row = document.createElement("div"); row.className = "imRow";
       const mk = document.createElement("span"); mk.className = "imMk";
       if (numbered) { n++; mk.textContent = "↓"; mk.classList.add("num"); } else { mk.textContent = "・"; }
@@ -7916,6 +7956,11 @@ function renderInspectManual(container, text) {
         }
       }
     });
+    if (isParts) {
+      const note = document.createElement("div"); note.className = "imPartNote";
+      note.textContent = "部品をタップすると修理タブで開き、交換手順・同時交換部品・注文リストをメカ君が調べます。";
+      body.appendChild(note);
+    }
     item.append(head, body); container.appendChild(item);
   });
   // 先頭セクションだけ最初から開いておく
@@ -10573,6 +10618,11 @@ const SUPPORT_KB = [
   "【FAINESへの受け渡し】修理タブの下に『📗FAINESで正式な整備手順・品番・トルクを確認』。FAINESは メーカー→車種→型式→年式 と辿るため、そのすぐ上に『FAINESで車両を選ぶときの手がかり』として 車種・型式・年式・原動機型式 をタップでコピーできる形で並べている(車検証を見直さなくてよい)。『打刻』はFAINESの車台番号キーワード検索に使う記号部(例 NKR85)。車両情報はこの1列にまとめてあり、以前あった大きなコピーボタンは型式と二重になるため廃止した。",
   "【診断】DTC(ダイアグコード)を入力、または写真・動画(約30秒まで自動圧縮)を添付。故障診断の内容と結果（考えられる原因の上位）は整備カルテに自動記録される。診断で『追加で相談』して原因候補が組み直されたら、カルテの同じ記録を最新の結果（と追加相談の内容）に更新する（記録は増えない）。修理タブの質問はカルテには自動記録されない（カルテは診断結果と、車検・修理入庫の内容/交換部品を残すためのもの）。複数のDTC・症状は『1つの故障像』に統合し最有力の根本原因を特定。各原因候補には『改善の見込み(高い/中程度/要フォロー)』を色分け表示(実データの統計ではなく一般的な傾向の目安。ターボ/ツインターボ契約はWeb検索で実際の整備事例・技術情報も裏取り)。",
   "【修理】作業名を入れると 取り付け位置/所要時間/部品注文リスト/別途必要な工具(SST・あると便利)/特殊作業/交換手順/締付トルク を表示。各項目はタップで開く折り畳み式。部品名や工具をタップすると楽天/Yahoo!/Amazonの購入リンクがポップアップ。写真・動画添付可。",
+  "【点検手引書→修理の連携】診断の原因候補にある『📖点検手引書』を開くと、最後に『交換する部品』の見出しが出る(v772〜)。" +
+  "その原因だと確定した場合に手配・交換が必要になる部品が1行ずつ並び、タップすると修理タブへ移動して、その部品の交換についてメカ君が自動で調べ始める(交換手順・同時交換部品・工具・注文リスト)。" +
+  "続けて別の部品をタップすると、置き換えではなく入力に継ぎ足され、まとめて1件の修理として調べ直す。同じ部品を二度タップしても増えない。" +
+  "修理タブに整備士が自分で書いた入力が残っている場合は、置き換えてよいか確認してから進む(黙って消さない)。" +
+  "清掃・調整・再結線だけで直る原因では部品が無いので『交換する部品』の見出し自体が出ない。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・作業写真・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。記録には写真も残せる(v769〜)。入力欄の『写真（作業の記録）』で『📷撮る』『📁選ぶ』。作業前後・摩耗や損傷・品番の写しなどを何枚でも。保存時に長辺1000px・1枚150KB目安まで圧縮してから保管し、カルテ本体には置き場所だけを持つ(写真をそのまま記録に入れると数枚で保存できなくなるため)。写真は社内の全端末で見られ、カードの写真をタップすると拡大、『×』で外せる。記録を削除すると写真も一緒に消える。",
   "【申し送り(次回への引き継ぎ)】整備カルテの入力欄に『🔔 次回への申し送り』がある(v770〜)。ここに書いた内容は、次にその車両を読み込んだ時に車両画面の上部へ赤い枠で必ず出る。カルテを開かなくても、スキャンした時点で全員の目に入る。入庫区分(車検/点検/修理/板金)を選ぶポップアップにも同じ内容が出るので、受付の時点で気づける。『次回車検時に』を含む申し送りがある車は、車検満了日と残り日数も一緒に表示する。作業したときの担当者と次の入庫の担当者が違っても引き継がれるのが目的なので、『✓ 対応済みにする』は記入者本人でなくても押せる(カルテの編集権限とは別)。押すと車両画面からは消えるが記録は消えず、カルテにはその申し送りが『✓ 申し送り（対応済み）』として、対応した日付と人の名前付きで残る。申し送りは手で書くほか、手書きメモの写真読み取りと保存時の自動整理でも、『次回〜』『要経過観察』『今回は見送り』等の記述があればメカ君が申し送り欄に振り分ける(書かれていない推奨をAIが作ることはしない)。申し送りを書き換えると未対応に戻る(別の内容になったものを済み扱いにしないため)。未対応の申し送りはAI故障診断にも渡され、今回の症状と関係があれば触れる。※以前はメモ欄に『次回〜』と書く運用だったが、メモは畳まれた日付グループを開かないと見えないため、担当が替わると気づかれなかった。それを解決する機能。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",

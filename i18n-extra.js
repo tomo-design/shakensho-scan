@@ -10,6 +10,12 @@ Object.assign(window.I18N_EXTRA.exact, {
   "メカノAI": "MECHANO-AI",
   "車両整備サポート": "Vehicle maintenance support",
   "エディション": "Edition",
+  // ===== 点検手引書 → 修理の連携 =====
+  "🛠 修理で調べる ›": "🛠 Look up in Repair ›",
+  "部品をタップすると修理タブで開き、交換手順・同時交換部品・注文リストをメカ君が調べます。":
+    "Tap a part to open it in the Repair tab — Mecha will look up the replacement procedure, parts to replace at the same time, and an order list.",
+  "修理タブの入力を置き換える": "Replace what is in the Repair tab",
+  "置き換える": "Replace",
   // ===== 申し送り(次回への引き継ぎ) =====
   "🔔 次回への申し送り": "🔔 Handover for next visit",
   "次回への申し送り": "Handover for next visit",

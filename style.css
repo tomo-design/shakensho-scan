@@ -854,6 +854,15 @@ details[open] > .secSummary::after{content:"▴"}
 .imMk{flex:none;color:var(--dim);font-weight:700;font-size:13px;line-height:1.7;min-width:14px;text-align:center}
 .imMk.num{background:none;color:var(--cyan);border-radius:0;width:auto;height:auto;line-height:1.7;font-size:15px;font-weight:800;min-width:16px}
 .imTx{flex:1;min-width:0;font-size:14px;line-height:1.85;color:var(--txt)}
+/* 手引書「交換する部品」: 1行=1部品のボタン。押すと修理タブでそのまま調べられる */
+.imPart{display:flex;align-items:center;gap:10px;width:100%;margin-top:7px;padding:11px 12px;
+  background:var(--panel);border:1px solid #C9D6E2;border-radius:10px;cursor:pointer;
+  font-family:inherit;text-align:left;color:var(--txt)}
+.imPart:first-child{margin-top:2px}
+.imPart:active{background:#EAEFF4}
+.imPartN{flex:1;min-width:0;font-size:14.5px;font-weight:700;line-height:1.5}
+.imPartGo{flex:none;font-size:11px;font-weight:700;color:#2E4A66;white-space:nowrap}
+.imPartNote{margin-top:9px;font-size:11.5px;line-height:1.7;color:var(--dim)}
 .ai-cause.clk,.flat li.clk{cursor:pointer}
 .ai-cause.clk:active,.flat li.clk:active{opacity:.6}
 .flat li.clk{color:var(--cyan);text-decoration:underline dotted}
