@@ -7676,9 +7676,13 @@ function renderTzDetail(p, ans) {
       off.map(docHtml).join("") + "</details>" : "") +
     (p.tax ? '<div class="tzSec"><div class="tzSecTtl">税の窓口（ここは別の窓口）</div>' +
       '<div class="tzTax"><div class="tzTaxW">' + esc(p.tax.where) + "</div>" +
-      '<ul class="tzTaxD">' + (p.tax.docs || []).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" +
+      ((p.tax.docs && p.tax.docs.length)
+        ? '<ul class="tzTaxD">' + p.tax.docs.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "") +
       '<div class="tzTaxN">' + esc(p.tax.note) + "</div>" +
       (p.tax.pay ? '<div class="tzTaxP">💴 ' + esc(p.tax.pay) + "</div>" : "") +
+      // 廃車の税は登録車と軽で正反対(登録車=月割りで還付、軽=還付なし)。間違えやすいので強く出す
+      (p.tax.refund ? '<div class="tzTaxBack">💰 ' + esc(p.tax.refund) + "</div>" : "") +
+      (p.tax.none ? '<div class="tzTaxNone">⚠ ' + esc(p.tax.none) + "</div>" : "") +
       (p.tax.kenmatagi ? '<div class="tzTaxN">🚚 ' + esc(p.tax.kenmatagi) + "</div>" : "") +
       ((TZ_DB && TZ_DB.taxNote && p.cat === "登録車") ? '<div class="tzTaxOld">' + esc(TZ_DB.taxNote) + "</div>" : "") +
       "</div></div>" : "") +
