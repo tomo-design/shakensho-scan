@@ -7563,6 +7563,7 @@ function renderTzDetail(p) {
       '<span class="tzDocN">' + esc(d.n) + "</span>" +
       (tags ? '<span class="tzTags">' + tags + "</span>" : "") +
       (d.if ? '<div class="tzIf">※ ' + esc(d.if) + "のみ</div>" : "") +
+      (/保管場所(証明|届出)|車庫証明/.test(d.n) ? '<div class="tzDocNote"><a href="#" data-shako="1">🅿 この地域で要るか調べる ›</a></div>' : "") +
       (d.note ? '<div class="tzDocNote">' + esc(d.note) + "</div>" : "") +
       "</span></div>";
   };
@@ -7600,6 +7601,10 @@ function renderTzDetail(p) {
     renderTzDetail(p);
   });
   $("tzReset").addEventListener("click", () => { tzChecked[p.id] = {}; renderTzDetail(p); });
+  box.querySelectorAll("[data-shako]").forEach(a => a.addEventListener("click", ev => {
+    ev.preventDefault(); ev.stopPropagation();   // 行のチェックは動かさずに判定ページへ
+    openShako();
+  }));
   box.querySelectorAll(".tzDoc").forEach(el => el.addEventListener("click", () => {
     const i = el.dataset.d;
     if (on[i]) delete on[i]; else on[i] = true;
@@ -7613,6 +7618,77 @@ document.querySelectorAll("[data-tzcat]").forEach(b => b.addEventListener("click
   document.querySelectorAll("[data-tzcat]").forEach(x => x.classList.toggle("knowTabOn", x === b));
   renderTzList();
 }));
+
+
+/* ===== 車庫証明が要るか =====
+   根拠は1本に定まっている。自動車の保管場所の確保等に関する法律 附則第2項 ＋ 同施行令 附則第2項:
+     「…その区域は、平成十二年六月一日における区域とする。」
+       一 登録車の車庫証明 → 特別区並びに市、町及び別表第一に掲げる村の区域
+       二 軽自動車の保管場所届出 → 特別区及び別表第二に掲げる市の区域
+   どちらの表も短く(村31・市247)、しかも平成12年6月1日時点で固定されているので、
+   市町村合併があっても表自体は変わらない。だからアプリに持てる。
+   逆に「現住所→平成12年の市町村」への変換表は持たない(全国の合併履歴が要り、誤ると
+   窓口で差し戻される)。合併した市町村は警察署で確認、と画面に明示する。 */
+let SHAKO_DB = null;
+async function loadShakoDB() {
+  if (SHAKO_DB) return SHAKO_DB;
+  try { SHAKO_DB = await (await fetch("db/shako.json")).json(); } catch (e) { SHAKO_DB = null; }
+  return SHAKO_DB;
+}
+function openShako() {
+  switchView("tetsuzuki");
+  loadShakoDB().then(() => { toggle("tzListWrap", false); toggle("tzDetail", true); renderShako(); try { window.scrollTo(0, 0); } catch (e) {} });
+}
+function renderShako() {
+  const box = $("tzDetail"); if (!box) return;
+  const db = SHAKO_DB;
+  if (!db) { box.innerHTML = '<div class="tzNone">判定データを読み込めませんでした。</div>'; return; }
+  const prefs = db.kei.map(k => k.pref);
+  box.innerHTML =
+    '<nav class="pageNav"><div class="pnTop">' +
+      '<button class="navBtn" type="button" id="skBack" aria-label="一覧へ戻る">‹</button>' +
+      '<span class="pnTtl pnTtlFixed">判定</span></div></nav>' +
+    '<div class="tzHd"><div class="tzTtl">車庫証明が要るか</div>' +
+      '<div class="tzLead">使用の本拠の位置（車を使う場所）がどこかで決まります。車の持ち主の住所ではありません。</div></div>' +
+    '<div class="skRule"><div class="skRuleT">登録車（普通車・小型車）＝ 車庫証明</div>' +
+      '<div class="skRuleN">特別区・市・町は <b>すべて必要</b>。村は <b>原則 不要</b> で、法令の別表第一にある' + db.mura.length + '村だけ必要です。</div></div>' +
+    '<div class="skRule"><div class="skRuleT">軽自動車 ＝ 保管場所届出</div>' +
+      '<div class="skRuleN">特別区と、法令の別表第二にある市（全国' + db.kei.reduce((a, k) => a + k.cities.length, 0) + '市）だけ <b>必要</b>。それ以外は <b>不要</b> です。</div></div>' +
+    '<div class="skPick"><select id="skPref"><option value="">都道府県を選ぶ…</option>' +
+      prefs.map(p => '<option>' + esc(p) + "</option>").join("") + "</select></div>" +
+    '<div id="skAns"></div>' +
+    '<div class="tzSec"><div class="tzSecTtl">注意</div><ul class="tzNotes">' +
+      db.caution.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul></div>" +
+    '<div class="skLaw"><b>根拠</b>' + esc(db.law.quote) +
+      '<br><a href="' + esc(db.law.url) + '" target="_blank" rel="noopener">' + esc(db.law.name) + "（e-Gov法令検索）</a>" +
+      "（収録 " + esc(db.updated) + " 時点）</div>";
+  $("skBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+  const sel = $("skPref");
+  sel.addEventListener("change", () => renderShakoAns(sel.value));
+  // 読み込み中の車両から都道府県が分かれば先に選んでおく(登録番号の地名ではなく、使用の本拠は分からないので候補まで)
+  renderShakoAns("");
+}
+function renderShakoAns(pref) {
+  const box = $("skAns"); if (!box || !SHAKO_DB) return;
+  if (!pref) { box.innerHTML = '<div class="hint">都道府県を選ぶと、その県で車庫証明・届出が必要になる市町村が出ます。</div>'; return; }
+  const mura = SHAKO_DB.mura.filter(m => m.pref === pref);
+  const kei = (SHAKO_DB.kei.find(k => k.pref === pref) || { cities: [] }).cities;
+  const chips = names => '<div class="skNames">' + names.map(n => '<span class="skName">' + esc(n) + "</span>").join("") + "</div>";
+  box.innerHTML =
+    '<div class="skAns ' + (mura.length ? "need" : "free") + '">' +
+      '<span class="skAnsK">登録車（車庫証明）</span>' +
+      "市・町は必要です。" + (mura.length
+        ? "村のうち、次の" + mura.length + "村も必要です（これ以外の村は不要）。" + chips(mura.map(m => m.gun + " " + m.name))
+        : esc(pref) + "に該当する村はありません。つまり<b>村なら不要</b>です。") +
+    "</div>" +
+    '<div class="skAns ' + (kei.length ? "need" : "free") + '">' +
+      '<span class="skAnsK">軽自動車（保管場所届出）</span>' +
+      (kei.length
+        ? "次の市だけ必要です。これ以外の市町村は不要です。" + chips(kei)
+        : esc(pref) + "には該当する市がありません。つまり<b>県内すべて不要</b>です。") +
+    "</div>";
+}
+$("tzShakoBtn") && $("tzShakoBtn").addEventListener("click", openShako);
 
 const KNOW_SCOPES = { vehicle: "この車両", model: "同じ型式・車種", all: "全車共通" };
 function getKnowAll() {
