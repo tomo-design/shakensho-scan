@@ -2293,6 +2293,8 @@ ol.guide-steps.ai-rank li::before{content:counter(gstep);width:26px;height:26px;
 .vhSpecs dd{margin:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vhCard .match{margin:0;padding:10px 15px 12px;font-size:13px;font-weight:700;color:var(--amber)}
 .vhCard .match:empty{display:none}
+/* 二次元コードから読めていない値(券面OCRの推測)。確定値と同じ顔で見せない */
+.vhUnsure{color:var(--alert)}
 /* 前回からの申し送り。見落とされては意味がないので、車両カードの中で一番目立たせる */
 .vhHo{border-color:#E2C9C2;background:#FFF8F6}
 .vhHo .vhCardTtl{color:var(--alert);border-bottom-color:#F0DCD6;font-size:12px;letter-spacing:.04em}

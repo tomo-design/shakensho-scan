@@ -652,6 +652,7 @@ function parseStructured(codes) {
       const fuel = f[18] || f[f.length - 1];
       if (/^\d{2}$/.test(fuel)) out.fuelCode = fuel;
       out.structured = true;
+      out.code3 = true;   // コード3を実際に組み立てた印(OCR・AIの推測値と区別する)
     }
     // 二次元コード2 (6フィールド): 登録番号・車台番号・原動機型式
     else if (f.length >= 5 && f.length <= 7) {
@@ -719,8 +720,11 @@ function parsePayloads(payloadSet) {
     firstReg: s.firstReg || null,
     kataShitei: s.kataShitei || null,
     structured: !!s.structured,
+    code3: !!s.code3,
     // 二次元コードの項目位置から直接取れた値＝確かな値。推測(ヒューリスティック)より優先する。
-    sure: { type: !!s.type, vin: !!s.vin, engine: !!s.engine, plate: !!s.plate, kataShitei: !!s.kataShitei },
+    // 満了日・初度登録もコード3の決まった位置から取るので確定値に含める(OCRの推測に負けないように)。
+    sure: { type: !!s.type, vin: !!s.vin, engine: !!s.engine, plate: !!s.plate, kataShitei: !!s.kataShitei,
+            expiry: !!s.expiry, firstReg: !!s.firstReg },
     raw: uniq,
   };
 }
@@ -889,6 +893,7 @@ let scanStartAt = 0;   // スキャン開始時刻(開始直後に重い処理�
 function freshAcc() { return { type: null, vin: null, engine: null, plate: null, expiry: null, firstReg: null, kataShitei: null, rid: null, raw: [] }; }
 let acc = freshAcc();
 let accSure = {};   // 二次元コードの項目位置から確定した項目(推測値より強い)
+let accCode3Read = false;   // 二次元コード3を実際に組み立てて読んだか。OCR・AIの推測値では立たない
 function mergeAcc(d) {
   // 読み取り順に依存せず、正しい値を採用する:
   //  ・フィラー(9999999等)は取り込まない  ・既存がフィラーなら実値で上書き
@@ -907,24 +912,38 @@ function mergeAcc(d) {
     if (sure[k]) { if (empty || !accSure[k]) { acc[k] = nv; accSure[k] = true; } continue; }  // 確定値: 推測値なら上書き
     if (empty) acc[k] = nv;                                                 // 推測値: 空いている時だけ
   }
+  if (d.code3) accCode3Read = true;
   if (d.rid && !acc.rid) acc.rid = d.rid;   // 表示中の車両IDを引き継ぐ(同じ車として追記・別レコード化を防ぐ)
   if (d.raw) { const s = new Set(acc.raw); d.raw.forEach(x => x && s.add(x)); acc.raw = [...s]; }
 }
-function accCode3() { return !!(acc.kataShitei || acc.type); } // コード3(指定・類別)を取得済みか
-/* 二次元コード3まで読めたか。有効期間満了日・初度登録・指定類別・型式はすべてこのコードに入っている。 */
-function hasCode3() { return !!(acc.expiry || acc.firstReg || acc.kataShitei); }
+/* 二次元コード3まで読めたか。有効期間満了日・初度登録・指定類別・型式はすべてこのコードに入っている。
+   ★「値が入っているか」で判定してはいけない。満了日・初度登録・指定類別はOCR(券面の文字)からも
+     入ってくるため、コード3を一度も読んでいないのに真になり、スキャンが早期に完了していた。
+     電子車検証は満了日が券面に印刷されないので、そのときOCRが拾うのは別の日付になる。 */
+function hasCode3() { return accCode3Read; }
 /* 読み取り完了。コード2(車台番号・原動機型式)だけで終わらせると有効期間が毎回落ちるので、
    コード3まで揃って初めて「完了」とする。コード3が読めない車検証のために、
    車台番号が取れたあとは下の猶予(CODE3_WAIT_MS)で打ち切る仕組みがあるので止まることはない。 */
 function accComplete() {
   if (!(acc.vin && acc.engine && hasCode3())) return false;
   const st = qrStatus(payloads);
-  if (st.kinds.indexOf(2) >= 0 && st.kinds.indexOf(3) >= 0) return true;   // コード2・3とも組み上がった=確定
-  return st.n === st.solved;                                              // そうでなければ、組み立て前の断片が残る間は完了にしない(推測値で早く終わらせない)
+  // コード2・コード3の両方が組み上がって初めて確定とする。
+  // ★以前はここに「読めた断片が全部組み上がっていれば完了」という逃げ道があった。
+  //   コード2の2個だけを読んだ状態でもこれは成立する(2個読んで2個とも組み上がっている)ので、
+  //   横に5個並ぶうちの2個を読んだ時点で「✓読み取り完了」になり、満了日・初度登録が
+  //   OCRの推測値のまま表示されていた。
+  //   コード3が読めない車検証は、別途 CODE3_WAIT_MS の猶予で打ち切るので止まらない。
+  return st.kinds.indexOf(2) >= 0 && st.kinds.indexOf(3) >= 0;
 }
 const CODE3_WAIT_MS = 4000;   // 新しいQRが読めなくなってから、有効期間(コード3)を待つ時間。QRを読むたびに数え直す(横にずらして読み進める間は終わらせない)
-function accResult() { return { ...acc, rid: acc.rid || null, raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean), qrRaw: [...payloads] }; }
-function resetScan() { payloads.clear(); acc = freshAcc(); accSure = {}; scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null, expiry: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
+function accResult() {
+  return { ...acc, rid: acc.rid || null,
+    raw: acc.raw.length ? acc.raw : [acc.type, acc.engine, acc.vin, acc.plate].filter(Boolean),
+    // 満了日が二次元コード3から取れた値かどうか。OCR・AIの推測値を確定値の顔で見せないため。
+    expirySure: !!accSure.expiry, firstRegSure: !!accSure.firstReg,
+    qrRaw: [...payloads] };
+}
+function resetScan() { payloads.clear(); acc = freshAcc(); accSure = {}; accCode3Read = false; scanComplete = false; scanOkPending = false; tickBusy = false; nativeBusy = false; lastScanProc = 0; lastNewDataAt = Date.now(); lastOcrAt = 0; lastOcrCand = { type: null, vin: null, expiry: null }; if (typeof scanGrace !== "undefined" && scanGrace) { clearTimeout(scanGrace); scanGrace = null; } toggle("scanOK", false); }
 
 $("btnStart").addEventListener("click", startLiveScan);
 /* 再スキャン: 状態を初期化しカメラを開き直す(検出が固まった時の確実な復帰手段) */
@@ -2514,7 +2533,12 @@ function showResult(d, opt = {}) {
   setText("rKata", han(formatKata(d.kataShitei)) || "記載なし");
   // ※ String(Date) をそのまま出していたため「Mon Mar 15 2027 00:00:00 GMT+0900 (日本標準時)」と表示されていた
   const _ex = d.expiry ? fmtYMD(d.expiry) : "";
-  setText("rExpiry", _ex ? _ex + expiryLeftText(d.expiry) : "—"); toggle("rExpiryBox", !!_ex);
+  // 二次元コード3から読めた値でなければ「要確認」を付ける。券面OCRの推測値を、
+  // コードから読んだ確定値と同じ顔で見せると、車検の段取りを誤った日付で組むことになる。
+  const _exNG = !!_ex && d.expirySure === false;
+  setText("rExpiry", _ex ? _ex + expiryLeftText(d.expiry) + (_exNG ? "（要確認）" : "") : "—");
+  { const el = $("rExpiry"); if (el) el.classList.toggle("vhUnsure", _exNG); }
+  toggle("rExpiryBox", !!_ex);
   const _fr = d.firstReg;
   setText("rFirstReg", (_fr && _fr.year) ? (_fr.year + "/" + pad2(_fr.month)) : "—"); toggle("rFirstRegBox", !!(_fr && _fr.year));
   if (typeof renderCopyKata === "function") renderCopyKata();     // 修理タブのコピーを更新
