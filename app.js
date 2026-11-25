@@ -7674,6 +7674,14 @@ function renderTzDetail(p, ans) {
       '<span class="n">' + cond.length + "</span></div>" + cond.map(docHtml).join("") + "</div>" : "") +
     ((ans && off.length) ? '<details class="tzOff"><summary>今回は要らない書類（' + off.length + "件）</summary>" +
       off.map(docHtml).join("") + "</details>" : "") +
+    (p.tax ? '<div class="tzSec"><div class="tzSecTtl">税の窓口（ここは別の窓口）</div>' +
+      '<div class="tzTax"><div class="tzTaxW">' + esc(p.tax.where) + "</div>" +
+      '<ul class="tzTaxD">' + (p.tax.docs || []).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" +
+      '<div class="tzTaxN">' + esc(p.tax.note) + "</div>" +
+      (p.tax.pay ? '<div class="tzTaxP">💴 ' + esc(p.tax.pay) + "</div>" : "") +
+      (p.tax.kenmatagi ? '<div class="tzTaxN">🚚 ' + esc(p.tax.kenmatagi) + "</div>" : "") +
+      ((TZ_DB && TZ_DB.taxNote && p.cat === "登録車") ? '<div class="tzTaxOld">' + esc(TZ_DB.taxNote) + "</div>" : "") +
+      "</div></div>" : "") +
     ((p.notes && p.notes.length) ? '<div class="tzSec"><div class="tzSecTtl">注意</div><ul class="tzNotes">' +
       p.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>" : "") +
     '<div class="tzSec"><div class="tzSecTtl">うちの管轄のメモ</div><div class="tzMemo">' +

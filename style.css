@@ -925,6 +925,14 @@ details[open] > .secSummary::after{content:"▴"}
 .tzTag.who{background:#EAEFF4;color:#2E4A66}
 .tzIf{font-size:11.5px;line-height:1.65;color:#8A3A2E;margin-top:5px}
 .tzDocNote{font-size:11.5px;line-height:1.7;color:var(--dim);margin-top:4px}
+/* 税の窓口(運輸支局とは別) */
+.tzTax{background:#F0ECF4;border:1px solid #DCD2E4;border-radius:11px;padding:12px 13px}
+.tzTaxW{font-size:13px;font-weight:700;line-height:1.7;color:#43365C}
+.tzTaxD{margin:8px 0 0}
+.tzTaxD li{margin-left:17px;font-size:14px;font-weight:700;line-height:1.8;color:#43365C}
+.tzTaxN{margin-top:8px;font-size:12px;line-height:1.75;color:#5C5270}
+.tzTaxP{margin-top:8px;padding:9px 10px;background:#fff;border-radius:8px;font-size:12.5px;line-height:1.75;color:#43365C;font-weight:600}
+.tzTaxOld{margin-top:9px;padding-top:9px;border-top:1px dashed #D5C9DF;font-size:11px;line-height:1.75;color:#7A7088}
 .tzNotes{background:#FFFBF4;border:1px solid #EADFC9;border-radius:11px;padding:11px 13px}
 .tzNotes li{font-size:12.5px;line-height:1.8;color:#5C4B33;margin-left:16px}
 .tzLinks{display:flex;flex-direction:column;gap:7px;margin-top:8px}

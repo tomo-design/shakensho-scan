@@ -20,6 +20,7 @@ Object.assign(window.I18N_EXTRA.exact, {
   "必ず要る書類": "Always required", "条件によって要る書類": "Required in some cases",
   // 質問形式(画面まわりの文言。手続き名・書類名・質問文はDB側で日本語のまま)
   "この条件で要る書類": "Required for this case",
+  "税の窓口（ここは別の窓口）": "Tax counter (a separate counter)",
   "答えた条件": "Your answers", "条件を変える": "Change the answers",
   "質問に答えて絞り込む": "Answer a few questions to narrow this down",
   "すべての書類を表示中（条件で絞っていません）": "Showing every document (not narrowed down)",
