@@ -18,6 +18,13 @@ Object.assign(window.I18N_EXTRA.exact, {
   "🔎 名義変更・住所変更・廃車 などで探す": "🔎 Search: transfer of ownership, address change, deregistration…",
   "登録車": "Registered vehicle", "軽自動車": "Kei vehicle",
   "必ず要る書類": "Always required", "条件によって要る書類": "Required in some cases",
+  // 質問形式(画面まわりの文言。手続き名・書類名・質問文はDB側で日本語のまま)
+  "この条件で要る書類": "Required for this case",
+  "答えた条件": "Your answers", "条件を変える": "Change the answers",
+  "質問に答えて絞り込む": "Answer a few questions to narrow this down",
+  "すべての書類を表示中（条件で絞っていません）": "Showing every document (not narrowed down)",
+  "質問に答えず、すべての書類を見る": "Skip the questions and see every document",
+  "🅿 この地域で要るか判定する ›": "🅿 Check whether it is required in this area ›",
   "どこへ": "Where", "手数料": "Fee", "注意": "Notes",
   "うちの管轄のメモ": "Notes for our local office",
   "管轄の支局・振興会・警察署に確認したこと（車庫証明が要る/要らない、受付時間、様式のクセなど）を書いておくと、社内の全員が次から見られます。聞き直しが要らなくなります。":

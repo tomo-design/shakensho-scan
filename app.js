@@ -7505,7 +7505,7 @@ function tzMemoSave(id, text) {
 }
 function openTetsuzuki() {
   switchView("tetsuzuki");
-  loadTetsuzukiDB().then(() => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+  loadTetsuzukiDB().then(() => { toggle("tzDetail", false); toggle("tzListWrap", true); toggle("tzNav", true); renderTzList(); });
 }
 function renderTzList() {
   const box = $("tzList"); if (!box) return;
@@ -7541,16 +7541,98 @@ function renderTzList() {
 }
 function openTzDetail(id) {
   const p = ((TZ_DB && TZ_DB.procs) || []).find(x => x.id === id); if (!p) return;
-  toggle("tzListWrap", false); toggle("tzDetail", true);
-  renderTzDetail(p);
+  toggle("tzListWrap", false); toggle("tzNav", false); toggle("tzDetail", true);
+  startTzWiz(p);
   try { window.scrollTo(0, 0); } catch (e) {}
 }
-function renderTzDetail(p) {
+
+/* ===== 質問形式 =====
+   条件付きの書類が161行中88行ある。全部並べて「※〜の場合のみ」を読ませるより、
+   先に数問タップしてもらって、その現場で本当に要る書類だけを出すほうが速い。
+   質問はその手続きの書類が参照しているフラグから自動で決まる(余計なことは聞かない)。 */
+let tzWiz = null;   // {p, ans:{flag:bool}, label:{qid:選んだ文言}, step}
+/* この手続きの書類が使っているフラグ */
+function tzFlagsOf(p) {
+  const f = new Set();
+  (p.docs || []).forEach(d => (d.need || []).forEach(x => f.add(x.replace(/^!/, ""))));
+  return f;
+}
+/* この手続きで聞く質問(定義順) */
+function tzQuestionsFor(p) {
+  const used = tzFlagsOf(p);
+  return ((TZ_DB && TZ_DB.questions) || []).filter(q => (q.flags || []).some(x => used.has(x)));
+}
+/* only の前提は「その前提自体をこの手続きで聞く場合」だけ効かせる。
+   例: 新規登録は本拠の変更を聞かない(新しく決める)ので、車庫証明の地域は無条件に聞く。 */
+function tzShouldAsk(q, p, ans) {
+  if (!q.only || !q.only.length) return true;
+  const asked = new Set(tzQuestionsFor(p).map(x => x.id));
+  const flagQ = {};
+  ((TZ_DB && TZ_DB.questions) || []).forEach(x => (x.flags || []).forEach(f => { flagQ[f] = x.id; }));
+  return q.only.every(c => {
+    const neg = c.charAt(0) === "!", k = neg ? c.slice(1) : c;
+    if (!asked.has(flagQ[k])) return true;            // この手続きでは聞かない前提 → 無視する
+    return neg ? ans[k] === false : ans[k] === true;
+  });
+}
+/* 書類が今回要るか。need はANDで、先頭!は否定。need が無ければ必ず要る。 */
+function tzDocNeeded(doc, ans) {
+  if (!doc.need || !doc.need.length) return true;
+  return doc.need.every(c => {
+    const neg = c.charAt(0) === "!", k = neg ? c.slice(1) : c;
+    if (ans[k] === undefined) return false;           // 聞いていない前提は成立しない扱い
+    return neg ? !ans[k] : !!ans[k];
+  });
+}
+function startTzWiz(p) {
+  tzWiz = { p: p, ans: {}, label: {}, step: 0 };
+  renderTzWiz();
+}
+function renderTzWiz() {
+  const box = $("tzDetail"); if (!box || !tzWiz) return;
+  const { p, ans } = tzWiz;
+  const qs = tzQuestionsFor(p).filter(q => tzShouldAsk(q, p, ans));
+  if (tzWiz.step >= qs.length) { renderTzDetail(p, ans); return; }   // 全部答えた → 結果へ
+  const q = qs[tzWiz.step];
+  box.innerHTML =
+    '<nav class="pageNav"><div class="pnTop">' +
+      '<button class="navBtn" type="button" id="tzWizBack" aria-label="戻る">‹</button>' +
+      '<span class="pnTtl pnTtlFixed">' + esc(p.name) + "</span></div></nav>" +
+    '<div class="wzStep">質問 ' + (tzWiz.step + 1) + " / " + Math.max(qs.length, tzQuestionsFor(p).length) + "</div>" +
+    '<div class="wzBar"><i style="width:' + Math.round(((tzWiz.step + 1) / Math.max(qs.length, tzQuestionsFor(p).length)) * 100) + '%"></i></div>' +
+    '<div class="wzQ">' + esc(q.q) + "</div>" +
+    (q.shako ? '<button type="button" class="wzShako" id="wzShako">🅿 この地域で要るか判定する ›</button>' : "") +
+    '<div class="wzOpts">' + q.opts.map((o, i) =>
+      '<button type="button" class="wzOpt" data-o="' + i + '"><span class="wzOptT">' + esc(o.t) + "</span>" +
+      (o.d ? '<span class="wzOptD">' + esc(o.d) + "</span>" : "") + "</button>").join("") + "</div>" +
+    '<div class="tzResetWrap"><button type="button" class="tzReset" id="wzAll">質問に答えず、すべての書類を見る</button></div>';
+  $("tzWizBack").addEventListener("click", () => {
+    if (tzWiz.step > 0) { tzWiz.step--; renderTzWiz(); }
+    else { toggle("tzDetail", false); toggle("tzListWrap", true); toggle("tzNav", true); renderTzList(); }
+  });
+  const sk = $("wzShako"); if (sk) sk.addEventListener("click", openShako);
+  $("wzAll").addEventListener("click", () => renderTzDetail(p, null));
+  box.querySelectorAll(".wzOpt").forEach(b => b.addEventListener("click", () => {
+    const o = q.opts[+b.dataset.o];
+    Object.keys(o.set).forEach(k => { tzWiz.ans[k] = o.set[k]; });
+    tzWiz.label[q.id] = o.t;
+    tzWiz.step++;
+    renderTzWiz();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }));
+}
+/* ans を渡すと「その条件で要る書類」だけを出す。ans=null は従来どおり全部出す。 */
+function renderTzDetail(p, ans) {
   const box = $("tzDetail"); if (!box) return;
   tzChecked[p.id] = tzChecked[p.id] || {};
   const on = tzChecked[p.id];
-  const must = [], cond = [];
-  (p.docs || []).forEach((d, i) => (d.if ? cond : must).push({ d: d, i: i }));
+  const must = [], cond = [], off = [];
+  (p.docs || []).forEach((d, i) => {
+    const x = { d: d, i: i };
+    if (!d.if) { must.push(x); return; }
+    if (!ans) { cond.push(x); return; }
+    (tzDocNeeded(d, ans) ? cond : off).push(x);
+  });
   const docHtml = (x) => {
     const d = x.d;
     const tags = [
@@ -7574,14 +7656,24 @@ function renderTzDetail(p) {
       '<span class="pnTtl pnTtlFixed">' + esc(p.cat) + "</span></div></nav>" +
     '<div class="tzHd"><div class="tzTtl">' + esc(p.name) + "</div>" +
       (p.lead ? '<div class="tzLead">' + esc(p.lead) + "</div>" : "") + "</div>" +
+    // 答えた条件。押せば聞き直せる(違う車・違う条件で使い回せるように)
+    (ans ? '<div class="wzSum"><div class="wzSumT">答えた条件</div><div class="wzSumC">' +
+        Object.keys((tzWiz && tzWiz.label) || {}).map(k => '<span class="wzChip"><i>' +
+            esc(((((TZ_DB && TZ_DB.questions) || []).find(q => q.id === k) || {}).short) || k) + "</i>" +
+            esc(tzWiz.label[k]) + "</span>").join("") +
+        '</div><button type="button" class="wzAgain" id="wzAgain">条件を変える</button></div>'
+      : '<div class="wzSum"><div class="wzSumT">すべての書類を表示中（条件で絞っていません）</div>' +
+        '<button type="button" class="wzAgain" id="wzAgain">質問に答えて絞り込む</button></div>') +
     '<div class="tzMeta">' +
       (p.where ? '<div class="tzMetaRow"><span class="tzMetaK">どこへ</span><span class="tzMetaV">' + esc(p.where) + "</span></div>" : "") +
       (p.fee ? '<div class="tzMetaRow"><span class="tzMetaK">手数料</span><span class="tzMetaV">' + esc(p.fee) + "</span></div>" : "") +
     "</div>" +
     (must.length ? '<div class="tzSec"><div class="tzSecTtl">必ず要る書類<span class="n">' + must.length + "</span></div>" +
       must.map(docHtml).join("") + "</div>" : "") +
-    (cond.length ? '<div class="tzSec"><div class="tzSecTtl">条件によって要る書類<span class="n">' + cond.length + "</span></div>" +
-      cond.map(docHtml).join("") + "</div>" : "") +
+    (cond.length ? '<div class="tzSec"><div class="tzSecTtl">' + (ans ? "この条件で要る書類" : "条件によって要る書類") +
+      '<span class="n">' + cond.length + "</span></div>" + cond.map(docHtml).join("") + "</div>" : "") +
+    ((ans && off.length) ? '<details class="tzOff"><summary>今回は要らない書類（' + off.length + "件）</summary>" +
+      off.map(docHtml).join("") + "</details>" : "") +
     ((p.notes && p.notes.length) ? '<div class="tzSec"><div class="tzSecTtl">注意</div><ul class="tzNotes">' +
       p.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>" : "") +
     '<div class="tzSec"><div class="tzSecTtl">うちの管轄のメモ</div><div class="tzMemo">' +
@@ -7594,13 +7686,14 @@ function renderTzDetail(p) {
       p.links.map(l => '<a class="tzLink" href="' + esc(l.u) + '" target="_blank" rel="noopener">' + esc(l.t) + "</a>").join("") + "</div></div>" : "") +
     '<div class="tzResetWrap"><button type="button" class="tzReset" id="tzReset">チェックを全部外す</button></div>';
   const tx = $("tzMemoTx"); if (tx) tx.value = memo.text || "";
-  $("tzBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+  $("tzBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); toggle("tzNav", true); renderTzList(); });
   $("tzMemoSave").addEventListener("click", () => {
     tzMemoSave(p.id, $("tzMemoTx").value);
     uiAlert("このメモを保存しました。社内の全員が同じ内容を見られます。");
-    renderTzDetail(p);
+    renderTzDetail(p, ans);
   });
-  $("tzReset").addEventListener("click", () => { tzChecked[p.id] = {}; renderTzDetail(p); });
+  $("tzReset").addEventListener("click", () => { tzChecked[p.id] = {}; renderTzDetail(p, ans); });
+  { const a = $("wzAgain"); if (a) a.addEventListener("click", () => { startTzWiz(p); try { window.scrollTo(0, 0); } catch (e) {} }); }
   box.querySelectorAll("[data-shako]").forEach(a => a.addEventListener("click", ev => {
     ev.preventDefault(); ev.stopPropagation();   // 行のチェックは動かさずに判定ページへ
     openShako();
@@ -7637,7 +7730,7 @@ async function loadShakoDB() {
 }
 function openShako() {
   switchView("tetsuzuki");
-  loadShakoDB().then(() => { toggle("tzListWrap", false); toggle("tzDetail", true); renderShako(); try { window.scrollTo(0, 0); } catch (e) {} });
+  loadShakoDB().then(() => { toggle("tzListWrap", false); toggle("tzNav", false); toggle("tzDetail", true); renderShako(); try { window.scrollTo(0, 0); } catch (e) {} });
 }
 function renderShako() {
   const box = $("tzDetail"); if (!box) return;
@@ -7662,7 +7755,7 @@ function renderShako() {
     '<div class="skLaw"><b>根拠</b>' + esc(db.law.quote) +
       '<br><a href="' + esc(db.law.url) + '" target="_blank" rel="noopener">' + esc(db.law.name) + "（e-Gov法令検索）</a>" +
       "（収録 " + esc(db.updated) + " 時点）</div>";
-  $("skBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+  $("skBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); toggle("tzNav", true); renderTzList(); });
   const sel = $("skPref");
   sel.addEventListener("change", () => renderShakoAns(sel.value));
   // 読み込み中の車両から都道府県が分かれば先に選んでおく(登録番号の地名ではなく、使用の本拠は分からないので候補まで)
