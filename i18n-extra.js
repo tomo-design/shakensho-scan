@@ -10,6 +10,23 @@ Object.assign(window.I18N_EXTRA.exact, {
   "メカノAI": "MECHANO-AI",
   "車両整備サポート": "Vehicle maintenance support",
   "エディション": "Edition",
+  // ===== 登録・変更の手続き(必要書類) =====
+  "📑 登録・変更の手続き": "📑 Registration & change procedures",
+  "登録・変更の手続き": "Registration & change procedures",
+  "🔎 名義変更・住所変更・廃車 などで探す": "🔎 Search: transfer of ownership, address change, deregistration…",
+  "登録車": "Registered vehicle", "軽自動車": "Kei vehicle",
+  "必ず要る書類": "Always required", "条件によって要る書類": "Required in some cases",
+  "どこへ": "Where", "手数料": "Fee", "注意": "Notes",
+  "うちの管轄のメモ": "Notes for our local office",
+  "管轄の支局・振興会・警察署に確認したこと（車庫証明が要る/要らない、受付時間、様式のクセなど）を書いておくと、社内の全員が次から見られます。聞き直しが要らなくなります。":
+    "Write down what your local transport branch, trade association or police station told you (whether a parking certificate is needed, counter hours, quirks of the forms). Everyone in the company sees it from then on, so nobody has to ask again.",
+  "メモを保存": "Save note", "公式ページで最新を確認": "Check the official page for the latest",
+  "チェックを全部外す": "Clear all checks",
+  "該当する手続きがありません。": "No matching procedure.",
+  "手続きデータを読み込めませんでした。通信を確認してもう一度開いてください。":
+    "Could not load the procedure data. Check your connection and open it again.",
+  "このメモを保存しました。社内の全員が同じ内容を見られます。":
+    "Note saved. Everyone in the company can see it.",
   // ===== 点検手引書 → 修理の連携 =====
   "🛠 修理で調べる ›": "🛠 Look up in Repair ›",
   "部品をタップすると修理タブで開き、交換手順・同時交換部品・注文リストをメカ君が調べます。":

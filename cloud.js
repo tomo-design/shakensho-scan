@@ -39,7 +39,7 @@
   const show = (id, v) => { const el = $(id); if (el) el.classList.toggle("hidden", !v); };
   let me = null;        // {uid,email}
   let profile = null;   // {tenantId, role, active, devices[], deviceLimit}
-  let unsubVeh = null, unsubRec = null, unsubPlan = null, unsubJoin = null, unsubTenant = null, unsubMembers = null, unsubKnow = null;
+  let unsubVeh = null, unsubRec = null, unsubPlan = null, unsubJoin = null, unsubTenant = null, unsubMembers = null, unsubKnow = null, unsubTz = null;
   let tenantMembers = [];      // 同じ店舗のメンバー名簿(uid/name/nameKana/nameRoma) — カルテ担当者の照合に使用
   let deviceBlocked = false;   // この端末が未許可(制限超過)なら true
   let tenantDoc = null;        // {plan, paidUntil, ...} 店舗の契約状態
@@ -1032,6 +1032,28 @@
       const localKnow = JSON.parse(localStorage.getItem("ss_knowhow") || "[]");
       localKnow.forEach(k => { if (k && k.id) db.collection("tenants").doc(tid).collection("knowhow").doc(String(k.id)).set(k, { merge: true }).catch(() => {}); });
     } catch (e) {}
+    // 手続きの「うちの管轄のメモ」: クラウド→ローカル(ss_tzmemo)。ローカル分は先にアップして共有。
+    //   支局・振興会・警察署に確認した内容を1人が書けば、社内の全員が見られるようにする。
+    try {
+      const localTz = JSON.parse(localStorage.getItem("ss_tzmemo") || "{}") || {};
+      Object.keys(localTz).forEach(k => {
+        const m = localTz[k]; if (!m) return;
+        db.collection("tenants").doc(tid).collection("tetsuzukiMemo").doc(String(k)).set(m, { merge: true }).catch(() => {});
+      });
+    } catch (e) {}
+    unsubTz = db.collection("tenants").doc(tid).collection("tetsuzukiMemo").onSnapshot(snap => {
+      try {
+        let cur = {};
+        try { cur = JSON.parse(localStorage.getItem("ss_tzmemo") || "{}") || {}; } catch (e) { cur = {}; }
+        snap.forEach(dd => {
+          const m = dd.data(); if (!m) return;
+          m.id = dd.id;
+          const l = cur[m.id];
+          if (!l || (m.at || 0) >= (l.at || 0)) { if (m.text) cur[m.id] = m; else delete cur[m.id]; }
+        });
+        localStorage.setItem("ss_tzmemo", JSON.stringify(cur));
+      } catch (e) {}
+    }, err => {});
     unsubKnow = db.collection("tenants").doc(tid).collection("knowhow").onSnapshot(snap => {
       try {
         let ks = [];
@@ -1054,7 +1076,7 @@
       } catch (e) {}
     }, err => {});
   }
-  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubPlan) { unsubPlan(); unsubPlan = null; } if (unsubKnow) { unsubKnow(); unsubKnow = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } if (unsubMembers) { unsubMembers(); unsubMembers = null; } tenantMembers = []; }
+  function stopSync() { if (unsubVeh) { unsubVeh(); unsubVeh = null; } if (unsubRec) { unsubRec(); unsubRec = null; } if (unsubPlan) { unsubPlan(); unsubPlan = null; } if (unsubKnow) { unsubKnow(); unsubKnow = null; } if (unsubTz) { unsubTz(); unsubTz = null; } if (unsubJoin) { unsubJoin(); unsubJoin = null; } if (unsubTenant) { unsubTenant(); unsubTenant = null; } if (unsubMembers) { unsubMembers(); unsubMembers = null; } tenantMembers = []; }
 
   /* 店舗メンバー名簿を購読(有効メンバーのみ)。カルテ担当者名→メンバー特定に使う。 */
   function startMembersWatch(tid) {
@@ -1421,6 +1443,12 @@
     deleteKnow(id) {
       if (!this.active || !id) return;
       db.collection("tenants").doc(profile.tenantId).collection("knowhow").doc(String(id)).set({ deleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    },
+    // 手続きの「うちの管轄のメモ」の共有: tenants/{tid}/tetsuzukiMemo/{手続きID}
+    pushTetsuzukiMemo(m) {
+      if (!this.active || !m || !m.id) return;
+      db.collection("tenants").doc(profile.tenantId).collection("tetsuzukiMemo").doc(String(m.id))
+        .set(m, { merge: true }).catch(() => {});
     },
     // 入庫予定(カレンダー)の共有: tenants/{tid}/intakePlans/{id}
     savePlan(p) {

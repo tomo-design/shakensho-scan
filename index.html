@@ -122,6 +122,7 @@
   <div class="linkrow" id="fallbackLinks">
     <button class="textlink" id="lnkShowPlate" type="button">🔎 車両検索</button>
     <button class="textlink" id="lnkShowManual" type="button">✎ 手入力</button>
+    <button class="textlink" id="lnkShowTetsuzuki" type="button">📑 登録・変更の手続き</button>
   </div>
   <button type="button" id="lastVehicle" class="lastVeh hidden"></button>
 
@@ -247,6 +248,8 @@
           <button class="btn btn-amber" id="btnVidSave">保存</button>
           <button class="btn btn-ghost" id="btnVidCancel" style="flex:0 0 28%">取消</button>
         </div>
+        <!-- 読み取った値が違っていた時に、現物のQRの中身をそのまま報告できるようにする -->
+        <button type="button" class="textlink" id="btnCopyQrRaw" style="margin-top:10px">🔎 QR生データをコピー（不具合報告用）</button>
       </div></section>
     </div>
 
@@ -573,6 +576,31 @@
 </div>
 
 <!-- ============ VIEW: DB EDIT ============ -->
+<!-- 登録・変更の手続き(必要書類)。名義変更・新規登録・抹消など。
+     書類一覧は全国共通の内容を内蔵し、地域ごとの事情は工場が自分で書き足す。 -->
+<div id="view-tetsuzuki" class="view">
+  <nav class="pageNav">
+    <div class="pnTop">
+      <button class="navBtn navBack" data-go="scan" aria-label="ホームへ戻る">‹</button>
+      <span class="pnTtl pnTtlFixed">登録・変更の手続き</span>
+      <span class="pnCount" id="tzCount"></span>
+    </div>
+  </nav>
+  <div id="tzListWrap">
+    <div class="knowFilter">
+      <input type="search" id="tzSearch" placeholder="🔎 名義変更・住所変更・廃車 などで探す">
+      <div class="knowTabs">
+        <button type="button" class="knowTab knowTabOn" data-tzcat="">すべて</button>
+        <button type="button" class="knowTab" data-tzcat="登録車">登録車</button>
+        <button type="button" class="knowTab" data-tzcat="軽自動車">軽自動車</button>
+      </div>
+    </div>
+    <div id="tzList"></div>
+    <div class="hint" id="tzSrc"></div>
+  </div>
+  <div id="tzDetail" class="hidden"></div>
+</div>
+
 <div id="view-know" class="view">
   <nav class="pageNav">
     <div class="pnTop">

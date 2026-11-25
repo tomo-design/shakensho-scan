@@ -7449,6 +7449,147 @@ function renderAccExportStat() {
    店舗にログイン中は tenants/{tid}/knowhow で共有(他の整備士の知見も使える)。
    ========================================================= */
 const LS_KNOW = "ss_knowhow";
+
+/* ===== 登録・変更の手続き（必要書類） =====
+   名義変更・新規登録・抹消などの必要書類は、道路運送車両法に基づく全国共通の内容。
+   国交省の登録ポータルにも軽自動車検査協会にも「都道府県で必要書類が異なる」という
+   記載は無い。地域で変わるのは次の3つだけ:
+     ①車庫証明(保管場所届出)の適用地域  ②管轄の窓口  ③自動車税の窓口
+   そこで書類一覧は db/tetsuzuki.json に内蔵し、地域ごとの事情(うちの管轄ではこう言われた)は
+   工場が自分で書き足して社内で共有する。振興会への電話を毎回やり直さなくて済むようにする。 */
+let TZ_DB = null;
+let tzCat = "";            // 絞り込み中の区分
+let tzChecked = {};        // {procId: {docIndex: true}} 揃えた書類のチェック。端末内・再読み込みで消える
+const LS_TZ_MEMO = "ss_tzmemo";   // 自社メモ(地域の事情)。社内共有もする
+
+async function loadTetsuzukiDB() {
+  if (TZ_DB) return TZ_DB;
+  try { TZ_DB = await (await fetch("db/tetsuzuki.json")).json(); } catch (e) { TZ_DB = null; }
+  return TZ_DB;
+}
+/* 自社メモ: {procId: {text, by, at}} 。社内共有はクラウド側(Cloud.pushTetsuzukiMemo)に任せる */
+function tzMemos() {
+  try { return JSON.parse(localStorage.getItem(LS_TZ_MEMO) || "{}") || {}; } catch (e) { return {}; }
+}
+function tzMemoSave(id, text) {
+  const all = tzMemos();
+  const rec = { id: id, text: String(text || "").trim(),
+    by: (window.Cloud && window.Cloud.myName && window.Cloud.myName()) || "", at: Date.now() };
+  if (!rec.text) delete all[id]; else all[id] = rec;
+  localStorage.setItem(LS_TZ_MEMO, JSON.stringify(all));
+  if (window.Cloud && window.Cloud.pushTetsuzukiMemo) { try { window.Cloud.pushTetsuzukiMemo(rec); } catch (e) {} }
+}
+function openTetsuzuki() {
+  switchView("tetsuzuki");
+  loadTetsuzukiDB().then(() => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+}
+function renderTzList() {
+  const box = $("tzList"); if (!box) return;
+  const q = han(($("tzSearch") || {}).value || "").trim().toLowerCase();
+  const all = (TZ_DB && TZ_DB.procs) || [];
+  const list = all.filter(p => {
+    if (tzCat && p.cat !== tzCat) return false;
+    if (!q) return true;
+    const hay = [p.name, p.lead, p.cat].concat(p.kw || []).join(" ").toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+  setText("tzCount", all.length ? "（" + list.length + "件）" : "");
+  const src = $("tzSrc");
+  if (src) {
+    src.innerHTML = !TZ_DB ? "" :
+      esc(TZ_DB.note || "") + "<br>出典: " + (TZ_DB.src || []).map(x =>
+        '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.t) + "</a>").join(" ／ ") +
+      "（収録 " + esc(String(TZ_DB.updated || "")) + " 時点）";
+  }
+  if (!all.length) { box.innerHTML = '<div class="tzNone">手続きデータを読み込めませんでした。通信を確認してもう一度開いてください。</div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="tzNone">該当する手続きがありません。</div>'; return; }
+  box.innerHTML = "";
+  list.forEach(p => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "tzRow";
+    b.innerHTML = '<span class="tzCat' + (p.cat === "軽自動車" ? " kei" : "") + '">' + esc(p.cat) + '</span>' +
+      '<span class="tzRowMain"><span class="tzRowN"></span><span class="tzRowL"></span></span><span class="tzArr">›</span>';
+    b.querySelector(".tzRowN").textContent = p.name;
+    b.querySelector(".tzRowL").textContent = p.lead || "";
+    b.addEventListener("click", () => openTzDetail(p.id));
+    box.appendChild(b);
+  });
+}
+function openTzDetail(id) {
+  const p = ((TZ_DB && TZ_DB.procs) || []).find(x => x.id === id); if (!p) return;
+  toggle("tzListWrap", false); toggle("tzDetail", true);
+  renderTzDetail(p);
+  try { window.scrollTo(0, 0); } catch (e) {}
+}
+function renderTzDetail(p) {
+  const box = $("tzDetail"); if (!box) return;
+  tzChecked[p.id] = tzChecked[p.id] || {};
+  const on = tzChecked[p.id];
+  const must = [], cond = [];
+  (p.docs || []).forEach((d, i) => (d.if ? cond : must).push({ d: d, i: i }));
+  const docHtml = (x) => {
+    const d = x.d;
+    const tags = [
+      d.who ? '<span class="tzTag who">' + esc(d.who) + "</span>" : "",
+      d.seal ? '<span class="tzTag seal">' + esc(d.seal) + "</span>" : "",
+      d.valid ? '<span class="tzTag valid">' + esc(d.valid) + "</span>" : "",
+    ].filter(Boolean).join("");
+    return '<div class="tzDoc' + (on[x.i] ? " on" : "") + '" data-d="' + x.i + '">' +
+      '<span class="tzBox">✓</span><span class="tzDocBody">' +
+      '<span class="tzDocN">' + esc(d.n) + "</span>" +
+      (tags ? '<span class="tzTags">' + tags + "</span>" : "") +
+      (d.if ? '<div class="tzIf">※ ' + esc(d.if) + "のみ</div>" : "") +
+      (d.note ? '<div class="tzDocNote">' + esc(d.note) + "</div>" : "") +
+      "</span></div>";
+  };
+  const memo = tzMemos()[p.id] || {};
+  box.innerHTML =
+    '<nav class="pageNav"><div class="pnTop">' +
+      '<button class="navBtn" type="button" id="tzBack" aria-label="一覧へ戻る">‹</button>' +
+      '<span class="pnTtl pnTtlFixed">' + esc(p.cat) + "</span></div></nav>" +
+    '<div class="tzHd"><div class="tzTtl">' + esc(p.name) + "</div>" +
+      (p.lead ? '<div class="tzLead">' + esc(p.lead) + "</div>" : "") + "</div>" +
+    '<div class="tzMeta">' +
+      (p.where ? '<div class="tzMetaRow"><span class="tzMetaK">どこへ</span><span class="tzMetaV">' + esc(p.where) + "</span></div>" : "") +
+      (p.fee ? '<div class="tzMetaRow"><span class="tzMetaK">手数料</span><span class="tzMetaV">' + esc(p.fee) + "</span></div>" : "") +
+    "</div>" +
+    (must.length ? '<div class="tzSec"><div class="tzSecTtl">必ず要る書類<span class="n">' + must.length + "</span></div>" +
+      must.map(docHtml).join("") + "</div>" : "") +
+    (cond.length ? '<div class="tzSec"><div class="tzSecTtl">条件によって要る書類<span class="n">' + cond.length + "</span></div>" +
+      cond.map(docHtml).join("") + "</div>" : "") +
+    ((p.notes && p.notes.length) ? '<div class="tzSec"><div class="tzSecTtl">注意</div><ul class="tzNotes">' +
+      p.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>" : "") +
+    '<div class="tzSec"><div class="tzSecTtl">うちの管轄のメモ</div><div class="tzMemo">' +
+      '<div class="tzMemoHint">管轄の支局・振興会・警察署に確認したこと（車庫証明が要る/要らない、受付時間、様式のクセなど）を書いておくと、社内の全員が次から見られます。聞き直しが要らなくなります。</div>' +
+      '<textarea id="tzMemoTx" placeholder="例: 当支局は代理申請でも新所有者の委任状は原本必須。車庫証明は◯◯町は不要と回答あり（2026-11）"></textarea>' +
+      '<div class="tzBtns"><button type="button" class="btn btn-amber btn-sm" id="tzMemoSave">メモを保存</button></div>' +
+      (memo.at ? '<div class="tzMemoBy">最終更新: ' + esc(fmtYMD(new Date(memo.at))) + (memo.by ? " ／ " + esc(han(memo.by)) : "") + "</div>" : "") +
+    "</div></div>" +
+    ((p.links && p.links.length) ? '<div class="tzSec"><div class="tzSecTtl">公式ページで最新を確認</div><div class="tzLinks">' +
+      p.links.map(l => '<a class="tzLink" href="' + esc(l.u) + '" target="_blank" rel="noopener">' + esc(l.t) + "</a>").join("") + "</div></div>" : "") +
+    '<div class="tzResetWrap"><button type="button" class="tzReset" id="tzReset">チェックを全部外す</button></div>';
+  const tx = $("tzMemoTx"); if (tx) tx.value = memo.text || "";
+  $("tzBack").addEventListener("click", () => { toggle("tzDetail", false); toggle("tzListWrap", true); renderTzList(); });
+  $("tzMemoSave").addEventListener("click", () => {
+    tzMemoSave(p.id, $("tzMemoTx").value);
+    uiAlert("このメモを保存しました。社内の全員が同じ内容を見られます。");
+    renderTzDetail(p);
+  });
+  $("tzReset").addEventListener("click", () => { tzChecked[p.id] = {}; renderTzDetail(p); });
+  box.querySelectorAll(".tzDoc").forEach(el => el.addEventListener("click", () => {
+    const i = el.dataset.d;
+    if (on[i]) delete on[i]; else on[i] = true;
+    el.classList.toggle("on", !!on[i]);
+  }));
+}
+$("lnkShowTetsuzuki") && $("lnkShowTetsuzuki").addEventListener("click", openTetsuzuki);
+$("tzSearch") && $("tzSearch").addEventListener("input", renderTzList);
+document.querySelectorAll("[data-tzcat]").forEach(b => b.addEventListener("click", () => {
+  tzCat = b.dataset.tzcat || "";
+  document.querySelectorAll("[data-tzcat]").forEach(x => x.classList.toggle("knowTabOn", x === b));
+  renderTzList();
+}));
+
 const KNOW_SCOPES = { vehicle: "この車両", model: "同じ型式・車種", all: "全車共通" };
 function getKnowAll() {
   try { const a = JSON.parse(localStorage.getItem(LS_KNOW) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
@@ -10623,6 +10764,15 @@ const SUPPORT_KB = [
   "続けて別の部品をタップすると、置き換えではなく入力に継ぎ足され、まとめて1件の修理として調べ直す。同じ部品を二度タップしても増えない。" +
   "修理タブに整備士が自分で書いた入力が残っている場合は、置き換えてよいか確認してから進む(黙って消さない)。" +
   "清掃・調整・再結線だけで直る原因では部品が無いので『交換する部品』の見出し自体が出ない。",
+  "【登録・変更の手続き（必要書類）】ホームの『📑 登録・変更の手続き』から開く(v773〜)。" +
+  "登録車8件(移転登録＝名義変更／変更登録＝住所・氏名／新規登録 新車・中古車／一時抹消／永久抹消＝解体／解体届出／継続検査)と、" +
+  "軽自動車7件(名義変更／住所変更／新規検査 新車・中古車／検査証返納届＝一時使用中止／解体返納／継続検査)を収録。" +
+  "各手続きで『必ず要る書類』と『条件によって要る書類』を分けて表示し、誰のものか・実印か・有効期限(印鑑証明は3ヶ月以内、車庫証明は概ね1ヶ月以内 等)・どんな条件のときに要るかまで出る。" +
+  "書類の行はタップでチェックでき、窓口へ行く前に揃えながら潰せる(チェックは端末内のみ・再読み込みで消える)。どこへ出すか・手数料・注意点・公式ページへのリンクも付く。" +
+  "必要書類は道路運送車両法に基づく全国共通の内容で、国土交通省の登録ポータルにも軽自動車検査協会にも『都道府県で必要書類が異なる』という記載は無い。" +
+  "地域で変わるのは①車庫証明(保管場所届出)の適用地域②管轄の窓口③自動車税の窓口の3つ。" +
+  "車庫証明の適用地域はアプリでは判定しない(市区町村ごとに決まり、誤ると窓口で差し戻されるため)。管轄の警察署で確認する。" +
+  "確認した結果は各手続きの『うちの管轄のメモ』に書いておくと社内の全員が見られる(整備振興会や支局への聞き直しが不要になる)。出典と収録時点も画面に表示している。",
   "【整備カルテ】作業記録を残す。『📷写真で入力』はアウトカメラで直接撮影、『📁写真フォルダ』は撮影済みの伝票・メモ写真をギャラリーから複数選択。どちらも何枚でも追加・自動圧縮、AIが手書きメモを読み取り各項目に整理。記録は『作業ごと』にまとめて表示する(作業名の下に、その作業で使った部品を数量付きで並べる)。どの作業の分か紙から判断できない部品や、車検キットのような共通の物は『その他の部品・材料』へまとめる(推測で結び付けない)。古い記録や対応を付けられなかった記録は従来どおり『作業』『部品』の2本立てで表示され、カード下の『🧩作業ごとにまとめ直す』で後からでもまとめ直せる。カルテの『交換部品・使用材料』欄に油脂類を量付きで書いて保存すると(例:エンジンオイル 4.5L)、その実績量がメンテ諸元に自動反映(緑で確定)。担当者に指定された本人が編集権限を持ち、担当者変更で編集権限も移る(苗字/名前・漢字/カナ/かな/ローマ字で本人特定)。手書き書類の写真に作業ごとの点数が書かれていれば、その点数も作業と一緒に読み取って保存する(『記載』と表示。AIが点数を推測して付けることはしない。点数が無ければ従来どおり作業・部品・数量だけを保存)。『＋ 作業点数を記入』で手入力もでき、点単価(円/点)を入れると合計点数から工賃を計算(点単価と店名は端末に記憶)。カルテ各件の『🖨印刷』で、見出し・車両情報・作業(点数/工賃)・部品・作業写真・備考・確認欄を整えたA4の整備作業明細書を印刷/PDF保存できる。記録には写真も残せる(v769〜)。入力欄の『写真（作業の記録）』で『📷撮る』『📁選ぶ』。作業前後・摩耗や損傷・品番の写しなどを何枚でも。保存時に長辺1000px・1枚150KB目安まで圧縮してから保管し、カルテ本体には置き場所だけを持つ(写真をそのまま記録に入れると数枚で保存できなくなるため)。写真は社内の全端末で見られ、カードの写真をタップすると拡大、『×』で外せる。記録を削除すると写真も一緒に消える。",
   "【申し送り(次回への引き継ぎ)】整備カルテの入力欄に『🔔 次回への申し送り』がある(v770〜)。ここに書いた内容は、次にその車両を読み込んだ時に車両画面の上部へ赤い枠で必ず出る。カルテを開かなくても、スキャンした時点で全員の目に入る。入庫区分(車検/点検/修理/板金)を選ぶポップアップにも同じ内容が出るので、受付の時点で気づける。『次回車検時に』を含む申し送りがある車は、車検満了日と残り日数も一緒に表示する。作業したときの担当者と次の入庫の担当者が違っても引き継がれるのが目的なので、『✓ 対応済みにする』は記入者本人でなくても押せる(カルテの編集権限とは別)。押すと車両画面からは消えるが記録は消えず、カルテにはその申し送りが『✓ 申し送り（対応済み）』として、対応した日付と人の名前付きで残る。申し送りは手で書くほか、手書きメモの写真読み取りと保存時の自動整理でも、『次回〜』『要経過観察』『今回は見送り』等の記述があればメカ君が申し送り欄に振り分ける(書かれていない推奨をAIが作ることはしない)。申し送りを書き換えると未対応に戻る(別の内容になったものを済み扱いにしないため)。未対応の申し送りはAI故障診断にも渡され、今回の症状と関係があれば触れる。※以前はメモ欄に『次回〜』と書く運用だったが、メモは畳まれた日付グループを開かないと見えないため、担当が替わると気づかれなかった。それを解決する機能。",
   "【会社共有・参加】契約店舗は車両・カルテを全端末で共有。メンバーは代表管理者の承認で参加(設定→クラウド同期→『会社に参加』でメール・パスワード・事業所IDを入力→承認待ち)。1人2端末まで。代表管理者は複数人指名できる(メンバー管理→『代表者に』)。",

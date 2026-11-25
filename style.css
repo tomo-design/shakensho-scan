@@ -854,6 +854,64 @@ details[open] > .secSummary::after{content:"▴"}
 .imMk{flex:none;color:var(--dim);font-weight:700;font-size:13px;line-height:1.7;min-width:14px;text-align:center}
 .imMk.num{background:none;color:var(--cyan);border-radius:0;width:auto;height:auto;line-height:1.7;font-size:15px;font-weight:800;min-width:16px}
 .imTx{flex:1;min-width:0;font-size:14px;line-height:1.85;color:var(--txt)}
+/* ===== 登録・変更の手続き(必要書類) ===== */
+.tzRow{display:flex;align-items:center;gap:10px;width:100%;margin-top:8px;padding:13px 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer;
+  font-family:inherit;text-align:left;color:var(--txt)}
+.tzRow:active{border-color:var(--amber)}
+.tzRowMain{flex:1;min-width:0}
+.tzRowN{font-size:14.5px;font-weight:700;line-height:1.45}
+.tzRowL{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:3px}
+.tzCat{flex:none;font-size:10px;font-weight:700;border-radius:6px;padding:3px 7px;background:#EAEFF4;color:#2E4A66}
+.tzCat.kei{background:#E9F1EE;color:#35584D}
+.tzArr{flex:none;color:var(--amber);font-family:'Chakra Petch',monospace}
+.tzNone{padding:18px 4px;text-align:center;font-size:12.5px;color:#A8A299}
+/* 詳細 */
+.tzHd{margin-bottom:10px}
+.tzTtl{font-size:19px;font-weight:800;line-height:1.4;margin:2px 0 6px}
+.tzLead{font-size:13px;line-height:1.75;color:#44443F}
+.tzMeta{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tzMetaRow{display:flex;gap:11px;padding:11px 13px;border-top:1px solid #F3F1EC;font-size:13px;line-height:1.7}
+.tzMetaRow:first-child{border-top:0}
+.tzMetaK{flex:none;width:58px;font-size:11px;font-weight:700;color:#8C877D;padding-top:3px}
+.tzMetaV{flex:1;min-width:0;color:#44443F}
+.tzSec{margin-top:16px}
+.tzSecTtl{font-size:11px;font-weight:700;letter-spacing:.07em;color:#8C877D;margin:0 2px 8px;
+  display:flex;align-items:center;gap:7px}
+.tzSecTtl .n{background:#F1EFEA;border-radius:9px;padding:1px 7px;font-size:10px;color:#5C574E}
+/* 書類1行 = チェックできる行。窓口へ行く前に揃えながら潰せるように */
+.tzDoc{display:flex;gap:11px;padding:11px 13px;background:var(--panel);border:1px solid var(--line);
+  border-radius:11px;margin-bottom:7px;cursor:pointer}
+.tzDoc.on{background:#F4F6F4;border-color:#CFDCD5}
+.tzBox{flex:none;width:21px;height:21px;border-radius:6px;border:2px solid #CFCCC4;background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent;margin-top:1px}
+.tzDoc.on .tzBox{background:var(--ok);border-color:var(--ok);color:#fff}
+.tzDocBody{flex:1;min-width:0}
+.tzDocN{font-size:14px;font-weight:700;line-height:1.55}
+.tzDoc.on .tzDocN{color:var(--dim)}
+.tzTags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.tzTag{font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 7px;background:#F1EFEA;color:#5C574E}
+.tzTag.seal{background:#F6E9E6;color:#8A3A2E}
+.tzTag.valid{background:#F5EDE4;color:#74512C}
+.tzTag.who{background:#EAEFF4;color:#2E4A66}
+.tzIf{font-size:11.5px;line-height:1.65;color:#8A3A2E;margin-top:5px}
+.tzDocNote{font-size:11.5px;line-height:1.7;color:var(--dim);margin-top:4px}
+.tzNotes{background:#FFFBF4;border:1px solid #EADFC9;border-radius:11px;padding:11px 13px}
+.tzNotes li{font-size:12.5px;line-height:1.8;color:#5C4B33;margin-left:16px}
+.tzLinks{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+.tzLink{display:block;padding:11px 13px;background:var(--panel);border:1px solid var(--line);
+  border-radius:11px;font-size:13px;font-weight:600;color:#2E4A66;text-decoration:none}
+.tzLink::after{content:" ›"}
+/* 自社メモ(地域の事情) */
+.tzMemo{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+.tzMemo textarea{width:100%;min-height:76px;font-family:inherit;font-size:13.5px;line-height:1.75;
+  border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:var(--panel2);resize:vertical}
+.tzMemoHint{font-size:11.5px;line-height:1.7;color:var(--dim);margin-bottom:8px}
+.tzMemoBy{font-size:11px;color:var(--dim);margin-top:7px}
+.tzBtns{display:flex;gap:8px;margin-top:9px}
+.tzResetWrap{margin-top:14px;text-align:center}
+.tzReset{background:none;border:0;font-family:inherit;font-size:12px;color:var(--dim);
+  text-decoration:underline;cursor:pointer;padding:6px}
 /* 手引書「交換する部品」: 1行=1部品のボタン。押すと修理タブでそのまま調べられる */
 .imPart{display:flex;align-items:center;gap:10px;width:100%;margin-top:7px;padding:11px 12px;
   background:var(--panel);border:1px solid #C9D6E2;border-radius:10px;cursor:pointer;
