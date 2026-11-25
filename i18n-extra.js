@@ -12,6 +12,8 @@ Object.assign(window.I18N_EXTRA.exact, {
   "エディション": "Edition",
   // ===== 登録・変更の手続き(必要書類) =====
   "📑 登録・変更の手続き": "📑 Registration & change procedures",
+  "名義変更・新規登録・廃車の必要書類／車庫証明が要るかの判定":
+    "Documents for transfer of ownership, new registration and deregistration / whether a parking certificate is required",
   "登録・変更の手続き": "Registration & change procedures",
   "🔎 名義変更・住所変更・廃車 などで探す": "🔎 Search: transfer of ownership, address change, deregistration…",
   "登録車": "Registered vehicle", "軽自動車": "Kei vehicle",

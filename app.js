@@ -2511,7 +2511,7 @@ function showResult(d, opt = {}) {
   // フォールバックUI・スキャン進捗は畳む。次の撮影は新しい車両として開始
   foldEntryAreas();
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
-  toggle("fallbackLinks", false);   // 車両表示中はホームの入口を出さない
+  toggle("fallbackLinks", false); toggle("lnkShowTetsuzuki", false);   // 車両表示中はホームの入口を出さない
   scanComplete = true;
   // 保存済みの使用者名を表示
   const histEntry = findHistEntry(getHistory(), d);
@@ -10357,7 +10357,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
         goHome(); showToast("車検証をスキャンすると、ここに車両が出ます"); return;
       }
       switchView(["maint", "diag", "parts", "karte"].includes(lastVehPage) ? lastVehPage : "scan");
-      toggle("mechaHero", false); toggle("fallbackLinks", false); toggle("result", true);
+      toggle("mechaHero", false); toggle("fallbackLinks", false); toggle("lnkShowTetsuzuki", false); toggle("result", true);
       toggle("lastVehicle", false);   // 「前回の車両」はホームだけに出す
       try { renderHomeIntake(); } catch (e) {}   // 車両を見ている間は「現在の入庫状況」を出さない
       syncTabHighlight();
@@ -10474,7 +10474,7 @@ function goHome() {
   toggle("scanProgress", false); toggle("scanActions", false); toggle("qrPhotoStatus", false);
   toggle("btnStart", true); toggle("btnStop", false); toggle("btnStopRow", false);
   document.body.classList.remove("scanningNow");
-  toggle("fallbackLinks", true);
+  toggle("fallbackLinks", true); toggle("lnkShowTetsuzuki", true);
   // ホームへ戻る際、閲覧中だった車両を「前回の車両」にする。
   // 診断/修理の作業内容は保存しておき、チップから開き直したとき復元できるようにする。
   if (current && (current.type || current.vin || current.kataShitei)) {

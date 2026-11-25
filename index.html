@@ -122,7 +122,6 @@
   <div class="linkrow" id="fallbackLinks">
     <button class="textlink" id="lnkShowPlate" type="button">🔎 車両検索</button>
     <button class="textlink" id="lnkShowManual" type="button">✎ 手入力</button>
-    <button class="textlink" id="lnkShowTetsuzuki" type="button">📑 登録・変更の手続き</button>
   </div>
   <button type="button" id="lastVehicle" class="lastVeh hidden"></button>
 
@@ -160,6 +159,17 @@
     <div id="ibList" class="ibList"></div>
     <div id="ibDetail" class="ibDetail"></div>
   </section>
+
+  <!-- 登録・変更の手続き。読み取りの入口とは性格が違う(読み取りと無関係に使う調べ物)ので、
+       フォールバックの列から独立したカードに分けている。 -->
+  <button type="button" id="lnkShowTetsuzuki" class="homeTool">
+    <span class="htIco">📑</span>
+    <span class="htBody">
+      <span class="htT">登録・変更の手続き</span>
+      <span class="htD">名義変更・新規登録・廃車の必要書類／車庫証明が要るかの判定</span>
+    </span>
+    <span class="htArr">›</span>
+  </button>
 
   <div id="plateArea" class="hidden">
     <section>
