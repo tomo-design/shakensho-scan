@@ -137,12 +137,18 @@
   }
   /* 店舗のお支払い(月額) — 折り畳み。代表管理者のみ表示。決済リンクは後で差し込む。 */
   let planCycle = "month";   // 契約・プラン画面の支払い間隔(月額/年契約)
+  let planCycleFrom = null;  // どの契約の間隔から planCycle を決めたか(手で切り替えた分を毎回戻さないため)
   function renderPlan() {
     const box = $("cloudPlan"); if (!box) return;
     const isAdmin = profile && (profile.role === "admin" || profile.role === "super");
     if (!me || !profile || !profile.active || !isAdmin) { box.innerHTML = ""; show("cloudPlan", false); return; }
     const canCancel = !!(tenantDoc && tenantDoc.plan === "active");
     const active = canCancel;
+    /* ★契約中の店舗は、実際の請求間隔(月額/年契約)に合わせて開く。
+       ここが常に「月額」だと、年契約の店舗がプラン変更を押したときに
+       年→月の間隔変更になり、追加席・追加端末の間隔とぶつかってStripeに弾かれる。 */
+    const billCyc = (tenantDoc && tenantDoc.billCycle === "year") ? "year" : ((tenantDoc && tenantDoc.billCycle === "month") ? "month" : null);
+    if (active && billCyc && planCycleFrom !== billCyc) { planCycle = billCyc; planCycleFrom = billCyc; }
     const code = tierCode();                       // na / turbo / twinturbo
     const seats = (tenantDoc && tenantDoc.searchSeats) || 3;
     const TN = { na: "NA", turbo: "ターボ", twinturbo: "ツインターボ" };
@@ -262,7 +268,14 @@
       if (r) r.checked = true;
     });
     // プランのボタン → 既存の申し込み処理へ(隠しラジオを合わせてから実行)
-    box.querySelectorAll(".pcBtnGo").forEach(b => b.onclick = () => {
+    box.querySelectorAll(".pcBtnGo").forEach(b => b.onclick = async () => {
+      // 支払い間隔まで変わる時は、押し間違いで年契約が月額に変わらないように一度確認する
+      if (active && billCyc && billCyc !== planCycle) {
+        const to = planCycle === "year" ? "年契約" : "月額";
+        const fr = billCyc === "year" ? "年契約" : "月額";
+        const ok = await uiConfirm("お支払いの間隔も " + fr + " から " + to + " に変わります。よろしいですか？");
+        if (!ok) return;
+      }
       const t = box.querySelector('input[name="signupTier"][value="' + b.dataset.tier + '"]'); if (t) t.checked = true;
       const c = box.querySelector('input[name="signupPlan"][value="' + (planCycle === "year" ? "yearly" : "monthly") + '"]'); if (c) c.checked = true;
       const send = $("btnSignupSend"); if (send) send.click();

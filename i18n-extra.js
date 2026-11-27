@@ -647,7 +647,7 @@ Object.assign(window.I18N_EXTRA.exact, {
   "裏取り検索が無制限。席数まで何人でも使えます。": "Unlimited verified search. Any number of people up to the seat count.",
   "ターボの全機能": "All Turbo features", "裏取り検索 無制限": "Unlimited verified search",
   "検索席 標準3席（4席目〜 +¥3,000/席）": "Search seats: 3 standard (4th seat onward +¥3,000/seat)", "優先サポート": "Priority support",
-  "月額": "Monthly", "年契約（2か月分お得）": "Annual (2 months free)",
+  "月額": "Monthly", "年契約（2か月分お得）": "Annual (2 months free)", "年契約": "Annual",
   "ご利用中": "In use", "次回更新": "Next renewal", "裏取り検索なし": "No verified search", "今月の検索": "Searches this month", "この端末の枠": "This device’s slot",
   "/月": "/mo", "/年": "/yr",
   "現在の状態": "Current status", "未契約（無料・お試し）": "Not subscribed (free / trial)",
@@ -942,7 +942,9 @@ window.I18N_EXTRA.tok = { "件": " items", "台": " vehicles", "日": " days", "
     [/^新しい参加申請が届きました（承認待ち (\d+)件）。$/, "A new join request arrived ($1 awaiting approval)."],
     [/^通知の有効化に失敗しました（(.*)）$/, "Failed to enable notifications ($1)"],
     [/^店舗コードを変更しました：(.*)$/, "Store code changed: $1"],
-    [/^(.*)\n（現在: (.*)）$/, "$1\n(current: $2)"]
+    [/^(.*)\n（現在: (.*)）$/, "$1\n(current: $2)"],
+    [/^お支払いの間隔も (.*) から (.*) に変わります。よろしいですか？$/,
+      (m, a, b) => "The billing interval will also change from " + T(a) + " to " + T(b) + ". Continue?"]
   );
 })();
 
