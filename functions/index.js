@@ -2291,22 +2291,29 @@ async function checkBrake(db) {
 }
 const RECRUIT_SUBJECT = "【協力工場の募集】修理の見積もり依頼をお届けします（登録無料）";
 const RECRUIT_SIGN = "――――――――――――\n" +
-  "見積もり代行 ミツカルAI（運営：MechanoAI／Cablueie）\n" +
-  "担当：中江智広（自動車整備士）\n" +
+  "ミツカルAI／中江智広\n" +
+  "（運営：MechanoAI）\n" +
   "〒894-0062 鹿児島県奄美市名瀬有屋町36-2\n" +
   "TEL：080-3692-0101　Mail：cablueie.123@gmail.com\n" +
   "――――――――――――";
-// 募集の本文（AIで作らず、決まった文面。お客様がいると書くのは、その地域に本当に依頼が来てからにする）
-function recruitBody(l, link) {
+// 募集の本文（社長確認の短縮版 2026-11-28。AIで作らず決まった文面）。
+// 「依頼が来ています」は、その地域に本当に依頼が来ているとき（salesConfig/main.recruitDemandAreas に地域名がある）だけ足す
+function recruitBody(l, link, demandAreas) {
   const name = String((l && l.company) || "").trim().slice(0, 60);
+  const area = String((l && l.area) || "").trim().slice(0, 30);
+  const demand = area && Array.isArray(demandAreas) && demandAreas.some((a) => a && area.includes(String(a)));
+  // shortcut: 対応分野はリードに項目が無いので「車の修理・整備」で固定。リードに分野が入るようになったら差し替える
   return (name ? name + " ご担当者様" : "ご担当者様") + "\n\n" +
-    "突然のご連絡失礼いたします。整備士が運営する見積もり代行「ミツカルAI」の中江と申します。\n\n" +
-    "修理の見積もり依頼を、近くの工場にお届けする仕組みを始めます。見積もりを出していただける工場を探しています。\n\n" +
-    "・お客様は、症状をAIの問診で整理してから見積もりを依頼します（問診の内容をお伝えします）\n" +
-    "・見積もりのご依頼は、AIが営業時間内にお電話でお伺いします（1回3分以内・通話は録音します）\n" +
-    "・工場さまにお金を請求することはありません。登録・お電話・ご紹介すべて無料で、後から有料にすることもありません。登録はいつでも解除できます\n\n" +
-    "ご登録（スマホで3分ほど）：" + link + "\n\n" +
-    "お忙しいところ失礼いたしました。";
+    "見積もり代行「ミツカルAI」の中江智広です。現役の整備士が運営しています。\n\n" +
+    "ミツカルAIは、車の修理見積もりの取得をAIが代行するサービスです。お客様の車両・症状・原因の候補まで特定したうえで、登録工場へAIが電話し、見積もりをお聞きします。\n\n" +
+    (demand ? "現在、" + area + "で修理の見積もり依頼が来ています。" : "") +
+    (area || "お近く") + "で車の修理・整備に対応できる工場として、" + (name ? name + "様" : "貴社") + "にご登録いただきたく、ご連絡しました。\n\n" +
+    "・電話はAIがかけます。冒頭でAIであることと録音をお伝えします\n" +
+    "・通話は3分以内、営業時間内のみ\n" +
+    "・登録・電話・紹介はすべて無料です。後から有料にすることもありません\n" +
+    "・解除はいつでもできます\n\n" +
+    "登録はこちら\n" + link + "\n\n" +
+    "ご不要の場合はご返信ください。以後お送りしません。";
 }
 
 /* ① 営業メールの自動ドリップ送信(1日数件)。毎朝スケジュール実行。
@@ -2364,7 +2371,7 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 540, memor
         "・宛名（例：〇〇 御中）から書き出し、前置きの自己説明は最小限に。";
       let body = "";
       // 登録ページへのリンクは1社ごと（押されたかを数えてから登録ページへ送る）
-      if (recruit) body = recruitBody(l, "https://" + REGION + "-mecanoai.cloudfunctions.net/rgo?l=" + doc.id);
+      if (recruit) body = recruitBody(l, "https://" + REGION + "-mecanoai.cloudfunctions.net/rgo?l=" + doc.id, conf.recruitDemandAreas);
       else {
         try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
         catch (e) { console.error("drip生成エラー", e); }
