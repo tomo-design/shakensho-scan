@@ -2291,7 +2291,7 @@ async function checkBrake(db) {
 }
 const RECRUIT_SUBJECT = "【協力工場の募集】修理の見積もり依頼をお届けします（登録無料）";
 const RECRUIT_SIGN = "――――――――――――\n" +
-  "メカノAI 見積もり代行（Cablueie／カブリエ）\n" +
+  "見積もり代行 ミツカルAI（運営：MechanoAI／Cablueie）\n" +
   "担当：中江智広（自動車整備士）\n" +
   "〒894-0062 鹿児島県奄美市名瀬有屋町36-2\n" +
   "TEL：080-3692-0101　Mail：cablueie.123@gmail.com\n" +
@@ -2300,7 +2300,7 @@ const RECRUIT_SIGN = "――――――――――――\n" +
 function recruitBody(l, link) {
   const name = String((l && l.company) || "").trim().slice(0, 60);
   return (name ? name + " ご担当者様" : "ご担当者様") + "\n\n" +
-    "突然のご連絡失礼いたします。整備士が運営する「メカノAI」の中江と申します。\n\n" +
+    "突然のご連絡失礼いたします。整備士が運営する見積もり代行「ミツカルAI」の中江と申します。\n\n" +
     "修理の見積もり依頼を、近くの工場にお届けする仕組みを始めます。見積もりを出していただける工場を探しています。\n\n" +
     "・お客様は、症状をAIの問診で整理してから見積もりを依頼します（問診の内容をお伝えします）\n" +
     "・見積もりのご依頼は、AIが営業時間内にお電話でお伺いします（1回3分以内・通話は録音します）\n" +
@@ -4000,12 +4000,12 @@ exports.kojoReply = functions.region(REGION).firestore.document("mitsumoriShops/
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
   const at = new Date(d.registeredAt || Date.now()).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   const text = (d.person || "ご担当者") + " 様（" + (d.name || "") + "）\n\n"
-    + "メカノAI 見積もり代行の協力工場にご登録いただき、ありがとうございます。登録を受け付けました。\n\n"
+    + "見積もり代行 ミツカルAIの協力工場にご登録いただき、ありがとうございます。登録を受け付けました。\n\n"
     + "【受付番号】" + ctx.params.id + "\n【受付日時】" + at + "\n【工場名】" + (d.name || "") + "\n【AIがおかけする電話】" + (d.phone || "") + "\n"
     + "【対応できる作業】" + [...(d.works || []), d.worksOther].filter(Boolean).join("、") + "\n【営業時間】" + (d.hours || "") + "\n\n"
     + "登録は無料です。解除はいつでもできます（受付画面に出た解除リンクから、またはこのメールに「解除」と返信してください）。\n"
-    + "お心当たりがない場合は、このメールに返信してお知らせください。\n\nメカノAI 見積もり代行";
-  const ok = await sendMail(to, "【メカノAI】協力工場の登録を受け付けました", text, replyAddr());
+    + "お心当たりがない場合は、このメールに返信してお知らせください。\n\n見積もり代行 ミツカルAI（運営：MechanoAI）";
+  const ok = await sendMail(to, "【ミツカルAI】協力工場の登録を受け付けました", text, replyAddr());
   await snap.ref.update({ replyMail: ok ? "sent" : "failed", replyMailAt: new Date().toISOString() });
   return null;
 });
