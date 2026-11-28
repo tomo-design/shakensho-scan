@@ -2174,8 +2174,12 @@ exports.recruitDaily = functions.region(REGION).runWith({ timeoutSeconds: 120, m
     if (conf.campaign !== "recruit") { console.log("recruitDaily: 募集中でないためスキップ"); return null; }
     if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("recruitDaily: SendGrid未設定のためスキップ"); return null; }
     const since = Date.now() - 86400000;
-    const outSnap = await db.collection("salesOutbound").where("ts", ">=", since).select("subject").get();
-    const sent = outSnap.docs.filter((d) => d.get("subject") === RECRUIT_SUBJECT).length;
+    const outSnap = await db.collection("salesOutbound").where("ts", ">=", since).select("subject", "company").get();
+    const sentDocs = outSnap.docs.filter((d) => d.get("subject") === RECRUIT_SUBJECT);
+    const sent = sentDocs.length;
+    // マルのフォーム営業と同じ工場に二重に送らないよう、送った工場の名前も載せる
+    const sentNames = [];
+    sentDocs.forEach((d) => { const c = String(d.get("company") || "").trim(); if (c && sentNames.indexOf(c) < 0) sentNames.push(c); });
     const clSnap = await db.collection("recruitClicks").where("ts", ">=", since).get();
     const names = [];
     clSnap.docs.forEach((d) => { const c = String(d.get("company") || "").trim(); if (c && names.indexOf(c) < 0) names.push(c); });
@@ -2188,6 +2192,7 @@ exports.recruitDaily = functions.region(REGION).runWith({ timeoutSeconds: 120, m
       "送信：" + sent + "通",
       "登録ページへのクリック：" + clSnap.size + "回・" + names.length + "社",
       "クリックした工場：" + (names.length ? names.slice(0, 30).join("、") : "なし"),
+      "メールを送った工場：" + (sentNames.length ? sentNames.slice(0, 400).join("、") : "なし"),
       "累計：送信" + (totalSent < 0 ? "不明" : totalSent + "通") + "・クリックした工場" + (totalClicked < 0 ? "不明" : totalClicked + "社"),
       "1日の上限：" + rampCap(conf) + "通" + (conf.brakeTripped ? "（自動ブレーキで停止中：" + (conf.brakeReason || "") + "）" : ""),
       "※クリック数には、メールの安全確認の自動アクセスが混じることがあります",
