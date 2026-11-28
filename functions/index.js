@@ -3839,3 +3839,21 @@ exports.dailyReport = functions.region(REGION).runWith({ timeoutSeconds: 300, me
     console.log(body);
     return null;
   });
+
+/* 協力工場の登録（見積もり代行 kojo.html → mitsumori 関数が mitsumoriShops に保存）の受付メール。
+   連絡先がメールのときだけ送る。解除の鍵は保存していない（ハッシュのみ）ので、解除は受付画面のリンクかこのメールへの返信で。 */
+exports.kojoReply = functions.region(REGION).firestore.document("mitsumoriShops/{id}").onCreate(async (snap, ctx) => {
+  const d = snap.data() || {};
+  const to = String(d.contact || "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
+  const at = new Date(d.registeredAt || Date.now()).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  const text = (d.person || "ご担当者") + " 様（" + (d.name || "") + "）\n\n"
+    + "メカノAI 見積もり代行の協力工場にご登録いただき、ありがとうございます。登録を受け付けました。\n\n"
+    + "【受付番号】" + ctx.params.id + "\n【受付日時】" + at + "\n【工場名】" + (d.name || "") + "\n【AIがおかけする電話】" + (d.phone || "") + "\n"
+    + "【対応できる作業】" + [...(d.works || []), d.worksOther].filter(Boolean).join("、") + "\n【営業時間】" + (d.hours || "") + "\n\n"
+    + "登録は無料です。解除はいつでもできます（受付画面に出た解除リンクから、またはこのメールに「解除」と返信してください）。\n"
+    + "お心当たりがない場合は、このメールに返信してお知らせください。\n\nメカノAI 見積もり代行";
+  const ok = await sendMail(to, "【メカノAI】協力工場の登録を受け付けました", text, replyAddr());
+  await snap.ref.update({ replyMail: ok ? "sent" : "failed", replyMailAt: new Date().toISOString() });
+  return null;
+});
