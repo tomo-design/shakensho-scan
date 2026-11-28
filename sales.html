@@ -226,7 +226,7 @@
         </div>
         <p class="vsub" style="margin:0 0 10px">指定した地域・業種を毎朝自動で検索し、連絡手段（メール／フォーム／FAX）のある<b>新規</b>候補だけを見込み客に自動追加します。メールがある先は、その後「毎朝ドリップ送信」で少量ずつ自動送信（送信の有効化は一括作成タブ）。既存の見込み客と重複する先は自動で除外します。</p>
         <div class="form-grid">
-          <div class="field" style="grid-column:1/-1"><label>対象の地域（改行またはカンマ区切りで複数可・最大3件/日）</label><textarea id="arAreas" rows="2" placeholder="例：鹿児島県奄美市&#10;大阪府堺市"></textarea></div>
+          <div class="field" style="grid-column:1/-1"><label>対象の地域（改行またはカンマ区切りで複数可。1日に「調べる地域の数」だけ順番に回ります）</label><textarea id="arAreas" rows="2" placeholder="例：鹿児島県奄美市&#10;大阪府堺市"></textarea></div>
           <div class="field"><label>業種</label>
             <select id="arKind">
               <option value="整備工場">整備工場</option>
@@ -238,6 +238,7 @@
             </select>
           </div>
           <div class="field"><label>1地域あたりの件数（最大20）</label><input type="number" id="arPerRun" min="1" max="20" value="10"></div>
+          <div class="field"><label>1日に調べる地域の数（最大10）</label><input type="number" id="arAreasPerDay" min="1" max="10" value="3"></div>
         </div>
         <div class="panel-actions">
           <button id="btnSaveAr" class="btn btn-accent btn-sm">保存</button>
@@ -464,12 +465,16 @@
         </div>
         <p class="vsub" style="margin:0 0 10px">未接触の見込み客（状況＝見込み・メールあり）へ、1日あたり指定件数だけAI作成のコールドメール（配信停止リンク・署名つき）を毎朝自動送信します。送信した相手は自動で「アプローチ中」になり、二重送信しません。</p>
         <div class="form-grid">
-          <div class="field"><label>1日の送信件数</label><input type="number" id="dripPerDay" min="1" max="20" value="3"></div>
+          <div class="field"><label>送る内容</label><select id="dripCampaign"><option value="app">メカノAIアプリの案内</option><option value="recruit">協力工場の募集（見積もり代行）</option></select></div>
+          <div class="field"><label>1日の送信件数（アプリの案内は最大20・募集は最大400）</label><input type="number" id="dripPerDay" min="1" max="400" value="3"></div>
+          <div class="field" style="grid-column:1/-1"><label>協力工場の登録ページのURL（募集のときは必須。無いと1通も送りません）</label><input type="url" id="recruitUrl" placeholder="https://..."></div>
         </div>
         <div class="panel-actions">
           <button id="btnSaveDrip" class="btn btn-accent btn-sm">保存</button>
           <span id="dripStat" class="muted"></span>
         </div>
+        <p id="brakeStat" class="vsub" style="margin:8px 0 0"></p>
+        <div class="panel-actions"><button id="btnBrakeReset" class="btn btn-sm" hidden>自動ブレーキを解除</button></div>
       </div>
 
       <div class="panel" id="trialPanel">

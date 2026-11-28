@@ -2142,7 +2142,7 @@ exports.unsub = functions.region(REGION).https.onRequest(async (req, res) => {
    salesConfig/main.arEnabled=true のとき、arAreas(改行/カンマ区切り)×arKind を検索グラウンディングでリサーチし、
    連絡手段(メール/フォーム/FAX)のある"新規"候補だけを salesLeads(見込み)へ自動追加。以降ドリップが少量ずつ自動送信。
    ※捏造防止は researchCandidates 側で担保(出典URL必須)。メール宛の実送信はドリップの少量制限で安全運用。 */
-exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "512MB" })
+exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 540, memory: "512MB" })
   .pubsub.schedule("every day 09:00").timeZone("Asia/Tokyo").onRun(async () => {
     const db = admin.firestore();
     const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
@@ -2152,12 +2152,14 @@ exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, m
     // 毎日リストの先頭3件だけを見ると掘り尽くして0件になるため、日ごとに次の3件へローテーションする
     const cursor = Math.max(parseInt(conf.arCursor, 10) || 0, 0) % allAreas.length;
     const areas = [];
-    for (let i = 0; i < Math.min(3, allAreas.length); i++) areas.push(allAreas[(cursor + i) % allAreas.length]);
+    // 1日に調べる地域の数（arAreasPerDay・1〜10・既定3）。全国を回すときは増やす
+    const perDayAreas = Math.min(Math.max(parseInt(conf.arAreasPerDay, 10) || 3, 1), 10);
+    for (let i = 0; i < Math.min(perDayAreas, allAreas.length); i++) areas.push(allAreas[(cursor + i) % allAreas.length]);
     const nextCursor = (cursor + areas.length) % allAreas.length;
     const kind = String(conf.arKind || "整備工場");
     const perRun = Math.min(Math.max(parseInt(conf.arPerRun, 10) || 10, 1), 20);
     const norm = (s) => String(s || "").toLowerCase().replace(/[\s　]|株式会社|有限会社|（株）|\(株\)|（有）|\(有\)/g, "");
-    const leadsSnap = await db.collection("salesLeads").select("company").limit(1000).get();
+    const leadsSnap = await db.collection("salesLeads").select("company").limit(5000).get();
     const existNames = leadsSnap.docs.map((d) => d.data().company).filter(Boolean);
     const existSet = new Set(existNames.map(norm));
     let added = 0;
@@ -2188,16 +2190,92 @@ exports.autoResearch = functions.region(REGION).runWith({ timeoutSeconds: 300, m
     return null;
   });
 
+/* 協力工場の募集（見積もり代行の受け皿）。salesConfig/main.campaign="recruit" のときは、メカノAIアプリの案内を送らず、募集の文面だけを送る。
+   ・登録ページのURL(recruitUrl)が無いときは1通も送らない（受け皿が先）
+   ・増やし方：最初に送った日(rampStart)から 1週目50通・2週目100通・3週目200通・4週目から400通／日（dripPerDay がそれより小さければ dripPerDay）
+   ・自動ブレーキ：直近7日の送信に対して、SendGridの「届かなかった」が5%を超えた、または迷惑メールの報告が3件以上・0.3%超（200通以上のとき）
+     → 自動送信を止めて(brakeTripped)運営に知らせる。解除は営業コンソールのボタンから
+   ・FAXは募集用の文面ができるまで送らない（faxSend 側で止める） */
+const RAMP_CAPS = [50, 100, 200, 400];
+function rampCap(conf) {
+  const st = Number(conf && conf.rampStart) || 0;
+  if (!st) return RAMP_CAPS[0];
+  const w = Math.floor((Date.now() - st) / (7 * 86400000));
+  return RAMP_CAPS[Math.min(Math.max(w, 0), RAMP_CAPS.length - 1)];
+}
+// SendGrid の止められたアドレスの数（bounces / blocks / invalid_emails / spam_reports）。読めなければ null
+async function sgSuppressCount(kind, sinceSec) {
+  const key = cfg().sendgrid.key;
+  if (!key) return null;
+  try {
+    const r = await fetch("https://api.sendgrid.com/v3/suppression/" + kind + "?start_time=" + sinceSec + "&limit=500", { headers: { Authorization: "Bearer " + key } });
+    if (!r.ok) { console.warn("SendGrid " + kind + " を読めません: " + r.status); return null; }
+    const j = await r.json();
+    return Array.isArray(j) ? j.length : null;
+  } catch (e) { console.warn("SendGrid " + kind + " を読めません", e.message); return null; }
+}
+async function checkBrake(db) {
+  const since = Date.now() - 7 * 86400000;
+  const sentSnap = await db.collection("salesOutbound").where("ts", ">=", since).select("email").get();
+  const sent7 = sentSnap.docs.filter((d) => d.get("email")).length;
+  const sinceSec = Math.floor(since / 1000);
+  const counts = await Promise.all(["bounces", "blocks", "invalid_emails", "spam_reports"].map((k) => sgSuppressCount(k, sinceSec)));
+  const bounced = (counts[0] || 0) + (counts[1] || 0) + (counts[2] || 0), spam = counts[3] || 0;
+  let reason = "";
+  if (sent7 >= 50 && bounced / sent7 > 0.05) reason = "届かなかったメールが" + Math.round(bounced / sent7 * 100) + "%（直近7日 " + bounced + "／" + sent7 + "通）";
+  else if (spam >= 3 || (sent7 >= 200 && spam / sent7 > 0.003)) reason = "迷惑メールの報告が" + spam + "件（直近7日 " + sent7 + "通）";
+  return { reason: reason, sent7: sent7, bounced: bounced, spam: spam, sgOk: counts.some((x) => x != null) };
+}
+const RECRUIT_SUBJECT = "【協力工場の募集】修理の見積もり依頼をお届けします（登録無料）";
+const RECRUIT_SIGN = "――――――――――――\n" +
+  "メカノAI 見積もり代行（Cablueie／カブリエ）\n" +
+  "担当：中江智広（自動車整備士）\n" +
+  "〒894-0062 鹿児島県奄美市名瀬有屋町36-2\n" +
+  "TEL：080-3692-0101　Mail：cablueie.123@gmail.com\n" +
+  "――――――――――――";
+// 募集の本文（AIで作らず、決まった文面。お客様がいると書くのは、その地域に本当に依頼が来てからにする）
+function recruitBody(l, url) {
+  const name = String((l && l.company) || "").trim().slice(0, 60);
+  return (name ? name + " ご担当者様" : "ご担当者様") + "\n\n" +
+    "突然のご連絡失礼いたします。整備士が運営する「メカノAI」の中江と申します。\n\n" +
+    "修理の見積もり依頼を、近くの工場にお届けする仕組みを始めます。見積もりを出していただける工場を探しています。\n\n" +
+    "・お客様は、症状をAIの問診で整理してから見積もりを依頼します（問診の内容をお伝えします）\n" +
+    "・見積もりのご依頼は、AIが営業時間内にお電話でお伺いします（1回3分以内・通話は録音します）\n" +
+    "・工場さまにお金を請求することはありません。登録は無料で、いつでも解除できます\n\n" +
+    "ご登録（スマホで3分ほど）：" + url + "\n\n" +
+    "お忙しいところ失礼いたしました。";
+}
+
 /* ① 営業メールの自動ドリップ送信(1日数件)。毎朝スケジュール実行。
    salesConfig/main.dripEnabled=true のときだけ、salesLeads(status=見込み・email有)へ
    AI生成のコールドメール(配信停止＋署名つき)を dripPerDay 件送り、状況を「アプローチ中」に更新。 */
-exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memory: "512MB" })
+exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 540, memory: "512MB" })
   .pubsub.schedule("every day 09:30").timeZone("Asia/Tokyo").onRun(async () => {
     const db = admin.firestore();
     const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
     if (!conf.dripEnabled) { console.log("drip: 無効のためスキップ"); return null; }
     if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("drip: SendGrid未設定のためスキップ"); return null; }
-    const perDay = Math.min(Math.max(parseInt(conf.dripPerDay, 10) || 3, 1), 20);
+    // 協力工場の募集(campaign="recruit")：アプリの案内は送らない。登録ページのURLが無ければ送らない。段階的に増やし、届かなくなったら自動で止める
+    const recruit = conf.campaign === "recruit";
+    if (recruit && !/^https:\/\/[^\s"<>]+$/.test(String(conf.recruitUrl || ""))) { console.log("drip: 募集の登録ページURLが未設定のためスキップ"); return null; }
+    if (conf.brakeTripped) { console.log("drip: 自動ブレーキ中のためスキップ（" + (conf.brakeReason || "") + "）"); return null; }
+    let perDay = Math.min(Math.max(parseInt(conf.dripPerDay, 10) || 3, 1), recruit ? RAMP_CAPS[RAMP_CAPS.length - 1] : 20);
+    if (recruit) {
+      if (!conf.rampStart) { conf.rampStart = Date.now(); await db.collection("salesConfig").doc("main").set({ rampStart: conf.rampStart }, { merge: true }); }
+      perDay = Math.min(perDay, rampCap(conf));
+      const br = await checkBrake(db);
+      await db.collection("salesConfig").doc("main").set({ brakeLastCheck: Date.now(), brakeSent7: br.sent7, brakeBounced7: br.bounced, brakeSpam7: br.spam, brakeSgOk: br.sgOk }, { merge: true });
+      if (br.reason) {
+        await db.collection("salesConfig").doc("main").set({ dripEnabled: false, brakeTripped: true, brakeReason: br.reason, brakeAt: Date.now() }, { merge: true });
+        try {
+          await sendMail(cfg().sendgrid.notify, "【営業の自動ブレーキ】協力工場の募集メールを止めました",
+            "自動ブレーキが働いたため、協力工場の募集メールの自動送信を止めました。\n理由：" + br.reason +
+            "\n\n営業コンソールの「自動送信」で原因を確かめてから、ブレーキを解除してください。", replyAddr());
+        } catch (e) { console.error("ブレーキの通知に失敗", e); }
+        console.log("drip: 自動ブレーキ " + br.reason);
+        return null;
+      }
+    }
     const freeKeys = cfg().geminiFree || [];
     if (!freeKeys.length) { console.log("drip: Geminiキー未設定"); return null; }
     const latest = await latestModels(freeKeys[0]);
@@ -2222,13 +2300,16 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memor
         "・30秒で読める短さ。押し売り・誇張・古い統計の断定はしない。CTAは体験デモ/LPの1つに集約。\n" +
         "・宛名（例：〇〇 御中）から書き出し、前置きの自己説明は最小限に。";
       let body = "";
-      try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
-      catch (e) { console.error("drip生成エラー", e); }
+      if (recruit) body = recruitBody(l, conf.recruitUrl);
+      else {
+        try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
+        catch (e) { console.error("drip生成エラー", e); }
+      }
       if (!body) continue;
       const unsubUrl = "https://" + REGION + "-mecanoai.cloudfunctions.net/unsub?e=" + encodeURIComponent(email);
-      const optout = "――――――――――――\n本メールは、貴社が公開されている連絡先へ整備業向けツールのご案内としてお送りしています。\n今後の配信を希望されない場合は本メールに「配信停止」とご返信いただくか、次のリンクからお手続きください（以後お送りしません）。\n配信停止：" + unsubUrl;
-      const text = body + "\n\n" + optout + "\n\n" + MAIL_SIGN;
-      const subject = "整備現場の“調べ物”を減らすツールのご案内（メカノAI）";
+      const optout = "――――――――――――\n本メールは、貴社が公開されている連絡先へ" + (recruit ? "見積もり依頼をお届けする協力工場の募集" : "整備業向けツール") + "のご案内としてお送りしています。\n今後の配信を希望されない場合は本メールに「配信停止」とご返信いただくか、次のリンクからお手続きください（以後お送りしません）。\n配信停止：" + unsubUrl;
+      const text = body + "\n\n" + optout + "\n\n" + (recruit ? RECRUIT_SIGN : MAIL_SIGN);
+      const subject = recruit ? RECRUIT_SUBJECT : "整備現場の“調べ物”を減らすツールのご案内（メカノAI）";
       const ok = await sendMail(email, subject, text, replyAddr());
       if (ok) {
         await doc.ref.set({ status: "アプローチ中", approachedAt: Date.now(), updatedAt: Date.now() }, { merge: true });
@@ -2271,6 +2352,8 @@ exports.faxSend = functions.region(REGION).runWith({ timeoutSeconds: 300, memory
     const db = admin.firestore();
     const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
     if (!conf.faxEnabled) { console.log("fax: 無効のためスキップ"); return null; }
+    // 協力工場の募集に切り替えている間は、アプリの案内のFAXを送らない（募集用のFAX文面ができたら別に足す）
+    if (conf.campaign === "recruit") { console.log("fax: 協力工場の募集のFAX文面ができるまで止めています"); return null; }
     const toAddr = String(conf.faxToAddr || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toAddr)) { console.log("fax: faxToAddr未設定のためスキップ"); return null; }
     if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("fax: SendGrid未設定のためスキップ"); return null; }
@@ -2896,6 +2979,7 @@ ${excludeBlock}
 ・address は郵送DMに使うので、都道府県から始まる正確な住所を(公開されていれば)入れる。
 ・各件には、その情報を確認した実在の出典URL(source)を必ず付ける。出典を示せない件は結果に一切含めない。
 ・問い合わせフォームのページがあれば、そのURL(formUrl)を入れる。
+・公式サイトや問い合わせページに「営業・勧誘のご連絡はお断り」などの記載がある事業者は、結果に含めない。
 ・無理に件数を揃えない。確かな候補が少なければ少ないままでよい。
 
 【出力形式】次のJSON配列だけを出力する。前後に説明文・コードフェンス(\`\`\`)・注釈を一切付けない。
@@ -2985,9 +3069,13 @@ exports.salesRoom = functions.runWith({ timeoutSeconds: 480, memory: "1GB" }).re
     const c = data.config || {};
     const patch = { updatedAt: Date.now() };
     if ("dripEnabled" in c) patch.dripEnabled = !!c.dripEnabled;
-    if ("dripPerDay" in c) patch.dripPerDay = Math.min(Math.max(parseInt(c.dripPerDay, 10) || 3, 1), 20);
+    if ("dripPerDay" in c) patch.dripPerDay = Math.min(Math.max(parseInt(c.dripPerDay, 10) || 3, 1), 400);   // アプリの案内は送るときに20通で止める
+    if ("campaign" in c) patch.campaign = c.campaign === "recruit" ? "recruit" : "app";
+    if ("recruitUrl" in c) { const u = String(c.recruitUrl || "").trim().slice(0, 300); patch.recruitUrl = /^https:\/\/[^\s"<>]+$/.test(u) ? u : ""; }
+    if (c.brakeReset) { patch.brakeTripped = false; patch.brakeReason = ""; }
     if ("arEnabled" in c) patch.arEnabled = !!c.arEnabled;
-    if ("arAreas" in c) patch.arAreas = String(c.arAreas || "").slice(0, 1000);
+    if ("arAreas" in c) patch.arAreas = String(c.arAreas || "").slice(0, 6000);
+    if ("arAreasPerDay" in c) patch.arAreasPerDay = Math.min(Math.max(parseInt(c.arAreasPerDay, 10) || 3, 1), 10);
     if ("arKind" in c) patch.arKind = String(c.arKind || "整備工場").slice(0, 40);
     if ("arPerRun" in c) patch.arPerRun = Math.min(Math.max(parseInt(c.arPerRun, 10) || 10, 1), 20);
     if ("faxEnabled" in c) patch.faxEnabled = !!c.faxEnabled;
