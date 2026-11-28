@@ -2138,6 +2138,64 @@ exports.unsub = functions.region(REGION).https.onRequest(async (req, res) => {
     "<p style='color:#888;font-size:13px'>メカノAI（Cablueie）</p></div>");
 });
 
+/* 協力工場の募集メールの、登録ページへのリンク（1社ごと）。押された回数を数えてから登録ページへ送る。
+   メールの安全確認の自動アクセス（届いたURLを先に開いて調べる仕組み）は、見分けられるものだけ数えない */
+exports.rgo = functions.region(REGION).runWith({ timeoutSeconds: 30, memory: "128MB" }).https.onRequest(async (req, res) => {
+  const id = String((req.query && req.query.l) || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 40);
+  const db = admin.firestore();
+  let url = "https://mechanoai-cablueie.com/";
+  try {
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    const ru = String(conf.recruitUrl || "");
+    if (/^https:\/\/[^\s"<>]+$/.test(ru)) url = ru + (ru.indexOf("?") >= 0 ? "&" : "?") + "src=email";
+    const ua = String(req.headers["user-agent"] || "");
+    const bot = req.method === "HEAD" || /bot|crawl|spider|preview|scan|safelinks|proofpoint|mimecast|barracuda|headless|python|curl|wget/i.test(ua);
+    if (id && !bot) {
+      const ref = db.collection("salesLeads").doc(id);
+      const snap = await ref.get();
+      if (snap.exists) {
+        const l = snap.data() || {};
+        const patch = { recruitClicks: admin.firestore.FieldValue.increment(1), updatedAt: Date.now() };
+        if (!l.recruitClickedAt) patch.recruitClickedAt = Date.now();
+        await ref.set(patch, { merge: true });
+        await db.collection("recruitClicks").add({ leadId: id, company: l.company || "", ts: Date.now() });
+      }
+    }
+  } catch (e) { console.error("rgo", e.message); }
+  return res.redirect(302, url);
+});
+
+/* 協力工場の募集の数字を、毎朝4:55に運営のメールへ送る（件名「【協力工場募集の数字】日付」）。
+   Claudeの毎朝の予定タスク（5:07）がこのメールを読んでDriveの04に置き、マルの朝レポート（5:48）で使う */
+exports.recruitDaily = functions.region(REGION).runWith({ timeoutSeconds: 120, memory: "256MB" })
+  .pubsub.schedule("55 4 * * *").timeZone("Asia/Tokyo").onRun(async () => {
+    const db = admin.firestore();
+    const conf = (await db.collection("salesConfig").doc("main").get()).data() || {};
+    if (conf.campaign !== "recruit") { console.log("recruitDaily: 募集中でないためスキップ"); return null; }
+    if (!(cfg().sendgrid.key && cfg().sendgrid.from)) { console.log("recruitDaily: SendGrid未設定のためスキップ"); return null; }
+    const since = Date.now() - 86400000;
+    const outSnap = await db.collection("salesOutbound").where("ts", ">=", since).select("subject").get();
+    const sent = outSnap.docs.filter((d) => d.get("subject") === RECRUIT_SUBJECT).length;
+    const clSnap = await db.collection("recruitClicks").where("ts", ">=", since).get();
+    const names = [];
+    clSnap.docs.forEach((d) => { const c = String(d.get("company") || "").trim(); if (c && names.indexOf(c) < 0) names.push(c); });
+    let totalSent = -1, totalClicked = -1;
+    try { totalSent = (await db.collection("salesOutbound").where("subject", "==", RECRUIT_SUBJECT).count().get()).data().count; } catch (e) { console.warn("recruitDaily 累計送信", e.message); }
+    try { totalClicked = (await db.collection("salesLeads").where("recruitClicks", ">", 0).count().get()).data().count; } catch (e) { console.warn("recruitDaily 累計クリック", e.message); }
+    const day = pure.jstDay(Date.now());
+    const text = [
+      "協力工場の募集の数字（" + day + " 4:55 時点・過去24時間）",
+      "送信：" + sent + "通",
+      "登録ページへのクリック：" + clSnap.size + "回・" + names.length + "社",
+      "クリックした工場：" + (names.length ? names.slice(0, 30).join("、") : "なし"),
+      "累計：送信" + (totalSent < 0 ? "不明" : totalSent + "通") + "・クリックした工場" + (totalClicked < 0 ? "不明" : totalClicked + "社"),
+      "1日の上限：" + rampCap(conf) + "通" + (conf.brakeTripped ? "（自動ブレーキで停止中：" + (conf.brakeReason || "") + "）" : ""),
+      "※クリック数には、メールの安全確認の自動アクセスが混じることがあります",
+    ].join("\n");
+    await sendMail(cfg().sendgrid.notify, "【協力工場募集の数字】" + day, text, replyAddr());
+    return null;
+  });
+
 /* ①-0 店舗リサーチの自動実行(半自動運用)。毎朝ドリップ送信の少し前(09:00)に走る。
    salesConfig/main.arEnabled=true のとき、arAreas(改行/カンマ区切り)×arKind を検索グラウンディングでリサーチし、
    連絡手段(メール/フォーム/FAX)のある"新規"候補だけを salesLeads(見込み)へ自動追加。以降ドリップが少量ずつ自動送信。
@@ -2234,15 +2292,15 @@ const RECRUIT_SIGN = "――――――――――――\n" +
   "TEL：080-3692-0101　Mail：cablueie.123@gmail.com\n" +
   "――――――――――――";
 // 募集の本文（AIで作らず、決まった文面。お客様がいると書くのは、その地域に本当に依頼が来てからにする）
-function recruitBody(l, url) {
+function recruitBody(l, link) {
   const name = String((l && l.company) || "").trim().slice(0, 60);
   return (name ? name + " ご担当者様" : "ご担当者様") + "\n\n" +
     "突然のご連絡失礼いたします。整備士が運営する「メカノAI」の中江と申します。\n\n" +
     "修理の見積もり依頼を、近くの工場にお届けする仕組みを始めます。見積もりを出していただける工場を探しています。\n\n" +
     "・お客様は、症状をAIの問診で整理してから見積もりを依頼します（問診の内容をお伝えします）\n" +
     "・見積もりのご依頼は、AIが営業時間内にお電話でお伺いします（1回3分以内・通話は録音します）\n" +
-    "・工場さまにお金を請求することはありません。登録は無料で、いつでも解除できます\n\n" +
-    "ご登録（スマホで3分ほど）：" + url + "\n\n" +
+    "・工場さまにお金を請求することはありません。登録・お電話・ご紹介すべて無料で、後から有料にすることもありません。登録はいつでも解除できます\n\n" +
+    "ご登録（スマホで3分ほど）：" + link + "\n\n" +
     "お忙しいところ失礼いたしました。";
 }
 
@@ -2300,7 +2358,8 @@ exports.dripSend = functions.region(REGION).runWith({ timeoutSeconds: 540, memor
         "・30秒で読める短さ。押し売り・誇張・古い統計の断定はしない。CTAは体験デモ/LPの1つに集約。\n" +
         "・宛名（例：〇〇 御中）から書き出し、前置きの自己説明は最小限に。";
       let body = "";
-      if (recruit) body = recruitBody(l, conf.recruitUrl);
+      // 登録ページへのリンクは1社ごと（押されたかを数えてから登録ページへ送る）
+      if (recruit) body = recruitBody(l, "https://" + REGION + "-mecanoai.cloudfunctions.net/rgo?l=" + doc.id);
       else {
         try { const r = await callGeminiModels(freeKeys[0], models, [{ text: prompt }], "flash", false, 2048); if (!r.failed) body = (r.text || "").trim(); }
         catch (e) { console.error("drip生成エラー", e); }
