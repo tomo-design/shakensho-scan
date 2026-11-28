@@ -704,6 +704,7 @@
       if ($("arAreas")) $("arAreas").value = c.arAreas || "";
       if ($("arKind")) $("arKind").value = c.arKind || "整備工場";
       if ($("arPerRun")) $("arPerRun").value = c.arPerRun || 10;
+      if ($("arAreasPerDay")) $("arAreasPerDay").value = c.arAreasPerDay || 3;
       if ($("arStat")) {
         let s = "";
         if (c.arLastRun) {
@@ -721,6 +722,7 @@
         await api("setConfig", { config: {
           arEnabled: $("arEnabled").checked, arAreas: $("arAreas").value,
           arKind: $("arKind").value, arPerRun: parseInt($("arPerRun").value, 10) || 10,
+          arAreasPerDay: $("arAreasPerDay") ? (parseInt($("arAreasPerDay").value, 10) || 3) : 3,
         } });
         toast("自動リサーチの設定を保存しました");
         loadArConfig();
@@ -2536,6 +2538,23 @@ ${SNS_HUMAN}`;
       const c = j.config || {};
       if ($("dripEnabled")) $("dripEnabled").checked = !!c.dripEnabled;
       if ($("dripPerDay")) $("dripPerDay").value = c.dripPerDay || 3;
+      if ($("dripCampaign")) $("dripCampaign").value = c.campaign === "recruit" ? "recruit" : "app";
+      if ($("recruitUrl")) $("recruitUrl").value = c.recruitUrl || "";
+      if ($("brakeStat")) {
+        // 協力工場の募集：段階的な増やし方と自動ブレーキの状態
+        const caps = [50, 100, 200, 400];
+        let s = "";
+        if (c.campaign === "recruit") {
+          const w = c.rampStart ? Math.min(Math.max(Math.floor((Date.now() - c.rampStart) / (7 * 86400000)), 0), 3) : 0;
+          s = !c.recruitUrl ? "⚠ 登録ページのURLが未設定のため、募集メールは送られません"
+            : c.rampStart ? "段階的に増やしています：" + (w + 1) + "週目・1日最大" + caps[w] + "通（4週目から400通）"
+            : "最初の送信から1日50通で始め、週ごとに倍にします（最大400通）";
+          if (c.brakeLastCheck) s += "／直近7日：送信" + (c.brakeSent7 || 0) + "・届かず" + (c.brakeBounced7 || 0) + "・迷惑メールの報告" + (c.brakeSpam7 || 0) + (c.brakeSgOk === false ? "（SendGridの数字を読めていません）" : "");
+          if (c.brakeTripped) s = "⛔ 自動ブレーキで止まっています：" + (c.brakeReason || "");
+        }
+        $("brakeStat").textContent = s;
+      }
+      if ($("btnBrakeReset")) $("btnBrakeReset").hidden = !c.brakeTripped;
       if ($("dripStat")) $("dripStat").textContent = j.sgReady ? "" : "⚠ メール送信(SendGrid)が未設定です。設定するまで実際の送信は行われません。";
       if ($("faxEnabled")) $("faxEnabled").checked = !!c.faxEnabled;
       if ($("faxPerDay")) $("faxPerDay").value = c.faxPerDay || 3;
@@ -2586,11 +2605,22 @@ ${SNS_HUMAN}`;
     } catch (e) { toast(e.message); }
     finally { _sf.disabled = false; }
   };
+  const _br = $("btnBrakeReset");
+  if (_br) _br.onclick = async () => {
+    if (!confirm("自動ブレーキを解除します。\n届かないアドレスや迷惑メールの報告の原因を確かめましたか？\n解除しても、自動送信は「有効」にし直すまで止まったままです。")) return;
+    _br.disabled = true;
+    try { await api("setConfig", { config: { brakeReset: true } }); toast("自動ブレーキを解除しました"); loadDripConfig(); }
+    catch (e) { toast(e.message); }
+    finally { _br.disabled = false; }
+  };
   const _sd = $("btnSaveDrip");
   if (_sd) _sd.onclick = async () => {
     _sd.disabled = true;
     try {
-      await api("setConfig", { config: { dripEnabled: $("dripEnabled").checked, dripPerDay: parseInt($("dripPerDay").value, 10) || 3 } });
+      const camp = $("dripCampaign") ? $("dripCampaign").value : "app";
+      const rurl = $("recruitUrl") ? ($("recruitUrl").value || "").trim() : "";
+      if (camp === "recruit" && !/^https:\/\//.test(rurl)) toast("登録ページのURLが無いので、募集メールはまだ送られません");
+      await api("setConfig", { config: { dripEnabled: $("dripEnabled").checked, dripPerDay: parseInt($("dripPerDay").value, 10) || 3, campaign: camp, recruitUrl: rurl } });
       toast("自動送信の設定を保存しました");
       loadDripConfig();
     } catch (e) { toast(e.message); }
